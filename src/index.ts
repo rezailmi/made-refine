@@ -1,7 +1,5 @@
 'use client'
 
-import './styles.css'
-
 export { DirectEdit } from './direct-edit'
 export { DirectEditDemo } from './demo'
 

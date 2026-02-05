@@ -1,4 +1,5 @@
 import * as React from 'react'
+import { PortalContainerProvider } from './portal-container'
 import type {
   DirectEditState,
   SpacingPropertyKey,
@@ -406,5 +407,9 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     toggleEditMode,
   }
 
-  return <DirectEditContext.Provider value={contextValue}>{children}</DirectEditContext.Provider>
+  return (
+    <PortalContainerProvider>
+      <DirectEditContext.Provider value={contextValue}>{children}</DirectEditContext.Provider>
+    </PortalContainerProvider>
+  )
 }

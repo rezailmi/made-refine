@@ -1,5 +1,6 @@
 import * as React from 'react'
 import { createPortal } from 'react-dom'
+import { usePortalContainer } from './portal-container'
 import { useDirectEdit } from './provider'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
@@ -1586,6 +1587,7 @@ export function DirectEditPanelInner({
 }
 
 function DirectEditPanelContent() {
+  const container = usePortalContainer()
   const {
     isOpen,
     closePanel,
@@ -1672,11 +1674,12 @@ function DirectEditPanelContent() {
     onMoveComplete: selectElement,
   })
 
-  const overlay = editModeActive ? createPortal(
+  const overlay = editModeActive && container ? createPortal(
     <>
       <div
         data-direct-edit="overlay"
         className="fixed inset-0 z-[99990] cursor-crosshair"
+        style={{ pointerEvents: 'auto' }}
         onMouseMove={(e) => {
           const el = e.currentTarget
           el.style.pointerEvents = 'none'
@@ -1745,10 +1748,10 @@ function DirectEditPanelContent() {
         )
       })()}
     </>,
-    document.body
+    container
   ) : null
 
-  if (!isOpen || !computedSpacing || !elementInfo || !computedBorderRadius || !computedFlex || !computedSizing || !computedColor || !computedTypography) return overlay
+  if (!isOpen || !computedSpacing || !elementInfo || !computedBorderRadius || !computedFlex || !computedSizing || !computedColor || !computedTypography || !container) return overlay
 
   const handleMoveStart = (e: React.PointerEvent) => {
     if (selectedElement) {
@@ -1806,6 +1809,7 @@ function DirectEditPanelContent() {
           left: position.x,
           top: position.y,
           maxHeight: PANEL_HEIGHT,
+          pointerEvents: 'auto',
         }}
         panelRef={panelRef}
         isDragging={isDragging}
@@ -1814,7 +1818,7 @@ function DirectEditPanelContent() {
         onHeaderPointerUp={handlePointerUp}
       />
     </>,
-    document.body
+    container
   )
 }
 

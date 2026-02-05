@@ -1,2 +1,56 @@
-@tailwind components;
-@tailwind utilities;
+/* Tailwind v4 — Shadow DOM makes preflight safe (only affects shadow root, not host page) */
+@layer theme, base, components, utilities;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/preflight.css" layer(base);
+@import "tailwindcss/utilities.css" layer(utilities);
+
+@source "./";
+@source not "../dev";
+@source not "./demo.tsx";
+
+@theme {
+  /* Self-contained colors — no dependency on host app CSS variables */
+  --color-border: hsl(214.3 31.8% 91.4%);
+  --color-input: hsl(214.3 31.8% 91.4%);
+  --color-ring: hsl(222.2 84% 4.9%);
+  --color-background: hsl(0 0% 100%);
+  --color-foreground: hsl(222.2 84% 4.9%);
+  --color-primary: hsl(222.2 47.4% 11.2%);
+  --color-primary-foreground: hsl(210 40% 98%);
+  --color-secondary: hsl(210 40% 96.1%);
+  --color-secondary-foreground: hsl(222.2 47.4% 11.2%);
+  --color-destructive: hsl(0 84.2% 60.2%);
+  --color-destructive-foreground: hsl(210 40% 98%);
+  --color-muted: hsl(210 40% 96.1%);
+  --color-muted-foreground: hsl(215.4 16.3% 46.9%);
+  --color-accent: hsl(210 40% 96.1%);
+  --color-accent-foreground: hsl(222.2 47.4% 11.2%);
+  --color-popover: hsl(0 0% 100%);
+  --color-popover-foreground: hsl(222.2 84% 4.9%);
+
+  --radius-lg: 0.5rem;
+  --radius-md: calc(0.5rem - 2px);
+  --radius-sm: calc(0.5rem - 4px);
+
+  --animate-accordion-down: accordion-down 0.2s ease-out;
+  --animate-accordion-up: accordion-up 0.2s ease-out;
+
+  @keyframes accordion-down {
+    from { height: 0; }
+    to { height: var(--collapsible-panel-height); }
+  }
+  @keyframes accordion-up {
+    from { height: var(--collapsible-panel-height); }
+    to { height: 0; }
+  }
+}
+
+/* shadcn/ui base: default border color so `border` class uses the theme color */
+@layer base {
+  *, ::before, ::after {
+    border-color: var(--color-border);
+  }
+}
+
+/* tailwindcss-animate v4 plugin */
+@plugin "tailwindcss-animate";
