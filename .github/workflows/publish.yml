@@ -3,6 +3,12 @@ name: Publish
 on:
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      fix_tags:
+        description: 'Fix dist-tags only (no publish)'
+        type: boolean
+        default: false
 
 jobs:
   publish:
@@ -27,6 +33,14 @@ jobs:
         run: bun run build
 
       - name: Publish to npm
+        if: ${{ !inputs.fix_tags }}
         run: npm publish --tag beta
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Update latest tag
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          npm dist-tag add made-refine@$VERSION latest
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
