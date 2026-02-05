@@ -1615,6 +1615,7 @@ function DirectEditPanelContent() {
   const [position, setPosition] = React.useState<Position>(getInitialPosition)
   const [isDragging, setIsDragging] = React.useState(false)
   const [dragOffset, setDragOffset] = React.useState<Position>({ x: 0, y: 0 })
+  const [hoveredEditElement, setHoveredEditElement] = React.useState<HTMLElement | null>(null)
   const panelRef = React.useRef<HTMLDivElement>(null)
 
   const handlePointerDown = (e: React.PointerEvent) => {
@@ -1672,33 +1673,78 @@ function DirectEditPanelContent() {
   })
 
   const overlay = editModeActive ? createPortal(
-    <div
-      data-direct-edit="overlay"
-      className="fixed inset-0 z-[99990] cursor-crosshair"
-      onClick={(e) => {
-        e.preventDefault()
-        const el = e.currentTarget
-        el.style.pointerEvents = 'none'
-        const elementUnder = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null
-        el.style.pointerEvents = 'auto'
+    <>
+      <div
+        data-direct-edit="overlay"
+        className="fixed inset-0 z-[99990] cursor-crosshair"
+        onMouseMove={(e) => {
+          const el = e.currentTarget
+          el.style.pointerEvents = 'none'
+          const elementUnder = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null
+          el.style.pointerEvents = 'auto'
 
-        if (elementUnder && elementUnder !== document.body && elementUnder !== document.documentElement) {
-          let current: HTMLElement | null = elementUnder
-          while (current && current !== document.body) {
-            const parent: HTMLElement | null = current.parentElement
-            if (parent) {
-              const display = getComputedStyle(parent).display
-              if (display === 'flex' || display === 'inline-flex') {
-                selectElement(current)
-                return
-              }
-            }
-            current = parent
+          if (
+            elementUnder &&
+            elementUnder !== document.body &&
+            elementUnder !== document.documentElement &&
+            !elementUnder.closest('[data-direct-edit]') &&
+            elementUnder !== selectedElement
+          ) {
+            setHoveredEditElement(elementUnder)
+          } else {
+            setHoveredEditElement(null)
           }
-          selectElement(elementUnder)
-        }
-      }}
-    />,
+        }}
+        onMouseLeave={() => setHoveredEditElement(null)}
+        onClick={(e) => {
+          e.preventDefault()
+          setHoveredEditElement(null)
+          const el = e.currentTarget
+          el.style.pointerEvents = 'none'
+          const elementUnder = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null
+          el.style.pointerEvents = 'auto'
+
+          if (elementUnder && elementUnder !== document.body && elementUnder !== document.documentElement) {
+            let current: HTMLElement | null = elementUnder
+            while (current && current !== document.body) {
+              const parent: HTMLElement | null = current.parentElement
+              if (parent) {
+                const display = getComputedStyle(parent).display
+                if (display === 'flex' || display === 'inline-flex') {
+                  selectElement(current)
+                  return
+                }
+              }
+              current = parent
+            }
+            selectElement(elementUnder)
+          }
+        }}
+      />
+      {hoveredEditElement && (() => {
+        const r = hoveredEditElement.getBoundingClientRect()
+        return (
+          <svg
+            data-direct-edit="hover-highlight"
+            className="pointer-events-none fixed inset-0 z-[99991]"
+            width="100%"
+            height="100%"
+            style={{ width: '100vw', height: '100vh' }}
+          >
+            <rect
+              x={r.left}
+              y={r.top}
+              width={r.width}
+              height={r.height}
+              fill="transparent"
+              stroke="#3b82f6"
+              strokeWidth={1}
+              strokeDasharray="4 2"
+            />
+          </svg>
+        )
+      })()}
+    </>,
     document.body
   ) : null
 
