@@ -1671,7 +1671,38 @@ function DirectEditPanelContent() {
     onMoveComplete: selectElement,
   })
 
-  if (!isOpen || !computedSpacing || !elementInfo || !computedBorderRadius || !computedFlex || !computedSizing || !computedColor || !computedTypography) return null
+  const overlay = editModeActive ? createPortal(
+    <div
+      data-direct-edit="overlay"
+      className="fixed inset-0 z-[99990] cursor-crosshair"
+      onClick={(e) => {
+        e.preventDefault()
+        const el = e.currentTarget
+        el.style.pointerEvents = 'none'
+        const elementUnder = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null
+        el.style.pointerEvents = 'auto'
+
+        if (elementUnder && elementUnder !== document.body && elementUnder !== document.documentElement) {
+          let current: HTMLElement | null = elementUnder
+          while (current && current !== document.body) {
+            const parent: HTMLElement | null = current.parentElement
+            if (parent) {
+              const display = getComputedStyle(parent).display
+              if (display === 'flex' || display === 'inline-flex') {
+                selectElement(current)
+                return
+              }
+            }
+            current = parent
+          }
+          selectElement(elementUnder)
+        }
+      }}
+    />,
+    document.body
+  ) : null
+
+  if (!isOpen || !computedSpacing || !elementInfo || !computedBorderRadius || !computedFlex || !computedSizing || !computedColor || !computedTypography) return overlay
 
   const handleMoveStart = (e: React.PointerEvent) => {
     if (selectedElement) {
@@ -1681,35 +1712,7 @@ function DirectEditPanelContent() {
 
   return createPortal(
     <>
-      {editModeActive && (
-        <div
-          data-direct-edit="overlay"
-          className="fixed inset-0 z-[99990] cursor-crosshair"
-          onClick={(e) => {
-            e.preventDefault()
-            const overlay = e.currentTarget
-            overlay.style.pointerEvents = 'none'
-            const elementUnder = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null
-            overlay.style.pointerEvents = 'auto'
-
-            if (elementUnder && elementUnder !== document.body && elementUnder !== document.documentElement) {
-              let current: HTMLElement | null = elementUnder
-              while (current && current !== document.body) {
-                const parent: HTMLElement | null = current.parentElement
-                if (parent) {
-                  const display = getComputedStyle(parent).display
-                  if (display === 'flex' || display === 'inline-flex') {
-                    selectElement(current)
-                    return
-                  }
-                }
-                current = parent
-              }
-              selectElement(elementUnder)
-            }
-          }}
-        />
-      )}
+      {overlay}
 
       {selectedElement && (
         <SelectionOverlay
