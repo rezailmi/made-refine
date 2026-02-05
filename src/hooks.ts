@@ -1,0 +1,1 @@
+export { useDirectEdit } from './provider'

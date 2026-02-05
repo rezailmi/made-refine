@@ -1,0 +1,81 @@
+{
+  "name": "made-refine",
+  "version": "0.1.0-beta.1",
+  "description": "Figma-style visual CSS editor for React",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    },
+    "./utils": {
+      "types": "./dist/utils.d.ts",
+      "import": "./dist/utils.mjs",
+      "require": "./dist/utils.js"
+    },
+    "./preload": {
+      "types": "./dist/preload.d.ts",
+      "import": "./dist/preload.mjs",
+      "require": "./dist/preload.js"
+    },
+    "./styles": "./dist/styles.css",
+    "./styles.css": "./dist/styles.css",
+    "./babel": {
+      "require": "./babel/index.cjs"
+    },
+    "./vite": {
+      "types": "./vite/index.d.ts",
+      "import": "./dist/vite.mjs"
+    },
+    "./preload.iife": "./dist/preload/preload.js"
+  },
+  "sideEffects": true,
+  "files": ["dist", "babel", "vite", "README.md", "LICENSE"],
+  "keywords": [
+    "react",
+    "css",
+    "visual-editor",
+    "tailwind",
+    "figma",
+    "devtools"
+  ],
+  "author": "Reza Ilmi",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rezailmi/made-refine.git"
+  },
+  "homepage": "https://github.com/rezailmi/made-refine#readme",
+  "bugs": {
+    "url": "https://github.com/rezailmi/made-refine/issues"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18"
+  },
+  "dependencies": {
+    "@base-ui/react": "^1.1.0",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.454.0",
+    "tailwind-merge": "^2.6.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.27",
+    "@types/react-dom": "^18.3.7",
+    "autoprefixer": "^10.4.23",
+    "esbuild": "^0.24.0",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^3.4.19",
+    "tailwindcss-animate": "^1.0.7",
+    "tsup": "^8.3.5",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.1"
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch"
+  }
+}
