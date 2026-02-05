@@ -1,7 +1,7 @@
 {
   "name": "made-refine",
-  "version": "0.1.0-beta.2",
-  "description": "Figma-style visual CSS editor for React",
+  "version": "0.1.0-beta.3",
+  "description": "Visual CSS editor for React",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
@@ -33,13 +33,18 @@
     "./preload.iife": "./dist/preload/preload.js"
   },
   "sideEffects": true,
-  "files": ["dist", "babel", "vite", "README.md", "LICENSE"],
+  "files": [
+    "dist",
+    "babel",
+    "vite",
+    "README.md",
+    "LICENSE"
+  ],
   "keywords": [
     "react",
     "css",
     "visual-editor",
     "tailwind",
-    "figma",
     "devtools"
   ],
   "author": "Reza Ilmi",
