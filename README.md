@@ -1,23 +1,109 @@
-# direct-edit
+# made-refine
 
-A Figma-style visual CSS editor for React. Select any element and adjust padding, border-radius, and flex properties in real-time, then copy as Tailwind classes.
+> **Beta**: Under active development. API may change.
+
+A visual CSS editor for React. Select any element and adjust padding, border-radius, and flex properties in real-time, then copy as Tailwind classes.
 
 ## Installation
 
 ```bash
-npm install direct-edit
+npm install made-refine@beta
 # or
-bun add direct-edit
+bun add made-refine@beta
 # or
-yarn add direct-edit
+yarn add made-refine@beta
 ```
 
-## Usage
+## Next.js Setup
 
-### Simple (Recommended)
+### 1. Add the Babel plugin (for source locations)
+
+Create `.babelrc` in your project root:
+
+```json
+{
+  "presets": ["next/babel"],
+  "env": {
+    "development": {
+      "plugins": ["made-refine/babel"]
+    }
+  }
+}
+```
+
+### 2. Copy the preload script to public
+
+```bash
+cp node_modules/made-refine/dist/preload/preload.js public/made-refine-preload.js
+```
+
+### 3. Add the preload script and component
+
+In your root layout (`app/layout.tsx`):
 
 ```tsx
-import { DirectEdit } from 'direct-edit'
+import Script from 'next/script'
+import { DirectEdit } from 'made-refine'
+
+export default function RootLayout({ children }) {
+  return (
+    <html>
+      <head>
+        {process.env.NODE_ENV === 'development' && (
+          <Script src="/made-refine-preload.js" strategy="beforeInteractive" />
+        )}
+      </head>
+      <body>
+        {children}
+        {process.env.NODE_ENV === 'development' && <DirectEdit />}
+      </body>
+    </html>
+  )
+}
+```
+
+## Vite Setup
+
+### 1. Configure vite.config.ts
+
+```ts
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+import { madeRefine } from 'made-refine/vite'
+
+export default defineConfig({
+  plugins: [
+    react({
+      babel: {
+        plugins: [require.resolve('made-refine/babel')],
+      },
+    }),
+    madeRefine(),
+  ],
+})
+```
+
+### 2. Add the component
+
+```tsx
+import { DirectEdit } from 'made-refine'
+
+function App() {
+  return (
+    <>
+      <YourApp />
+      {import.meta.env.DEV && <DirectEdit />}
+    </>
+  )
+}
+```
+
+The Vite plugin automatically injects the preload script in dev mode.
+
+## Basic Usage
+
+```tsx
+import { DirectEdit } from 'made-refine'
 
 function App() {
   return (
@@ -29,30 +115,21 @@ function App() {
 }
 ```
 
-That's it! No CSS import needed - styles are auto-injected at runtime.
+No CSS import needed - styles are auto-injected at runtime.
 
 ### Manual CSS (CSP/SSR)
 
-If your app disallows inline styles, import the stylesheet directly and disable auto-injection by adding a `data-direct-edit-disable-styles` attribute on your `<html>` element.
+If your app disallows inline styles, import the stylesheet directly and add `data-direct-edit-disable-styles` to your `<html>` element:
 
 ```tsx
-import 'direct-edit/styles'
-import { DirectEdit } from 'direct-edit'
-
-function App() {
-  return (
-    <>
-      <YourApp />
-      {process.env.NODE_ENV === 'development' && <DirectEdit />}
-    </>
-  )
-}
+import 'made-refine/styles'
+import { DirectEdit } from 'made-refine'
 ```
 
 ### Advanced (Custom Setup)
 
 ```tsx
-import { DirectEditProvider, DirectEditPanel, DirectEditToolbar, useDirectEdit } from 'direct-edit'
+import { DirectEditProvider, DirectEditPanel, DirectEditToolbar, useDirectEdit } from 'made-refine'
 
 function App() {
   return (
@@ -87,6 +164,29 @@ function CustomToolbar() {
   - `Cmd+.` / `Ctrl+.`: Toggle edit mode
   - `Escape`: Close panel or exit edit mode
 
+## Troubleshooting
+
+### Source file locations not showing
+
+Make sure:
+1. The Babel plugin is configured in development mode only
+2. The preload script loads before React (use `strategy="beforeInteractive"` in Next.js)
+3. You're running in development mode, not production
+
+### Styles not appearing
+
+If styles don't load:
+- Check for Content Security Policy blocking inline styles
+- Import `made-refine/styles` directly and add `data-direct-edit-disable-styles` to `<html>`
+
+### Next.js: "Cannot find module" errors
+
+After installing, restart your dev server to pick up the new Babel config.
+
+### Vite: Preload script not working
+
+Ensure `madeRefine()` plugin is added after `react()` in the plugins array.
+
 ## Exports
 
 ### Components
@@ -100,121 +200,32 @@ function CustomToolbar() {
 
 - `useDirectEdit()` - Access edit state and methods
 
-### Types
+### Utilities (`made-refine/utils`)
 
-- `ElementInfo`
-- `CSSPropertyValue`
-- `SpacingProperties`
-- `BorderRadiusProperties`
-- `FlexProperties`
-- `DirectEditState`
-- `ReactComponentFrame`
-- `ElementLocator`
-
-### Utilities
+These utilities require DOM APIs and must run in the browser:
 
 - `parsePropertyValue(value: string)` - Parse CSS value to structured format
 - `formatPropertyValue(value: CSSPropertyValue)` - Format back to CSS string
 - `getComputedStyles(element: HTMLElement)` - Get all editable styles
 - `stylesToTailwind(styles: Record<string, string>)` - Convert to Tailwind classes
 - `getElementInfo(element: HTMLElement)` - Get element metadata
-- `getElementLocator(element: HTMLElement)` - Build a React + DOM locator payload for exports
-
-### Export Context Format
-
-Exports include a simplified context block derived from the locator utilities:
-
-@<ComponentName>
-
-<element html...>
-
-in /[project]/path/to/component.tsx:12:4
-
-edits:
-font-size: 24px (text-[24px])
-
-If file information is unavailable, the export includes lightweight fallback hints:
-
-in (file not available)
-selector: div.foo > button:nth-of-type(2)
-text: Works
-
-Note: React source file/line/column information is only available in development builds,
-so file paths may be unavailable outside dev.
-
-### Client-Only Utilities
-
-Utilities in `direct-edit/utils` rely on DOM APIs (including the locator helpers),
-so they must run in the browser.
-
-```ts
-import { getDimensionDisplay, stylesToTailwind } from 'direct-edit/utils'
-```
-
-### Dev-Only JSX Injection (React 19)
-
-To reliably capture file locations in React 19, inject source metadata into host elements
-during development. Add a dev-only Babel config in your app:
-
-```json
-// .babelrc
-{
-  "presets": ["next/babel"],
-  "env": {
-    "development": {
-      "plugins": ["./babel/direct-edit-source.cjs"]
-    }
-  }
-}
-```
-
-This plugin adds `data-direct-edit-source="/[project]/path:line:column"` to host elements
-in dev, which Direct Edit reads directly from the DOM.
-
-### React 19 Preload Hook (Dev Only)
-
-To resolve file locations in React 19, load a small preload script before React initializes:
-
-```tsx
-import Script from 'next/script'
-
-{process.env.NODE_ENV === 'development' && (
-  <Script src="/direct-edit-preload.js" strategy="beforeInteractive" />
-)}
-```
-
-For other frameworks, import `direct-edit/preload` before React mounts.
-
-Build the package to generate the preload asset:
-
-```bash
-bun run --cwd packages/direct-edit build
-```
-
-Note: Source file/line/column information is only available in development builds.
+- `getElementLocator(element: HTMLElement)` - Build element locator for exports
 
 ## Requirements
 
 - React 18+
-- Works with any React framework (Next.js, Vite, CRA, etc.)
+- Next.js 13+ or Vite 4+
 
 ## CSS Variables
 
 The package uses CSS variables for theming. It will use your app's existing shadcn/ui theme if available, or fall back to sensible defaults:
 
-- `--background`
-- `--foreground`
-- `--muted`
-- `--muted-foreground`
-- `--border`
-- `--input`
-- `--ring`
-- `--primary`
-- `--primary-foreground`
-- `--secondary`
-- `--secondary-foreground`
-- `--accent`
-- `--accent-foreground`
+- `--background`, `--foreground`
+- `--muted`, `--muted-foreground`
+- `--border`, `--input`, `--ring`
+- `--primary`, `--primary-foreground`
+- `--secondary`, `--secondary-foreground`
+- `--accent`, `--accent-foreground`
 - `--radius`
 
 ## License
