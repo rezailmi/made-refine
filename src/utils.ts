@@ -982,26 +982,67 @@ export function getFlexDirection(
   return computed.flexDirection as 'row' | 'row-reverse' | 'column' | 'column-reverse'
 }
 
+export function elementFromPointWithoutOverlays(x: number, y: number): HTMLElement | null {
+  const host = document.querySelector<HTMLElement>('[data-direct-edit-host]')
+  if (host) host.style.display = 'none'
+  const el = document.elementFromPoint(x, y) as HTMLElement | null
+  if (host) host.style.display = ''
+  return el
+}
+
+function isLayoutContainer(element: HTMLElement): boolean {
+  const display = window.getComputedStyle(element).display
+  return (
+    display === 'flex' ||
+    display === 'inline-flex' ||
+    display === 'grid' ||
+    display === 'inline-grid'
+  )
+}
+
+function isBlockContainer(element: HTMLElement): boolean {
+  const display = window.getComputedStyle(element).display
+  return display === 'block' || display === 'flow-root'
+}
+
+function skipElement(el: HTMLElement, exclude: HTMLElement | null): boolean {
+  if (exclude && exclude.contains(el)) return true
+  if (el === document.body || el === document.documentElement) return true
+  if (el.closest('[data-direct-edit]') || el.closest('[data-direct-edit-host]')) return true
+  return false
+}
+
 export function findContainerAtPoint(
   x: number,
   y: number,
-  exclude: HTMLElement | null
+  exclude: HTMLElement | null,
+  preferredParent?: HTMLElement | null
 ): HTMLElement | null {
-  const overlays = document.querySelectorAll<HTMLElement>('[data-direct-edit]')
-  overlays.forEach((el) => (el.style.pointerEvents = 'none'))
+  const host = document.querySelector<HTMLElement>('[data-direct-edit-host]')
+  if (host) host.style.display = 'none'
 
   const elements = document.elementsFromPoint(x, y) as HTMLElement[]
 
-  overlays.forEach((el) => (el.style.pointerEvents = ''))
+  if (host) host.style.display = ''
 
-  for (const el of elements) {
-    if (el === exclude) continue
-    if (el === document.body || el === document.documentElement) continue
-    if (el.closest('[data-direct-edit]')) continue
-
-    if (isFlexContainer(el)) {
-      return el
+  // When dragging within a flex parent, prefer the parent for sibling reordering
+  // over dropping into a child container
+  if (preferredParent && isFlexContainer(preferredParent)) {
+    for (const el of elements) {
+      if (el === preferredParent) return preferredParent
     }
+  }
+
+  // First pass: prefer flex/grid containers (explicit layout systems)
+  for (const el of elements) {
+    if (skipElement(el, exclude)) continue
+    if (isLayoutContainer(el)) return el
+  }
+
+  // Second pass: accept block containers as fallback
+  for (const el of elements) {
+    if (skipElement(el, exclude)) continue
+    if (isBlockContainer(el)) return el
   }
 
   return null
@@ -1013,7 +1054,8 @@ export function calculateDropPosition(
   pointerY: number,
   draggedElement: HTMLElement
 ): { insertBefore: HTMLElement | null; indicator: DropIndicator } | null {
-  const flexDirection = getFlexDirection(container)
+  const isFlex = isFlexContainer(container)
+  const flexDirection = isFlex ? getFlexDirection(container) : 'column'
   const isHorizontal = flexDirection === 'row' || flexDirection === 'row-reverse'
   const isReversed = flexDirection === 'row-reverse' || flexDirection === 'column-reverse'
 

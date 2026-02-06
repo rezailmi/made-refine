@@ -1,60 +1,91 @@
 import * as React from 'react'
 import { createPortal } from 'react-dom'
+import { usePortalContainer } from './portal-container'
 import { useDirectEdit } from './provider'
 import { cn } from './cn'
-import { Crosshair } from 'lucide-react'
+import { MousePointer2 } from 'lucide-react'
+import {
+  Tooltip,
+  TooltipProvider,
+  TooltipTrigger,
+  TooltipContent,
+} from './ui/tooltip'
 
-interface DirectEditToolbarInnerProps {
+export interface DirectEditToolbarInnerProps {
   editModeActive: boolean
   onToggleEditMode: () => void
   className?: string
-  usePortal?: boolean
 }
 
 export function DirectEditToolbarInner({
   editModeActive,
   onToggleEditMode,
   className,
-  usePortal = true,
 }: DirectEditToolbarInnerProps) {
+  const container = usePortalContainer()
   const [isMac, setIsMac] = React.useState(false)
 
   React.useEffect(() => {
     setIsMac(navigator.platform?.includes('Mac') ?? false)
   }, [])
 
-  const button = (
-    <button
-      type="button"
-      onClick={onToggleEditMode}
+  const shortcut = isMac ? '⌘.' : 'Ctrl+.'
+
+  const toolbar = editModeActive ? (
+    <div
       data-direct-edit="toolbar"
+      style={{ pointerEvents: 'auto' }}
       className={cn(
-        'flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium shadow-lg transition-all duration-200',
-        editModeActive
-          ? 'border-blue-500/50 bg-blue-500 text-white hover:bg-blue-600'
-          : 'border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground',
-        usePortal && 'fixed bottom-4 left-1/2 z-[99999] -translate-x-1/2',
+        'fixed bottom-4 left-1/2 z-[99999] -translate-x-1/2 flex items-center rounded-lg border bg-background p-1 shadow-lg',
         className
       )}
     >
-      <Crosshair className="size-4" />
-      {editModeActive && <span>Edit Mode Active</span>}
-      <kbd
-        className={cn(
-          'ml-1 rounded px-1.5 py-0.5 font-mono text-[10px]',
-          editModeActive ? 'bg-blue-600 text-blue-100' : 'bg-muted text-muted-foreground'
-        )}
-      >
-        {isMac ? '⌘.' : 'Ctrl+.'}
-      </kbd>
-    </button>
+      <TooltipProvider delayDuration={200}>
+        <Tooltip>
+          <TooltipTrigger
+            className="flex cursor-pointer items-center justify-center rounded-md bg-blue-500 p-1.5 text-white hover:bg-blue-600"
+            onClick={onToggleEditMode}
+          >
+            <MousePointer2 className="size-4" />
+          </TooltipTrigger>
+          <TooltipContent side="top">
+            <span>Select</span>
+            <kbd className="ml-2 rounded bg-primary-foreground/20 px-1.5 py-0.5 font-mono text-[10px]">
+              {shortcut}
+            </kbd>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    </div>
+  ) : (
+    <TooltipProvider delayDuration={200}>
+      <Tooltip>
+        <TooltipTrigger
+          data-direct-edit="toolbar"
+          style={{ pointerEvents: 'auto' }}
+          className={cn(
+            'fixed bottom-4 left-1/2 z-[99999] -translate-x-1/2 flex cursor-pointer items-center justify-center rounded-full border border-border bg-background p-2 text-muted-foreground shadow-lg transition-all duration-200 hover:bg-muted hover:text-foreground',
+            className
+          )}
+          onClick={onToggleEditMode}
+        >
+          <MousePointer2 className="size-4" />
+        </TooltipTrigger>
+        <TooltipContent side="top">
+          <span>Select</span>
+          <kbd className="ml-2 rounded bg-primary-foreground/20 px-1.5 py-0.5 font-mono text-[10px]">
+            {shortcut}
+          </kbd>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   )
 
-  if (usePortal && typeof document !== 'undefined') {
-    return createPortal(button, document.body)
+  if (container) {
+    return createPortal(toolbar, container)
   }
 
-  return button
+  return toolbar
 }
 
 function DirectEditToolbarContent() {

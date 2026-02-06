@@ -1,4 +1,5 @@
 import * as React from 'react'
+import { PortalContainerProvider } from './portal-container'
 import type {
   DirectEditState,
   SpacingPropertyKey,
@@ -31,7 +32,7 @@ import {
   getElementLocator,
 } from './utils'
 
-interface DirectEditContextValue extends DirectEditState {
+export interface DirectEditContextValue extends DirectEditState {
   selectElement: (element: HTMLElement) => void
   selectParent: () => void
   selectChild: () => void
@@ -406,5 +407,9 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     toggleEditMode,
   }
 
-  return <DirectEditContext.Provider value={contextValue}>{children}</DirectEditContext.Provider>
+  return (
+    <PortalContainerProvider>
+      <DirectEditContext.Provider value={contextValue}>{children}</DirectEditContext.Provider>
+    </PortalContainerProvider>
+  )
 }

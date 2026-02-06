@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import tailwindcss from '@tailwindcss/vite'
 import path from 'path'
 import type { Plugin } from 'vite'
 
@@ -45,6 +46,7 @@ function devSourceLocations(): Plugin {
 export default defineConfig({
   root: 'dev',
   plugins: [
+    tailwindcss(),
     react(),
     devSourceLocations(),
   ],

@@ -186,7 +186,6 @@ export function DirectEditDemo() {
           <DirectEditToolbarInner
             editModeActive={editModeActive}
             onToggleEditMode={() => setEditModeActive(!editModeActive)}
-            usePortal={false}
           />
         </div>
 
