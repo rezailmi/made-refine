@@ -2,7 +2,7 @@ import type { DropIndicator } from './types'
 
 const BLUE = '#0D99FF'
 
-interface MoveOverlayProps {
+export interface MoveOverlayProps {
   dropIndicator: DropIndicator | null
 }
 

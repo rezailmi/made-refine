@@ -32,7 +32,7 @@ import {
   getElementLocator,
 } from './utils'
 
-interface DirectEditContextValue extends DirectEditState {
+export interface DirectEditContextValue extends DirectEditState {
   selectElement: (element: HTMLElement) => void
   selectParent: () => void
   selectChild: () => void

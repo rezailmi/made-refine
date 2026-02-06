@@ -66,6 +66,8 @@ import {
   AlignVerticalJustifyEnd,
   ALargeSmall,
   WrapText,
+  AArrowUp,
+  LetterText,
 } from 'lucide-react'
 
 const STORAGE_KEY = 'direct-edit-panel-position'
@@ -100,7 +102,7 @@ function getInitialPosition(): Position {
   }
 }
 
-const DEFAULT_SECTIONS = { fill: true, sizing: true, padding: true, margin: true, radius: true, flex: true, text: true }
+const DEFAULT_SECTIONS = { layout: true, fill: true, radius: true, text: true }
 
 function useSectionsState() {
   const [sections, setSections] = React.useState<Record<string, boolean>>(DEFAULT_SECTIONS)
@@ -644,51 +646,6 @@ function AlignmentGrid({ justifyContent, alignItems, onChange }: AlignmentGridPr
   )
 }
 
-interface GapInputProps {
-  value: CSSPropertyValue
-  onChange: (value: CSSPropertyValue) => void
-}
-
-function GapInput({ value, onChange }: GapInputProps) {
-  const initialUnit = value.unit === 'em' || value.unit === '' ? 'px' : value.unit
-  const [unit, setUnit] = React.useState<'px' | 'rem' | '%'>(initialUnit)
-
-  const handleChange = (numericValue: number) => {
-    onChange({
-      numericValue,
-      unit,
-      raw: `${numericValue}${unit}`,
-    })
-  }
-
-  const cycleUnit = () => {
-    const units: ('px' | 'rem' | '%')[] = ['px', 'rem', '%']
-    const currentIndex = units.indexOf(unit)
-    const newUnit = units[(currentIndex + 1) % units.length]
-    setUnit(newUnit)
-    onChange({
-      numericValue: value.numericValue,
-      unit: newUnit,
-      raw: `${value.numericValue}${newUnit}`,
-    })
-  }
-
-  return (
-    <div className="flex items-center gap-1">
-      <Input
-        type="number"
-        value={value.numericValue}
-        onChange={(e) => handleChange(parseFloat(e.target.value) || 0)}
-        onFocus={selectOnFocus}
-        className="h-7 w-14 px-2 text-xs tabular-nums"
-      />
-      <Button variant="ghost" size="icon" className="size-7" onClick={cycleUnit} title={`Unit: ${unit}`}>
-        <span className="text-[10px] font-mono">{unit}</span>
-      </Button>
-    </div>
-  )
-}
-
 const SIZING_OPTIONS: { value: SizingMode; label: string }[] = [
   { value: 'fixed', label: 'Fixed' },
   { value: 'fill', label: 'Fill container' },
@@ -702,14 +659,6 @@ interface SizingDropdownProps {
 }
 
 function SizingDropdown({ label, value, onChange }: SizingDropdownProps) {
-  const handleModeChange = (mode: SizingMode | null) => {
-    if (!mode) return
-    onChange({
-      mode,
-      value: value.value,
-    })
-  }
-
   const handleFixedValueChange = (numericValue: number) => {
     onChange({
       mode: 'fixed',
@@ -719,6 +668,13 @@ function SizingDropdown({ label, value, onChange }: SizingDropdownProps) {
         raw: `${numericValue}px`,
       },
     })
+  }
+
+  const cycleMode = () => {
+    const modes: SizingMode[] = ['fixed', 'fill', 'fit']
+    const currentIndex = modes.indexOf(value.mode)
+    const nextMode = modes[(currentIndex + 1) % modes.length]
+    onChange({ mode: nextMode, value: value.value })
   }
 
   const getDisplayText = () => {
@@ -742,31 +698,14 @@ function SizingDropdown({ label, value, onChange }: SizingDropdownProps) {
           <span className="flex-1">{getDisplayText()}</span>
         )}
       </span>
-      <Select value={value.mode} onValueChange={handleModeChange}>
-        <SelectTrigger className="flex h-full items-center justify-center border-l px-1.5 hover:bg-muted/50 focus:outline-none">
-          <SelectIcon>
-            <ChevronsUpDown className="size-3 text-muted-foreground" />
-          </SelectIcon>
-        </SelectTrigger>
-        <SelectPortal>
-          <SelectPositioner sideOffset={4} className="z-[99999]">
-            <SelectPopup className="min-w-[140px] overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md animate-in fade-in-0 zoom-in-95">
-              {SIZING_OPTIONS.map((option) => (
-                <SelectItem
-                  key={option.value}
-                  value={option.value}
-                  className="relative flex cursor-default select-none items-center rounded-sm py-1.5 pl-7 pr-2 text-xs outline-none hover:bg-accent hover:text-accent-foreground data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground"
-                >
-                  <SelectItemIndicator className="absolute left-2 flex items-center justify-center">
-                    <Check className="size-3" />
-                  </SelectItemIndicator>
-                  <SelectItemText>{option.label}</SelectItemText>
-                </SelectItem>
-              ))}
-            </SelectPopup>
-          </SelectPositioner>
-        </SelectPortal>
-      </Select>
+      <button
+        type="button"
+        className="flex h-full items-center justify-center border-l px-1.5 hover:bg-muted/50"
+        onClick={cycleMode}
+        title={`Mode: ${value.mode} (click to cycle)`}
+      >
+        <ChevronsUpDown className="size-3 text-muted-foreground" />
+      </button>
     </div>
   )
 }
@@ -844,53 +783,48 @@ function ColorInput({ label, icon, value, onChange }: ColorInputProps) {
   }
 
   return (
-    <div className="flex items-center gap-2">
-      <div className="flex items-center gap-1.5 text-muted-foreground">
-        {icon}
-        <span className="w-6 text-[10px]">{label}</span>
-      </div>
-
-      {/* Color swatch with native picker */}
-      <div className="relative">
-        <div
-          className="size-7 cursor-pointer overflow-hidden rounded border"
-          style={{ backgroundColor: `#${value.hex}` }}
-        >
-          <input
-            type="color"
-            value={`#${value.hex}`}
-            onChange={handleNativeColorChange}
-            className="absolute inset-0 cursor-pointer opacity-0"
-          />
+    <div>
+      <div className="flex h-8 items-center rounded-md border border-input bg-background">
+        {/* Color swatch with native picker */}
+        <div className="relative ml-1.5">
+          <div
+            className="size-5 cursor-pointer overflow-hidden rounded-sm border"
+            style={{ backgroundColor: `#${value.hex}` }}
+          >
+            <input
+              type="color"
+              value={`#${value.hex}`}
+              onChange={handleNativeColorChange}
+              className="absolute inset-0 cursor-pointer opacity-0"
+            />
+          </div>
         </div>
-      </div>
 
-      {/* Hex input */}
-      <Input
-        type="text"
-        value={hexInput}
-        onChange={(e) => handleHexChange(e.target.value)}
-        onBlur={() => setHexInput(value.hex)}
-        className="h-7 w-[72px] px-2 text-center font-mono text-xs uppercase"
-        maxLength={6}
-        placeholder="FFFFFF"
-      />
+        {/* Hex input */}
+        <input
+          type="text"
+          value={hexInput}
+          onChange={(e) => handleHexChange(e.target.value)}
+          onBlur={() => setHexInput(value.hex)}
+          className="h-full w-[68px] bg-transparent px-2 font-mono text-xs uppercase outline-none"
+          maxLength={6}
+          placeholder="FFFFFF"
+        />
 
-      {/* Separator */}
-      <span className="text-xs text-muted-foreground">/</span>
+        {/* Separator */}
+        <span className="text-xs text-muted-foreground">/</span>
 
-      {/* Opacity input */}
-      <div className="relative">
-        <Input
+        {/* Opacity input */}
+        <input
           type="number"
           value={alphaInput}
           onChange={(e) => handleAlphaChange(e.target.value)}
           onBlur={() => setAlphaInput(value.alpha.toString())}
-          className="h-7 w-14 px-2 pr-5 text-center text-xs tabular-nums"
+          className="h-full w-10 bg-transparent px-1 text-center text-xs tabular-nums outline-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none [appearance:textfield]"
           min={0}
           max={100}
         />
-        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">%</span>
+        <span className="pr-2 text-xs text-muted-foreground">%</span>
       </div>
     </div>
   )
@@ -1013,7 +947,7 @@ function TypographyInputs({ typography, onUpdate }: TypographyInputsProps) {
 
       <div className="flex gap-2">
         <div className="relative flex-1">
-          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">↕A</span>
+          <AArrowUp className="absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
             type="number"
             value={Math.round(typography.fontSize.numericValue)}
@@ -1033,7 +967,7 @@ function TypographyInputs({ typography, onUpdate }: TypographyInputsProps) {
           />
         </div>
         <div className="relative flex-1">
-          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">|A|</span>
+          <LetterText className="absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
             type="number"
             step="0.01"
@@ -1170,7 +1104,7 @@ function CollapsibleSection({ title, isOpen, onToggle, children }: CollapsibleSe
   )
 }
 
-interface DirectEditPanelInnerProps {
+export interface DirectEditPanelInnerProps {
   elementInfo: {
     tagName: string
     id: string | null
@@ -1264,6 +1198,8 @@ export function DirectEditPanelInner({
   const [copied, setCopied] = React.useState(false)
   const [copyError, setCopyError] = React.useState(false)
   const { sections, toggleSection } = useSectionsState()
+
+  const isDistributeValue = ['space-between', 'space-around', 'space-evenly'].includes(computedFlex?.justifyContent ?? '')
 
   // Detect if element has significant text content
   const hasTextContent = React.useMemo(() => {
@@ -1375,6 +1311,154 @@ export function DirectEditPanelInner({
       </div>
 
       <div className="flex-1 overflow-y-auto">
+        <CollapsibleSection
+          title="Layout"
+          isOpen={sections.layout ?? true}
+          onToggle={() => toggleSection('layout')}
+        >
+          <div className="space-y-3">
+            {elementInfo.isFlexContainer && (
+              <div>
+                <div className="mb-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Flex</div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-2">
+                    <div className="flex h-8 overflow-hidden rounded-md border">
+                      <button
+                        type="button"
+                        className={cn(
+                          'flex flex-1 items-center justify-center transition-colors',
+                          computedFlex.flexDirection === 'row'
+                            ? 'bg-primary text-primary-foreground'
+                            : 'bg-background hover:bg-muted/50'
+                        )}
+                        onClick={() => onUpdateFlex('flexDirection', 'row')}
+                        title="Row"
+                      >
+                        <ArrowRight className="size-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        className={cn(
+                          'flex flex-1 items-center justify-center border-l transition-colors',
+                          computedFlex.flexDirection === 'column'
+                            ? 'bg-primary text-primary-foreground'
+                            : 'bg-background hover:bg-muted/50'
+                        )}
+                        onClick={() => onUpdateFlex('flexDirection', 'column')}
+                        title="Column"
+                      >
+                        <ArrowDown className="size-3.5" />
+                      </button>
+                    </div>
+
+                    <div className="flex h-8 items-center rounded-md border bg-background text-xs">
+                      <span className="flex flex-1 items-center gap-1.5 px-2">
+                        <MoveHorizontal className="size-3.5 shrink-0 text-muted-foreground" />
+                        {isDistributeValue ? (
+                          <span className="flex-1 truncate">Between</span>
+                        ) : (
+                          <input
+                            type="number"
+                            value={computedSpacing.gap.numericValue}
+                            onChange={(e) => {
+                              const numericValue = parseFloat(e.target.value) || 0
+                              const unit = computedSpacing.gap.unit === 'em' || computedSpacing.gap.unit === '' ? 'px' : computedSpacing.gap.unit
+                              onUpdateSpacing('gap', {
+                                numericValue,
+                                unit,
+                                raw: `${numericValue}${unit}`,
+                              })
+                            }}
+                            onFocus={selectOnFocus}
+                            className="h-full w-full min-w-0 flex-1 bg-transparent tabular-nums outline-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none [appearance:textfield]"
+                          />
+                        )}
+                      </span>
+                      <button
+                        type="button"
+                        className="flex h-full items-center justify-center border-l px-1.5 hover:bg-muted/50"
+                        onClick={() => {
+                          if (isDistributeValue) {
+                            onUpdateFlex('justifyContent', 'flex-start')
+                          } else {
+                            onUpdateFlex('justifyContent', 'space-between')
+                          }
+                        }}
+                        title={isDistributeValue ? 'Switch to fixed gap' : 'Switch to space between'}
+                      >
+                        <ChevronsUpDown className="size-3 text-muted-foreground" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <AlignmentGrid
+                    justifyContent={computedFlex.justifyContent}
+                    alignItems={computedFlex.alignItems}
+                    onChange={(justify, align) => {
+                      onUpdateFlex('justifyContent', justify)
+                      onUpdateFlex('alignItems', align)
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {computedSizing && (
+              <div>
+                <div className="mb-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Sizing</div>
+                <SizingInputs
+                  width={computedSizing.width}
+                  height={computedSizing.height}
+                  onWidthChange={(value) => onUpdateSizing('width', value)}
+                  onHeightChange={(value) => onUpdateSizing('height', value)}
+                />
+              </div>
+            )}
+
+            <div>
+              <div className="mb-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Padding</div>
+              <PaddingInputs
+                values={{
+                  top: computedSpacing.paddingTop,
+                  right: computedSpacing.paddingRight,
+                  bottom: computedSpacing.paddingBottom,
+                  left: computedSpacing.paddingLeft,
+                }}
+                onChange={onUpdateSpacing}
+              />
+            </div>
+
+            <div>
+              <div className="mb-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Margin</div>
+              <MarginInputs
+                values={{
+                  top: computedSpacing.marginTop,
+                  right: computedSpacing.marginRight,
+                  bottom: computedSpacing.marginBottom,
+                  left: computedSpacing.marginLeft,
+                }}
+                onChange={onUpdateSpacing}
+              />
+            </div>
+          </div>
+        </CollapsibleSection>
+
+        <CollapsibleSection
+          title="Radius"
+          isOpen={sections.radius ?? true}
+          onToggle={() => toggleSection('radius')}
+        >
+          <BorderRadiusInputs
+            values={{
+              topLeft: computedBorderRadius.borderTopLeftRadius,
+              topRight: computedBorderRadius.borderTopRightRadius,
+              bottomRight: computedBorderRadius.borderBottomRightRadius,
+              bottomLeft: computedBorderRadius.borderBottomLeftRadius,
+            }}
+            onChange={onUpdateBorderRadius}
+          />
+        </CollapsibleSection>
+
         {computedColor && (
           <CollapsibleSection
             title="Fill"
@@ -1401,147 +1485,6 @@ export function DirectEditPanelInner({
               typography={computedTypography}
               onUpdate={onUpdateTypography}
             />
-          </CollapsibleSection>
-        )}
-
-        {computedSizing && (
-          <CollapsibleSection
-            title="Sizing"
-            isOpen={sections.sizing ?? true}
-            onToggle={() => toggleSection('sizing')}
-          >
-            <SizingInputs
-              width={computedSizing.width}
-              height={computedSizing.height}
-              onWidthChange={(value) => onUpdateSizing('width', value)}
-              onHeightChange={(value) => onUpdateSizing('height', value)}
-            />
-          </CollapsibleSection>
-        )}
-
-        <CollapsibleSection
-          title="Padding"
-          isOpen={sections.padding ?? true}
-          onToggle={() => toggleSection('padding')}
-        >
-          <PaddingInputs
-            values={{
-              top: computedSpacing.paddingTop,
-              right: computedSpacing.paddingRight,
-              bottom: computedSpacing.paddingBottom,
-              left: computedSpacing.paddingLeft,
-            }}
-            onChange={onUpdateSpacing}
-          />
-        </CollapsibleSection>
-
-        <CollapsibleSection
-          title="Margin"
-          isOpen={sections.margin ?? true}
-          onToggle={() => toggleSection('margin')}
-        >
-          <MarginInputs
-            values={{
-              top: computedSpacing.marginTop,
-              right: computedSpacing.marginRight,
-              bottom: computedSpacing.marginBottom,
-              left: computedSpacing.marginLeft,
-            }}
-            onChange={onUpdateSpacing}
-          />
-        </CollapsibleSection>
-
-        <CollapsibleSection
-          title="Radius"
-          isOpen={sections.radius ?? true}
-          onToggle={() => toggleSection('radius')}
-        >
-          <BorderRadiusInputs
-            values={{
-              topLeft: computedBorderRadius.borderTopLeftRadius,
-              topRight: computedBorderRadius.borderTopRightRadius,
-              bottomRight: computedBorderRadius.borderBottomRightRadius,
-              bottomLeft: computedBorderRadius.borderBottomLeftRadius,
-            }}
-            onChange={onUpdateBorderRadius}
-          />
-        </CollapsibleSection>
-
-        {elementInfo.isFlexContainer && (
-          <CollapsibleSection
-            title="Flex"
-            isOpen={sections.flex ?? true}
-            onToggle={() => toggleSection('flex')}
-          >
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] text-muted-foreground">Direction</span>
-                <div className="flex gap-1">
-                  <Button
-                    variant={computedFlex.flexDirection === 'row' ? 'default' : 'outline'}
-                    size="icon"
-                    className="size-7"
-                    onClick={() => onUpdateFlex('flexDirection', 'row')}
-                    title="Row"
-                  >
-                    <ArrowRight className="size-3.5" />
-                  </Button>
-                  <Button
-                    variant={computedFlex.flexDirection === 'column' ? 'default' : 'outline'}
-                    size="icon"
-                    className="size-7"
-                    onClick={() => onUpdateFlex('flexDirection', 'column')}
-                    title="Column"
-                  >
-                    <ArrowDown className="size-3.5" />
-                  </Button>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-3">
-                <div>
-                  <span className="text-[10px] text-muted-foreground">Align</span>
-                  <AlignmentGrid
-                    justifyContent={computedFlex.justifyContent}
-                    alignItems={computedFlex.alignItems}
-                    onChange={(justify, align) => {
-                      onUpdateFlex('justifyContent', justify)
-                      onUpdateFlex('alignItems', align)
-                    }}
-                  />
-                </div>
-
-                <div>
-                  <span className="text-[10px] text-muted-foreground">Distribute</span>
-                  <div className="mt-1 flex flex-col gap-1">
-                    {[
-                      { value: 'space-between', label: 'Between' },
-                      { value: 'space-around', label: 'Around' },
-                      { value: 'space-evenly', label: 'Evenly' },
-                    ].map(({ value, label }) => (
-                      <Button
-                        key={value}
-                        variant={computedFlex.justifyContent === value ? 'default' : 'ghost'}
-                        size="sm"
-                        className="h-6 justify-start px-2 text-[10px]"
-                        onClick={() => onUpdateFlex('justifyContent', value)}
-                      >
-                        <ChevronsLeftRightEllipsis className="mr-1 size-3" />
-                        {label}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] text-muted-foreground">Gap</span>
-                <GapInput
-                  value={computedSpacing.gap}
-                  onChange={(value) => onUpdateSpacing('gap', value)}
-                />
-              </div>
-            </div>
           </CollapsibleSection>
         )}
       </div>
@@ -1617,7 +1560,10 @@ function DirectEditPanelContent() {
   const [position, setPosition] = React.useState<Position>(getInitialPosition)
   const [isDragging, setIsDragging] = React.useState(false)
   const [dragOffset, setDragOffset] = React.useState<Position>({ x: 0, y: 0 })
-  const [hoveredEditElement, setHoveredEditElement] = React.useState<HTMLElement | null>(null)
+  const [hoverHighlight, setHoverHighlight] = React.useState<{
+    flexContainer: HTMLElement
+    children: HTMLElement[]
+  } | null>(null)
   const panelRef = React.useRef<HTMLDivElement>(null)
 
   const handlePointerDown = (e: React.PointerEvent) => {
@@ -1678,7 +1624,7 @@ function DirectEditPanelContent() {
     <>
       <div
         data-direct-edit="overlay"
-        className="fixed inset-0 z-[99990] cursor-crosshair"
+        className="fixed inset-0 z-[99990] cursor-default"
         style={{ pointerEvents: 'auto' }}
         onMouseMove={(e) => {
           const el = e.currentTarget
@@ -1691,17 +1637,48 @@ function DirectEditPanelContent() {
             elementUnder !== document.body &&
             elementUnder !== document.documentElement &&
             !elementUnder.closest('[data-direct-edit]') &&
+            !elementUnder.closest('[data-direct-edit-host]') &&
             elementUnder !== selectedElement
           ) {
-            setHoveredEditElement(elementUnder)
+            // Check if elementUnder itself is a flex container
+            const ownDisplay = getComputedStyle(elementUnder).display
+            if (ownDisplay === 'flex' || ownDisplay === 'inline-flex') {
+              setHoverHighlight({
+                flexContainer: elementUnder,
+                children: Array.from(elementUnder.children).filter(
+                  (child): child is HTMLElement => child instanceof HTMLElement
+                ),
+              })
+              return
+            }
+
+            // Walk up to find a flex parent
+            let current: HTMLElement | null = elementUnder
+            while (current && current !== document.body) {
+              const parent: HTMLElement | null = current.parentElement
+              if (parent) {
+                const display = getComputedStyle(parent).display
+                if (display === 'flex' || display === 'inline-flex') {
+                  setHoverHighlight({
+                    flexContainer: parent,
+                    children: Array.from(parent.children).filter(
+                      (child): child is HTMLElement => child instanceof HTMLElement
+                    ),
+                  })
+                  return
+                }
+              }
+              current = parent
+            }
+            setHoverHighlight({ flexContainer: elementUnder, children: [] })
           } else {
-            setHoveredEditElement(null)
+            setHoverHighlight(null)
           }
         }}
-        onMouseLeave={() => setHoveredEditElement(null)}
+        onMouseLeave={() => setHoverHighlight(null)}
         onClick={(e) => {
           e.preventDefault()
-          setHoveredEditElement(null)
+          setHoverHighlight(null)
           const el = e.currentTarget
           el.style.pointerEvents = 'none'
           const elementUnder = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null
@@ -1724,8 +1701,8 @@ function DirectEditPanelContent() {
           }
         }}
       />
-      {hoveredEditElement && (() => {
-        const r = hoveredEditElement.getBoundingClientRect()
+      {hoverHighlight && (() => {
+        const cr = hoverHighlight.flexContainer.getBoundingClientRect()
         return (
           <svg
             data-direct-edit="hover-highlight"
@@ -1735,15 +1712,30 @@ function DirectEditPanelContent() {
             style={{ width: '100vw', height: '100vh' }}
           >
             <rect
-              x={r.left}
-              y={r.top}
-              width={r.width}
-              height={r.height}
+              x={cr.left}
+              y={cr.top}
+              width={cr.width}
+              height={cr.height}
               fill="transparent"
               stroke="#3b82f6"
               strokeWidth={1}
-              strokeDasharray="4 2"
             />
+            {hoverHighlight.children.map((child, i) => {
+              const r = child.getBoundingClientRect()
+              return (
+                <rect
+                  key={i}
+                  x={r.left}
+                  y={r.top}
+                  width={r.width}
+                  height={r.height}
+                  fill="transparent"
+                  stroke="#3b82f6"
+                  strokeWidth={1}
+                  strokeDasharray="4 2"
+                />
+              )
+            })}
           </svg>
         )
       })()}

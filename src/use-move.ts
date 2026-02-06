@@ -4,21 +4,22 @@ import {
   findContainerAtPoint,
   calculateDropPosition,
   getFlexDirection,
+  isFlexContainer,
 } from './utils'
 
-interface UseMoveOptions {
+export interface UseMoveOptions {
   onMoveComplete?: (element: HTMLElement) => void
 }
 
-interface DropTarget {
+export interface UseMoveDropTarget {
   container: HTMLElement
   insertBefore: HTMLElement | null
   flexDirection: 'row' | 'row-reverse' | 'column' | 'column-reverse'
 }
 
-interface UseMoveResult {
+export interface UseMoveResult {
   dragState: DragState
-  dropTarget: DropTarget | null
+  dropTarget: UseMoveDropTarget | null
   dropIndicator: DropIndicator | null
   startDrag: (e: React.PointerEvent, element: HTMLElement) => void
 }
@@ -34,7 +35,7 @@ const INITIAL_DRAG_STATE: DragState = {
 
 export function useMove({ onMoveComplete }: UseMoveOptions): UseMoveResult {
   const [dragState, setDragState] = React.useState<DragState>(INITIAL_DRAG_STATE)
-  const [dropTarget, setDropTarget] = React.useState<DropTarget | null>(null)
+  const [dropTarget, setDropTarget] = React.useState<UseMoveDropTarget | null>(null)
   const [dropIndicator, setDropIndicator] = React.useState<DropIndicator | null>(null)
 
   const dragStateRef = React.useRef(dragState)
@@ -117,7 +118,7 @@ export function useMove({ onMoveComplete }: UseMoveOptions): UseMoveResult {
 
     function handlePointerMove(e: PointerEvent) {
       const current = dragStateRef.current
-      const { draggedElement, dragOffset } = current
+      const { draggedElement, dragOffset, originalParent } = current
 
       setDragState((prev) => ({
         ...prev,
@@ -130,7 +131,8 @@ export function useMove({ onMoveComplete }: UseMoveOptions): UseMoveResult {
       const container = findContainerAtPoint(
         e.clientX,
         e.clientY,
-        draggedElement
+        draggedElement,
+        originalParent
       )
 
       if (container && draggedElement) {
@@ -145,7 +147,7 @@ export function useMove({ onMoveComplete }: UseMoveOptions): UseMoveResult {
           setDropTarget({
             container,
             insertBefore: dropPos.insertBefore,
-            flexDirection: getFlexDirection(container),
+            flexDirection: isFlexContainer(container) ? getFlexDirection(container) : 'column',
           })
           setDropIndicator(dropPos.indicator)
         }

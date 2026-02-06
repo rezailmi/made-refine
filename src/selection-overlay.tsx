@@ -2,7 +2,7 @@ import * as React from 'react'
 
 const BLUE = '#0D99FF'
 
-interface SelectionOverlayProps {
+export interface SelectionOverlayProps {
   selectedElement: HTMLElement
   isDragging: boolean
   ghostPosition?: { x: number; y: number }
@@ -70,7 +70,7 @@ export function SelectionOverlay({
           height={rect.height}
           fill="transparent"
           stroke={BLUE}
-          strokeWidth={1}
+          strokeWidth={2}
         />
       </svg>
 

@@ -1,8 +1,8 @@
 import * as React from 'react'
 import type { MeasurementLine } from './types'
-import { calculateParentMeasurements, calculateElementMeasurements } from './utils'
+import { calculateParentMeasurements, calculateElementMeasurements, elementFromPointWithoutOverlays } from './utils'
 
-interface UseMeasurementResult {
+export interface UseMeasurementResult {
   isActive: boolean
   hoveredElement: HTMLElement | null
   measurements: MeasurementLine[]
@@ -20,13 +20,8 @@ export function useMeasurement(selectedElement: HTMLElement | null): UseMeasurem
   const mousePositionRef = React.useRef<{ x: number; y: number } | null>(null)
 
   const getElementBelow = React.useCallback((x: number, y: number): HTMLElement | null => {
-    const overlays = document.querySelectorAll<HTMLElement>('[data-direct-edit]')
-
-    overlays.forEach((el) => (el.style.pointerEvents = 'none'))
-    const element = document.elementFromPoint(x, y) as HTMLElement | null
-    overlays.forEach((el) => (el.style.pointerEvents = ''))
-
-    if (element?.closest('[data-direct-edit]')) return null
+    const element = elementFromPointWithoutOverlays(x, y)
+    if (element?.closest('[data-direct-edit-host]')) return null
     return element
   }, [])
 

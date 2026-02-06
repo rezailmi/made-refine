@@ -5,7 +5,7 @@ const TOMATO = '#E54D2E'
 const BLUE = '#0D99FF'
 const END_CAP_SIZE = 4
 
-interface MeasurementOverlayProps {
+export interface MeasurementOverlayProps {
   selectedElement: HTMLElement
   hoveredElement: HTMLElement | null
   measurements: MeasurementLine[]
