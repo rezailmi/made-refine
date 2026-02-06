@@ -103,6 +103,14 @@ function getInitialPosition(): Position {
 }
 
 const DEFAULT_SECTIONS = { layout: true, fill: true, radius: true, text: true }
+const DISTRIBUTE_MODES = ['fixed', 'space-between', 'space-around', 'space-evenly'] as const
+type DistributeMode = typeof DISTRIBUTE_MODES[number]
+const DISTRIBUTE_LABELS: Record<DistributeMode, string> = {
+  fixed: 'Fixed',
+  'space-between': 'Between',
+  'space-around': 'Around',
+  'space-evenly': 'Evenly',
+}
 
 function useSectionsState() {
   const [sections, setSections] = React.useState<Record<string, boolean>>(DEFAULT_SECTIONS)
@@ -111,14 +119,21 @@ function useSectionsState() {
     const stored = localStorage.getItem(SECTIONS_KEY)
     if (stored) {
       try {
-        setSections(JSON.parse(stored))
+        const parsed = JSON.parse(stored) as Record<string, boolean>
+        if (parsed && typeof parsed === 'object') {
+          setSections({ ...DEFAULT_SECTIONS, ...parsed })
+        }
       } catch {}
     }
   }, [])
 
   const toggleSection = React.useCallback((key: string) => {
     setSections((prev) => {
-      const newSections = { ...prev, [key]: !prev[key] }
+      const defaultValue = key in DEFAULT_SECTIONS
+        ? DEFAULT_SECTIONS[key as keyof typeof DEFAULT_SECTIONS]
+        : true
+      const currentValue = prev[key] ?? defaultValue
+      const newSections = { ...prev, [key]: !currentValue }
       localStorage.setItem(SECTIONS_KEY, JSON.stringify(newSections))
       return newSections
     })
@@ -1199,7 +1214,13 @@ export function DirectEditPanelInner({
   const [copyError, setCopyError] = React.useState(false)
   const { sections, toggleSection } = useSectionsState()
 
-  const isDistributeValue = ['space-between', 'space-around', 'space-evenly'].includes(computedFlex?.justifyContent ?? '')
+  const distributeMode: DistributeMode =
+    computedFlex?.justifyContent === 'space-between' ||
+    computedFlex?.justifyContent === 'space-around' ||
+    computedFlex?.justifyContent === 'space-evenly'
+      ? computedFlex.justifyContent
+      : 'fixed'
+  const isDistributeValue = distributeMode !== 'fixed'
 
   // Detect if element has significant text content
   const hasTextContent = React.useMemo(() => {
@@ -1355,7 +1376,7 @@ export function DirectEditPanelInner({
                       <span className="flex flex-1 items-center gap-1.5 px-2">
                         <MoveHorizontal className="size-3.5 shrink-0 text-muted-foreground" />
                         {isDistributeValue ? (
-                          <span className="flex-1 truncate">Between</span>
+                          <span className="flex-1 truncate">{DISTRIBUTE_LABELS[distributeMode]}</span>
                         ) : (
                           <input
                             type="number"
@@ -1378,13 +1399,14 @@ export function DirectEditPanelInner({
                         type="button"
                         className="flex h-full items-center justify-center border-l px-1.5 hover:bg-muted/50"
                         onClick={() => {
-                          if (isDistributeValue) {
-                            onUpdateFlex('justifyContent', 'flex-start')
-                          } else {
-                            onUpdateFlex('justifyContent', 'space-between')
-                          }
+                          const currentIndex = DISTRIBUTE_MODES.indexOf(distributeMode)
+                          const nextMode = DISTRIBUTE_MODES[(currentIndex + 1) % DISTRIBUTE_MODES.length]
+                          onUpdateFlex(
+                            'justifyContent',
+                            nextMode === 'fixed' ? 'flex-start' : nextMode
+                          )
                         }}
-                        title={isDistributeValue ? 'Switch to fixed gap' : 'Switch to space between'}
+                        title={`Distribution: ${DISTRIBUTE_LABELS[distributeMode]} (click to cycle)`}
                       >
                         <ChevronsUpDown className="size-3 text-muted-foreground" />
                       </button>

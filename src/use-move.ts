@@ -74,12 +74,20 @@ export function useMove({ onMoveComplete }: UseMoveOptions): UseMoveResult {
       const isSamePosition =
         target.container === originalParent &&
         target.insertBefore === originalNextSibling
+      const isInvalidTarget =
+        target.container === draggedElement ||
+        draggedElement.contains(target.container) ||
+        (target.insertBefore ? draggedElement.contains(target.insertBefore) : false)
 
-      if (!isSamePosition) {
-        if (target.insertBefore) {
-          target.container.insertBefore(draggedElement, target.insertBefore)
-        } else {
-          target.container.appendChild(draggedElement)
+      if (!isSamePosition && !isInvalidTarget) {
+        try {
+          if (target.insertBefore) {
+            target.container.insertBefore(draggedElement, target.insertBefore)
+          } else {
+            target.container.appendChild(draggedElement)
+          }
+        } catch {
+          // Ignore invalid DOM moves and leave the element in place.
         }
       }
     }

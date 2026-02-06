@@ -1006,7 +1006,7 @@ function isBlockContainer(element: HTMLElement): boolean {
 }
 
 function skipElement(el: HTMLElement, exclude: HTMLElement | null): boolean {
-  if (el === exclude) return true
+  if (exclude && exclude.contains(el)) return true
   if (el === document.body || el === document.documentElement) return true
   if (el.closest('[data-direct-edit]') || el.closest('[data-direct-edit-host]')) return true
   return false
