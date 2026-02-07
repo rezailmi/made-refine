@@ -3,8 +3,7 @@ import type { DragState, DropIndicator } from './types'
 import {
   findContainerAtPoint,
   calculateDropPosition,
-  getFlexDirection,
-  isFlexContainer,
+  detectChildrenDirection,
 } from './utils'
 
 export interface UseMoveOptions {
@@ -155,7 +154,11 @@ export function useMove({ onMoveComplete }: UseMoveOptions): UseMoveResult {
           setDropTarget({
             container,
             insertBefore: dropPos.insertBefore,
-            flexDirection: isFlexContainer(container) ? getFlexDirection(container) : 'column',
+            flexDirection: (() => {
+              const { axis, reversed } = detectChildrenDirection(container, draggedElement)
+              if (axis === 'horizontal') return reversed ? 'row-reverse' : 'row'
+              return reversed ? 'column-reverse' : 'column'
+            })(),
           })
           setDropIndicator(dropPos.indicator)
         }

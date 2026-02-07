@@ -982,6 +982,43 @@ export function getFlexDirection(
   return computed.flexDirection as 'row' | 'row-reverse' | 'column' | 'column-reverse'
 }
 
+export function detectChildrenDirection(
+  container: HTMLElement,
+  exclude: HTMLElement | null
+): { axis: 'horizontal' | 'vertical'; reversed: boolean } {
+  const computed = window.getComputedStyle(container)
+
+  // Flex: trust CSS for accuracy (especially reverse)
+  if (computed.display === 'flex' || computed.display === 'inline-flex') {
+    const dir = computed.flexDirection
+    return {
+      axis: (dir === 'row' || dir === 'row-reverse') ? 'horizontal' : 'vertical',
+      reversed: dir === 'row-reverse' || dir === 'column-reverse',
+    }
+  }
+
+  // Non-flex: examine first two visible, in-flow children
+  const visible: HTMLElement[] = []
+  for (const c of container.children) {
+    if (!(c instanceof HTMLElement) || c === exclude) continue
+    const cs = window.getComputedStyle(c)
+    if (cs.display === 'none' || cs.position === 'absolute' || cs.position === 'fixed') continue
+    visible.push(c)
+    if (visible.length === 2) break
+  }
+
+  if (visible.length < 2) return { axis: 'vertical', reversed: false }
+
+  const first = visible[0].getBoundingClientRect()
+  const second = visible[1].getBoundingClientRect()
+  const yOverlap = first.bottom - 2 > second.top && second.bottom - 2 > first.top
+
+  if (yOverlap) {
+    return { axis: 'horizontal', reversed: second.right < first.left }
+  }
+  return { axis: 'vertical', reversed: second.bottom < first.top }
+}
+
 export function elementFromPointWithoutOverlays(x: number, y: number): HTMLElement | null {
   const host = document.querySelector<HTMLElement>('[data-direct-edit-host]')
   if (host) host.style.display = 'none'
@@ -1003,6 +1040,7 @@ function isLayoutContainer(element: HTMLElement): boolean {
 function isBlockContainer(element: HTMLElement): boolean {
   const display = window.getComputedStyle(element).display
   return display === 'block' || display === 'flow-root'
+      || display === 'inline-block' || display === 'list-item'
 }
 
 function skipElement(el: HTMLElement, exclude: HTMLElement | null): boolean {
@@ -1010,6 +1048,19 @@ function skipElement(el: HTMLElement, exclude: HTMLElement | null): boolean {
   if (el === document.body || el === document.documentElement) return true
   if (el.closest('[data-direct-edit]') || el.closest('[data-direct-edit-host]')) return true
   return false
+}
+
+function findContainerViaTraversal(x: number, y: number, exclude: HTMLElement | null): HTMLElement | null {
+  const el = elementFromPointWithoutOverlays(x, y)
+  if (!el) return null
+  let current: HTMLElement | null = el
+  while (current) {
+    if (!skipElement(current, exclude)) {
+      if (isLayoutContainer(current) || isBlockContainer(current)) return current
+    }
+    current = current.parentElement
+  }
+  return null
 }
 
 export function findContainerAtPoint(
@@ -1025,27 +1076,21 @@ export function findContainerAtPoint(
 
   if (host) host.style.display = ''
 
-  // When dragging within a flex parent, prefer the parent for sibling reordering
-  // over dropping into a child container
-  if (preferredParent && isFlexContainer(preferredParent)) {
+  // Find most specific container (front-to-back = most nested first)
+  for (const el of elements) {
+    if (skipElement(el, exclude)) continue
+    if (isLayoutContainer(el) || isBlockContainer(el)) return el
+  }
+
+  // Fallback: preferredParent for gap/padding areas
+  if (preferredParent && (isLayoutContainer(preferredParent) || isBlockContainer(preferredParent))) {
     for (const el of elements) {
       if (el === preferredParent) return preferredParent
     }
   }
 
-  // First pass: prefer flex/grid containers (explicit layout systems)
-  for (const el of elements) {
-    if (skipElement(el, exclude)) continue
-    if (isLayoutContainer(el)) return el
-  }
-
-  // Second pass: accept block containers as fallback
-  for (const el of elements) {
-    if (skipElement(el, exclude)) continue
-    if (isBlockContainer(el)) return el
-  }
-
-  return null
+  // Last resort: walk up DOM
+  return findContainerViaTraversal(x, y, exclude)
 }
 
 export function calculateDropPosition(
@@ -1054,10 +1099,8 @@ export function calculateDropPosition(
   pointerY: number,
   draggedElement: HTMLElement
 ): { insertBefore: HTMLElement | null; indicator: DropIndicator } | null {
-  const isFlex = isFlexContainer(container)
-  const flexDirection = isFlex ? getFlexDirection(container) : 'column'
-  const isHorizontal = flexDirection === 'row' || flexDirection === 'row-reverse'
-  const isReversed = flexDirection === 'row-reverse' || flexDirection === 'column-reverse'
+  const { axis, reversed: isReversed } = detectChildrenDirection(container, draggedElement)
+  const isHorizontal = axis === 'horizontal'
 
   const children = Array.from(container.children).filter(
     (child) => child !== draggedElement && child instanceof HTMLElement
