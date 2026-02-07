@@ -70,7 +70,7 @@ function OnboardingPopover({ shortcut }: { shortcut: string }) {
         className="animate-in fade-in-0 slide-in-from-bottom-2 rounded-lg bg-primary px-3.5 py-2.5 text-xs text-primary-foreground shadow-lg"
         style={{ pointerEvents: 'auto' }}
       >
-        <span>To activate design mode, click here or press </span>
+        <span>Activate design mode by clicking here or pressing </span>
         <kbd className="rounded bg-primary-foreground/20 px-1.5 py-0.5 font-mono text-[10px]">
           {shortcut}
         </kbd>
