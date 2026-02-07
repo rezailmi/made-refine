@@ -84,7 +84,7 @@ export function SelectionOverlay({
             width: rect.width,
             height: rect.height,
             zIndex: 99996,
-            cursor: 'grab',
+            cursor: 'default',
             pointerEvents: 'auto',
           }}
           onPointerDown={handlePointerDown}

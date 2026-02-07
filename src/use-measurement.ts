@@ -6,6 +6,7 @@ export interface UseMeasurementResult {
   isActive: boolean
   hoveredElement: HTMLElement | null
   measurements: MeasurementLine[]
+  mousePosition: { x: number; y: number } | null
 }
 
 const INITIAL_STATE = {
@@ -16,6 +17,7 @@ const INITIAL_STATE = {
 export function useMeasurement(selectedElement: HTMLElement | null): UseMeasurementResult {
   const [altHeld, setAltHeld] = React.useState(false)
   const [state, setState] = React.useState(INITIAL_STATE)
+  const [mousePosition, setMousePosition] = React.useState<{ x: number; y: number } | null>(null)
   const rafRef = React.useRef<number | null>(null)
   const mousePositionRef = React.useRef<{ x: number; y: number } | null>(null)
 
@@ -89,9 +91,12 @@ export function useMeasurement(selectedElement: HTMLElement | null): UseMeasurem
         element !== document.documentElement
 
       if (isValidHover) {
+        const isAncestor = element.contains(target)
         setState({
           hoveredElement: element,
-          measurements: calculateElementMeasurements(target, element),
+          measurements: isAncestor
+            ? calculateParentMeasurements(target, element)
+            : calculateElementMeasurements(target, element),
         })
       } else {
         setState({
@@ -109,6 +114,7 @@ export function useMeasurement(selectedElement: HTMLElement | null): UseMeasurem
       }
 
       rafRef.current = requestAnimationFrame(() => {
+        setMousePosition(mousePositionRef.current)
         updateMeasurements()
         rafRef.current = null
       })
@@ -129,5 +135,6 @@ export function useMeasurement(selectedElement: HTMLElement | null): UseMeasurem
     isActive: altHeld && selectedElement !== null,
     hoveredElement: state.hoveredElement,
     measurements: state.measurements,
+    mousePosition: altHeld ? mousePosition : null,
   }
 }
