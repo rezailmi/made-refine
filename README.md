@@ -100,6 +100,62 @@ function App() {
 
 The Vite plugin automatically injects the preload script in dev mode.
 
+## TanStack Start Setup (SSR / Tauri)
+
+TanStack Start uses SSR, so `DirectEdit` must be lazy-loaded to avoid server-side rendering errors.
+
+### 1. Configure vite.config.ts
+
+```ts
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+import { madeRefine } from 'made-refine/vite'
+
+export default defineConfig({
+  plugins: [
+    react({
+      babel: {
+        plugins: ['made-refine/babel'],
+      },
+    }),
+    madeRefine(),
+  ],
+})
+```
+
+### 2. Add to Root Layout
+
+```tsx
+import { lazy, Suspense } from 'react'
+
+const DirectEdit = lazy(() =>
+  import('made-refine').then((m) => ({ default: m.DirectEdit }))
+)
+
+function RootLayout() {
+  return (
+    <html lang="en">
+      <head>
+        <HeadContent />
+      </head>
+      <body>
+        <Outlet />
+        <Scripts />
+        {import.meta.env.DEV && typeof window !== 'undefined' && (
+          <Suspense>
+            <DirectEdit />
+          </Suspense>
+        )}
+      </body>
+    </html>
+  )
+}
+```
+
+> **Why lazy + Suspense?** TanStack Start renders on the server first. `DirectEdit` uses browser APIs (`window`, `document`, `localStorage`) that don't exist during SSR. `lazy()` prevents the module from loading on the server, `typeof window !== "undefined"` skips rendering during SSR, and `<Suspense>` is required by React for lazy components.
+
+> **Next.js doesn't need this** because it natively supports `'use client'` directives, which the package already includes. Next.js automatically handles the client boundary during SSR.
+
 ## Basic Usage
 
 ```tsx

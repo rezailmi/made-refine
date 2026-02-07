@@ -5,6 +5,9 @@
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
+  "bin": {
+    "made-refine": "./dist/cli.cjs"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -70,11 +73,15 @@
   "devDependencies": {
     "@tailwindcss/cli": "^4.1.0",
     "@tailwindcss/vite": "^4.1.0",
+    "@types/prompts": "^2.4.9",
     "@types/react": "^18.3.27",
     "@types/react-dom": "^18.3.7",
     "@vitejs/plugin-react": "^4.3.4",
+    "commander": "^14.0.3",
     "concurrently": "^9.1.0",
     "esbuild": "^0.24.0",
+    "picocolors": "^1.1.1",
+    "prompts": "^2.4.2",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "tailwindcss": "^4.1.0",

@@ -48,4 +48,18 @@ export default defineConfig([
     clean: false,
     external: ['vite'],
   },
+  {
+    entry: { cli: 'src/cli.ts' },
+    format: ['cjs'],
+    outDir: 'dist',
+    outExtension: () => ({ js: '.cjs' }),
+    dts: false,
+    splitting: false,
+    sourcemap: false,
+    clean: false,
+    platform: 'node',
+    target: 'node18',
+    banner: { js: '#!/usr/bin/env node' },
+    noExternal: ['commander', 'prompts', 'picocolors'],
+  },
 ])
