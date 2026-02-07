@@ -11,7 +11,9 @@ function SelectPortal(props: React.ComponentPropsWithoutRef<typeof SelectPrimiti
   return <SelectPrimitive.Portal container={container} {...props} />
 }
 
-const SelectPositioner = SelectPrimitive.Positioner
+function SelectPositioner(props: React.ComponentPropsWithoutRef<typeof SelectPrimitive.Positioner>) {
+  return <SelectPrimitive.Positioner {...props} style={{ pointerEvents: 'auto', ...props.style }} />
+}
 const SelectPopup = SelectPrimitive.Popup
 const SelectItem = SelectPrimitive.Item
 const SelectItemIndicator = SelectPrimitive.ItemIndicator

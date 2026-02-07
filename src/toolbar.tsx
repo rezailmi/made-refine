@@ -4,7 +4,7 @@ import { usePortalContainer } from './portal-container'
 import { useDirectEdit } from './provider'
 import { useRulersVisible } from './rulers-overlay'
 import { cn } from './cn'
-import { MousePointer2, Ruler } from 'lucide-react'
+import { MousePointer2, Ruler, Command, ArrowBigUp } from 'lucide-react'
 import {
   Tooltip,
   TooltipProvider,
@@ -22,7 +22,7 @@ export interface DirectEditToolbarInnerProps {
   className?: string
 }
 
-function OnboardingPopover({ shortcut }: { shortcut: string }) {
+function OnboardingPopover({ shortcut }: { shortcut: React.ReactNode }) {
   const [visible, setVisible] = React.useState(false)
   const container = usePortalContainer()
   const [position, setPosition] = React.useState<{ x: number; y: number } | null>(null)
@@ -71,9 +71,7 @@ function OnboardingPopover({ shortcut }: { shortcut: string }) {
         style={{ pointerEvents: 'auto' }}
       >
         <span>Activate design mode by clicking here or pressing </span>
-        <kbd className="rounded bg-primary-foreground/20 px-1.5 py-0.5 font-mono text-[10px]">
-          {shortcut}
-        </kbd>
+        {shortcut}
         {/* Arrow pointing down */}
         <div
           style={{
@@ -108,7 +106,19 @@ export function DirectEditToolbarInner({
     setIsMac(navigator.platform?.includes('Mac') ?? false)
   }, [])
 
-  const shortcut = isMac ? '⌘.' : 'Ctrl+.'
+  const kbdClass = 'inline-flex items-center justify-center rounded bg-primary-foreground/20 px-1.5 py-0.5 font-mono text-[10px] min-w-[20px] min-h-[18px]'
+
+  const shortcutContent = isMac ? (
+    <>
+      <kbd className={cn(kbdClass, 'ml-1')}><Command className="size-2.5" /></kbd>
+      <kbd className={kbdClass}>.</kbd>
+    </>
+  ) : (
+    <>
+      <kbd className={cn(kbdClass, 'ml-1')}>Ctrl</kbd>
+      <kbd className={kbdClass}>.</kbd>
+    </>
+  )
 
   const toolbar = (
     <>
@@ -116,7 +126,7 @@ export function DirectEditToolbarInner({
         data-direct-edit="toolbar"
         style={{ pointerEvents: 'auto' }}
         className={cn(
-          'fixed bottom-4 left-1/2 z-[99999] -translate-x-1/2 flex items-center rounded-[12px] border bg-background p-1 shadow-lg transition-all duration-300 ease-in-out',
+          'fixed bottom-4 left-1/2 z-[99999] -translate-x-1/2 flex items-center rounded-[14px] border border-foreground/10 bg-background p-1.5 shadow-xl transition-all duration-300 ease-in-out',
           className
         )}
       >
@@ -126,7 +136,7 @@ export function DirectEditToolbarInner({
               className={cn(
                 'flex cursor-pointer items-center justify-center rounded-[8px] p-2 transition-colors duration-300',
                 editModeActive
-                  ? 'bg-black text-white hover:bg-zinc-800'
+                  ? 'bg-foreground text-background hover:bg-foreground/80'
                   : 'text-muted-foreground hover:bg-muted hover:text-foreground'
               )}
               onClick={onToggleEditMode}
@@ -135,9 +145,7 @@ export function DirectEditToolbarInner({
             </TooltipTrigger>
             <TooltipContent side="top">
               <span>{editModeActive ? 'Select' : 'Activate design mode'}</span>
-              <kbd className="ml-2 rounded bg-primary-foreground/20 px-1.5 py-0.5 font-mono text-[10px]">
-                {shortcut}
-              </kbd>
+              {shortcutContent}
             </TooltipContent>
           </Tooltip>
 
@@ -152,8 +160,8 @@ export function DirectEditToolbarInner({
                 className={cn(
                   'flex cursor-pointer items-center justify-center rounded-[8px] p-2 transition-colors',
                   rulersVisible
-                    ? 'bg-zinc-200 text-zinc-900'
-                    : 'text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600'
+                    ? 'bg-muted text-foreground'
+                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                 )}
                 onClick={onToggleRulers}
               >
@@ -161,15 +169,14 @@ export function DirectEditToolbarInner({
               </TooltipTrigger>
               <TooltipContent side="top">
                 <span>{rulersVisible ? 'Hide rulers' : 'Show rulers'}</span>
-                <kbd className="ml-2 rounded bg-primary-foreground/20 px-1.5 py-0.5 font-mono text-[10px]">
-                  ⇧R
-                </kbd>
+                <kbd className={cn(kbdClass, 'ml-1')}><ArrowBigUp className="size-2.5" /></kbd>
+                <kbd className={kbdClass}>R</kbd>
               </TooltipContent>
             </Tooltip>
           </div>
         </TooltipProvider>
       </div>
-      {!editModeActive && <OnboardingPopover shortcut={shortcut} />}
+      {!editModeActive && <OnboardingPopover shortcut={shortcutContent} />}
     </>
   )
 
