@@ -160,3 +160,25 @@ export interface DropIndicator {
   width: number
   height: number
 }
+
+export interface UndoEditEntry {
+  type: 'edit'
+  element: HTMLElement
+  properties: Array<{ cssProperty: string; previousValue: string | null }>
+}
+
+export interface UndoSelectionEntry {
+  type: 'selection'
+  previousElement: HTMLElement | null
+  previousOriginalStyles: Record<string, string>
+  previousPendingStyles: Record<string, string>
+}
+
+export interface UndoMoveEntry {
+  type: 'move'
+  element: HTMLElement
+  originalParent: HTMLElement
+  originalNextSibling: HTMLElement | null
+}
+
+export type UndoEntry = UndoEditEntry | UndoSelectionEntry | UndoMoveEntry

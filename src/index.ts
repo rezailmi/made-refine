@@ -15,7 +15,7 @@ export type { UseMeasurementResult } from './use-measurement'
 export { MeasurementOverlay } from './measurement-overlay'
 export type { MeasurementOverlayProps } from './measurement-overlay'
 export { useMove } from './use-move'
-export type { UseMoveOptions, UseMoveDropTarget, UseMoveResult } from './use-move'
+export type { UseMoveOptions, UseMoveDropTarget, UseMoveResult, MoveInfo } from './use-move'
 export { SelectionOverlay } from './selection-overlay'
 export type { SelectionOverlayProps } from './selection-overlay'
 export { MoveOverlay } from './move-overlay'
@@ -48,6 +48,10 @@ export type {
   DragState,
   DropTarget,
   DropIndicator,
+  UndoEntry,
+  UndoEditEntry,
+  UndoSelectionEntry,
+  UndoMoveEntry,
 } from './types'
 
 export {

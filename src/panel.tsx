@@ -1577,6 +1577,7 @@ function DirectEditPanelContent() {
     selectElement,
     editModeActive,
     selectedElement,
+    handleMoveComplete,
   } = useDirectEdit()
 
   const [position, setPosition] = React.useState<Position>(getInitialPosition)
@@ -1639,7 +1640,7 @@ function DirectEditPanelContent() {
     dropIndicator,
     startDrag,
   } = useMove({
-    onMoveComplete: selectElement,
+    onMoveComplete: handleMoveComplete,
   })
 
   const overlay = editModeActive && container ? createPortal(
