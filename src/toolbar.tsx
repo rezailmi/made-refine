@@ -110,12 +110,12 @@ export function DirectEditToolbarInner({
 
   const shortcutContent = isMac ? (
     <>
-      <kbd className={cn(kbdClass, 'ml-1')}><Command className="size-2.5" /></kbd>
+      <kbd className={kbdClass}><Command className="size-2.5" /></kbd>
       <kbd className={kbdClass}>.</kbd>
     </>
   ) : (
     <>
-      <kbd className={cn(kbdClass, 'ml-1')}>Ctrl</kbd>
+      <kbd className={kbdClass}>Ctrl</kbd>
       <kbd className={kbdClass}>.</kbd>
     </>
   )
@@ -143,7 +143,7 @@ export function DirectEditToolbarInner({
             >
               <MousePointer2 className="size-4" />
             </TooltipTrigger>
-            <TooltipContent side="top">
+            <TooltipContent side="top" className="inline-flex items-center gap-1.5">
               <span>{editModeActive ? 'Select' : 'Activate design mode'}</span>
               {shortcutContent}
             </TooltipContent>
@@ -167,9 +167,9 @@ export function DirectEditToolbarInner({
               >
                 <Ruler className="size-4" />
               </TooltipTrigger>
-              <TooltipContent side="top">
+              <TooltipContent side="top" className="inline-flex items-center gap-1.5">
                 <span>{rulersVisible ? 'Hide rulers' : 'Show rulers'}</span>
-                <kbd className={cn(kbdClass, 'ml-1')}><ArrowBigUp className="size-2.5" /></kbd>
+                <kbd className={kbdClass}><ArrowBigUp className="size-2.5" /></kbd>
                 <kbd className={kbdClass}>R</kbd>
               </TooltipContent>
             </Tooltip>
