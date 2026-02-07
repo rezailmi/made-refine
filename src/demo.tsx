@@ -3,7 +3,9 @@
 import * as React from 'react'
 import { DirectEditPanelInner } from './panel'
 import { DirectEditToolbarInner } from './toolbar'
-import { buildEditExport, stylesToTailwind, formatColorValue } from './utils'
+import { buildEditExport, stylesToTailwind } from './utils'
+import { formatColorValue } from './ui/color-utils'
+import { colorPropertyToCSSMap } from './utils'
 import type { SpacingPropertyKey, BorderRadiusPropertyKey, SizingPropertyKey, ColorPropertyKey, ColorValue, TypographyPropertyKey, CSSPropertyValue, SizingValue, TypographyProperties, ElementLocator } from './types'
 
 function createValue(num: number, unit: 'px' | 'rem' | '%' | 'em' | '' = 'px'): CSSPropertyValue {
@@ -71,6 +73,8 @@ export function DirectEditDemo() {
   const [color, setColor] = React.useState({
     backgroundColor: { hex: 'FFFFFF', alpha: 100, raw: 'rgb(255, 255, 255)' } as ColorValue,
     color: { hex: '000000', alpha: 100, raw: 'rgb(0, 0, 0)' } as ColorValue,
+    borderColor: { hex: 'DDDDDD', alpha: 100, raw: 'rgb(221, 221, 221)' } as ColorValue,
+    outlineColor: { hex: '000000', alpha: 0, raw: 'transparent' } as ColorValue,
   })
 
   const [typography, setTypography] = React.useState<TypographyProperties>({
@@ -109,7 +113,7 @@ export function DirectEditDemo() {
 
   const handleUpdateColor = (key: ColorPropertyKey, value: ColorValue) => {
     setColor((prev) => ({ ...prev, [key]: value }))
-    const cssProperty = key === 'backgroundColor' ? 'background-color' : 'color'
+    const cssProperty = colorPropertyToCSSMap[key]
     setPendingStyles((prev) => ({ ...prev, [cssProperty]: formatColorValue(value) }))
   }
 
@@ -150,6 +154,8 @@ export function DirectEditDemo() {
     setColor({
       backgroundColor: { hex: 'FFFFFF', alpha: 100, raw: 'rgb(255, 255, 255)' },
       color: { hex: '000000', alpha: 100, raw: 'rgb(0, 0, 0)' },
+      borderColor: { hex: 'DDDDDD', alpha: 100, raw: 'rgb(221, 221, 221)' },
+      outlineColor: { hex: '000000', alpha: 0, raw: 'transparent' },
     })
     setTypography({
       fontFamily: 'system-ui, sans-serif',

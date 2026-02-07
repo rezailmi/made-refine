@@ -68,7 +68,6 @@ export {
   calculateParentMeasurements,
   calculateElementMeasurements,
   parseColorValue,
-  formatColorValue,
   getComputedColorStyles,
   colorToTailwind,
   getElementLocator,
@@ -79,3 +78,5 @@ export {
   elementFromPointWithoutOverlays,
   calculateGuidelineMeasurements,
 } from './utils'
+
+export { formatColorValue } from './ui/color-utils'
