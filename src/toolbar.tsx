@@ -106,7 +106,7 @@ export function DirectEditToolbarInner({
     setIsMac(navigator.platform?.includes('Mac') ?? false)
   }, [])
 
-  const kbdClass = 'inline-flex items-center justify-center rounded bg-primary-foreground/20 px-1.5 py-0.5 font-mono text-[10px]'
+  const kbdClass = 'inline-flex items-center justify-center rounded bg-primary-foreground/20 px-1.5 py-0.5 font-mono text-[10px] min-w-[20px] min-h-[18px]'
 
   const shortcutContent = isMac ? (
     <>
