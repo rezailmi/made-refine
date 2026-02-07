@@ -342,7 +342,7 @@ function GuidelineLine({
 // --- Viewport size hooks ---
 
 function useViewportWidth() {
-  const [width, setWidth] = React.useState(window.innerWidth)
+  const [width, setWidth] = React.useState(typeof window !== 'undefined' ? window.innerWidth : 0)
   React.useEffect(() => {
     const onResize = () => setWidth(window.innerWidth)
     window.addEventListener('resize', onResize)
@@ -352,7 +352,7 @@ function useViewportWidth() {
 }
 
 function useViewportHeight() {
-  const [height, setHeight] = React.useState(window.innerHeight)
+  const [height, setHeight] = React.useState(typeof window !== 'undefined' ? window.innerHeight : 0)
   React.useEffect(() => {
     const onResize = () => setHeight(window.innerHeight)
     window.addEventListener('resize', onResize)
@@ -413,7 +413,7 @@ const RULERS_TOGGLE_EVENT = 'direct-edit-rulers-toggle'
 
 export function useRulersVisible(): [boolean, () => void] {
   const [visible, setVisible] = React.useState(
-    () => localStorage.getItem(RULERS_VISIBLE_KEY) !== 'false',
+    () => typeof window !== 'undefined' ? localStorage.getItem(RULERS_VISIBLE_KEY) !== 'false' : true,
   )
 
   React.useEffect(() => {
