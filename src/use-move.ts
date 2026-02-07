@@ -6,8 +6,13 @@ import {
   detectChildrenDirection,
 } from './utils'
 
+export interface MoveInfo {
+  originalParent: HTMLElement
+  originalNextSibling: HTMLElement | null
+}
+
 export interface UseMoveOptions {
-  onMoveComplete?: (element: HTMLElement) => void
+  onMoveComplete?: (element: HTMLElement, moveInfo: MoveInfo | null) => void
 }
 
 export interface UseMoveDropTarget {
@@ -69,6 +74,7 @@ export function useMove({ onMoveComplete }: UseMoveOptions): UseMoveResult {
 
     draggedElement.style.opacity = ''
 
+    let didMove = false
     if (target) {
       const isSamePosition =
         target.container === originalParent &&
@@ -85,6 +91,7 @@ export function useMove({ onMoveComplete }: UseMoveOptions): UseMoveResult {
           } else {
             target.container.appendChild(draggedElement)
           }
+          didMove = true
         } catch {
           // Ignore invalid DOM moves and leave the element in place.
         }
@@ -96,7 +103,10 @@ export function useMove({ onMoveComplete }: UseMoveOptions): UseMoveResult {
     setDropIndicator(null)
 
     if (onMoveCompleteRef.current && draggedElement) {
-      onMoveCompleteRef.current(draggedElement)
+      const moveInfo: MoveInfo | null = didMove && originalParent
+        ? { originalParent, originalNextSibling }
+        : null
+      onMoveCompleteRef.current(draggedElement, moveInfo)
     }
   }, [cancelDrag])
 

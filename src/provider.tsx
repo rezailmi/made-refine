@@ -11,7 +11,9 @@ import type {
   SizingValue,
   ColorPropertyKey,
   ColorValue,
+  UndoEntry,
 } from './types'
+import type { MoveInfo } from './use-move'
 import {
   getComputedStyles,
   getOriginalInlineStyles,
@@ -46,6 +48,8 @@ export interface DirectEditContextValue extends DirectEditState {
   resetToOriginal: () => void
   exportEdits: () => Promise<boolean>
   toggleEditMode: () => void
+  undo: () => void
+  handleMoveComplete: (element: HTMLElement, moveInfo: MoveInfo | null) => void
 }
 
 const DirectEditContext = React.createContext<DirectEditContextValue | null>(null)
@@ -79,7 +83,30 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     editModeActive: false,
   })
 
+  const undoStackRef = React.useRef<UndoEntry[]>([])
+  const stateRef = React.useRef(state)
+  React.useEffect(() => {
+    stateRef.current = state
+  })
+
+  const pushUndo = React.useCallback((entry: UndoEntry) => {
+    undoStackRef.current.push(entry)
+    if (undoStackRef.current.length > 50) {
+      undoStackRef.current = undoStackRef.current.slice(-50)
+    }
+  }, [])
+
   const selectElement = React.useCallback((element: HTMLElement) => {
+    const current = stateRef.current
+    if (current.selectedElement || current.isOpen) {
+      pushUndo({
+        type: 'selection',
+        previousElement: current.selectedElement,
+        previousOriginalStyles: { ...current.originalStyles },
+        previousPendingStyles: { ...current.pendingStyles },
+      })
+    }
+
     const { spacing, borderRadius, flex } = getComputedStyles(element)
     const sizing = getComputedSizing(element)
     const color = getComputedColorStyles(element)
@@ -101,7 +128,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
       pendingStyles: {},
       editModeActive: prev.editModeActive,
     }))
-  }, [])
+  }, [pushUndo])
 
   const closePanel = React.useCallback(() => {
     setState((prev) => ({
@@ -137,6 +164,9 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
       const cssProperty = propertyToCSSMap[key]
       const cssValue = formatPropertyValue(value)
 
+      const previousValue = state.selectedElement.style.getPropertyValue(cssProperty) || null
+      pushUndo({ type: 'edit', element: state.selectedElement, properties: [{ cssProperty, previousValue }] })
+
       state.selectedElement.style.setProperty(cssProperty, cssValue)
 
       setState((prev) => ({
@@ -153,7 +183,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
         },
       }))
     },
-    [state.selectedElement]
+    [state.selectedElement, pushUndo]
   )
 
   const updateBorderRadiusProperty = React.useCallback(
@@ -162,6 +192,9 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
 
       const cssProperty = borderRadiusPropertyToCSSMap[key]
       const cssValue = formatPropertyValue(value)
+
+      const previousValue = state.selectedElement.style.getPropertyValue(cssProperty) || null
+      pushUndo({ type: 'edit', element: state.selectedElement, properties: [{ cssProperty, previousValue }] })
 
       state.selectedElement.style.setProperty(cssProperty, cssValue)
 
@@ -179,7 +212,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
         },
       }))
     },
-    [state.selectedElement]
+    [state.selectedElement, pushUndo]
   )
 
   const updateFlexProperty = React.useCallback(
@@ -187,6 +220,9 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
       if (!state.selectedElement) return
 
       const cssProperty = flexPropertyToCSSMap[key]
+
+      const previousValue = state.selectedElement.style.getPropertyValue(cssProperty) || null
+      pushUndo({ type: 'edit', element: state.selectedElement, properties: [{ cssProperty, previousValue }] })
 
       state.selectedElement.style.setProperty(cssProperty, value)
 
@@ -204,7 +240,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
         },
       }))
     },
-    [state.selectedElement]
+    [state.selectedElement, pushUndo]
   )
 
   const updateSizingProperty = React.useCallback(
@@ -213,6 +249,9 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
 
       const cssProperty = sizingPropertyToCSSMap[key]
       const cssValue = sizingValueToCSS(value)
+
+      const previousValue = state.selectedElement.style.getPropertyValue(cssProperty) || null
+      pushUndo({ type: 'edit', element: state.selectedElement, properties: [{ cssProperty, previousValue }] })
 
       state.selectedElement.style.setProperty(cssProperty, cssValue)
 
@@ -230,7 +269,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
         },
       }))
     },
-    [state.selectedElement]
+    [state.selectedElement, pushUndo]
   )
 
   const updateColorProperty = React.useCallback(
@@ -239,6 +278,9 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
 
       const cssProperty = colorPropertyToCSSMap[key]
       const cssValue = formatColorValue(value)
+
+      const previousValue = state.selectedElement.style.getPropertyValue(cssProperty) || null
+      pushUndo({ type: 'edit', element: state.selectedElement, properties: [{ cssProperty, previousValue }] })
 
       state.selectedElement.style.setProperty(cssProperty, cssValue)
 
@@ -256,7 +298,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
         },
       }))
     },
-    [state.selectedElement]
+    [state.selectedElement, pushUndo]
   )
 
   const updateTypographyProperty = React.useCallback(
@@ -267,12 +309,26 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
       const cssValue = typeof value === 'string' ? value : formatPropertyValue(value)
 
       if (key === 'textVerticalAlign') {
+        const prevDisplay = state.selectedElement.style.getPropertyValue('display') || null
+        const prevAlignItems = state.selectedElement.style.getPropertyValue('align-items') || null
+        pushUndo({
+          type: 'edit',
+          element: state.selectedElement,
+          properties: [
+            { cssProperty: 'display', previousValue: prevDisplay },
+            { cssProperty: 'align-items', previousValue: prevAlignItems },
+          ],
+        })
+
         const computed = window.getComputedStyle(state.selectedElement)
         const isInline = computed.display === 'inline' || computed.display === 'inline-block'
         const displayValue = isInline ? 'inline-flex' : 'flex'
         state.selectedElement.style.setProperty('display', displayValue)
         state.selectedElement.style.setProperty('align-items', cssValue)
       } else {
+        const previousValue = state.selectedElement.style.getPropertyValue(cssProperty) || null
+        pushUndo({ type: 'edit', element: state.selectedElement, properties: [{ cssProperty, previousValue }] })
+
         state.selectedElement.style.setProperty(cssProperty, cssValue)
       }
 
@@ -301,11 +357,16 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
         }
       })
     },
-    [state.selectedElement]
+    [state.selectedElement, pushUndo]
   )
 
   const resetToOriginal = React.useCallback(() => {
     if (!state.selectedElement) return
+
+    const el = state.selectedElement
+    undoStackRef.current = undoStackRef.current.filter(
+      (entry) => !(entry.type === 'edit' && entry.element === el)
+    )
 
     const allCSSProps = [
       ...Object.values(propertyToCSSMap),
@@ -340,6 +401,148 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
       pendingStyles: {},
     }))
   }, [state.selectedElement, state.originalStyles])
+
+  const undo = React.useCallback(() => {
+    const entry = undoStackRef.current.pop()
+    if (!entry) return
+
+    switch (entry.type) {
+      case 'edit': {
+        if (!entry.element.isConnected) return
+        for (const { cssProperty, previousValue } of entry.properties) {
+          if (previousValue === null) {
+            entry.element.style.removeProperty(cssProperty)
+          } else {
+            entry.element.style.setProperty(cssProperty, previousValue)
+          }
+        }
+        const current = stateRef.current
+        if (current.selectedElement === entry.element) {
+          const { spacing, borderRadius, flex } = getComputedStyles(entry.element)
+          const sizing = getComputedSizing(entry.element)
+          const color = getComputedColorStyles(entry.element)
+          const typography = getComputedTypography(entry.element)
+          const newPending = { ...current.pendingStyles }
+          for (const { cssProperty, previousValue } of entry.properties) {
+            if (previousValue === null) {
+              delete newPending[cssProperty]
+            } else {
+              newPending[cssProperty] = previousValue
+            }
+          }
+          setState((prev) => ({
+            ...prev,
+            computedSpacing: spacing,
+            computedBorderRadius: borderRadius,
+            computedFlex: flex,
+            computedSizing: sizing,
+            computedColor: color,
+            computedTypography: typography,
+            pendingStyles: newPending,
+          }))
+        }
+        break
+      }
+      case 'selection': {
+        const prevEl = entry.previousElement
+        if (prevEl && !prevEl.isConnected) return
+        if (prevEl) {
+          for (const [prop, value] of Object.entries(entry.previousPendingStyles)) {
+            prevEl.style.setProperty(prop, value)
+          }
+          const { spacing, borderRadius, flex } = getComputedStyles(prevEl)
+          const sizing = getComputedSizing(prevEl)
+          const color = getComputedColorStyles(prevEl)
+          const typography = getComputedTypography(prevEl)
+          const elementInfo = getElementInfo(prevEl)
+          setState((prev) => ({
+            isOpen: true,
+            selectedElement: prevEl,
+            elementInfo,
+            computedSpacing: spacing,
+            computedBorderRadius: borderRadius,
+            computedFlex: flex,
+            computedSizing: sizing,
+            computedColor: color,
+            computedTypography: typography,
+            originalStyles: entry.previousOriginalStyles,
+            pendingStyles: entry.previousPendingStyles,
+            editModeActive: prev.editModeActive,
+          }))
+        } else {
+          setState((prev) => ({
+            ...prev,
+            isOpen: false,
+            selectedElement: null,
+            elementInfo: null,
+            computedSpacing: null,
+            computedBorderRadius: null,
+            computedFlex: null,
+            computedSizing: null,
+            computedColor: null,
+            computedTypography: null,
+            originalStyles: {},
+            pendingStyles: {},
+          }))
+        }
+        break
+      }
+      case 'move': {
+        if (!entry.element.isConnected) return
+        try {
+          if (entry.originalNextSibling) {
+            entry.originalParent.insertBefore(entry.element, entry.originalNextSibling)
+          } else {
+            entry.originalParent.appendChild(entry.element)
+          }
+        } catch {
+          // Ignore invalid DOM moves
+        }
+        const current = stateRef.current
+        if (current.selectedElement === entry.element) {
+          const elementInfo = getElementInfo(entry.element)
+          setState((prev) => ({ ...prev, elementInfo }))
+        }
+        break
+      }
+    }
+  }, [])
+
+  const handleMoveComplete = React.useCallback(
+    (element: HTMLElement, moveInfo: MoveInfo | null) => {
+      if (moveInfo) {
+        pushUndo({
+          type: 'move',
+          element,
+          originalParent: moveInfo.originalParent,
+          originalNextSibling: moveInfo.originalNextSibling,
+        })
+      }
+      // Refresh element state without going through selectElement,
+      // which would push an extra selection undo entry.
+      const { spacing, borderRadius, flex } = getComputedStyles(element)
+      const sizing = getComputedSizing(element)
+      const color = getComputedColorStyles(element)
+      const typography = getComputedTypography(element)
+      const elementInfo = getElementInfo(element)
+
+      setState((prev) => ({
+        isOpen: true,
+        selectedElement: element,
+        elementInfo,
+        computedSpacing: spacing,
+        computedBorderRadius: borderRadius,
+        computedFlex: flex,
+        computedSizing: sizing,
+        computedColor: color,
+        computedTypography: typography,
+        originalStyles: prev.originalStyles,
+        pendingStyles: prev.pendingStyles,
+        editModeActive: prev.editModeActive,
+      }))
+    },
+    [pushUndo]
+  )
 
   const exportEdits = React.useCallback(async () => {
     if (
@@ -377,6 +580,12 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
         return
       }
 
+      if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault()
+        undo()
+        return
+      }
+
       if (e.key === 'Escape') {
         if (state.isOpen) {
           closePanel()
@@ -388,7 +597,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [state.isOpen, state.editModeActive, closePanel, toggleEditMode])
+  }, [state.isOpen, state.editModeActive, closePanel, toggleEditMode, undo])
 
   const contextValue: DirectEditContextValue = {
     ...state,
@@ -405,6 +614,8 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     resetToOriginal,
     exportEdits,
     toggleEditMode,
+    undo,
+    handleMoveComplete,
   }
 
   return (
