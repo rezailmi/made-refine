@@ -628,7 +628,7 @@ function AlignmentGrid({ justifyContent, alignItems, onChange }: AlignmentGridPr
         {({ payload }) => (
           <TooltipPortal>
             <TooltipPositioner side="bottom" sideOffset={8} className="fixed z-[99999]">
-              <TooltipPopup className="overflow-hidden rounded-md bg-primary px-3 py-1.5 text-xs text-primary-foreground animate-in fade-in-0 zoom-in-95 data-[closed]:animate-out data-[closed]:fade-out-0 data-[closed]:zoom-out-95 data-[side=bottom]:slide-in-from-top-2">
+              <TooltipPopup className="overflow-hidden rounded-md bg-[#171717] px-3 py-1.5 text-xs text-[#fafafa] animate-in fade-in-0 zoom-in-95 data-[closed]:animate-out data-[closed]:fade-out-0 data-[closed]:zoom-out-95 data-[side=bottom]:slide-in-from-top-2">
                 justify: {payload?.justify}, align: {payload?.align}
               </TooltipPopup>
             </TooltipPositioner>
