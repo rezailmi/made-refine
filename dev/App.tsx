@@ -1,137 +1,170 @@
 import React from 'react'
 import { DirectEdit } from '../src/index'
 
-// Base UI default color tokens (from base-ui.com examples)
 const gray = {
   50: 'var(--color-gray-50, #f9fafb)',
   100: 'var(--color-gray-100, #f3f4f6)',
   200: 'var(--color-gray-200, #e5e7eb)',
   300: 'var(--color-gray-300, #d1d5db)',
+  400: 'var(--color-gray-400, #9ca3af)',
   500: 'var(--color-gray-500, #6b7280)',
   600: 'var(--color-gray-600, #4b5563)',
+  700: 'var(--color-gray-700, #374151)',
+  800: 'var(--color-gray-800, #1f2937)',
   900: 'var(--color-gray-900, #111827)',
 }
-const blue = 'var(--color-blue, #3b82f6)'
+const blue = { 50: '#eff6ff', 500: '#3b82f6', 600: '#2563eb' }
+const indigo = '#6366f1'
+const emerald = '#10b981'
+const amber = '#f59e0b'
+const rose = '#f43f5e'
+const violet = '#8b5cf6'
 
 export default function App() {
   return (
     <>
       <DirectEdit />
       <div style={{ fontFamily: 'system-ui, sans-serif', color: gray[900], padding: 32, maxWidth: 960, margin: '0 auto' }}>
-        <h1 style={{ fontSize: 32, fontWeight: 700, marginBottom: 8 }}>made-refine dev</h1>
-        <p style={{ color: gray[600], marginBottom: 32, fontSize: 14, lineHeight: 1.5 }}>
+        <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 6, letterSpacing: '-0.02em' }}>made-refine dev</h1>
+        <p style={{ color: gray[500], marginBottom: 32, fontSize: 14, lineHeight: 1.5 }}>
           Press{' '}
-          <kbd style={{ fontSize: 12, fontFamily: 'ui-monospace, monospace', padding: '2px 6px', backgroundColor: gray[50], border: `1px solid ${gray[200]}`, borderRadius: '0.375rem' }}>⌘.</kbd>
+          <kbd style={{ fontSize: 12, fontFamily: 'ui-monospace, monospace', padding: '2px 6px', backgroundColor: gray[100], border: `1px solid ${gray[200]}`, borderRadius: '0.375rem' }}>⌘.</kbd>
           {' '}to toggle edit mode. Click any element to inspect and edit styles.
         </p>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
-          <Card title="Typography">
-            <h2 style={{ fontSize: 24, fontWeight: 600, marginBottom: 4 }}>Heading Two</h2>
-            <h3 style={{ fontSize: 18, fontWeight: 500, marginBottom: 8, color: gray[600] }}>Subheading text</h3>
-            <p style={{ fontSize: 14, lineHeight: 1.6, color: gray[600], marginBottom: 8 }}>
-              Body text for testing typography editing. Resize, recolor, and restyle this paragraph.
-            </p>
-            <p style={{ fontSize: 12, color: gray[500] }}>Caption text</p>
-          </Card>
 
-          <Card title="Spacing & Layout">
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
-              <Box>A</Box>
-              <Box>B</Box>
-              <Box>C</Box>
-            </div>
-            <div style={{ padding: 12, border: `1px dashed ${gray[200]}` }}>
-              <div style={{ padding: 8, border: `1px dashed ${gray[200]}`, fontSize: 13, color: gray[500], textAlign: 'center' }}>
-                Nested padding
+          {/* Profile Card */}
+          <div style={{ border: `1px solid ${gray[200]}`, borderRadius: 12, padding: 24, backgroundColor: '#fff' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+              <div style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: gray[900], display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 600, color: '#fff', letterSpacing: '-0.02em' }}>
+                JD
+              </div>
+              <div>
+                <div style={{ fontSize: 15, fontWeight: 600, lineHeight: 1.3 }}>Jane Doe</div>
+                <div style={{ fontSize: 13, color: gray[500] }}>Product Designer</div>
               </div>
             </div>
-          </Card>
-
-          <Card title="Colors">
-            <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
-              {[gray[900], gray[500], gray[200], gray[100], gray[50]].map((c, i) => (
-                <div key={i} style={{ width: 32, height: 32, borderRadius: '0.375rem', background: c, border: `1px solid ${gray[200]}` }} />
-              ))}
-            </div>
-            <div style={{ padding: 12, backgroundColor: gray[900], color: gray[50], borderRadius: '0.375rem', fontSize: 14 }}>
-              Dark surface
-            </div>
-          </Card>
-
-          <Card title="Borders & Radius">
-            <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 12 }}>
-              <div style={{ width: 40, height: 40, borderRadius: 0, border: `2px solid ${gray[900]}` }} />
-              <div style={{ width: 40, height: 40, borderRadius: '0.375rem', border: `2px solid ${gray[900]}` }} />
-              <div style={{ width: 40, height: 40, borderRadius: 20, border: `2px solid ${gray[900]}` }} />
-            </div>
-            <div style={{ display: 'flex' }}>
-              {['Left', 'Mid', 'Right'].map((label, i) => (
-                <div
-                  key={label}
-                  style={{
-                    flex: 1,
-                    padding: '6px 0',
-                    fontSize: 14,
-                    fontWeight: 500,
-                    textAlign: 'center',
-                    border: `1px solid ${gray[200]}`,
-                    marginLeft: i > 0 ? -1 : 0,
-                    backgroundColor: i === 1 ? gray[900] : gray[50],
-                    color: i === 1 ? gray[50] : gray[900],
-                    borderRadius: i === 0 ? '0.375rem 0 0 0.375rem' : i === 2 ? '0 0.375rem 0.375rem 0' : 0,
-                  }}
-                >
-                  {label}
+            <div style={{ display: 'flex', gap: 1, backgroundColor: gray[200], borderRadius: 8, overflow: 'hidden' }}>
+              {[
+                { label: 'Projects', value: '24' },
+                { label: 'Following', value: '128' },
+                { label: 'Followers', value: '2.4k' },
+              ].map((stat) => (
+                <div key={stat.label} style={{ flex: 1, padding: '10px 0', textAlign: 'center', backgroundColor: gray[50] }}>
+                  <div style={{ fontSize: 15, fontWeight: 600, lineHeight: 1.2 }}>{stat.value}</div>
+                  <div style={{ fontSize: 11, color: gray[500], marginTop: 2 }}>{stat.label}</div>
                 </div>
               ))}
             </div>
-          </Card>
+          </div>
 
-          <Card title="Flex Layout">
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 14px', backgroundColor: gray[900], borderRadius: '0.375rem', marginBottom: 12 }}>
-              <span style={{ fontSize: 14, fontWeight: 600, color: gray[50] }}>Logo</span>
-              <div style={{ display: 'flex', gap: 12 }}>
-                {['Home', 'About', 'Blog'].map((l) => (
-                  <span key={l} style={{ fontSize: 14, color: gray[500] }}>{l}</span>
-                ))}
+          {/* Pricing Card */}
+          <div style={{ border: `1px solid ${gray[200]}`, borderRadius: 12, padding: 24, backgroundColor: '#fff', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ fontSize: 13, fontWeight: 500, color: gray[500], marginBottom: 8, textTransform: 'uppercase' as const, letterSpacing: '0.05em' }}>Pro Plan</div>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 16 }}>
+              <span style={{ fontSize: 36, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1 }}>$29</span>
+              <span style={{ fontSize: 14, color: gray[500] }}>/mo</span>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20, flex: 1 }}>
+              {['Unlimited projects', 'Priority support', 'Custom domains'].map((feature) => (
+                <div key={feature} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: gray[600] }}>
+                  <div style={{ width: 16, height: 16, borderRadius: 8, backgroundColor: gray[900], display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div style={{ width: 6, height: 3, borderLeft: '1.5px solid #fff', borderBottom: '1.5px solid #fff', transform: 'rotate(-45deg) translateY(-0.5px)' }} />
+                  </div>
+                  {feature}
+                </div>
+              ))}
+            </div>
+            <div style={{ padding: '10px 0', backgroundColor: gray[900], color: '#fff', borderRadius: 8, fontSize: 14, fontWeight: 500, textAlign: 'center', letterSpacing: '-0.01em' }}>
+              Get started
+            </div>
+          </div>
+
+          {/* Colors */}
+          <div style={{ border: `1px solid ${gray[200]}`, borderRadius: 12, padding: 24, backgroundColor: '#fff' }}>
+            <div style={{ fontSize: 13, fontWeight: 500, color: gray[500], marginBottom: 16, textTransform: 'uppercase' as const, letterSpacing: '0.05em' }}>Palette</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 16 }}>
+              {[
+                { color: blue[500], name: 'Blue' },
+                { color: indigo, name: 'Indigo' },
+                { color: violet, name: 'Violet' },
+                { color: emerald, name: 'Emerald' },
+                { color: amber, name: 'Amber' },
+                { color: rose, name: 'Rose' },
+              ].map((swatch) => (
+                <div key={swatch.name}>
+                  <div style={{ height: 40, borderRadius: 6, background: swatch.color, marginBottom: 4 }} />
+                  <div style={{ fontSize: 11, color: gray[500], textAlign: 'center' }}>{swatch.name}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ padding: 12, backgroundColor: blue[600], color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 500, textAlign: 'center' }}>
+              Blue surface
+            </div>
+          </div>
+
+          {/* Testimonial */}
+          <div style={{ border: `1px solid ${gray[200]}`, borderRadius: 12, padding: 24, backgroundColor: '#fff', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ fontSize: 32, lineHeight: 1, color: gray[300], marginBottom: 8, fontFamily: 'Georgia, serif' }}>&ldquo;</div>
+            <p style={{ fontSize: 14, lineHeight: 1.7, color: gray[700], flex: 1, margin: 0 }}>
+              This tool completely changed how we iterate on design. What used to take a round-trip to Figma now happens right in the browser.
+            </p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 16, paddingTop: 16, borderTop: `1px solid ${gray[200]}` }}>
+              <div style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: gray[800], display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 600, color: '#fff' }}>
+                AK
+              </div>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 500 }}>Alex Kim</div>
+                <div style={{ fontSize: 12, color: gray[500] }}>Engineering Lead, Acme</div>
               </div>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: 16, border: `1px solid ${gray[200]}`, borderRadius: '0.375rem' }}>
-              <span style={{ fontSize: 14, fontWeight: 500 }}>Centered</span>
-              <span style={{ fontSize: 13, color: gray[500] }}>Column layout</span>
-            </div>
-          </Card>
+          </div>
 
-          <Card title="Sizing">
-            <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 12 }}>
-              <div style={{ width: 80, padding: 8, border: `1px solid ${gray[200]}`, borderRadius: '0.375rem', fontSize: 13, color: gray[500] }}>Fixed</div>
-              <div style={{ flex: 1, padding: 8, border: `1px solid ${gray[200]}`, borderRadius: '0.375rem', fontSize: 13, color: gray[500] }}>Fill</div>
-              <div style={{ padding: 8, border: `1px solid ${gray[200]}`, borderRadius: '0.375rem', fontSize: 13, color: gray[500] }}>Fit</div>
+          {/* Notification */}
+          <div style={{ border: `1px solid ${gray[200]}`, borderRadius: 12, padding: 24, backgroundColor: '#fff' }}>
+            <div style={{ fontSize: 13, fontWeight: 500, color: gray[500], marginBottom: 16, textTransform: 'uppercase' as const, letterSpacing: '0.05em' }}>Notifications</div>
+            {[
+              { initials: 'SM', title: 'Sara mentioned you', desc: 'in Design Review #14', time: '2m' },
+              { initials: 'TR', title: 'Tom requested review', desc: 'on Homepage redesign', time: '1h' },
+            ].map((n, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 0', borderTop: i > 0 ? `1px solid ${gray[100]}` : 'none' }}>
+                <div style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: gray[100], display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 600, color: gray[600], flexShrink: 0 }}>
+                  {n.initials}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 500, lineHeight: 1.3 }}>{n.title}</div>
+                  <div style={{ fontSize: 12, color: gray[500] }}>{n.desc}</div>
+                </div>
+                <div style={{ fontSize: 11, color: gray[400], flexShrink: 0 }}>{n.time}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Stats */}
+          <div style={{ border: `1px solid ${gray[200]}`, borderRadius: 12, padding: 24, backgroundColor: '#fff' }}>
+            <div style={{ fontSize: 13, fontWeight: 500, color: gray[500], marginBottom: 16, textTransform: 'uppercase' as const, letterSpacing: '0.05em' }}>This month</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {[
+                { label: 'Revenue', value: '$12,480', bar: 0.78 },
+                { label: 'Users', value: '1,024', bar: 0.52 },
+                { label: 'Conversion', value: '3.2%', bar: 0.32 },
+              ].map((stat) => (
+                <div key={stat.label}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                    <span style={{ fontSize: 13, color: gray[600] }}>{stat.label}</span>
+                    <span style={{ fontSize: 13, fontWeight: 600 }}>{stat.value}</span>
+                  </div>
+                  <div style={{ height: 6, backgroundColor: gray[100], borderRadius: 3, overflow: 'hidden' }}>
+                    <div style={{ width: `${stat.bar * 100}%`, height: 6, backgroundColor: gray[900], borderRadius: 3 }} />
+                  </div>
+                </div>
+              ))}
             </div>
-            <div style={{ height: 8, backgroundColor: gray[200], borderRadius: '0.375rem', overflow: 'hidden' }}>
-              <div style={{ width: '65%', height: 8, backgroundColor: gray[900], borderRadius: '0.375rem' }} />
-            </div>
-          </Card>
+          </div>
+
         </div>
       </div>
     </>
-  )
-}
-
-function Card({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div style={{ border: `1px solid ${gray[200]}`, borderRadius: '0.5rem', padding: 20, backgroundColor: gray[50] }}>
-      <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 16, color: gray[900] }}>{title}</div>
-      {children}
-    </div>
-  )
-}
-
-function Box({ children }: { children: React.ReactNode }) {
-  return (
-    <div style={{ width: 44, height: 44, borderRadius: '0.375rem', background: gray[100], display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 500, fontSize: 14, color: gray[900] }}>
-      {children}
-    </div>
   )
 }
