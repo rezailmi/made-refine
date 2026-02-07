@@ -67,7 +67,7 @@ function OnboardingPopover({ shortcut }: { shortcut: React.ReactNode }) {
       }}
     >
       <div
-        className="animate-in fade-in-0 slide-in-from-bottom-2 rounded-lg bg-primary px-3.5 py-2.5 text-xs text-primary-foreground shadow-lg"
+        className="animate-in fade-in-0 slide-in-from-bottom-2 rounded-lg bg-foreground px-3.5 py-2.5 text-xs text-background shadow-lg"
         style={{ pointerEvents: 'auto' }}
       >
         <span>Activate design mode by clicking here or pressing </span>
@@ -83,7 +83,7 @@ function OnboardingPopover({ shortcut }: { shortcut: React.ReactNode }) {
             height: 0,
             borderLeft: '6px solid transparent',
             borderRight: '6px solid transparent',
-            borderTop: '6px solid hsl(var(--primary))',
+            borderTop: '6px solid var(--color-foreground)',
           }}
         />
       </div>
@@ -106,7 +106,7 @@ export function DirectEditToolbarInner({
     setIsMac(navigator.platform?.includes('Mac') ?? false)
   }, [])
 
-  const kbdClass = 'inline-flex items-center justify-center rounded bg-primary-foreground/20 px-1.5 py-0.5 font-mono text-[10px] min-w-[20px] min-h-[18px]'
+  const kbdClass = 'inline-flex items-center justify-center rounded bg-background/20 px-1.5 py-0.5 font-mono text-[10px] min-w-[20px] min-h-[18px]'
 
   const shortcutContent = isMac ? (
     <>
