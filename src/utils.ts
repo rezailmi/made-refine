@@ -19,6 +19,9 @@ import type {
   ColorValue,
   ColorProperties,
   ColorPropertyKey,
+  MeasurementLine,
+  Guideline,
+  DropIndicator,
 } from './types'
 
 declare global {
@@ -768,25 +771,43 @@ export function getDimensionDisplay(element: HTMLElement): DimensionDisplay {
   }
 }
 
-import type { MeasurementLine, DropIndicator } from './types'
 
-export function calculateParentMeasurements(element: HTMLElement): MeasurementLine[] {
-  const parent = element.parentElement
+export function calculateParentMeasurements(element: HTMLElement, container?: HTMLElement): MeasurementLine[] {
+  const parent = container ?? element.parentElement
   if (!parent) return []
 
   const elementRect = element.getBoundingClientRect()
   const parentRect = parent.getBoundingClientRect()
-  const parentStyles = window.getComputedStyle(parent)
 
-  const parentPaddingTop = parseFloat(parentStyles.paddingTop) || 0
-  const parentPaddingRight = parseFloat(parentStyles.paddingRight) || 0
-  const parentPaddingBottom = parseFloat(parentStyles.paddingBottom) || 0
-  const parentPaddingLeft = parseFloat(parentStyles.paddingLeft) || 0
+  // Use clientLeft/clientTop for reliable border widths, clientWidth/clientHeight
+  // for inner dimensions (handles scrollbars correctly)
+  const paddingBoxLeft = parentRect.left + parent.clientLeft
+  const paddingBoxTop = parentRect.top + parent.clientTop
+  const paddingBoxRight = parentRect.left + parent.clientLeft + parent.clientWidth
+  const paddingBoxBottom = parentRect.top + parent.clientTop + parent.clientHeight
 
-  const parentInnerLeft = parentRect.left + parentPaddingLeft
-  const parentInnerTop = parentRect.top + parentPaddingTop
-  const parentInnerRight = parentRect.right - parentPaddingRight
-  const parentInnerBottom = parentRect.bottom - parentPaddingBottom
+  let parentInnerLeft: number
+  let parentInnerTop: number
+  let parentInnerRight: number
+  let parentInnerBottom: number
+
+  if (container) {
+    // Ancestor case: measure from padding-box (inside border, outside padding).
+    // The ancestor's padding doesn't directly position the child — intermediate
+    // elements do — so the visually correct edge is inside the border only.
+    parentInnerLeft = paddingBoxLeft
+    parentInnerTop = paddingBoxTop
+    parentInnerRight = paddingBoxRight
+    parentInnerBottom = paddingBoxBottom
+  } else {
+    // Direct parent case: measure from content-box (inside border and padding).
+    // The parent's padding IS the gap between its edge and the child's layout area.
+    const parentStyles = window.getComputedStyle(parent)
+    parentInnerLeft = paddingBoxLeft + (parseFloat(parentStyles.paddingLeft) || 0)
+    parentInnerTop = paddingBoxTop + (parseFloat(parentStyles.paddingTop) || 0)
+    parentInnerRight = paddingBoxRight - (parseFloat(parentStyles.paddingRight) || 0)
+    parentInnerBottom = paddingBoxBottom - (parseFloat(parentStyles.paddingBottom) || 0)
+  }
 
   const measurements: MeasurementLine[] = []
 
@@ -964,6 +985,95 @@ export function calculateElementMeasurements(
         distance: vDistance,
         labelPosition: { x, y: (startY + endY) / 2 },
       })
+    }
+  }
+
+  return measurements
+}
+
+const GUIDELINE_PROXIMITY = 80
+
+export function calculateGuidelineMeasurements(
+  element: HTMLElement,
+  guidelines: Guideline[],
+  mousePosition?: { x: number; y: number } | null,
+): MeasurementLine[] {
+  if (guidelines.length === 0) return []
+
+  const rect = element.getBoundingClientRect()
+  const scrollX = window.scrollX
+  const scrollY = window.scrollY
+  const measurements: MeasurementLine[] = []
+
+  for (const g of guidelines) {
+    if (g.orientation === 'horizontal') {
+      const gy = g.position - scrollY
+      const midX = rect.left + rect.width / 2
+
+      // Only show when mouse is near this guideline's Y position
+      if (mousePosition && Math.abs(mousePosition.y - gy) > GUIDELINE_PROXIMITY) continue
+
+      if (gy < rect.top) {
+        const distance = Math.round(rect.top - gy)
+        if (distance > 0) {
+          measurements.push({
+            direction: 'vertical',
+            x1: midX,
+            y1: gy,
+            x2: midX,
+            y2: rect.top,
+            distance,
+            labelPosition: { x: midX, y: (gy + rect.top) / 2 },
+          })
+        }
+      } else if (gy > rect.bottom) {
+        const distance = Math.round(gy - rect.bottom)
+        if (distance > 0) {
+          measurements.push({
+            direction: 'vertical',
+            x1: midX,
+            y1: rect.bottom,
+            x2: midX,
+            y2: gy,
+            distance,
+            labelPosition: { x: midX, y: (rect.bottom + gy) / 2 },
+          })
+        }
+      }
+    } else {
+      const gx = g.position - scrollX
+      const midY = rect.top + rect.height / 2
+
+      // Only show when mouse is near this guideline's X position
+      if (mousePosition && Math.abs(mousePosition.x - gx) > GUIDELINE_PROXIMITY) continue
+
+      if (gx < rect.left) {
+        const distance = Math.round(rect.left - gx)
+        if (distance > 0) {
+          measurements.push({
+            direction: 'horizontal',
+            x1: gx,
+            y1: midY,
+            x2: rect.left,
+            y2: midY,
+            distance,
+            labelPosition: { x: (gx + rect.left) / 2, y: midY },
+          })
+        }
+      } else if (gx > rect.right) {
+        const distance = Math.round(gx - rect.right)
+        if (distance > 0) {
+          measurements.push({
+            direction: 'horizontal',
+            x1: rect.right,
+            y1: midY,
+            x2: gx,
+            y2: midY,
+            distance,
+            labelPosition: { x: (rect.right + gx) / 2, y: midY },
+          })
+        }
+      }
     }
   }
 

@@ -186,6 +186,8 @@ export function DirectEditDemo() {
           <DirectEditToolbarInner
             editModeActive={editModeActive}
             onToggleEditMode={() => setEditModeActive(!editModeActive)}
+            rulersVisible={true}
+            onToggleRulers={() => {}}
           />
         </div>
 

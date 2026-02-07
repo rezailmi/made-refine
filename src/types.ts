@@ -160,3 +160,9 @@ export interface DropIndicator {
   width: number
   height: number
 }
+
+export interface Guideline {
+  id: string
+  orientation: 'horizontal' | 'vertical'
+  position: number // page-absolute px
+}
