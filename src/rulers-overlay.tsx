@@ -7,11 +7,34 @@ import type { Guideline } from './types'
 
 const RULER_SIZE = 20
 const GUIDELINE_COLOR = '#FF6B6B'
-const RULER_BG = 'rgba(245, 245, 245, 0.95)'
-const RULER_BORDER = 'rgba(0, 0, 0, 0.1)'
-const TICK_COLOR = 'rgba(0, 0, 0, 0.3)'
-const LABEL_COLOR = 'rgba(0, 0, 0, 0.5)'
 const HIT_ZONE = 9
+
+function useRulerColors() {
+  const [dark, setDark] = React.useState(() =>
+    typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches
+  )
+
+  React.useEffect(() => {
+    const mq = window.matchMedia('(prefers-color-scheme: dark)')
+    const handler = (e: MediaQueryListEvent) => setDark(e.matches)
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [])
+
+  return dark
+    ? {
+        bg: 'rgba(23, 23, 23, 0.95)',
+        border: 'rgba(255, 255, 255, 0.1)',
+        tick: 'rgba(255, 255, 255, 0.3)',
+        label: 'rgba(255, 255, 255, 0.5)',
+      }
+    : {
+        bg: 'rgba(245, 245, 245, 0.95)',
+        border: 'rgba(0, 0, 0, 0.1)',
+        tick: 'rgba(0, 0, 0, 0.3)',
+        label: 'rgba(0, 0, 0, 0.5)',
+      }
+}
 
 const rulerFont: React.CSSProperties = {
   fontFamily: 'system-ui, -apple-system, sans-serif',
@@ -30,6 +53,7 @@ function HorizontalRuler({
 }) {
   const canvasRef = React.useRef<HTMLCanvasElement>(null)
   const viewportWidth = useViewportWidth()
+  const colors = useRulerColors()
 
   React.useEffect(() => {
     const canvas = canvasRef.current
@@ -59,18 +83,18 @@ function HorizontalRuler({
       ctx.beginPath()
       ctx.moveTo(x, height)
       ctx.lineTo(x, height - (isMajor ? 10 : isMid ? 7 : 4))
-      ctx.strokeStyle = TICK_COLOR
+      ctx.strokeStyle = colors.tick
       ctx.lineWidth = 1
       ctx.stroke()
 
       if (isMajor && px !== 0) {
-        ctx.fillStyle = LABEL_COLOR
+        ctx.fillStyle = colors.label
         ctx.font = '9px system-ui, -apple-system, sans-serif'
         ctx.textAlign = 'center'
         ctx.fillText(String(px), x, 9)
       }
     }
-  }, [scrollOffset.x, viewportWidth])
+  }, [scrollOffset.x, viewportWidth, colors])
 
   return (
     <div
@@ -81,8 +105,8 @@ function HorizontalRuler({
         left: RULER_SIZE,
         right: 0,
         height: RULER_SIZE,
-        background: RULER_BG,
-        borderBottom: `1px solid ${RULER_BORDER}`,
+        background: colors.bg,
+        borderBottom: `1px solid ${colors.border}`,
         zIndex: 99994,
         cursor: 's-resize',
         pointerEvents: 'auto',
@@ -106,6 +130,7 @@ function VerticalRuler({
 }) {
   const canvasRef = React.useRef<HTMLCanvasElement>(null)
   const viewportHeight = useViewportHeight()
+  const colors = useRulerColors()
 
   React.useEffect(() => {
     const canvas = canvasRef.current
@@ -135,13 +160,13 @@ function VerticalRuler({
       ctx.beginPath()
       ctx.moveTo(width, y)
       ctx.lineTo(width - (isMajor ? 10 : isMid ? 7 : 4), y)
-      ctx.strokeStyle = TICK_COLOR
+      ctx.strokeStyle = colors.tick
       ctx.lineWidth = 1
       ctx.stroke()
 
       if (isMajor && px !== 0) {
         ctx.save()
-        ctx.fillStyle = LABEL_COLOR
+        ctx.fillStyle = colors.label
         ctx.font = '9px system-ui, -apple-system, sans-serif'
         ctx.textAlign = 'center'
         ctx.translate(9, y)
@@ -150,7 +175,7 @@ function VerticalRuler({
         ctx.restore()
       }
     }
-  }, [scrollOffset.y, viewportHeight])
+  }, [scrollOffset.y, viewportHeight, colors])
 
   return (
     <div
@@ -161,8 +186,8 @@ function VerticalRuler({
         left: 0,
         bottom: 0,
         width: RULER_SIZE,
-        background: RULER_BG,
-        borderRight: `1px solid ${RULER_BORDER}`,
+        background: colors.bg,
+        borderRight: `1px solid ${colors.border}`,
         zIndex: 99994,
         cursor: 'e-resize',
         pointerEvents: 'auto',
@@ -178,6 +203,7 @@ function VerticalRuler({
 // --- CornerSquare ---
 
 function CornerSquare() {
+  const colors = useRulerColors()
   return (
     <div
       data-direct-edit="ruler-corner"
@@ -187,9 +213,9 @@ function CornerSquare() {
         left: 0,
         width: RULER_SIZE,
         height: RULER_SIZE,
-        background: RULER_BG,
-        borderRight: `1px solid ${RULER_BORDER}`,
-        borderBottom: `1px solid ${RULER_BORDER}`,
+        background: colors.bg,
+        borderRight: `1px solid ${colors.border}`,
+        borderBottom: `1px solid ${colors.border}`,
         zIndex: 99994,
         pointerEvents: 'auto',
       }}
