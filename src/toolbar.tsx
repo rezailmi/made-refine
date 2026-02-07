@@ -71,9 +71,7 @@ function OnboardingPopover({ shortcut }: { shortcut: React.ReactNode }) {
         style={{ pointerEvents: 'auto' }}
       >
         <span>Activate design mode by clicking here or pressing </span>
-        <kbd className="inline-flex items-center rounded bg-primary-foreground/20 px-1.5 py-0.5 font-mono text-[10px]">
-          {shortcut}
-        </kbd>
+        {shortcut}
         {/* Arrow pointing down */}
         <div
           style={{
@@ -108,10 +106,18 @@ export function DirectEditToolbarInner({
     setIsMac(navigator.platform?.includes('Mac') ?? false)
   }, [])
 
+  const kbdClass = 'inline-flex items-center justify-center rounded bg-primary-foreground/20 px-1.5 py-0.5 font-mono text-[10px]'
+
   const shortcutContent = isMac ? (
-    <span className="inline-flex items-center gap-0.5"><Command className="size-2.5" />.</span>
+    <span className="inline-flex items-center gap-1">
+      <kbd className={kbdClass}><Command className="size-2.5" /></kbd>
+      <kbd className={kbdClass}>.</kbd>
+    </span>
   ) : (
-    <span>Ctrl+.</span>
+    <span className="inline-flex items-center gap-1">
+      <kbd className={kbdClass}>Ctrl</kbd>
+      <kbd className={kbdClass}>.</kbd>
+    </span>
   )
 
   const toolbar = (
@@ -139,9 +145,7 @@ export function DirectEditToolbarInner({
             </TooltipTrigger>
             <TooltipContent side="top">
               <span>{editModeActive ? 'Select' : 'Activate design mode'}</span>
-              <kbd className="ml-2 inline-flex items-center rounded bg-primary-foreground/20 px-1.5 py-0.5 font-mono text-[10px]">
-                {shortcutContent}
-              </kbd>
+              <span className="ml-2">{shortcutContent}</span>
             </TooltipContent>
           </Tooltip>
 
@@ -165,9 +169,10 @@ export function DirectEditToolbarInner({
               </TooltipTrigger>
               <TooltipContent side="top">
                 <span>{rulersVisible ? 'Hide rulers' : 'Show rulers'}</span>
-                <kbd className="ml-2 inline-flex items-center gap-0.5 rounded bg-primary-foreground/20 px-1.5 py-0.5 font-mono text-[10px]">
-                  <ArrowBigUp className="size-2.5" />R
-                </kbd>
+                <span className="ml-2 inline-flex items-center gap-1">
+                  <kbd className={kbdClass}><ArrowBigUp className="size-2.5" /></kbd>
+                  <kbd className={kbdClass}>R</kbd>
+                </span>
               </TooltipContent>
             </Tooltip>
           </div>
