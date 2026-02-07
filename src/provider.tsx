@@ -25,12 +25,12 @@ import {
   getComputedSizing,
   sizingValueToCSS,
   getComputedColorStyles,
-  formatColorValue,
   colorPropertyToCSSMap,
   getComputedTypography,
   buildEditExport,
   getElementLocator,
 } from './utils'
+import { formatColorValue } from './ui/color-utils'
 
 export interface DirectEditContextValue extends DirectEditState {
   selectElement: (element: HTMLElement) => void

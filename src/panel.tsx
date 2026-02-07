@@ -27,7 +27,8 @@ import {
 } from './ui/select'
 import { cn } from './cn'
 import type { SpacingPropertyKey, BorderRadiusPropertyKey, CSSPropertyValue, SizingValue, SizingMode, SizingPropertyKey, ColorValue, ColorPropertyKey, TypographyPropertyKey, TypographyProperties } from './types'
-import { formatColorValue } from './utils'
+import { formatColorValue } from './ui/color-utils'
+import { ColorPickerPopover, ColorPickerGroup } from './ui/color-picker'
 import { Slider } from './ui/slider'
 import { useMeasurement } from './use-measurement'
 import { MeasurementOverlay } from './measurement-overlay'
@@ -57,6 +58,8 @@ import {
   Columns2,
   ChevronsUpDown,
   Paintbrush,
+  Square,
+  Focus,
   Type,
   AlignLeft,
   AlignCenter,
@@ -742,13 +745,14 @@ function SizingInputs({ width, height, onWidthChange, onHeightChange }: SizingIn
 }
 
 interface ColorInputProps {
+  id?: string
   label: string
   icon: React.ReactNode
   value: ColorValue
   onChange: (value: ColorValue) => void
 }
 
-function ColorInput({ label, icon, value, onChange }: ColorInputProps) {
+function ColorInput({ id, label, icon, value, onChange }: ColorInputProps) {
   const [hexInput, setHexInput] = React.useState(value.hex)
   const [alphaInput, setAlphaInput] = React.useState(value.alpha.toString())
 
@@ -786,33 +790,17 @@ function ColorInput({ label, icon, value, onChange }: ColorInputProps) {
     }
   }
 
-  // Native color picker change handler
-  const handleNativeColorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const hex = e.target.value.replace('#', '').toUpperCase()
-    setHexInput(hex)
-    onChange({
-      hex,
-      alpha: value.alpha,
-      raw: formatColorValue({ hex, alpha: value.alpha, raw: '' }),
-    })
-  }
-
   return (
     <div>
       <div className="flex h-8 items-center rounded-md border border-input bg-background">
-        {/* Color swatch with native picker */}
-        <div className="relative ml-1.5">
-          <div
-            className="size-5 cursor-pointer overflow-hidden rounded-sm border"
-            style={{ backgroundColor: `#${value.hex}` }}
-          >
-            <input
-              type="color"
-              value={`#${value.hex}`}
-              onChange={handleNativeColorChange}
-              className="absolute inset-0 cursor-pointer opacity-0"
+        {/* Color swatch with popover picker */}
+        <div className="ml-1.5">
+          <ColorPickerPopover id={id} value={value} onChange={onChange}>
+            <div
+              className="size-5 cursor-pointer rounded-sm border"
+              style={{ backgroundColor: `#${value.hex}` }}
             />
-          </div>
+          </ColorPickerPopover>
         </div>
 
         {/* Hex input */}
@@ -1062,36 +1050,76 @@ function TypographyInputs({ typography, onUpdate }: TypographyInputsProps) {
 interface FillSectionProps {
   backgroundColor: ColorValue
   textColor: ColorValue
+  borderColor?: ColorValue
+  outlineColor?: ColorValue
   onBackgroundChange: (value: ColorValue) => void
   onTextChange: (value: ColorValue) => void
+  onBorderColorChange?: (value: ColorValue) => void
+  onOutlineColorChange?: (value: ColorValue) => void
   hasTextContent: boolean
+  showBackgroundColor?: boolean
+  showBorderColor?: boolean
+  showOutlineColor?: boolean
 }
 
 function FillSection({
   backgroundColor,
   textColor,
+  borderColor,
+  outlineColor,
   onBackgroundChange,
   onTextChange,
+  onBorderColorChange,
+  onOutlineColorChange,
   hasTextContent,
+  showBackgroundColor,
+  showBorderColor,
+  showOutlineColor,
 }: FillSectionProps) {
   return (
-    <div className="space-y-3">
-      <ColorInput
-        label="Fill"
-        icon={<Paintbrush className="size-3.5" />}
-        value={backgroundColor}
-        onChange={onBackgroundChange}
-      />
+    <ColorPickerGroup>
+      <div className="space-y-3">
+        {showBackgroundColor && (
+          <ColorInput
+            id="fill-bg"
+            label="Fill"
+            icon={<Paintbrush className="size-3.5" />}
+            value={backgroundColor}
+            onChange={onBackgroundChange}
+          />
+        )}
 
-      {hasTextContent && (
-        <ColorInput
-          label="Text"
-          icon={<Type className="size-3.5" />}
-          value={textColor}
-          onChange={onTextChange}
-        />
-      )}
-    </div>
+        {hasTextContent && (
+          <ColorInput
+            id="fill-text"
+            label="Text"
+            icon={<Type className="size-3.5" />}
+            value={textColor}
+            onChange={onTextChange}
+          />
+        )}
+
+        {showBorderColor && borderColor && onBorderColorChange && (
+          <ColorInput
+            id="fill-border"
+            label="Border"
+            icon={<Square className="size-3.5" />}
+            value={borderColor}
+            onChange={onBorderColorChange}
+          />
+        )}
+
+        {showOutlineColor && outlineColor && onOutlineColorChange && (
+          <ColorInput
+            id="fill-outline"
+            label="Outline"
+            icon={<Focus className="size-3.5" />}
+            value={outlineColor}
+            onChange={onOutlineColorChange}
+          />
+        )}
+      </div>
+    </ColorPickerGroup>
   )
 }
 interface CollapsibleSectionProps {
@@ -1159,6 +1187,8 @@ export interface DirectEditPanelInnerProps {
   computedColor: {
     backgroundColor: ColorValue
     color: ColorValue
+    borderColor: ColorValue
+    outlineColor: ColorValue
   } | null
   computedTypography: TypographyProperties | null
   pendingStyles: Record<string, string>
@@ -1221,13 +1251,6 @@ export function DirectEditPanelInner({
       ? computedFlex.justifyContent
       : 'fixed'
   const isDistributeValue = distributeMode !== 'fixed'
-
-  // Detect if element has significant text content
-  const hasTextContent = React.useMemo(() => {
-    if (!elementInfo) return false
-    const textElements = ['p', 'span', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'a', 'button', 'label', 'li']
-    return textElements.includes(elementInfo.tagName)
-  }, [elementInfo])
 
   const handleCopy = async () => {
     const success = await onExportEdits()
@@ -1340,7 +1363,7 @@ export function DirectEditPanelInner({
           <div className="space-y-3">
             {elementInfo.isFlexContainer && (
               <div>
-                <div className="mb-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Flex</div>
+                <div className="mb-1.5 text-[10px] font-medium text-muted-foreground">Flex</div>
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-2">
                     <div className="flex h-8 overflow-hidden rounded-md border">
@@ -1427,7 +1450,7 @@ export function DirectEditPanelInner({
 
             {computedSizing && (
               <div>
-                <div className="mb-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Sizing</div>
+                <div className="mb-1.5 text-[10px] font-medium text-muted-foreground">Sizing</div>
                 <SizingInputs
                   width={computedSizing.width}
                   height={computedSizing.height}
@@ -1438,7 +1461,7 @@ export function DirectEditPanelInner({
             )}
 
             <div>
-              <div className="mb-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Padding</div>
+              <div className="mb-1.5 text-[10px] font-medium text-muted-foreground">Padding</div>
               <PaddingInputs
                 values={{
                   top: computedSpacing.paddingTop,
@@ -1451,7 +1474,7 @@ export function DirectEditPanelInner({
             </div>
 
             <div>
-              <div className="mb-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Margin</div>
+              <div className="mb-1.5 text-[10px] font-medium text-muted-foreground">Margin</div>
               <MarginInputs
                 values={{
                   top: computedSpacing.marginTop,
@@ -1483,16 +1506,23 @@ export function DirectEditPanelInner({
 
         {computedColor && (
           <CollapsibleSection
-            title="Fill"
+            title="Selection Colors"
             isOpen={sections.fill ?? true}
             onToggle={() => toggleSection('fill')}
           >
             <FillSection
               backgroundColor={computedColor.backgroundColor}
               textColor={computedColor.color}
+              borderColor={computedColor.borderColor}
+              outlineColor={computedColor.outlineColor}
               onBackgroundChange={(value) => onUpdateColor('backgroundColor', value)}
               onTextChange={(value) => onUpdateColor('color', value)}
-              hasTextContent={hasTextContent}
+              onBorderColorChange={(value) => onUpdateColor('borderColor', value)}
+              onOutlineColorChange={(value) => onUpdateColor('outlineColor', value)}
+              hasTextContent={elementInfo.isTextElement}
+              showBackgroundColor={computedColor.backgroundColor.alpha > 0}
+              showBorderColor={computedColor.borderColor.alpha > 0}
+              showOutlineColor={computedColor.outlineColor.alpha > 0}
             />
           </CollapsibleSection>
         )}

@@ -117,6 +117,8 @@ export function getOriginalInlineStyles(element: HTMLElement): Record<string, st
     'height',
     'background-color',
     'color',
+    'border-color',
+    'outline-color',
     'font-family',
     'font-weight',
     'font-size',
@@ -305,6 +307,18 @@ export function stylesToTailwind(styles: Record<string, string>): string {
     if (prop === 'color') {
       const colorValue = parseColorValue(value)
       classes.push(colorToTailwind('color', colorValue))
+      continue
+    }
+
+    if (prop === 'border-color') {
+      const colorValue = parseColorValue(value)
+      classes.push(colorToTailwind('borderColor', colorValue))
+      continue
+    }
+
+    if (prop === 'outline-color') {
+      const colorValue = parseColorValue(value)
+      classes.push(colorToTailwind('outlineColor', colorValue))
       continue
     }
 
@@ -559,8 +573,6 @@ export function sizingToTailwind(dimension: 'width' | 'height', sizing: SizingVa
   }
 }
 
-// === Color Utilities ===
-
 function parseHexColor(hex: string): ColorValue {
   const raw = hex
   let h = hex.replace('#', '')
@@ -640,37 +652,43 @@ export function parseColorValue(cssValue: string): ColorValue {
   return parseNamedColor(raw)
 }
 
-export function formatColorValue(color: ColorValue): string {
-  const r = parseInt(color.hex.slice(0, 2), 16)
-  const g = parseInt(color.hex.slice(2, 4), 16)
-  const b = parseInt(color.hex.slice(4, 6), 16)
-  const a = color.alpha / 100
-
-  if (a === 1) {
-    return `#${color.hex}`
-  }
-  return `rgba(${r}, ${g}, ${b}, ${a})`
-}
+const TRANSPARENT_COLOR: ColorValue = { hex: '000000', alpha: 0, raw: 'transparent' }
 
 export function getComputedColorStyles(element: HTMLElement): ColorProperties {
   const computed = window.getComputedStyle(element)
 
+  const hasBorder =
+    computed.borderTopStyle !== 'none' && parseFloat(computed.borderTopWidth) > 0
+  const hasOutline =
+    computed.outlineStyle !== 'none' && parseFloat(computed.outlineWidth) > 0
+
   return {
     backgroundColor: parseColorValue(computed.backgroundColor),
     color: parseColorValue(computed.color),
+    borderColor: hasBorder ? parseColorValue(computed.borderTopColor) : TRANSPARENT_COLOR,
+    outlineColor: hasOutline ? parseColorValue(computed.outlineColor) : TRANSPARENT_COLOR,
   }
 }
 
 export const colorPropertyToCSSMap: Record<ColorPropertyKey, string> = {
   backgroundColor: 'background-color',
   color: 'color',
+  borderColor: 'border-color',
+  outlineColor: 'outline-color',
+}
+
+const colorTailwindPrefixMap: Record<ColorPropertyKey, string> = {
+  backgroundColor: 'bg',
+  color: 'text',
+  borderColor: 'border',
+  outlineColor: 'outline',
 }
 
 export function colorToTailwind(
-  property: 'backgroundColor' | 'color',
+  property: ColorPropertyKey,
   colorValue: ColorValue
 ): string {
-  const prefix = property === 'backgroundColor' ? 'bg' : 'text'
+  const prefix = colorTailwindPrefixMap[property]
 
   // Use arbitrary hex value
   if (colorValue.alpha === 100) {

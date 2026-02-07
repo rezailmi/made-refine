@@ -68,6 +68,8 @@ export interface ColorValue {
 export interface ColorProperties {
   backgroundColor: ColorValue
   color: ColorValue // text color
+  borderColor: ColorValue
+  outlineColor: ColorValue
 }
 
 export type ColorPropertyKey = keyof ColorProperties
