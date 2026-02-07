@@ -16,6 +16,7 @@ export interface UseGuidelinesResult {
 }
 
 function loadGuidelines(): Guideline[] {
+  if (typeof window === 'undefined') return []
   try {
     const stored = localStorage.getItem(STORAGE_KEY)
     return stored ? JSON.parse(stored) : []
@@ -29,6 +30,7 @@ export function getStoredGuidelines(): Guideline[] {
 }
 
 function saveGuidelines(guidelines: Guideline[]) {
+  if (typeof window === 'undefined') return
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(guidelines))
   } catch {
@@ -48,7 +50,10 @@ export function useGuidelines(enabled: boolean): UseGuidelinesResult {
   const [activeGuidelineId, setActiveGuidelineId] = React.useState<string | null>(null)
   const [dragPosition, setDragPosition] = React.useState<number | null>(null)
   const [isCreating, setIsCreating] = React.useState(false)
-  const [scrollOffset, setScrollOffset] = React.useState({ x: window.scrollX, y: window.scrollY })
+  const [scrollOffset, setScrollOffset] = React.useState({
+    x: typeof window !== 'undefined' ? window.scrollX : 0,
+    y: typeof window !== 'undefined' ? window.scrollY : 0,
+  })
 
   const [dragging, setDragging] = React.useState(false)
 
