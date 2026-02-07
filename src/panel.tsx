@@ -4,7 +4,6 @@ import { usePortalContainer } from './portal-container'
 import { useDirectEdit } from './provider'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible'
 import {
   Tooltip,
   TooltipProvider,
@@ -39,7 +38,6 @@ import { MoveOverlay } from './move-overlay'
 import { SelectionOverlay } from './selection-overlay'
 import {
   X,
-  GripVertical,
   RotateCcw,
   Copy,
   Check,
@@ -76,7 +74,6 @@ import {
 } from 'lucide-react'
 
 const STORAGE_KEY = 'direct-edit-panel-position'
-const SECTIONS_KEY = 'direct-edit-sections-state'
 const PANEL_WIDTH = 300
 const PANEL_HEIGHT = 560
 
@@ -107,7 +104,6 @@ function getInitialPosition(): Position {
   }
 }
 
-const DEFAULT_SECTIONS = { layout: true, fill: true, radius: true, text: true }
 const DISTRIBUTE_MODES = ['fixed', 'space-between', 'space-around', 'space-evenly'] as const
 type DistributeMode = typeof DISTRIBUTE_MODES[number]
 const DISTRIBUTE_LABELS: Record<DistributeMode, string> = {
@@ -117,35 +113,6 @@ const DISTRIBUTE_LABELS: Record<DistributeMode, string> = {
   'space-evenly': 'Evenly',
 }
 
-function useSectionsState() {
-  const [sections, setSections] = React.useState<Record<string, boolean>>(DEFAULT_SECTIONS)
-
-  React.useEffect(() => {
-    const stored = localStorage.getItem(SECTIONS_KEY)
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored) as Record<string, boolean>
-        if (parsed && typeof parsed === 'object') {
-          setSections({ ...DEFAULT_SECTIONS, ...parsed })
-        }
-      } catch {}
-    }
-  }, [])
-
-  const toggleSection = React.useCallback((key: string) => {
-    setSections((prev) => {
-      const defaultValue = key in DEFAULT_SECTIONS
-        ? DEFAULT_SECTIONS[key as keyof typeof DEFAULT_SECTIONS]
-        : true
-      const currentValue = prev[key] ?? defaultValue
-      const newSections = { ...prev, [key]: !currentValue }
-      localStorage.setItem(SECTIONS_KEY, JSON.stringify(newSections))
-      return newSections
-    })
-  }, [])
-
-  return { sections, toggleSection }
-}
 
 interface PaddingInputsProps {
   values: {
@@ -618,7 +585,7 @@ function AlignmentGrid({ justifyContent, alignItems, onChange }: AlignmentGridPr
 
   return (
     <TooltipProvider delayDuration={300} closeDelay={150}>
-      <div className="grid grid-cols-3 gap-1 rounded-md border bg-muted/30 p-1.5">
+      <div className="grid grid-cols-3 gap-0.5 rounded-md bg-muted p-0.5">
         {alignValues.map((align) =>
           justifyValues.map((justify) => {
             const isActive = currentJustify === justify && currentAlign === align
@@ -631,19 +598,25 @@ function AlignmentGrid({ justifyContent, alignItems, onChange }: AlignmentGridPr
                   <button
                     type="button"
                     className={cn(
-                      'flex size-6 items-center justify-center rounded transition-colors',
+                      'flex size-7 items-center justify-center rounded transition-all',
                       isActive
-                        ? 'bg-blue-500 text-white'
-                        : 'bg-background hover:bg-muted-foreground/10'
+                        ? 'bg-background shadow-sm'
+                        : 'hover:bg-muted-foreground/10'
                     )}
                     onClick={() => onChange(justify, align)}
                   >
-                    <span
-                      className={cn(
-                        'size-1.5 rounded-full',
-                        isActive ? 'bg-white' : 'bg-muted-foreground/40'
-                      )}
-                    />
+                    {isActive ? (
+                      <div
+                        className="flex size-full gap-[2px] p-1"
+                        style={{ justifyContent: justify, alignItems: align }}
+                      >
+                        <span className="h-2 w-[1.5px] rounded-full bg-blue-500" />
+                        <span className="h-2 w-[1.5px] rounded-full bg-blue-500" />
+                        <span className="h-2 w-[1.5px] rounded-full bg-blue-500" />
+                      </div>
+                    ) : (
+                      <span className="size-1 rounded-full bg-muted-foreground/30" />
+                    )}
                   </button>
                 }
               />
@@ -690,20 +663,8 @@ function SizingDropdown({ label, value, onChange }: SizingDropdownProps) {
     })
   }
 
-  const cycleMode = () => {
-    const modes: SizingMode[] = ['fixed', 'fill', 'fit']
-    const currentIndex = modes.indexOf(value.mode)
-    const nextMode = modes[(currentIndex + 1) % modes.length]
-    onChange({ mode: nextMode, value: value.value })
-  }
-
-  const getDisplayText = () => {
-    if (value.mode === 'fill') return 'Fill'
-    return 'Fit'
-  }
-
   return (
-    <div className="flex h-8 flex-1 items-center rounded-md border bg-background text-xs">
+    <div className="flex h-7 flex-1 items-center overflow-hidden rounded-md border-0 bg-muted text-xs">
       <span className="flex flex-1 items-center gap-1.5 px-2">
         <span className="text-muted-foreground">{label}</span>
         {value.mode === 'fixed' ? (
@@ -715,17 +676,33 @@ function SizingDropdown({ label, value, onChange }: SizingDropdownProps) {
             className="w-full min-w-0 flex-1 bg-transparent tabular-nums outline-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none [appearance:textfield]"
           />
         ) : (
-          <span className="flex-1">{getDisplayText()}</span>
+          <span className="flex flex-1 items-center gap-1">
+            <span className="tabular-nums text-muted-foreground">{Math.round(value.value.numericValue)}</span>
+            <span>{value.mode === 'fill' ? 'Fill' : 'Fit'}</span>
+          </span>
         )}
       </span>
-      <button
-        type="button"
-        className="flex h-full items-center justify-center border-l px-1.5 hover:bg-muted/50"
-        onClick={cycleMode}
-        title={`Mode: ${value.mode} (click to cycle)`}
-      >
-        <ChevronsUpDown className="size-3 text-muted-foreground" />
-      </button>
+      <Select value={value.mode} onValueChange={(val) => {
+        if (val) onChange({ mode: val as SizingMode, value: value.value })
+      }}>
+        <SelectTrigger className="flex h-full items-center justify-center border-l border-border/30 px-1.5 hover:bg-muted-foreground/10">
+          <ChevronsUpDown className="size-3 text-muted-foreground" />
+        </SelectTrigger>
+        <SelectPortal>
+          <SelectPositioner side="bottom" sideOffset={4} alignItemWithTrigger={false} className="z-[99999]">
+            <SelectPopup className="min-w-[100px] overflow-hidden rounded-lg border-0 bg-popover p-1 text-popover-foreground shadow-lg animate-in fade-in-0 zoom-in-95">
+              {SIZING_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value} className="relative flex cursor-default select-none items-center rounded-md py-1.5 pl-6 pr-2 text-xs outline-none hover:bg-muted data-[highlighted]:bg-muted">
+                  <SelectItemIndicator className="absolute left-1.5 flex items-center justify-center">
+                    <Check className="size-3" />
+                  </SelectItemIndicator>
+                  <SelectItemText>{option.label}</SelectItemText>
+                </SelectItem>
+              ))}
+            </SelectPopup>
+          </SelectPositioner>
+        </SelectPortal>
+      </Select>
     </div>
   )
 }
@@ -794,12 +771,12 @@ function ColorInput({ id, label, icon, value, onChange }: ColorInputProps) {
 
   return (
     <div>
-      <div className="flex h-8 items-center rounded-md border border-input bg-background">
+      <div className="flex h-7 items-center rounded-md border-0 bg-muted">
         {/* Color swatch with popover picker */}
         <div className="ml-1.5">
           <ColorPickerPopover id={id} value={value} onChange={onChange}>
             <div
-              className="size-5 cursor-pointer rounded-sm border"
+              className="size-5 cursor-pointer rounded-sm shadow-[inset_0_0_0_1px_rgba(0,0,0,0.1)]"
               style={{ backgroundColor: `#${value.hex}` }}
             />
           </ColorPickerPopover>
@@ -891,7 +868,7 @@ function TypographyInputs({ typography, onUpdate }: TypographyInputsProps) {
   return (
     <div className="space-y-3">
       <Select value={typography.fontFamily} onValueChange={(val) => val && onUpdate('fontFamily', val)}>
-        <SelectTrigger className="flex h-8 w-full items-center justify-between rounded-md border bg-background px-2 text-xs hover:bg-muted/50 focus:outline-none">
+        <SelectTrigger className="flex h-7 w-full items-center justify-between rounded-md border-0 bg-muted px-2 text-xs hover:bg-muted-foreground/10 focus:outline-none">
           <span className="flex items-center gap-2">
             <Type className="size-3.5 text-muted-foreground" />
             <span>{getFontFamilyLabel(typography.fontFamily)}</span>
@@ -902,12 +879,12 @@ function TypographyInputs({ typography, onUpdate }: TypographyInputsProps) {
         </SelectTrigger>
         <SelectPortal>
           <SelectPositioner sideOffset={4} className="z-[99999]">
-            <SelectPopup className="min-w-[180px] overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md animate-in fade-in-0 zoom-in-95">
+            <SelectPopup className="min-w-[180px] overflow-hidden rounded-lg border-0 bg-popover p-1 text-popover-foreground shadow-lg animate-in fade-in-0 zoom-in-95">
               {FONT_FAMILIES.map((option) => (
                 <SelectItem
                   key={option.value}
                   value={option.value}
-                  className="relative flex cursor-default select-none items-center rounded-sm py-1.5 pl-7 pr-2 text-xs outline-none hover:bg-accent hover:text-accent-foreground data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground"
+                  className="relative flex cursor-default select-none items-center rounded-md py-2 pl-7 pr-2 text-xs outline-none hover:bg-muted hover:text-foreground data-[highlighted]:bg-muted data-[highlighted]:text-foreground"
                 >
                   <SelectItemIndicator className="absolute left-2 flex items-center justify-center">
                     <Check className="size-3" />
@@ -921,7 +898,7 @@ function TypographyInputs({ typography, onUpdate }: TypographyInputsProps) {
       </Select>
 
       <Select value={typography.fontWeight} onValueChange={(val) => val && onUpdate('fontWeight', val)}>
-        <SelectTrigger className="flex h-8 w-full items-center justify-between rounded-md border bg-background px-2 text-xs hover:bg-muted/50 focus:outline-none">
+        <SelectTrigger className="flex h-7 w-full items-center justify-between rounded-md border-0 bg-muted px-2 text-xs hover:bg-muted-foreground/10 focus:outline-none">
           <span className="flex items-center gap-2">
             <ALargeSmall className="size-3.5 text-muted-foreground" />
             <span>{getFontWeightLabel(typography.fontWeight)}</span>
@@ -932,12 +909,12 @@ function TypographyInputs({ typography, onUpdate }: TypographyInputsProps) {
         </SelectTrigger>
         <SelectPortal>
           <SelectPositioner sideOffset={4} className="z-[99999]">
-            <SelectPopup className="min-w-[140px] overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md animate-in fade-in-0 zoom-in-95">
+            <SelectPopup className="min-w-[140px] overflow-hidden rounded-lg border-0 bg-popover p-1 text-popover-foreground shadow-lg animate-in fade-in-0 zoom-in-95">
               {FONT_WEIGHTS.map((option) => (
                 <SelectItem
                   key={option.value}
                   value={option.value}
-                  className="relative flex cursor-default select-none items-center rounded-sm py-1.5 pl-7 pr-2 text-xs outline-none hover:bg-accent hover:text-accent-foreground data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground"
+                  className="relative flex cursor-default select-none items-center rounded-md py-2 pl-7 pr-2 text-xs outline-none hover:bg-muted hover:text-foreground data-[highlighted]:bg-muted data-[highlighted]:text-foreground"
                 >
                   <SelectItemIndicator className="absolute left-2 flex items-center justify-center">
                     <Check className="size-3" />
@@ -987,27 +964,27 @@ function TypographyInputs({ typography, onUpdate }: TypographyInputsProps) {
       <div className="flex items-center gap-3">
         <div className="flex gap-1">
           <Button
-            variant={typography.textAlign === 'left' || typography.textAlign === 'start' ? 'default' : 'outline'}
+            variant="ghost"
             size="icon"
-            className="size-7"
+            className={typography.textAlign === 'left' || typography.textAlign === 'start' ? 'size-7 bg-muted text-foreground' : 'size-7 text-muted-foreground'}
             onClick={() => onUpdate('textAlign', 'left')}
             title="Align Left"
           >
             <AlignLeft className="size-3.5" />
           </Button>
           <Button
-            variant={typography.textAlign === 'center' ? 'default' : 'outline'}
+            variant="ghost"
             size="icon"
-            className="size-7"
+            className={typography.textAlign === 'center' ? 'size-7 bg-muted text-foreground' : 'size-7 text-muted-foreground'}
             onClick={() => onUpdate('textAlign', 'center')}
             title="Align Center"
           >
             <AlignCenter className="size-3.5" />
           </Button>
           <Button
-            variant={typography.textAlign === 'right' || typography.textAlign === 'end' ? 'default' : 'outline'}
+            variant="ghost"
             size="icon"
-            className="size-7"
+            className={typography.textAlign === 'right' || typography.textAlign === 'end' ? 'size-7 bg-muted text-foreground' : 'size-7 text-muted-foreground'}
             onClick={() => onUpdate('textAlign', 'right')}
             title="Align Right"
           >
@@ -1017,27 +994,27 @@ function TypographyInputs({ typography, onUpdate }: TypographyInputsProps) {
 
         <div className="flex gap-1">
           <Button
-            variant={typography.textVerticalAlign === 'flex-start' ? 'default' : 'outline'}
+            variant="ghost"
             size="icon"
-            className="size-7"
+            className={typography.textVerticalAlign === 'flex-start' ? 'size-7 bg-muted text-foreground' : 'size-7 text-muted-foreground'}
             onClick={() => onUpdate('textVerticalAlign', 'flex-start')}
             title="Align Top"
           >
             <AlignVerticalJustifyStart className="size-3.5" />
           </Button>
           <Button
-            variant={typography.textVerticalAlign === 'center' ? 'default' : 'outline'}
+            variant="ghost"
             size="icon"
-            className="size-7"
+            className={typography.textVerticalAlign === 'center' ? 'size-7 bg-muted text-foreground' : 'size-7 text-muted-foreground'}
             onClick={() => onUpdate('textVerticalAlign', 'center')}
             title="Align Middle"
           >
             <AlignVerticalJustifyCenter className="size-3.5" />
           </Button>
           <Button
-            variant={typography.textVerticalAlign === 'flex-end' ? 'default' : 'outline'}
+            variant="ghost"
             size="icon"
-            className="size-7"
+            className={typography.textVerticalAlign === 'flex-end' ? 'size-7 bg-muted text-foreground' : 'size-7 text-muted-foreground'}
             onClick={() => onUpdate('textVerticalAlign', 'flex-end')}
             title="Align Bottom"
           >
@@ -1126,26 +1103,17 @@ function FillSection({
 }
 interface CollapsibleSectionProps {
   title: string
-  isOpen: boolean
-  onToggle: () => void
   children: React.ReactNode
 }
 
-function CollapsibleSection({ title, isOpen, onToggle, children }: CollapsibleSectionProps) {
+function CollapsibleSection({ title, children }: CollapsibleSectionProps) {
   return (
-    <Collapsible open={isOpen} onOpenChange={onToggle}>
-      <CollapsibleTrigger className="flex w-full items-center justify-between border-b px-3 py-2 text-xs font-medium text-foreground hover:bg-muted/50">
+    <div>
+      <div className="flex w-full items-center border-b border-border/50 px-3 py-2.5 text-xs font-medium text-foreground">
         {title}
-        {isOpen ? (
-          <ChevronDown className="size-3.5 text-muted-foreground" />
-        ) : (
-          <ChevronUp className="size-3.5 text-muted-foreground" />
-        )}
-      </CollapsibleTrigger>
-      <CollapsibleContent className="overflow-hidden data-[ending-style]:animate-accordion-up data-[starting-style]:animate-accordion-down">
-        <div className="px-3 py-3">{children}</div>
-      </CollapsibleContent>
-    </Collapsible>
+      </div>
+      <div className="px-3 py-3.5">{children}</div>
+    </div>
   )
 }
 
@@ -1244,8 +1212,6 @@ export function DirectEditPanelInner({
 }: DirectEditPanelInnerProps) {
   const [copied, setCopied] = React.useState(false)
   const [copyError, setCopyError] = React.useState(false)
-  const { sections, toggleSection } = useSectionsState()
-
   const distributeMode: DistributeMode =
     computedFlex?.justifyContent === 'space-between' ||
     computedFlex?.justifyContent === 'space-around' ||
@@ -1275,7 +1241,7 @@ export function DirectEditPanelInner({
       ref={panelRef}
       data-direct-edit="panel"
       className={cn(
-        'flex flex-col overflow-hidden rounded-lg border bg-background shadow-xl',
+        'flex flex-col overflow-hidden rounded-xl border border-foreground/10 bg-background shadow-2xl',
         isDragging && 'cursor-grabbing select-none',
         className
       )}
@@ -1283,15 +1249,14 @@ export function DirectEditPanelInner({
     >
       <div
         className={cn(
-          'flex shrink-0 items-center gap-2 border-b bg-muted/50 px-3 py-2',
+          'flex shrink-0 items-center gap-2 border-b border-border/50 px-3 py-2.5',
           isDraggable && 'cursor-grab active:cursor-grabbing'
         )}
         onPointerDown={onHeaderPointerDown}
         onPointerMove={onHeaderPointerMove}
         onPointerUp={onHeaderPointerUp}
       >
-        <GripVertical className="size-4 text-muted-foreground" />
-        <span className="flex-1 text-sm font-medium">Direct Edit</span>
+        <span className="flex-1 text-xs font-medium">Refine</span>
         {onClose && (
           <Button variant="ghost" size="icon" className="size-6" onClick={onClose}>
             <X className="size-4" />
@@ -1299,14 +1264,14 @@ export function DirectEditPanelInner({
         )}
       </div>
 
-      <div className="shrink-0 border-b px-3 py-2">
-        <div className="flex items-start justify-between gap-2">
+      <div className="shrink-0 border-b border-border/50 px-3 py-2">
+        <div className="flex items-center justify-between gap-2">
           <div className="min-w-0 flex-1">
-            <code className="text-sm font-semibold text-foreground">
+            <code className="text-xs font-medium text-foreground">
               &lt;{elementInfo.tagName}&gt;
             </code>
             {elementInfo.id && (
-              <div className="mt-0.5 truncate text-xs text-muted-foreground">#{elementInfo.id}</div>
+              <span className="ml-1.5 text-xs text-muted-foreground">#{elementInfo.id}</span>
             )}
             {elementInfo.classList.length > 0 && (
               <div className="mt-0.5 truncate text-xs text-muted-foreground">
@@ -1342,40 +1307,24 @@ export function DirectEditPanelInner({
             )}
           </div>
         </div>
-        <div className="mt-1.5 flex gap-1.5">
-          {elementInfo.isFlexContainer && (
-            <span className="rounded bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-medium text-blue-600 dark:text-blue-400">
-              Flex Container
-            </span>
-          )}
-          {elementInfo.isFlexItem && (
-            <span className="rounded bg-purple-500/10 px-1.5 py-0.5 text-[10px] font-medium text-purple-600 dark:text-purple-400">
-              Flex Item
-            </span>
-          )}
-        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto">
-        <CollapsibleSection
-          title="Layout"
-          isOpen={sections.layout ?? true}
-          onToggle={() => toggleSection('layout')}
-        >
+        <CollapsibleSection title="Layout">
           <div className="space-y-3">
             {elementInfo.isFlexContainer && (
               <div>
-                <div className="mb-1.5 text-[10px] font-medium text-muted-foreground">Flex</div>
+                <div className="mb-2 text-xs font-medium text-muted-foreground">Flex</div>
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-2">
-                    <div className="flex h-8 overflow-hidden rounded-md border">
+                    <div className="flex h-7 gap-0.5 rounded-lg bg-muted p-0.5">
                       <button
                         type="button"
                         className={cn(
-                          'flex flex-1 items-center justify-center transition-colors',
+                          'flex flex-1 items-center justify-center rounded-md transition-all',
                           computedFlex.flexDirection === 'row'
-                            ? 'bg-primary text-primary-foreground'
-                            : 'bg-background hover:bg-muted/50'
+                            ? 'bg-background text-blue-500 shadow-sm'
+                            : 'text-muted-foreground hover:text-foreground'
                         )}
                         onClick={() => onUpdateFlex('flexDirection', 'row')}
                         title="Row"
@@ -1385,10 +1334,10 @@ export function DirectEditPanelInner({
                       <button
                         type="button"
                         className={cn(
-                          'flex flex-1 items-center justify-center border-l transition-colors',
+                          'flex flex-1 items-center justify-center rounded-md transition-all',
                           computedFlex.flexDirection === 'column'
-                            ? 'bg-primary text-primary-foreground'
-                            : 'bg-background hover:bg-muted/50'
+                            ? 'bg-background text-blue-500 shadow-sm'
+                            : 'text-muted-foreground hover:text-foreground'
                         )}
                         onClick={() => onUpdateFlex('flexDirection', 'column')}
                         title="Column"
@@ -1397,7 +1346,7 @@ export function DirectEditPanelInner({
                       </button>
                     </div>
 
-                    <div className="flex h-8 items-center rounded-md border bg-background text-xs">
+                    <div className="flex h-7 items-center overflow-hidden rounded-md border-0 bg-muted text-xs">
                       <span className="flex flex-1 items-center gap-1.5 px-2">
                         <MoveHorizontal className="size-3.5 shrink-0 text-muted-foreground" />
                         {isDistributeValue ? (
@@ -1420,21 +1369,27 @@ export function DirectEditPanelInner({
                           />
                         )}
                       </span>
-                      <button
-                        type="button"
-                        className="flex h-full items-center justify-center border-l px-1.5 hover:bg-muted/50"
-                        onClick={() => {
-                          const currentIndex = DISTRIBUTE_MODES.indexOf(distributeMode)
-                          const nextMode = DISTRIBUTE_MODES[(currentIndex + 1) % DISTRIBUTE_MODES.length]
-                          onUpdateFlex(
-                            'justifyContent',
-                            nextMode === 'fixed' ? 'flex-start' : nextMode
-                          )
-                        }}
-                        title={`Distribution: ${DISTRIBUTE_LABELS[distributeMode]} (click to cycle)`}
-                      >
-                        <ChevronsUpDown className="size-3 text-muted-foreground" />
-                      </button>
+                      <Select value={distributeMode} onValueChange={(val) => {
+                        if (val) onUpdateFlex('justifyContent', val === 'fixed' ? 'flex-start' : val)
+                      }}>
+                        <SelectTrigger className="flex h-full items-center justify-center border-l border-border/30 px-1.5 hover:bg-muted-foreground/10">
+                          <ChevronsUpDown className="size-3 text-muted-foreground" />
+                        </SelectTrigger>
+                        <SelectPortal>
+                          <SelectPositioner side="bottom" sideOffset={4} alignItemWithTrigger={false} className="z-[99999]">
+                            <SelectPopup className="min-w-[120px] overflow-hidden rounded-lg border-0 bg-popover p-1 text-popover-foreground shadow-lg animate-in fade-in-0 zoom-in-95">
+                              {DISTRIBUTE_MODES.map((mode) => (
+                                <SelectItem key={mode} value={mode} className="relative flex cursor-default select-none items-center rounded-md py-1.5 pl-6 pr-2 text-xs outline-none hover:bg-muted data-[highlighted]:bg-muted">
+                                  <SelectItemIndicator className="absolute left-1.5 flex items-center justify-center">
+                                    <Check className="size-3" />
+                                  </SelectItemIndicator>
+                                  <SelectItemText>{DISTRIBUTE_LABELS[mode]}</SelectItemText>
+                                </SelectItem>
+                              ))}
+                            </SelectPopup>
+                          </SelectPositioner>
+                        </SelectPortal>
+                      </Select>
                     </div>
                   </div>
 
@@ -1452,7 +1407,7 @@ export function DirectEditPanelInner({
 
             {computedSizing && (
               <div>
-                <div className="mb-1.5 text-[10px] font-medium text-muted-foreground">Sizing</div>
+                <div className="mb-2 text-xs font-medium text-muted-foreground">Sizing</div>
                 <SizingInputs
                   width={computedSizing.width}
                   height={computedSizing.height}
@@ -1463,7 +1418,7 @@ export function DirectEditPanelInner({
             )}
 
             <div>
-              <div className="mb-1.5 text-[10px] font-medium text-muted-foreground">Padding</div>
+              <div className="mb-2 text-xs font-medium text-muted-foreground">Padding</div>
               <PaddingInputs
                 values={{
                   top: computedSpacing.paddingTop,
@@ -1476,7 +1431,7 @@ export function DirectEditPanelInner({
             </div>
 
             <div>
-              <div className="mb-1.5 text-[10px] font-medium text-muted-foreground">Margin</div>
+              <div className="mb-2 text-xs font-medium text-muted-foreground">Margin</div>
               <MarginInputs
                 values={{
                   top: computedSpacing.marginTop,
@@ -1490,11 +1445,7 @@ export function DirectEditPanelInner({
           </div>
         </CollapsibleSection>
 
-        <CollapsibleSection
-          title="Radius"
-          isOpen={sections.radius ?? true}
-          onToggle={() => toggleSection('radius')}
-        >
+        <CollapsibleSection title="Radius">
           <BorderRadiusInputs
             values={{
               topLeft: computedBorderRadius.borderTopLeftRadius,
@@ -1507,11 +1458,7 @@ export function DirectEditPanelInner({
         </CollapsibleSection>
 
         {computedColor && (
-          <CollapsibleSection
-            title="Selection Colors"
-            isOpen={sections.fill ?? true}
-            onToggle={() => toggleSection('fill')}
-          >
+          <CollapsibleSection title="Selection Colors">
             <FillSection
               backgroundColor={computedColor.backgroundColor}
               textColor={computedColor.color}
@@ -1530,11 +1477,7 @@ export function DirectEditPanelInner({
         )}
 
         {elementInfo.isTextElement && computedTypography && (
-          <CollapsibleSection
-            title="Text"
-            isOpen={sections.text ?? true}
-            onToggle={() => toggleSection('text')}
-          >
+          <CollapsibleSection title="Text">
             <TypographyInputs
               typography={computedTypography}
               onUpdate={onUpdateTypography}
@@ -1543,7 +1486,7 @@ export function DirectEditPanelInner({
         )}
       </div>
 
-      <div className="flex shrink-0 items-center justify-between border-t bg-muted/30 px-3 py-2">
+      <div className="flex shrink-0 items-center justify-between border-t border-border/50 bg-muted/20 px-3 py-2.5">
         <Button
           variant="ghost"
           size="sm"
