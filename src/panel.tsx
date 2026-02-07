@@ -32,6 +32,8 @@ import { Slider } from './ui/slider'
 import { useMeasurement } from './use-measurement'
 import { MeasurementOverlay } from './measurement-overlay'
 import { useMove } from './use-move'
+import { getStoredGuidelines } from './use-guidelines'
+import { calculateGuidelineMeasurements } from './utils'
 import { MoveOverlay } from './move-overlay'
 import { SelectionOverlay } from './selection-overlay'
 import {
@@ -1631,7 +1633,7 @@ function DirectEditPanelContent() {
     return () => window.removeEventListener('resize', handleResize)
   }, [])
 
-  const { isActive: measurementActive, hoveredElement, measurements } = useMeasurement(
+  const { isActive: measurementActive, hoveredElement, measurements, mousePosition } = useMeasurement(
     isOpen ? selectedElement : null
   )
 
@@ -1795,7 +1797,10 @@ function DirectEditPanelContent() {
         <MeasurementOverlay
           selectedElement={selectedElement}
           hoveredElement={hoveredElement}
-          measurements={measurements}
+          measurements={[
+            ...measurements,
+            ...calculateGuidelineMeasurements(selectedElement, getStoredGuidelines(), mousePosition),
+          ]}
         />
       )}
 

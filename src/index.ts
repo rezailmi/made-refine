@@ -20,6 +20,9 @@ export { SelectionOverlay } from './selection-overlay'
 export type { SelectionOverlayProps } from './selection-overlay'
 export { MoveOverlay } from './move-overlay'
 export type { MoveOverlayProps } from './move-overlay'
+export { Rulers, RulersOverlay, useRulersVisible } from './rulers-overlay'
+export { useGuidelines, getStoredGuidelines } from './use-guidelines'
+export type { UseGuidelinesResult } from './use-guidelines'
 
 export type {
   ElementInfo,
@@ -52,6 +55,7 @@ export type {
   UndoEditEntry,
   UndoSelectionEntry,
   UndoMoveEntry,
+  Guideline,
 } from './types'
 
 export {
@@ -73,4 +77,5 @@ export {
   findContainerAtPoint,
   calculateDropPosition,
   elementFromPointWithoutOverlays,
+  calculateGuidelineMeasurements,
 } from './utils'

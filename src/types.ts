@@ -182,3 +182,9 @@ export interface UndoMoveEntry {
 }
 
 export type UndoEntry = UndoEditEntry | UndoSelectionEntry | UndoMoveEntry
+
+export interface Guideline {
+  id: string
+  orientation: 'horizontal' | 'vertical'
+  position: number // page-absolute px
+}
