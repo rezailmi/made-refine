@@ -8,6 +8,7 @@ import {
 
 export interface MoveInfo {
   originalParent: HTMLElement
+  originalPreviousSibling: HTMLElement | null
   originalNextSibling: HTMLElement | null
 }
 
@@ -32,6 +33,7 @@ const INITIAL_DRAG_STATE: DragState = {
   isDragging: false,
   draggedElement: null,
   originalParent: null,
+  originalPreviousSibling: null,
   originalNextSibling: null,
   ghostPosition: { x: 0, y: 0 },
   dragOffset: { x: 0, y: 0 },
@@ -65,7 +67,7 @@ export function useMove({ onMoveComplete }: UseMoveOptions): UseMoveResult {
   const completeDrag = React.useCallback(() => {
     const current = dragStateRef.current
     const target = dropTargetRef.current
-    const { draggedElement, originalParent, originalNextSibling } = current
+    const { draggedElement, originalParent, originalPreviousSibling, originalNextSibling } = current
 
     if (!draggedElement) {
       cancelDrag()
@@ -104,7 +106,7 @@ export function useMove({ onMoveComplete }: UseMoveOptions): UseMoveResult {
 
     if (onMoveCompleteRef.current && draggedElement) {
       const moveInfo: MoveInfo | null = didMove && originalParent
-        ? { originalParent, originalNextSibling }
+        ? { originalParent, originalPreviousSibling, originalNextSibling }
         : null
       onMoveCompleteRef.current(draggedElement, moveInfo)
     }
@@ -114,12 +116,14 @@ export function useMove({ onMoveComplete }: UseMoveOptions): UseMoveResult {
     (e: React.PointerEvent, element: HTMLElement) => {
       const rect = element.getBoundingClientRect()
       const parent = element.parentElement
+      const previousSibling = element.previousElementSibling as HTMLElement | null
       const nextSibling = element.nextElementSibling as HTMLElement | null
 
       setDragState({
         isDragging: true,
         draggedElement: element,
         originalParent: parent,
+        originalPreviousSibling: previousSibling,
         originalNextSibling: nextSibling,
         ghostPosition: { x: rect.left, y: rect.top },
         dragOffset: { x: e.clientX - rect.left, y: e.clientY - rect.top },
