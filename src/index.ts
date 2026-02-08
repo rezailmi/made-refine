@@ -62,6 +62,7 @@ export type {
   Theme,
   Comment,
   CommentReply,
+  SessionEdit,
 } from './types'
 
 export {
@@ -84,6 +85,7 @@ export {
   elementFromPointWithoutOverlays,
   calculateGuidelineMeasurements,
   buildCommentExport,
+  buildSessionExport,
 } from './utils'
 
 export { formatColorValue } from './ui/color-utils'

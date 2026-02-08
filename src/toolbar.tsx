@@ -6,8 +6,8 @@ import { useRulersVisible } from './rulers-overlay'
 import { cn } from './cn'
 import { useToolbarDock } from './use-toolbar-dock'
 import { Popover } from '@base-ui/react/popover'
-import { MousePointer2, Ruler, Command, ArrowBigUp, MessageSquare, EllipsisVertical, Sun, Moon, Monitor, Option } from 'lucide-react'
-import type { ActiveTool, Theme } from './types'
+import { MousePointer2, Ruler, Command, ArrowBigUp, MessageSquare, EllipsisVertical, Sun, Moon, Monitor, Option, ClipboardList, X } from 'lucide-react'
+import type { ActiveTool, Theme, SessionEdit } from './types'
 import {
   Tooltip,
   TooltipProvider,
@@ -24,10 +24,20 @@ export interface DirectEditToolbarInnerProps {
   onSetActiveTool?: (tool: ActiveTool) => void
   theme?: Theme
   onSetTheme?: (theme: Theme) => void
+  sessionEditCount?: number
+  onGetSessionEdits?: () => SessionEdit[]
+  onExportAllEdits?: () => Promise<boolean>
+  onClearSessionEdits?: () => void
+  onRemoveSessionEdit?: (element: HTMLElement) => void
   className?: string
 }
 
 function ThemePopoverPortal(props: React.ComponentPropsWithoutRef<typeof Popover.Portal>) {
+  const container = usePortalContainer()
+  return <Popover.Portal container={container} {...props} />
+}
+
+function EditsPopoverPortal(props: React.ComponentPropsWithoutRef<typeof Popover.Portal>) {
   const container = usePortalContainer()
   return <Popover.Portal container={container} {...props} />
 }
@@ -41,6 +51,11 @@ export function DirectEditToolbarInner({
   onSetActiveTool,
   theme = 'system',
   onSetTheme,
+  sessionEditCount = 0,
+  onGetSessionEdits,
+  onExportAllEdits,
+  onClearSessionEdits,
+  onRemoveSessionEdit,
   className,
 }: DirectEditToolbarInnerProps) {
   const container = usePortalContainer()
@@ -52,8 +67,13 @@ export function DirectEditToolbarInner({
     : dockedEdge === 'left' ? 'right' : 'left'
   const [isMac, setIsMac] = React.useState(false)
   const [settingsOpen, setSettingsOpen] = React.useState(false)
+  const [editsOpen, setEditsOpen] = React.useState(false)
+  const [copied, setCopied] = React.useState(false)
   const settingsPopupRef = React.useRef<HTMLDivElement>(null)
   const settingsTriggerRef = React.useRef<HTMLButtonElement>(null)
+  const editsPopupRef = React.useRef<HTMLDivElement>(null)
+  const editsTriggerRef = React.useRef<HTMLButtonElement>(null)
+  const [editsSnapshot, setEditsSnapshot] = React.useState<SessionEdit[]>([])
 
   React.useEffect(() => {
     setIsMac(navigator.platform?.includes('Mac') ?? false)
@@ -80,9 +100,42 @@ export function DirectEditToolbarInner({
     }
   }, [settingsOpen])
 
-  // Close settings popover on drag start
+  // Close edits popover on outside click (Shadow DOM breaks base-ui's dismiss)
   React.useEffect(() => {
-    if (isDragging) setSettingsOpen(false)
+    if (!editsOpen) return
+
+    function handlePointerDown(e: PointerEvent) {
+      const path = e.composedPath()
+      if (editsPopupRef.current && path.includes(editsPopupRef.current)) return
+      if (editsTriggerRef.current && path.includes(editsTriggerRef.current)) return
+      setEditsOpen(false)
+    }
+
+    const raf = requestAnimationFrame(() => {
+      document.addEventListener('pointerdown', handlePointerDown)
+    })
+
+    return () => {
+      cancelAnimationFrame(raf)
+      document.removeEventListener('pointerdown', handlePointerDown)
+    }
+  }, [editsOpen])
+
+  // Refresh snapshot when popover opens
+  React.useEffect(() => {
+    if (editsOpen && onGetSessionEdits) {
+      setEditsSnapshot(onGetSessionEdits())
+    }
+    if (!editsOpen) {
+      setCopied(false)
+    }
+  }, [editsOpen, onGetSessionEdits])
+
+  // Close popovers on drag start
+  React.useEffect(() => {
+    if (!isDragging) return
+    setSettingsOpen(false)
+    setEditsOpen(false)
   }, [isDragging])
 
   const kbdClass = 'inline-flex items-center justify-center rounded bg-white/20 px-1.5 py-0.5 font-mono text-[10px] min-w-[20px] min-h-[18px]'
@@ -164,8 +217,8 @@ export function DirectEditToolbarInner({
             className={cn(
               'overflow-hidden transition-[max-width,max-height,margin,opacity] duration-300 ease-out',
               isVertical
-                ? (editModeActive ? 'mt-1 max-h-[140px] opacity-100' : 'mt-0 max-h-0 opacity-0')
-                : (editModeActive ? 'ml-1 max-w-[140px] opacity-100' : 'ml-0 max-w-0 opacity-0')
+                ? (editModeActive ? 'mt-1 max-h-[220px] opacity-100' : 'mt-0 max-h-0 opacity-0')
+                : (editModeActive ? 'ml-1 max-w-[200px] opacity-100' : 'ml-0 max-w-0 opacity-0')
             )}
           >
             <div className={cn('flex gap-1', isVertical ? 'flex-col items-center' : 'flex-row items-center')}>
@@ -213,6 +266,101 @@ export function DirectEditToolbarInner({
                 'border-foreground/10',
                 isVertical ? 'my-0.5 w-5 border-t' : 'mx-0.5 h-5 border-l'
               )} />
+
+              <Popover.Root open={editsOpen} onOpenChange={setEditsOpen}>
+                <Tooltip>
+                  <Popover.Trigger ref={editsTriggerRef} render={
+                    <TooltipTrigger
+                      className={cn(
+                        'flex cursor-pointer items-center justify-center rounded-[8px] p-2 transition-colors',
+                        sessionEditCount > 0 || editsOpen
+                          ? 'bg-muted text-foreground'
+                          : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                      )}
+                      onPointerDown={(e: React.PointerEvent) => e.stopPropagation()}
+                    />
+                  }>
+                    <ClipboardList className="size-4" />
+                  </Popover.Trigger>
+                  <TooltipContent side={tooltipSide}>
+                    <span>Session edits</span>
+                  </TooltipContent>
+                </Tooltip>
+                <EditsPopoverPortal>
+                  <Popover.Positioner side={tooltipSide} sideOffset={12} className="fixed z-[99999]" style={{ pointerEvents: 'auto' }}>
+                    <Popover.Popup ref={editsPopupRef} className="w-[280px] rounded-lg border border-foreground/10 bg-background shadow-xl">
+                      <div className="flex items-center justify-between px-3 pb-1 pt-2.5">
+                        <span className="text-xs font-medium text-foreground">Session edits ({editsSnapshot.length})</span>
+                        {editsSnapshot.length > 0 && (
+                          <button
+                            type="button"
+                            className="text-[11px] text-muted-foreground hover:text-foreground"
+                            onClick={() => {
+                              onClearSessionEdits?.()
+                              setEditsSnapshot([])
+                            }}
+                          >
+                            Clear all
+                          </button>
+                        )}
+                      </div>
+                      {editsSnapshot.length === 0 ? (
+                        <div className="px-3 pb-3 pt-1 text-xs text-muted-foreground">
+                          No edits yet. Select elements and make changes.
+                        </div>
+                      ) : (
+                        <>
+                          <div className="max-h-[240px] overflow-y-auto px-1 py-1">
+                            {editsSnapshot.map((edit, i) => {
+                              const componentName = edit.locator.reactStack[0]?.name ?? edit.locator.tagName
+                              const styleCount = Object.keys(edit.pendingStyles).length
+                              const parts: string[] = []
+                              if (styleCount > 0) parts.push(`${styleCount} style${styleCount !== 1 ? 's' : ''}`)
+                              if (edit.move) parts.push('moved')
+                              return (
+                                <div
+                                  key={i}
+                                  className="group flex items-center justify-between rounded-md px-2 py-1.5 text-xs hover:bg-muted/50"
+                                >
+                                  <div className="min-w-0 flex-1">
+                                    <div className="truncate font-medium text-foreground">&lt;{componentName}&gt;</div>
+                                    <div className="text-[11px] text-muted-foreground">{parts.join(', ')}</div>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    className="ml-2 flex-shrink-0 rounded p-0.5 text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
+                                    onClick={() => {
+                                      onRemoveSessionEdit?.(edit.element)
+                                      setEditsSnapshot((prev) => prev.filter((_, j) => j !== i))
+                                    }}
+                                  >
+                                    <X className="size-3" />
+                                  </button>
+                                </div>
+                              )
+                            })}
+                          </div>
+                          <div className="border-t border-foreground/10 p-2">
+                            <button
+                              type="button"
+                              className="w-full rounded-md bg-foreground px-3 py-1.5 text-xs font-medium text-background transition-colors hover:bg-foreground/80"
+                              onClick={async () => {
+                                const success = await onExportAllEdits?.()
+                                if (success) {
+                                  setCopied(true)
+                                  setTimeout(() => setCopied(false), 2000)
+                                }
+                              }}
+                            >
+                              {copied ? 'Copied! Paste to AI agent' : 'Copy all edits'}
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </Popover.Popup>
+                  </Popover.Positioner>
+                </EditsPopoverPortal>
+              </Popover.Root>
 
               <Popover.Root open={settingsOpen} onOpenChange={setSettingsOpen}>
                 <Tooltip>
@@ -298,7 +446,10 @@ export function DirectEditToolbarInner({
 }
 
 function DirectEditToolbarContent() {
-  const { editModeActive, toggleEditMode, activeTool, setActiveTool, theme, setTheme } = useDirectEdit()
+  const {
+    editModeActive, toggleEditMode, activeTool, setActiveTool, theme, setTheme,
+    sessionEditCount, getSessionEdits, exportAllEdits, clearSessionEdits, removeSessionEdit,
+  } = useDirectEdit()
   const [rulersVisible, toggleRulers] = useRulersVisible()
 
   return (
@@ -311,6 +462,11 @@ function DirectEditToolbarContent() {
       onSetActiveTool={setActiveTool}
       theme={theme}
       onSetTheme={setTheme}
+      sessionEditCount={sessionEditCount}
+      onGetSessionEdits={getSessionEdits}
+      onExportAllEdits={exportAllEdits}
+      onClearSessionEdits={clearSessionEdits}
+      onRemoveSessionEdit={removeSessionEdit}
     />
   )
 }
