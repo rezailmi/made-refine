@@ -4,7 +4,27 @@
 
 A visual CSS editor for React. Select any element and adjust padding, border-radius, and flex properties in real-time, then copy as Tailwind classes.
 
-## Installation
+## Get Started
+
+Run this in your project root:
+
+```bash
+npx made-refine init
+```
+
+The CLI auto-detects your framework (Next.js, Vite, or TanStack Start), installs the package, and configures everything — with a diff preview before any file changes.
+
+Or, paste this prompt into any AI coding assistant (Cursor, Copilot, Claude Code, etc.):
+
+> Add made-refine to this project. Run `npx made-refine init` and follow the prompts.
+
+---
+
+## Manual Setup
+
+If you prefer to set things up by hand, follow the instructions below for your framework.
+
+### Installation
 
 ```bash
 npm install made-refine@beta
