@@ -23,6 +23,8 @@ export type { MoveOverlayProps } from './move-overlay'
 export { Rulers, RulersOverlay, useRulersVisible } from './rulers-overlay'
 export { useGuidelines, getStoredGuidelines } from './use-guidelines'
 export type { UseGuidelinesResult } from './use-guidelines'
+export { CommentOverlay } from './comment-overlay'
+export type { CommentOverlayProps } from './comment-overlay'
 
 export type {
   ElementInfo,
@@ -56,6 +58,10 @@ export type {
   UndoSelectionEntry,
   UndoMoveEntry,
   Guideline,
+  ActiveTool,
+  Theme,
+  Comment,
+  CommentReply,
 } from './types'
 
 export {
@@ -77,6 +83,7 @@ export {
   calculateDropPosition,
   elementFromPointWithoutOverlays,
   calculateGuidelineMeasurements,
+  buildCommentExport,
 } from './utils'
 
 export { formatColorValue } from './ui/color-utils'

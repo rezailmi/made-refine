@@ -4,7 +4,9 @@ import { usePortalContainer } from './portal-container'
 import { useDirectEdit } from './provider'
 import { useRulersVisible } from './rulers-overlay'
 import { cn } from './cn'
-import { MousePointer2, Ruler, Command, ArrowBigUp } from 'lucide-react'
+import { Popover } from '@base-ui/react/popover'
+import { MousePointer2, Ruler, Command, ArrowBigUp, MessageSquare, Settings, Sun, Moon, Monitor } from 'lucide-react'
+import type { ActiveTool, Theme } from './types'
 import {
   Tooltip,
   TooltipProvider,
@@ -19,6 +21,10 @@ export interface DirectEditToolbarInnerProps {
   onToggleEditMode: () => void
   rulersVisible: boolean
   onToggleRulers: () => void
+  activeTool?: ActiveTool
+  onSetActiveTool?: (tool: ActiveTool) => void
+  theme?: Theme
+  onSetTheme?: (theme: Theme) => void
   className?: string
 }
 
@@ -92,19 +98,52 @@ function OnboardingPopover({ shortcut }: { shortcut: React.ReactNode }) {
   )
 }
 
+function ThemePopoverPortal(props: React.ComponentPropsWithoutRef<typeof Popover.Portal>) {
+  const container = usePortalContainer()
+  return <Popover.Portal container={container} {...props} />
+}
+
 export function DirectEditToolbarInner({
   editModeActive,
   onToggleEditMode,
   rulersVisible,
   onToggleRulers,
+  activeTool = 'select',
+  onSetActiveTool,
+  theme = 'system',
+  onSetTheme,
   className,
 }: DirectEditToolbarInnerProps) {
   const container = usePortalContainer()
   const [isMac, setIsMac] = React.useState(false)
+  const [settingsOpen, setSettingsOpen] = React.useState(false)
+  const settingsPopupRef = React.useRef<HTMLDivElement>(null)
+  const settingsTriggerRef = React.useRef<HTMLButtonElement>(null)
 
   React.useEffect(() => {
     setIsMac(navigator.platform?.includes('Mac') ?? false)
   }, [])
+
+  // Close settings popover on outside click (Shadow DOM breaks base-ui's dismiss)
+  React.useEffect(() => {
+    if (!settingsOpen) return
+
+    function handlePointerDown(e: PointerEvent) {
+      const path = e.composedPath()
+      if (settingsPopupRef.current && path.includes(settingsPopupRef.current)) return
+      if (settingsTriggerRef.current && path.includes(settingsTriggerRef.current)) return
+      setSettingsOpen(false)
+    }
+
+    const raf = requestAnimationFrame(() => {
+      document.addEventListener('pointerdown', handlePointerDown)
+    })
+
+    return () => {
+      cancelAnimationFrame(raf)
+      document.removeEventListener('pointerdown', handlePointerDown)
+    }
+  }, [settingsOpen])
 
   const kbdClass = 'inline-flex items-center justify-center rounded bg-white/20 px-1.5 py-0.5 font-mono text-[10px] min-w-[20px] min-h-[18px]'
 
@@ -135,11 +174,19 @@ export function DirectEditToolbarInner({
             <TooltipTrigger
               className={cn(
                 'flex cursor-pointer items-center justify-center rounded-[8px] p-2 transition-colors duration-300',
-                editModeActive
+                editModeActive && activeTool !== 'comment'
                   ? 'bg-foreground text-background hover:bg-foreground/80'
-                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                  : editModeActive && activeTool === 'comment'
+                    ? 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
               )}
-              onClick={onToggleEditMode}
+              onClick={() => {
+                if (editModeActive && activeTool === 'comment') {
+                  onSetActiveTool?.('select')
+                } else {
+                  onToggleEditMode()
+                }
+              }}
             >
               <MousePointer2 className="size-4" />
             </TooltipTrigger>
@@ -152,27 +199,99 @@ export function DirectEditToolbarInner({
           <div
             className={cn(
               'overflow-hidden transition-all duration-300 ease-in-out',
-              editModeActive ? 'ml-1 max-w-[32px] opacity-100' : 'ml-0 max-w-0 opacity-0'
+              editModeActive ? 'ml-1 max-w-[140px] opacity-100' : 'ml-0 max-w-0 opacity-0'
             )}
           >
-            <Tooltip>
-              <TooltipTrigger
-                className={cn(
-                  'flex cursor-pointer items-center justify-center rounded-[8px] p-2 transition-colors',
-                  rulersVisible
-                    ? 'bg-muted text-foreground'
-                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                )}
-                onClick={onToggleRulers}
-              >
-                <Ruler className="size-4" />
-              </TooltipTrigger>
-              <TooltipContent side="top" className="inline-flex items-center gap-1.5">
-                <span>{rulersVisible ? 'Hide rulers' : 'Show rulers'}</span>
-                <kbd className={kbdClass}><ArrowBigUp className="size-2.5" /></kbd>
-                <kbd className={kbdClass}>R</kbd>
-              </TooltipContent>
-            </Tooltip>
+            <div className="flex items-center gap-1">
+              <Tooltip>
+                <TooltipTrigger
+                  className={cn(
+                    'flex cursor-pointer items-center justify-center rounded-[8px] p-2 transition-colors',
+                    activeTool === 'comment'
+                      ? 'bg-foreground text-background hover:bg-foreground/80'
+                      : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                  )}
+                  onClick={() => onSetActiveTool?.(activeTool === 'comment' ? 'select' : 'comment')}
+                >
+                  <MessageSquare className="size-4" />
+                </TooltipTrigger>
+                <TooltipContent side="top" className="inline-flex items-center gap-1.5">
+                  <span>{activeTool === 'comment' ? 'Exit comment mode' : 'Comment'}</span>
+                  <kbd className={kbdClass}><ArrowBigUp className="size-3" /></kbd>
+                  <kbd className={kbdClass}>C</kbd>
+                </TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger
+                  className={cn(
+                    'flex cursor-pointer items-center justify-center rounded-[8px] p-2 transition-colors',
+                    rulersVisible
+                      ? 'bg-muted text-foreground'
+                      : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                  )}
+                  onClick={onToggleRulers}
+                >
+                  <Ruler className="size-4" />
+                </TooltipTrigger>
+                <TooltipContent side="top" className="inline-flex items-center gap-1.5">
+                  <span>{rulersVisible ? 'Hide rulers' : 'Show rulers'}</span>
+                  <kbd className={kbdClass}><ArrowBigUp className="size-2.5" /></kbd>
+                  <kbd className={kbdClass}>R</kbd>
+                </TooltipContent>
+              </Tooltip>
+
+              <div className="mx-0.5 h-5 border-l border-foreground/10" />
+
+              <Popover.Root open={settingsOpen} onOpenChange={setSettingsOpen}>
+                <Tooltip>
+                  <Popover.Trigger ref={settingsTriggerRef} render={
+                    <TooltipTrigger
+                      className={cn(
+                        'flex cursor-pointer items-center justify-center rounded-[8px] p-2 transition-colors',
+                        settingsOpen
+                          ? 'bg-muted text-foreground'
+                          : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                      )}
+                    />
+                  }>
+                    <Settings className="size-4" />
+                  </Popover.Trigger>
+                  <TooltipContent side="top">
+                    <span>Settings</span>
+                  </TooltipContent>
+                </Tooltip>
+                <ThemePopoverPortal>
+                  <Popover.Positioner side="top" sideOffset={12} className="fixed z-[99999]" style={{ pointerEvents: 'auto' }}>
+                    <Popover.Popup ref={settingsPopupRef} className="w-[140px] rounded-lg border border-foreground/10 bg-background p-1 shadow-xl">
+                      {([
+                        { value: 'light' as const, label: 'Light', Icon: Sun },
+                        { value: 'dark' as const, label: 'Dark', Icon: Moon },
+                        { value: 'system' as const, label: 'System', Icon: Monitor },
+                      ]).map(({ value, label, Icon }) => (
+                        <button
+                          key={value}
+                          type="button"
+                          className={cn(
+                            'flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-xs transition-colors',
+                            theme === value
+                              ? 'bg-muted text-foreground'
+                              : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
+                          )}
+                          onClick={() => {
+                            onSetTheme?.(value)
+                            setSettingsOpen(false)
+                          }}
+                        >
+                          <Icon className="size-3.5" />
+                          {label}
+                        </button>
+                      ))}
+                    </Popover.Popup>
+                  </Popover.Positioner>
+                </ThemePopoverPortal>
+              </Popover.Root>
+            </div>
           </div>
         </TooltipProvider>
       </div>
@@ -188,7 +307,7 @@ export function DirectEditToolbarInner({
 }
 
 function DirectEditToolbarContent() {
-  const { editModeActive, toggleEditMode } = useDirectEdit()
+  const { editModeActive, toggleEditMode, activeTool, setActiveTool, theme, setTheme } = useDirectEdit()
   const [rulersVisible, toggleRulers] = useRulersVisible()
 
   return (
@@ -197,6 +316,10 @@ function DirectEditToolbarContent() {
       onToggleEditMode={toggleEditMode}
       rulersVisible={rulersVisible}
       onToggleRulers={toggleRulers}
+      activeTool={activeTool}
+      onSetActiveTool={setActiveTool}
+      theme={theme}
+      onSetTheme={setTheme}
     />
   )
 }

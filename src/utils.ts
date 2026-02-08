@@ -1723,7 +1723,23 @@ function parseDomSource(element: HTMLElement): DomSourceLocation | null {
 
 export function getElementLocator(element: HTMLElement): ElementLocator {
   const elementInfo = getElementInfo(element)
-  const domSource = parseDomSource(element)
+  let domSource = parseDomSource(element)
+
+  // Fallback: get source from the element's own React fiber when
+  // the Vite plugin attribute is not present
+  if (!domSource) {
+    const fiber = getFiberForElement(element)
+    if (fiber) {
+      const fiberSource = getSourceFromFiber(fiber)
+      if (fiberSource?.fileName) {
+        domSource = {
+          file: fiberSource.fileName,
+          line: fiberSource.lineNumber,
+          column: fiberSource.columnNumber,
+        }
+      }
+    }
+  }
 
   return {
     reactStack: getReactComponentStack(element),
@@ -1838,6 +1854,48 @@ export function buildEditExport(
     for (const change of changes) {
       const tailwind = change.tailwind ? ` (${change.tailwind})` : ''
       lines.push(`${change.property}: ${change.value}${tailwind}`)
+    }
+  }
+
+  return lines.join('\n')
+}
+
+export function buildCommentExport(
+  locator: ElementLocator,
+  commentText: string,
+  replies?: Array<{ text: string; createdAt: number }>
+): string {
+  const lines: string[] = []
+
+  const primaryFrame = getPrimaryFrame(locator)
+  const componentLabel = primaryFrame?.name ? primaryFrame.name : locator.tagName
+  const formattedSource = locator.domSource?.file
+    ? formatSourceLocation(locator.domSource.file, locator.domSource.line, locator.domSource.column)
+    : primaryFrame?.file
+      ? formatSourceLocation(primaryFrame.file, primaryFrame.line, primaryFrame.column)
+      : null
+
+  lines.push(`@<${componentLabel}>`)
+  lines.push('')
+  lines.push(locator.targetHtml || locator.domContextHtml || '')
+  lines.push(`in ${formattedSource ?? '(file not available)'}`)
+
+  if (!formattedSource) {
+    const selector = locator.domSelector?.trim()
+    const text = locator.textPreview?.trim()
+    if (selector) {
+      lines.push(`selector: ${selector}`)
+    }
+    if (text) {
+      lines.push(`text: ${text}`)
+    }
+  }
+
+  lines.push('')
+  lines.push(`comment: ${commentText}`)
+  if (replies && replies.length > 0) {
+    for (const reply of replies) {
+      lines.push(`reply: ${reply.text}`)
     }
   }
 

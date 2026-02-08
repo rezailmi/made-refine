@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { PortalContainerProvider } from './portal-container'
+import { PortalContainerProvider, usePortalContainer } from './portal-container'
 import type {
   DirectEditState,
   SpacingPropertyKey,
@@ -12,6 +12,9 @@ import type {
   ColorPropertyKey,
   ColorValue,
   UndoEntry,
+  ActiveTool,
+  Theme,
+  Comment,
 } from './types'
 import type { MoveInfo } from './use-move'
 import {
@@ -30,6 +33,7 @@ import {
   colorPropertyToCSSMap,
   getComputedTypography,
   buildEditExport,
+  buildCommentExport,
   getElementLocator,
 } from './utils'
 import { formatColorValue } from './ui/color-utils'
@@ -50,6 +54,14 @@ export interface DirectEditContextValue extends DirectEditState {
   toggleEditMode: () => void
   undo: () => void
   handleMoveComplete: (element: HTMLElement, moveInfo: MoveInfo | null) => void
+  setActiveTool: (tool: ActiveTool) => void
+  setTheme: (theme: Theme) => void
+  addComment: (element: HTMLElement, clickPosition: { x: number; y: number }) => void
+  updateCommentText: (id: string, text: string) => void
+  addCommentReply: (id: string, text: string) => void
+  deleteComment: (id: string) => void
+  exportComment: (id: string) => Promise<boolean>
+  setActiveCommentId: (id: string | null) => void
 }
 
 const DirectEditContext = React.createContext<DirectEditContextValue | null>(null)
@@ -81,7 +93,21 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     originalStyles: {},
     pendingStyles: {},
     editModeActive: false,
+    activeTool: 'select',
+    theme: 'system',
+    comments: [],
+    activeCommentId: null,
   })
+
+  // Read persisted theme on mount (SSR-safe)
+  React.useEffect(() => {
+    try {
+      const stored = localStorage.getItem('direct-edit-theme')
+      if (stored === 'light' || stored === 'dark' || stored === 'system') {
+        setState((prev) => ({ ...prev, theme: stored }))
+      }
+    } catch {}
+  }, [])
 
   const undoStackRef = React.useRef<UndoEntry[]>([])
   const stateRef = React.useRef(state)
@@ -127,6 +153,10 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
       originalStyles,
       pendingStyles: {},
       editModeActive: prev.editModeActive,
+      activeTool: prev.activeTool,
+      theme: prev.theme,
+      comments: prev.comments,
+      activeCommentId: prev.activeCommentId,
     }))
   }, [pushUndo])
 
@@ -141,6 +171,8 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     setState((prev) => ({
       ...prev,
       editModeActive: !prev.editModeActive,
+      activeTool: prev.editModeActive ? 'select' : prev.activeTool,
+      activeCommentId: prev.editModeActive ? null : prev.activeCommentId,
     }))
   }, [])
 
@@ -468,6 +500,10 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
             originalStyles: entry.previousOriginalStyles,
             pendingStyles: entry.previousPendingStyles,
             editModeActive: prev.editModeActive,
+            activeTool: prev.activeTool,
+            theme: prev.theme,
+            comments: prev.comments,
+            activeCommentId: prev.activeCommentId,
           }))
         } else {
           setState((prev) => ({
@@ -539,10 +575,104 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
         originalStyles: prev.originalStyles,
         pendingStyles: prev.pendingStyles,
         editModeActive: prev.editModeActive,
+        activeTool: prev.activeTool,
+        theme: prev.theme,
+        comments: prev.comments,
+        activeCommentId: prev.activeCommentId,
       }))
     },
     [pushUndo]
   )
+
+  const setActiveTool = React.useCallback((tool: ActiveTool) => {
+    setState((prev) => ({
+      ...prev,
+      activeTool: tool,
+      activeCommentId: null,
+    }))
+  }, [])
+
+  const setTheme = React.useCallback((theme: Theme) => {
+    setState((prev) => ({ ...prev, theme }))
+    try { localStorage.setItem('direct-edit-theme', theme) } catch {}
+  }, [])
+
+  const addComment = React.useCallback((element: HTMLElement, clickPosition: { x: number; y: number }) => {
+    const locator = getElementLocator(element)
+    const rect = element.getBoundingClientRect()
+    const relativePosition = {
+      x: clickPosition.x - rect.left,
+      y: clickPosition.y - rect.top,
+    }
+    const id = `comment-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+    const comment: Comment = {
+      id,
+      element,
+      locator,
+      clickPosition,
+      relativePosition,
+      text: '',
+      createdAt: Date.now(),
+      replies: [],
+    }
+    setState((prev) => ({
+      ...prev,
+      comments: [...prev.comments, comment],
+      activeCommentId: id,
+    }))
+  }, [])
+
+  const updateCommentText = React.useCallback((id: string, text: string) => {
+    setState((prev) => ({
+      ...prev,
+      comments: prev.comments.map((c) => (c.id === id ? { ...c, text } : c)),
+    }))
+  }, [])
+
+  const addCommentReply = React.useCallback((id: string, text: string) => {
+    setState((prev) => ({
+      ...prev,
+      comments: prev.comments.map((c) =>
+        c.id === id
+          ? { ...c, replies: [...c.replies, { text, createdAt: Date.now() }] }
+          : c
+      ),
+    }))
+  }, [])
+
+  const deleteComment = React.useCallback((id: string) => {
+    setState((prev) => ({
+      ...prev,
+      comments: prev.comments.filter((c) => c.id !== id),
+      activeCommentId: prev.activeCommentId === id ? null : prev.activeCommentId,
+    }))
+  }, [])
+
+  const exportComment = React.useCallback(async (id: string) => {
+    const comment = stateRef.current.comments.find((c) => c.id === id)
+    if (!comment) return false
+
+    const exportMarkdown = buildCommentExport(comment.locator, comment.text, comment.replies)
+    try {
+      await navigator.clipboard.writeText(exportMarkdown)
+      return true
+    } catch {
+      return false
+    }
+  }, [])
+
+  const setActiveCommentId = React.useCallback((id: string | null) => {
+    setState((prev) => {
+      let comments = prev.comments
+      if (prev.activeCommentId && prev.activeCommentId !== id) {
+        const active = comments.find((c) => c.id === prev.activeCommentId)
+        if (active && active.text === '') {
+          comments = comments.filter((c) => c.id !== prev.activeCommentId)
+        }
+      }
+      return { ...prev, comments, activeCommentId: id }
+    })
+  }, [])
 
   const exportEdits = React.useCallback(async () => {
     if (
@@ -586,8 +716,43 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
         return
       }
 
+      if (e.key === 'C' && e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey && state.editModeActive) {
+        const active = document.activeElement
+        const isInput = active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement || (active instanceof HTMLElement && active.isContentEditable)
+        if (!isInput) {
+          e.preventDefault()
+          setState((prev) => {
+            let comments = prev.comments
+            if (prev.activeCommentId) {
+              const active = comments.find((c) => c.id === prev.activeCommentId)
+              if (active && active.text === '') {
+                comments = comments.filter((c) => c.id !== prev.activeCommentId)
+              }
+            }
+            return {
+              ...prev,
+              comments,
+              activeTool: prev.activeTool === 'comment' ? 'select' : 'comment',
+              activeCommentId: null,
+            }
+          })
+          return
+        }
+      }
+
       if (e.key === 'Escape') {
-        if (state.isOpen) {
+        if (state.activeCommentId) {
+          setState((prev) => {
+            let comments = prev.comments
+            const active = comments.find((c) => c.id === prev.activeCommentId)
+            if (active && active.text === '') {
+              comments = comments.filter((c) => c.id !== prev.activeCommentId)
+            }
+            return { ...prev, comments, activeCommentId: null }
+          })
+        } else if (state.activeTool === 'comment') {
+          setState((prev) => ({ ...prev, activeTool: 'select' }))
+        } else if (state.isOpen) {
           closePanel()
         } else if (state.editModeActive) {
           toggleEditMode()
@@ -597,7 +762,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [state.isOpen, state.editModeActive, closePanel, toggleEditMode, undo])
+  }, [state.isOpen, state.editModeActive, state.activeCommentId, state.activeTool, closePanel, toggleEditMode, undo])
 
   const contextValue: DirectEditContextValue = {
     ...state,
@@ -616,11 +781,39 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     toggleEditMode,
     undo,
     handleMoveComplete,
+    setActiveTool,
+    setTheme,
+    addComment,
+    updateCommentText,
+    addCommentReply,
+    deleteComment,
+    exportComment,
+    setActiveCommentId,
   }
 
   return (
     <PortalContainerProvider>
-      <DirectEditContext.Provider value={contextValue}>{children}</DirectEditContext.Provider>
+      <DirectEditContext.Provider value={contextValue}>
+        <ThemeApplier />
+        {children}
+      </DirectEditContext.Provider>
     </PortalContainerProvider>
   )
+}
+
+function ThemeApplier() {
+  const { theme } = useDirectEdit()
+  const container = usePortalContainer()
+
+  React.useEffect(() => {
+    if (!container) return
+    const host = (container.getRootNode() as ShadowRoot).host as HTMLElement
+    if (theme === 'system') {
+      host.removeAttribute('data-theme')
+    } else {
+      host.setAttribute('data-theme', theme)
+    }
+  }, [container, theme])
+
+  return null
 }

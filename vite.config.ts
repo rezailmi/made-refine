@@ -17,6 +17,7 @@ function devSourceLocations(): Plugin {
 
   return {
     name: 'dev-source-locations',
+    enforce: 'pre',
     configResolved(config) {
       root = config.root
     },
@@ -47,8 +48,8 @@ export default defineConfig({
   root: 'dev',
   plugins: [
     tailwindcss(),
-    react(),
     devSourceLocations(),
+    react(),
   ],
   server: {
     port: 3000,

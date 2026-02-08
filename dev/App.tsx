@@ -1,5 +1,6 @@
 import React from 'react'
 import { DirectEdit } from '../src/index'
+import { Avatar, Button } from './components'
 
 const gray = {
   50: 'var(--color-gray-50, #f9fafb)',
@@ -37,9 +38,7 @@ export default function App() {
           {/* Profile Card */}
           <div style={{ border: `1px solid ${gray[200]}`, borderRadius: 12, padding: 24, backgroundColor: '#fff' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-              <div style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: gray[900], display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 600, color: '#fff', letterSpacing: '-0.02em' }}>
-                JD
-              </div>
+              <Avatar initials="JD" size={48} />
               <div>
                 <div style={{ fontSize: 15, fontWeight: 600, lineHeight: 1.3 }}>Jane Doe</div>
                 <div style={{ fontSize: 13, color: gray[500] }}>Product Designer</div>
@@ -76,9 +75,7 @@ export default function App() {
                 </div>
               ))}
             </div>
-            <div style={{ padding: '10px 0', backgroundColor: gray[900], color: '#fff', borderRadius: 8, fontSize: 14, fontWeight: 500, textAlign: 'center', letterSpacing: '-0.01em' }}>
-              Get started
-            </div>
+            <Button>Get started</Button>
           </div>
 
           {/* Colors */}
@@ -99,9 +96,7 @@ export default function App() {
                 </div>
               ))}
             </div>
-            <div style={{ padding: 12, backgroundColor: blue[600], color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 500, textAlign: 'center' }}>
-              Blue surface
-            </div>
+            <Button bg={blue[600]}>Blue surface</Button>
           </div>
 
           {/* Testimonial */}
@@ -111,9 +106,7 @@ export default function App() {
               This tool completely changed how we iterate on design. What used to take a round-trip to Figma now happens right in the browser.
             </p>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 16, paddingTop: 16, borderTop: `1px solid ${gray[200]}` }}>
-              <div style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: gray[800], display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 600, color: '#fff' }}>
-                AK
-              </div>
+              <Avatar initials="AK" bg={gray[800]} />
               <div>
                 <div style={{ fontSize: 13, fontWeight: 500 }}>Alex Kim</div>
                 <div style={{ fontSize: 12, color: gray[500] }}>Engineering Lead, Acme</div>
@@ -129,9 +122,7 @@ export default function App() {
               { initials: 'TR', title: 'Tom requested review', desc: 'on Homepage redesign', time: '1h' },
             ].map((n, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 0', borderTop: i > 0 ? `1px solid ${gray[100]}` : 'none' }}>
-                <div style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: gray[100], display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 600, color: gray[600], flexShrink: 0 }}>
-                  {n.initials}
-                </div>
+                <Avatar initials={n.initials} bg={gray[100]} color={gray[600]} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 13, fontWeight: 500, lineHeight: 1.3 }}>{n.title}</div>
                   <div style={{ fontSize: 12, color: gray[500] }}>{n.desc}</div>

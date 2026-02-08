@@ -36,6 +36,7 @@ import { getStoredGuidelines } from './use-guidelines'
 import { calculateGuidelineMeasurements } from './utils'
 import { MoveOverlay } from './move-overlay'
 import { SelectionOverlay } from './selection-overlay'
+import { CommentOverlay } from './comment-overlay'
 import {
   X,
   RotateCcw,
@@ -1553,6 +1554,16 @@ function DirectEditPanelContent() {
     editModeActive,
     selectedElement,
     handleMoveComplete,
+    activeTool,
+    setActiveTool,
+    comments,
+    activeCommentId,
+    addComment,
+    updateCommentText,
+    addCommentReply,
+    deleteComment,
+    exportComment,
+    setActiveCommentId,
   } = useDirectEdit()
 
   const [position, setPosition] = React.useState<Position>(getInitialPosition)
@@ -1622,7 +1633,7 @@ function DirectEditPanelContent() {
     <>
       <div
         data-direct-edit="overlay"
-        className="fixed inset-0 z-[99990] cursor-default"
+        className={cn('fixed inset-0 z-[99990]', activeTool === 'comment' ? 'cursor-crosshair' : 'cursor-default')}
         style={{ pointerEvents: 'auto' }}
         onMouseMove={(e) => {
           const el = e.currentTarget
@@ -1677,25 +1688,38 @@ function DirectEditPanelContent() {
         onClick={(e) => {
           e.preventDefault()
           setHoverHighlight(null)
+
+          if (activeCommentId) {
+            setActiveCommentId(null)
+            return
+          }
+
           const el = e.currentTarget
           el.style.pointerEvents = 'none'
           const elementUnder = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null
           el.style.pointerEvents = 'auto'
 
           if (elementUnder && elementUnder !== document.body && elementUnder !== document.documentElement) {
+            // Resolve target element using flex walk-up (shared by select and comment tools)
+            let resolvedElement: HTMLElement = elementUnder
             let current: HTMLElement | null = elementUnder
             while (current && current !== document.body) {
               const parent: HTMLElement | null = current.parentElement
               if (parent) {
                 const display = getComputedStyle(parent).display
                 if (display === 'flex' || display === 'inline-flex') {
-                  selectElement(current)
-                  return
+                  resolvedElement = current
+                  break
                 }
               }
               current = parent
             }
-            selectElement(elementUnder)
+
+            if (activeTool === 'comment') {
+              addComment(resolvedElement, { x: e.clientX, y: e.clientY })
+            } else {
+              selectElement(resolvedElement)
+            }
           }
         }}
       />
@@ -1741,7 +1765,20 @@ function DirectEditPanelContent() {
     container
   ) : null
 
-  if (!isOpen || !computedSpacing || !elementInfo || !computedBorderRadius || !computedFlex || !computedSizing || !computedColor || !computedTypography || !container) return overlay
+  const commentOverlay = editModeActive && comments.length > 0 && container ? createPortal(
+    <CommentOverlay
+      comments={comments}
+      activeCommentId={activeCommentId}
+      onSetActiveComment={setActiveCommentId}
+      onUpdateText={updateCommentText}
+      onAddReply={addCommentReply}
+      onDelete={deleteComment}
+      onExport={exportComment}
+    />,
+    container
+  ) : null
+
+  if (!isOpen || !computedSpacing || !elementInfo || !computedBorderRadius || !computedFlex || !computedSizing || !computedColor || !computedTypography || !container) return <>{overlay}{commentOverlay}</>
 
   const handleMoveStart = (e: React.PointerEvent) => {
     if (selectedElement) {
@@ -1752,6 +1789,7 @@ function DirectEditPanelContent() {
   return createPortal(
     <>
       {overlay}
+      {commentOverlay}
 
       {selectedElement && (
         <SelectionOverlay
