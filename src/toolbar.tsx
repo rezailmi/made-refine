@@ -5,7 +5,7 @@ import { useDirectEdit } from './provider'
 import { useRulersVisible } from './rulers-overlay'
 import { cn } from './cn'
 import { Popover } from '@base-ui/react/popover'
-import { MousePointer2, Ruler, Command, ArrowBigUp, MessageSquare, Settings, Sun, Moon, Monitor } from 'lucide-react'
+import { MousePointer2, Ruler, Command, ArrowBigUp, MessageSquare, EllipsisVertical, Sun, Moon, Monitor, Option } from 'lucide-react'
 import type { ActiveTool, Theme } from './types'
 import {
   Tooltip,
@@ -146,6 +146,7 @@ export function DirectEditToolbarInner({
   }, [settingsOpen])
 
   const kbdClass = 'inline-flex items-center justify-center rounded bg-white/20 px-1.5 py-0.5 font-mono text-[10px] min-w-[20px] min-h-[18px]'
+  const popupKbdClass = 'inline-flex items-center justify-center rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground min-w-[20px] min-h-[18px]'
 
   const shortcutContent = isMac ? (
     <>
@@ -255,15 +256,16 @@ export function DirectEditToolbarInner({
                       )}
                     />
                   }>
-                    <Settings className="size-4" />
+                    <EllipsisVertical className="size-4" />
                   </Popover.Trigger>
                   <TooltipContent side="top">
-                    <span>Settings</span>
+                    <span>More</span>
                   </TooltipContent>
                 </Tooltip>
                 <ThemePopoverPortal>
                   <Popover.Positioner side="top" sideOffset={12} className="fixed z-[99999]" style={{ pointerEvents: 'auto' }}>
-                    <Popover.Popup ref={settingsPopupRef} className="w-[140px] rounded-lg border border-foreground/10 bg-background p-1 shadow-xl">
+                    <Popover.Popup ref={settingsPopupRef} className="w-[220px] rounded-lg border border-foreground/10 bg-background p-1 shadow-xl">
+                      <div className="px-2.5 pb-1 pt-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Theme</div>
                       {([
                         { value: 'light' as const, label: 'Light', Icon: Sun },
                         { value: 'dark' as const, label: 'Dark', Icon: Moon },
@@ -286,6 +288,25 @@ export function DirectEditToolbarInner({
                           <Icon className="size-3.5" />
                           {label}
                         </button>
+                      ))}
+                      <div className="mx-1.5 my-1 border-t border-foreground/10" />
+                      <div className="px-2.5 pb-1 pt-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Keyboard shortcuts</div>
+                      {([
+                        { label: 'Toggle design mode', keys: isMac ? [<Command key="cmd" className="size-2.5" />,'.' ] : ['Ctrl', '.'] },
+                        { label: 'Undo', keys: isMac ? [<Command key="cmd" className="size-2.5" />, 'Z'] : ['Ctrl', 'Z'] },
+                        { label: 'Toggle comments', keys: [<ArrowBigUp key="shift" className="size-3" />, 'C'] },
+                        { label: 'Toggle rulers', keys: [<ArrowBigUp key="shift" className="size-3" />, 'R'] },
+                        { label: 'Hover to measure', keys: isMac ? ['Hold', <Option key="opt" className="size-2.5" />] : ['Hold', 'Alt'] },
+                        { label: 'Back / Exit', keys: ['Esc'] },
+                      ]).map(({ label, keys }) => (
+                        <div key={label} className="flex w-full items-center justify-between rounded-md px-2.5 py-1.5 text-xs text-muted-foreground">
+                          <span>{label}</span>
+                          <span className="flex items-center gap-0.5">
+                            {keys.map((k, i) => (
+                              <kbd key={i} className={popupKbdClass}>{k}</kbd>
+                            ))}
+                          </span>
+                        </div>
                       ))}
                     </Popover.Popup>
                   </Popover.Positioner>
