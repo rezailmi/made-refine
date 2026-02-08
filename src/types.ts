@@ -91,6 +91,26 @@ export interface TypographyProperties {
   textVerticalAlign: 'flex-start' | 'center' | 'flex-end'
 }
 
+export type ActiveTool = 'select' | 'comment'
+
+export type Theme = 'light' | 'dark' | 'system'
+
+export interface CommentReply {
+  text: string
+  createdAt: number
+}
+
+export interface Comment {
+  id: string
+  element: HTMLElement
+  locator: ElementLocator
+  clickPosition: { x: number; y: number }
+  relativePosition: { x: number; y: number }
+  text: string
+  createdAt: number
+  replies: CommentReply[]
+}
+
 export interface DirectEditState {
   isOpen: boolean
   selectedElement: HTMLElement | null
@@ -104,6 +124,10 @@ export interface DirectEditState {
   originalStyles: Record<string, string>
   pendingStyles: Record<string, string>
   editModeActive: boolean
+  activeTool: ActiveTool
+  theme: Theme
+  comments: Comment[]
+  activeCommentId: string | null
 }
 
 export type SizingMode = 'fixed' | 'fill' | 'fit'
