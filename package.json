@@ -94,6 +94,7 @@
     "css:build": "tailwindcss -i ./src/styles.css -o ./dist/styles.css -m",
     "prebuild": "mkdir -p dist && tailwindcss -i ./src/styles.css -o ./dist/styles.css -m",
     "build": "tsup",
+    "predev": "mkdir -p dist && tailwindcss -i ./src/styles.css -o ./dist/styles.css -m",
     "dev": "concurrently \"tailwindcss -i ./src/styles.css -o ./dist/styles.css -w\" \"tsup --watch --ignore-watch dist\"",
     "dev:app": "vite",
     "dev:all": "concurrently \"npm run dev\" \"npm run dev:app\""
