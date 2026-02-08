@@ -236,14 +236,14 @@ async function setupNextJs(cwd: string) {
     }
 
     // Insert Script in <head>
-    const selfClosingHead = result.match(/<head\s*\/>/)
+    const selfClosingHead = result.match(/<head(?:\s[^>]*)?\/>/)
     if (selfClosingHead) {
       // Convert <head /> to <head>...<Script />...</head>
       const headIdx = result.indexOf(selfClosingHead[0])
       const replacement = `<head>\n        {process.env.NODE_ENV === 'development' && (\n          <Script src="/made-refine-preload.js" strategy="beforeInteractive" />\n        )}\n      </head>`
       result = result.slice(0, headIdx) + replacement + result.slice(headIdx + selfClosingHead[0].length)
     } else {
-      const headMatch = result.match(/<head[^>]*>/)
+      const headMatch = result.match(/<head(?:\s[^>]*)?>/)
       if (headMatch) {
         const headIdx = result.indexOf(headMatch[0]) + headMatch[0].length
         const scriptTag = `\n        {process.env.NODE_ENV === 'development' && (\n          <Script src="/made-refine-preload.js" strategy="beforeInteractive" />\n        )}`
@@ -265,7 +265,7 @@ async function setupNextJs(cwd: string) {
           const bodyOpenEnd = lineContent.indexOf(bodyOpenMatch[0]) + bodyOpenMatch[0].length
           const bodyContent = lineContent.slice(bodyOpenEnd)
           const replacement =
-            `${indent}<body>\n` +
+            `${indent}${bodyOpenMatch[0]}\n` +
             `${indent}  ${bodyContent.trim()}\n` +
             `${indent}  {process.env.NODE_ENV === 'development' && <DirectEdit />}\n` +
             `${indent}`
@@ -399,6 +399,8 @@ function transformViteConfig(src: string): string | null {
       result.slice(0, endOfLine + 1) +
       `import { madeRefine } from 'made-refine/vite'\n` +
       result.slice(endOfLine + 1)
+  } else {
+    result = `import { madeRefine } from 'made-refine/vite'\n` + result
   }
 
   // Add babel config to react() if it has no args
