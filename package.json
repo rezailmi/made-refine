@@ -30,10 +30,12 @@
       "types": "./vite/index.d.ts",
       "import": "./dist/vite.mjs"
     },
-    "./preload.iife": "./dist/preload/preload.js"
+    "./preload.iife": "./dist/preload/preload.js",
+    "./mcp": "./dist/mcp.cjs"
   },
   "bin": {
-    "made-refine": "./dist/cli.cjs"
+    "made-refine": "./dist/cli.cjs",
+    "made-refine-mcp": "./dist/mcp.cjs"
   },
   "sideEffects": true,
   "files": [
@@ -66,9 +68,11 @@
   },
   "dependencies": {
     "@base-ui/react": "^1.1.0",
+    "@modelcontextprotocol/sdk": "^1.12.1",
     "clsx": "^2.1.1",
     "lucide-react": "^0.454.0",
-    "tailwind-merge": "^2.6.0"
+    "tailwind-merge": "^2.6.0",
+    "zod": "^3.25.0"
   },
   "devDependencies": {
     "@tailwindcss/cli": "^4.1.0",

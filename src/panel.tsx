@@ -72,6 +72,7 @@ import {
   WrapText,
   AArrowUp,
   LetterText,
+  Zap,
 } from 'lucide-react'
 
 const STORAGE_KEY = 'direct-edit-panel-position'
@@ -1174,6 +1175,7 @@ export interface DirectEditPanelInnerProps {
   onUpdateTypography: (key: TypographyPropertyKey, value: CSSPropertyValue | string) => void
   onReset: () => void
   onExportEdits: () => Promise<boolean>
+  onSendToAgent: () => Promise<boolean>
   className?: string
   style?: React.CSSProperties
   panelRef?: React.RefObject<HTMLDivElement>
@@ -1203,6 +1205,7 @@ export function DirectEditPanelInner({
   onUpdateTypography,
   onReset,
   onExportEdits,
+  onSendToAgent,
   className,
   style,
   panelRef,
@@ -1213,6 +1216,7 @@ export function DirectEditPanelInner({
 }: DirectEditPanelInnerProps) {
   const [copied, setCopied] = React.useState(false)
   const [copyError, setCopyError] = React.useState(false)
+  const [sendStatus, setSendStatus] = React.useState<'idle' | 'sending' | 'sent' | 'offline'>('idle')
   const distributeMode: DistributeMode =
     computedFlex?.justifyContent === 'space-between' ||
     computedFlex?.justifyContent === 'space-around' ||
@@ -1232,6 +1236,19 @@ export function DirectEditPanelInner({
     setCopied(false)
     setCopyError(true)
     setTimeout(() => setCopyError(false), 2000)
+  }
+
+  const handleSendToAgent = async () => {
+    if (sendStatus === 'sending') return
+    setSendStatus('sending')
+    const success = await onSendToAgent()
+    if (success) {
+      setSendStatus('sent')
+      setTimeout(() => setSendStatus('idle'), 2000)
+    } else {
+      setSendStatus('offline')
+      setTimeout(() => setSendStatus('idle'), 2000)
+    }
   }
 
   const hasPendingChanges = Object.keys(pendingStyles).length > 0
@@ -1487,40 +1504,52 @@ export function DirectEditPanelInner({
         )}
       </div>
 
-      <div className="flex shrink-0 items-center justify-between border-t border-border/50 bg-muted/20 px-3 py-2.5">
+      <div className="flex shrink-0 items-center justify-end gap-1 border-t border-border/50 bg-muted/20 px-3 py-2">
         <Button
           variant="ghost"
           size="sm"
           onClick={onReset}
           disabled={!hasPendingChanges}
-          className="text-xs"
+          className="h-7 flex-1 px-2 text-xs"
         >
           <RotateCcw className="mr-1 size-3" />
           Reset
         </Button>
         <Button
-          variant="outline"
+          variant="ghost"
           size="sm"
           onClick={handleCopy}
           disabled={!hasPendingChanges}
-          className="text-xs"
+          title="Copy edits"
+          className="h-7 flex-1 px-2 text-xs"
         >
           {copyError ? (
-            <>
-              <X className="mr-1 size-3" />
-              Copy failed
-            </>
+            <X className="mr-1 size-3 text-red-500" />
           ) : copied ? (
-            <>
-              <Check className="mr-1 size-3" />
-              Copied! Paste to AI agent
-            </>
+            <Check className="mr-1 size-3 text-green-500" />
           ) : (
-            <>
-              <Copy className="mr-1 size-3" />
-              Export edits
-            </>
+            <Copy className="mr-1 size-3" />
           )}
+          Copy
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleSendToAgent}
+          disabled={!hasPendingChanges || sendStatus === 'sending'}
+          title="Apply changes via agent"
+          className="h-7 flex-1 px-2 text-xs"
+        >
+          {sendStatus === 'offline' ? (
+            <X className="mr-1 size-3 text-red-500" />
+          ) : sendStatus === 'sent' ? (
+            <Check className="mr-1 size-3 text-green-500" />
+          ) : sendStatus === 'sending' ? (
+            <Zap className="mr-1 size-3 animate-pulse" />
+          ) : (
+            <Zap className="mr-1 size-3" />
+          )}
+          Apply
         </Button>
       </div>
     </div>
@@ -1547,6 +1576,7 @@ function DirectEditPanelContent() {
     updateTypographyProperty,
     resetToOriginal,
     exportEdits,
+    sendEditToAgent,
     pendingStyles,
     selectParent,
     selectChild,
@@ -1563,6 +1593,7 @@ function DirectEditPanelContent() {
     addCommentReply,
     deleteComment,
     exportComment,
+    sendCommentToAgent,
     setActiveCommentId,
   } = useDirectEdit()
 
@@ -1774,6 +1805,7 @@ function DirectEditPanelContent() {
       onAddReply={addCommentReply}
       onDelete={deleteComment}
       onExport={exportComment}
+      onSendToAgent={sendCommentToAgent}
     />,
     container
   ) : null
@@ -1835,6 +1867,7 @@ function DirectEditPanelContent() {
         onUpdateTypography={updateTypographyProperty}
         onReset={resetToOriginal}
         onExportEdits={exportEdits}
+        onSendToAgent={sendEditToAgent}
         className="fixed z-[99999]"
         style={{
           left: position.x,
