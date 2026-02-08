@@ -162,6 +162,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     sessionEditsRef.current.set(el, {
       element: el,
       locator,
+      originalStyles: existing?.originalStyles ?? { ...current.originalStyles },
       pendingStyles,
       move: existing?.move ?? null,
     })
@@ -647,6 +648,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
         sessionEditsRef.current.set(element, {
           element,
           locator,
+          originalStyles: existing?.originalStyles ?? { ...stateRef.current.originalStyles },
           pendingStyles: existing?.pendingStyles ?? { ...stateRef.current.pendingStyles },
           move: newParent
             ? {
@@ -809,23 +811,71 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     }
   }, [getSessionEdits])
 
+  const revertElementStyles = React.useCallback((element: HTMLElement, sessionEdit: SessionEdit) => {
+    for (const prop of Object.keys(sessionEdit.pendingStyles)) {
+      element.style.removeProperty(prop)
+    }
+    for (const [prop, value] of Object.entries(sessionEdit.originalStyles)) {
+      element.style.setProperty(prop, value)
+    }
+  }, [])
+
+  const refreshSelectedElement = React.useCallback(() => {
+    const current = stateRef.current
+    if (!current.selectedElement) return
+    const el = current.selectedElement
+    const { spacing, borderRadius, flex } = getComputedStyles(el)
+    const sizing = getComputedSizing(el)
+    const color = getComputedColorStyles(el)
+    const typography = getComputedTypography(el)
+    setState((prev) => ({
+      ...prev,
+      computedSpacing: spacing,
+      computedBorderRadius: borderRadius,
+      computedFlex: flex,
+      computedSizing: sizing,
+      computedColor: color,
+      computedTypography: typography,
+      originalStyles: getOriginalInlineStyles(el),
+      pendingStyles: {},
+    }))
+  }, [])
+
   const removeSessionEdit = React.useCallback((element: HTMLElement) => {
+    const sessionEdit = sessionEditsRef.current.get(element)
+    if (sessionEdit) {
+      revertElementStyles(element, sessionEdit)
+    }
     sessionEditsRef.current.delete(element)
     removedSessionEditsRef.current.add(element)
     setSessionEditCount(sessionEditsRef.current.size)
-  }, [])
+    if (stateRef.current.selectedElement === element) {
+      refreshSelectedElement()
+    }
+  }, [revertElementStyles, refreshSelectedElement])
 
   const clearSessionEdits = React.useCallback(() => {
-    for (const el of sessionEditsRef.current.keys()) {
+    for (const [el, sessionEdit] of sessionEditsRef.current.entries()) {
+      revertElementStyles(el, sessionEdit)
       removedSessionEditsRef.current.add(el)
     }
     const current = stateRef.current
     if (current.selectedElement) {
+      // Also revert pending styles not yet saved to session
+      if (!sessionEditsRef.current.has(current.selectedElement)) {
+        for (const prop of Object.keys(current.pendingStyles)) {
+          current.selectedElement.style.removeProperty(prop)
+        }
+        for (const [prop, value] of Object.entries(current.originalStyles)) {
+          current.selectedElement.style.setProperty(prop, value)
+        }
+      }
       removedSessionEditsRef.current.add(current.selectedElement)
     }
     sessionEditsRef.current.clear()
     setSessionEditCount(0)
-  }, [])
+    refreshSelectedElement()
+  }, [revertElementStyles, refreshSelectedElement])
 
   const exportEdits = React.useCallback(async () => {
     if (

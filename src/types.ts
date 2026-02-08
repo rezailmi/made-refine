@@ -220,6 +220,7 @@ export interface Guideline {
 export interface SessionEdit {
   element: HTMLElement
   locator: ElementLocator
+  originalStyles: Record<string, string>
   pendingStyles: Record<string, string>
   move: {
     fromParentName: string
