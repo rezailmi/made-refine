@@ -4,7 +4,27 @@
 
 A visual CSS editor for React. Select any element and adjust padding, border-radius, and flex properties in real-time, then copy as Tailwind classes.
 
-## Installation
+## Get Started
+
+Run this in your project root:
+
+```bash
+npx made-refine init
+```
+
+The CLI auto-detects your framework (Next.js, Vite, or TanStack Start), installs the package, and configures everything — with a diff preview before any file changes.
+
+Or, paste this prompt into any AI coding assistant (Cursor, Copilot, Claude Code, etc.):
+
+> Add made-refine to this project. Run `npx made-refine init` and follow the prompts.
+
+---
+
+## Manual Setup
+
+If you prefer to set things up by hand, follow the instructions below for your framework.
+
+### Installation
 
 ```bash
 npm install made-refine@beta
@@ -99,6 +119,62 @@ function App() {
 ```
 
 The Vite plugin automatically injects the preload script in dev mode.
+
+## TanStack Start Setup (SSR / Tauri)
+
+TanStack Start uses SSR, so `DirectEdit` must be lazy-loaded to avoid server-side rendering errors.
+
+### 1. Configure vite.config.ts
+
+```ts
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+import { madeRefine } from 'made-refine/vite'
+
+export default defineConfig({
+  plugins: [
+    react({
+      babel: {
+        plugins: ['made-refine/babel'],
+      },
+    }),
+    madeRefine(),
+  ],
+})
+```
+
+### 2. Add to Root Layout
+
+```tsx
+import { lazy, Suspense } from 'react'
+
+const DirectEdit = lazy(() =>
+  import('made-refine').then((m) => ({ default: m.DirectEdit }))
+)
+
+function RootLayout() {
+  return (
+    <html lang="en">
+      <head>
+        <HeadContent />
+      </head>
+      <body>
+        <Outlet />
+        <Scripts />
+        {import.meta.env.DEV && typeof window !== 'undefined' && (
+          <Suspense>
+            <DirectEdit />
+          </Suspense>
+        )}
+      </body>
+    </html>
+  )
+}
+```
+
+> **Why lazy + Suspense?** TanStack Start renders on the server first. `DirectEdit` uses browser APIs (`window`, `document`, `localStorage`) that don't exist during SSR. `lazy()` prevents the module from loading on the server, `typeof window !== "undefined"` skips rendering during SSR, and `<Suspense>` is required by React for lazy components.
+
+> **Next.js doesn't need this** because it natively supports `'use client'` directives, which the package already includes. Next.js automatically handles the client boundary during SSR.
 
 ## Basic Usage
 
