@@ -35,8 +35,10 @@ import {
   buildEditExport,
   buildCommentExport,
   getElementLocator,
+  stylesToTailwind,
 } from './utils'
 import { formatColorValue } from './ui/color-utils'
+import { sendEditToAgent as postEditToAgent, sendCommentToAgent as postCommentToAgent } from './mcp-client'
 
 export interface DirectEditContextValue extends DirectEditState {
   selectElement: (element: HTMLElement) => void
@@ -61,6 +63,8 @@ export interface DirectEditContextValue extends DirectEditState {
   addCommentReply: (id: string, text: string) => void
   deleteComment: (id: string) => void
   exportComment: (id: string) => Promise<boolean>
+  sendEditToAgent: () => Promise<boolean>
+  sendCommentToAgent: (id: string) => Promise<boolean>
   setActiveCommentId: (id: string | null) => void
 }
 
@@ -702,6 +706,77 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     state.pendingStyles,
   ])
 
+  const sendEditToAgent = React.useCallback(async () => {
+    if (
+      !state.selectedElement ||
+      !state.elementInfo ||
+      !state.pendingStyles ||
+      Object.keys(state.pendingStyles).length === 0
+    ) {
+      return false
+    }
+
+    const locator = getElementLocator(state.selectedElement)
+    const exportMarkdown = buildEditExport(locator, state.pendingStyles)
+    const changes = Object.entries(state.pendingStyles).map(([cssProperty, cssValue]) => ({
+      cssProperty,
+      cssValue,
+      tailwindClass: stylesToTailwind({ [cssProperty]: cssValue }),
+    }))
+
+    try {
+      const result = await postEditToAgent({
+        element: {
+          tagName: locator.tagName,
+          id: locator.id,
+          classList: locator.classList,
+          domSelector: locator.domSelector,
+          targetHtml: locator.targetHtml,
+          textPreview: locator.textPreview,
+        },
+        source: locator.domSource || null,
+        reactStack: locator.reactStack,
+        changes,
+        exportMarkdown,
+      })
+      return result.ok
+    } catch {
+      return false
+    }
+  }, [
+    state.selectedElement,
+    state.elementInfo,
+    state.pendingStyles,
+  ])
+
+  const sendCommentToAgent = React.useCallback(async (id: string) => {
+    const comment = stateRef.current.comments.find((c) => c.id === id)
+    if (!comment) return false
+
+    const exportMarkdown = buildCommentExport(comment.locator, comment.text, comment.replies)
+
+    try {
+      const result = await postCommentToAgent({
+        element: {
+          tagName: comment.locator.tagName,
+          id: comment.locator.id,
+          classList: comment.locator.classList,
+          domSelector: comment.locator.domSelector,
+          targetHtml: comment.locator.targetHtml,
+          textPreview: comment.locator.textPreview,
+        },
+        source: comment.locator.domSource || null,
+        reactStack: comment.locator.reactStack,
+        commentText: comment.text,
+        replies: comment.replies,
+        exportMarkdown,
+      })
+      return result.ok
+    } catch {
+      return false
+    }
+  }, [])
+
   React.useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key === '.') {
@@ -778,6 +853,8 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     updateTypographyProperty,
     resetToOriginal,
     exportEdits,
+    sendEditToAgent,
+    sendCommentToAgent,
     toggleEditMode,
     undo,
     handleMoveComplete,

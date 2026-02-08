@@ -235,10 +235,72 @@ function CustomToolbar() {
 - **Border Radius**: Slider for uniform radius or individual corner controls
 - **Flex Properties**: Direction, alignment grid, distribution, and gap controls
 - **Copy as Tailwind**: One-click copy of modified styles as Tailwind classes
+- **Send to Agent**: Send edits directly to Claude Code via MCP (no copy-paste needed)
 - **Draggable Panel**: Position the panel anywhere on screen (persisted to localStorage)
 - **Keyboard Shortcuts**:
   - `Cmd+.` / `Ctrl+.`: Toggle edit mode
   - `Escape`: Close panel or exit edit mode
+
+## Claude Code Integration (MCP)
+
+Made-Refine includes an MCP server that lets you send visual edits directly to Claude Code — no copy-paste needed.
+
+### Setup
+
+Add this to `.mcp.json` in your project root:
+
+```json
+{
+  "mcpServers": {
+    "made-refine": {
+      "command": "npx",
+      "args": ["made-refine-mcp"]
+    }
+  }
+}
+```
+
+Restart Claude Code. You should see the Made-Refine tools available.
+
+### Usage
+
+1. Activate design mode (`Cmd+.`), select an element, adjust styles
+2. Click the **Send** button in the panel footer
+3. In Claude Code, the edit appears with the source file path, line number, and Tailwind classes
+4. Claude Code reads the file and applies the changes
+
+### Available Tools
+
+| Tool | Description |
+|------|-------------|
+| `get_pending_edits` | Return all pending edits and comments |
+| `get_edit_details` | Full structured data for one edit |
+| `acknowledge_edit` | Mark as "working on it" |
+| `resolve_edit` | Mark as applied |
+| `dismiss_edit` | Reject with reason |
+| `watch_edits` | Block until a new edit arrives |
+| `list_all_annotations` | List all, optionally filtered by status |
+
+### Hands-Free Mode
+
+Paste this prompt into Claude Code to enter hands-free mode:
+
+```
+Watch for visual edits from Made-Refine and apply them as they come in.
+Use watch_edits to wait for new edits, then read the source file, apply
+the Tailwind class changes, and call resolve_edit. Keep watching after
+each edit.
+```
+
+Claude Code will enter a loop:
+
+1. Calls `watch_edits` (blocks, waiting for the next edit)
+2. You make a visual change in the browser and click **Send**
+3. Claude Code receives the edit with source file path, line number, and Tailwind classes
+4. It reads the file, applies the changes, calls `resolve_edit`
+5. Calls `watch_edits` again, waiting for the next one
+
+You keep tweaking in the browser, Claude Code keeps applying to source files.
 
 ## Troubleshooting
 
