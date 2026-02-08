@@ -6,7 +6,7 @@ import { useRulersVisible } from './rulers-overlay'
 import { cn } from './cn'
 import { useToolbarDock } from './use-toolbar-dock'
 import { Popover } from '@base-ui/react/popover'
-import { MousePointer2, Ruler, Command, ArrowBigUp, MessageSquare, EllipsisVertical, Sun, Moon, Monitor, Option, ClipboardList, X } from 'lucide-react'
+import { MousePointer2, Ruler, Command, ArrowBigUp, MessageSquare, EllipsisVertical, Sun, Moon, Monitor, Option, ClipboardList, X, Check, Copy } from 'lucide-react'
 import type { ActiveTool, Theme, SessionEdit } from './types'
 import {
   Tooltip,
@@ -288,7 +288,7 @@ export function DirectEditToolbarInner({
                 </Tooltip>
                 <EditsPopoverPortal>
                   <Popover.Positioner side={tooltipSide} sideOffset={12} className="fixed z-[99999]" style={{ pointerEvents: 'auto' }}>
-                    <Popover.Popup ref={editsPopupRef} className="w-[280px] rounded-lg border border-foreground/10 bg-background shadow-xl">
+                    <Popover.Popup ref={editsPopupRef} className="w-[280px] rounded-lg border border-foreground/10 bg-background shadow-xl" onPointerDown={(e: React.PointerEvent) => e.stopPropagation()}>
                       <div className="flex items-center justify-between px-3 pb-1 pt-2.5">
                         <span className="text-xs font-medium text-foreground">Session edits ({editsSnapshot.length})</span>
                         {editsSnapshot.length > 0 && (
@@ -343,7 +343,7 @@ export function DirectEditToolbarInner({
                           <div className="border-t border-foreground/10 p-2">
                             <button
                               type="button"
-                              className="w-full rounded-md bg-foreground px-3 py-1.5 text-xs font-medium text-background transition-colors hover:bg-foreground/80"
+                              className="flex w-full items-center justify-center rounded-md bg-foreground px-3 py-1.5 text-xs font-medium text-background transition-colors hover:bg-foreground/80"
                               onClick={async () => {
                                 const success = await onExportAllEdits?.()
                                 if (success) {
@@ -352,6 +352,11 @@ export function DirectEditToolbarInner({
                                 }
                               }}
                             >
+                              {copied ? (
+                                <Check className="mr-1 size-3 text-green-400" />
+                              ) : (
+                                <Copy className="mr-1 size-3" />
+                              )}
                               {copied ? 'Copied! Paste to AI agent' : 'Copy all edits'}
                             </button>
                           </div>
@@ -383,7 +388,7 @@ export function DirectEditToolbarInner({
                 </Tooltip>
                 <ThemePopoverPortal>
                   <Popover.Positioner side={tooltipSide} sideOffset={12} className="fixed z-[99999]" style={{ pointerEvents: 'auto' }}>
-                    <Popover.Popup ref={settingsPopupRef} className="w-[220px] rounded-lg border border-foreground/10 bg-background p-1 shadow-xl">
+                    <Popover.Popup ref={settingsPopupRef} className="w-[220px] rounded-lg border border-foreground/10 bg-background p-1 shadow-xl" onPointerDown={(e: React.PointerEvent) => e.stopPropagation()}>
                       <div className="px-2.5 pb-1 pt-1.5 text-[10px] font-medium text-foreground">Theme</div>
                       {([
                         { value: 'light' as const, label: 'Light', Icon: Sun },
