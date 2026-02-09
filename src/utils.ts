@@ -2,12 +2,15 @@ import type {
   CSSPropertyValue,
   SpacingProperties,
   BorderRadiusProperties,
+  BorderStyle,
+  BorderProperties,
   FlexProperties,
   SizingProperties,
   SizingValue,
   SizingMode,
   SpacingPropertyKey,
   BorderRadiusPropertyKey,
+  BorderPropertyKey,
   FlexPropertyKey,
   SizingPropertyKey,
   TypographyPropertyKey,
@@ -93,6 +96,23 @@ export function getComputedStyles(element: HTMLElement): {
   }
 }
 
+export function getComputedBorderStyles(element: HTMLElement): BorderProperties {
+  const computed = window.getComputedStyle(element)
+
+  return {
+    borderStyle: computed.borderTopStyle as BorderProperties['borderStyle'],
+    borderWidth: parsePropertyValue(computed.borderTopWidth),
+    borderTopStyle: computed.borderTopStyle as BorderStyle,
+    borderTopWidth: parsePropertyValue(computed.borderTopWidth),
+    borderRightStyle: computed.borderRightStyle as BorderStyle,
+    borderRightWidth: parsePropertyValue(computed.borderRightWidth),
+    borderBottomStyle: computed.borderBottomStyle as BorderStyle,
+    borderBottomWidth: parsePropertyValue(computed.borderBottomWidth),
+    borderLeftStyle: computed.borderLeftStyle as BorderStyle,
+    borderLeftWidth: parsePropertyValue(computed.borderLeftWidth),
+  }
+}
+
 export function getOriginalInlineStyles(element: HTMLElement): Record<string, string> {
   const styles: Record<string, string> = {}
   const relevantProps = [
@@ -112,6 +132,17 @@ export function getOriginalInlineStyles(element: HTMLElement): Record<string, st
     'border-top-right-radius',
     'border-bottom-right-radius',
     'border-bottom-left-radius',
+    'border',
+    'border-style',
+    'border-width',
+    'border-top-style',
+    'border-top-width',
+    'border-right-style',
+    'border-right-width',
+    'border-bottom-style',
+    'border-bottom-width',
+    'border-left-style',
+    'border-left-width',
     'display',
     'flex-direction',
     'justify-content',
@@ -176,6 +207,26 @@ const tailwindClassMap: Record<string, { prefix: string; scale: Record<number, s
   gap: {
     prefix: 'gap',
     scale: { 0: '0', 1: 'px', 2: '0.5', 4: '1', 8: '2', 12: '3', 16: '4', 20: '5', 24: '6', 32: '8' },
+  },
+  'border-width': {
+    prefix: 'border',
+    scale: { 0: '0', 1: '', 2: '2', 4: '4', 8: '8' },
+  },
+  'border-top-width': {
+    prefix: 'border-t',
+    scale: { 0: '0', 1: '', 2: '2', 4: '4', 8: '8' },
+  },
+  'border-right-width': {
+    prefix: 'border-r',
+    scale: { 0: '0', 1: '', 2: '2', 4: '4', 8: '8' },
+  },
+  'border-bottom-width': {
+    prefix: 'border-b',
+    scale: { 0: '0', 1: '', 2: '2', 4: '4', 8: '8' },
+  },
+  'border-left-width': {
+    prefix: 'border-l',
+    scale: { 0: '0', 1: '', 2: '2', 4: '4', 8: '8' },
   },
   'border-radius': {
     prefix: 'rounded',
@@ -319,6 +370,39 @@ export function stylesToTailwind(styles: Record<string, string>): string {
       continue
     }
 
+    if (prop === 'border-style') {
+      const styleMap: Record<string, string> = {
+        none: 'border-none',
+        solid: 'border-solid',
+        dashed: 'border-dashed',
+        dotted: 'border-dotted',
+        double: 'border-double',
+      }
+      classes.push(styleMap[value] || `border-[${value}]`)
+      continue
+    }
+
+    // Tailwind has no per-side border-style utilities — consolidate when all sides match
+    if (prop === 'border-top-style' || prop === 'border-right-style' || prop === 'border-bottom-style' || prop === 'border-left-style') {
+      if (prop === 'border-top-style') {
+        const allSame =
+          styles['border-top-style'] === styles['border-right-style'] &&
+          styles['border-top-style'] === styles['border-bottom-style'] &&
+          styles['border-top-style'] === styles['border-left-style']
+        if (allSame) {
+          const styleMap: Record<string, string> = {
+            none: 'border-none',
+            solid: 'border-solid',
+            dashed: 'border-dashed',
+            dotted: 'border-dotted',
+            double: 'border-double',
+          }
+          classes.push(styleMap[value] || `border-[${value}]`)
+        }
+      }
+      continue
+    }
+
     if (prop === 'outline-color') {
       const colorValue = parseColorValue(value)
       classes.push(colorToTailwind('outlineColor', colorValue))
@@ -393,6 +477,19 @@ export const borderRadiusPropertyToCSSMap: Record<BorderRadiusPropertyKey, strin
   borderTopRightRadius: 'border-top-right-radius',
   borderBottomRightRadius: 'border-bottom-right-radius',
   borderBottomLeftRadius: 'border-bottom-left-radius',
+}
+
+export const borderPropertyToCSSMap: Record<BorderPropertyKey, string> = {
+  borderStyle: 'border-style',
+  borderWidth: 'border-width',
+  borderTopStyle: 'border-top-style',
+  borderTopWidth: 'border-top-width',
+  borderRightStyle: 'border-right-style',
+  borderRightWidth: 'border-right-width',
+  borderBottomStyle: 'border-bottom-style',
+  borderBottomWidth: 'border-bottom-width',
+  borderLeftStyle: 'border-left-style',
+  borderLeftWidth: 'border-left-width',
 }
 
 export const flexPropertyToCSSMap: Record<FlexPropertyKey, string> = {
@@ -1907,10 +2004,13 @@ export type {
   CSSPropertyValue,
   SpacingProperties,
   BorderRadiusProperties,
+  BorderStyle,
+  BorderProperties,
   FlexProperties,
   DirectEditState,
   SpacingPropertyKey,
   BorderRadiusPropertyKey,
+  BorderPropertyKey,
   FlexPropertyKey,
   MeasurementLine,
   MeasurementState,

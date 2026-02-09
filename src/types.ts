@@ -59,6 +59,31 @@ export interface BorderRadiusProperties {
   borderBottomLeftRadius: CSSPropertyValue
 }
 
+export type BorderStyle =
+  | 'none'
+  | 'hidden'
+  | 'dotted'
+  | 'dashed'
+  | 'solid'
+  | 'double'
+  | 'groove'
+  | 'ridge'
+  | 'inset'
+  | 'outset'
+
+export interface BorderProperties {
+  borderStyle: BorderStyle
+  borderWidth: CSSPropertyValue
+  borderTopStyle: BorderStyle
+  borderTopWidth: CSSPropertyValue
+  borderRightStyle: BorderStyle
+  borderRightWidth: CSSPropertyValue
+  borderBottomStyle: BorderStyle
+  borderBottomWidth: CSSPropertyValue
+  borderLeftStyle: BorderStyle
+  borderLeftWidth: CSSPropertyValue
+}
+
 export interface ColorValue {
   hex: string // 6-character hex without # (e.g., "DDDDDD")
   alpha: number // 0-100 percentage
@@ -117,6 +142,7 @@ export interface DirectEditState {
   elementInfo: ElementInfo | null
   computedSpacing: SpacingProperties | null
   computedBorderRadius: BorderRadiusProperties | null
+  computedBorder: BorderProperties | null
   computedFlex: FlexProperties | null
   computedSizing: SizingProperties | null
   computedColor: ColorProperties | null
@@ -144,6 +170,7 @@ export interface SizingProperties {
 
 export type SpacingPropertyKey = keyof SpacingProperties
 export type BorderRadiusPropertyKey = keyof BorderRadiusProperties
+export type BorderPropertyKey = keyof BorderProperties
 export type FlexPropertyKey = keyof FlexProperties
 export type SizingPropertyKey = keyof SizingProperties
 export type TypographyPropertyKey = keyof TypographyProperties

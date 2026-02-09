@@ -3,10 +3,9 @@
 import * as React from 'react'
 import { DirectEditPanelInner } from './panel'
 import { DirectEditToolbarInner } from './toolbar'
-import { buildEditExport, stylesToTailwind } from './utils'
+import { buildEditExport, stylesToTailwind, colorPropertyToCSSMap, borderPropertyToCSSMap } from './utils'
 import { formatColorValue } from './ui/color-utils'
-import { colorPropertyToCSSMap } from './utils'
-import type { SpacingPropertyKey, BorderRadiusPropertyKey, SizingPropertyKey, ColorPropertyKey, ColorValue, TypographyPropertyKey, CSSPropertyValue, SizingValue, TypographyProperties, ElementLocator } from './types'
+import type { SpacingPropertyKey, BorderRadiusPropertyKey, BorderPropertyKey, BorderProperties, SizingPropertyKey, ColorPropertyKey, ColorValue, TypographyPropertyKey, CSSPropertyValue, SizingValue, TypographyProperties, ElementLocator } from './types'
 
 function createValue(num: number, unit: 'px' | 'rem' | '%' | 'em' | '' = 'px'): CSSPropertyValue {
   return { numericValue: num, unit, raw: `${num}${unit}` }
@@ -58,6 +57,19 @@ export function DirectEditDemo() {
     borderBottomLeftRadius: createValue(8),
   })
 
+  const [border, setBorder] = React.useState<BorderProperties>({
+    borderStyle: 'solid',
+    borderWidth: createValue(1),
+    borderTopStyle: 'solid',
+    borderTopWidth: createValue(1),
+    borderRightStyle: 'solid',
+    borderRightWidth: createValue(1),
+    borderBottomStyle: 'solid',
+    borderBottomWidth: createValue(1),
+    borderLeftStyle: 'solid',
+    borderLeftWidth: createValue(1),
+  })
+
   const [flex, setFlex] = React.useState({
     display: 'flex',
     flexDirection: 'row' as const,
@@ -100,6 +112,19 @@ export function DirectEditDemo() {
     setPendingStyles((prev) => ({ ...prev, [camelToKebab(key)]: value.raw }))
   }
 
+  const handleUpdateBorder = (key: BorderPropertyKey, value: BorderProperties[BorderPropertyKey]) => {
+    setBorder((prev) => ({ ...prev, [key]: value }))
+    const cssProperty = borderPropertyToCSSMap[key]
+    const cssValue = typeof value === 'string' ? value : value.raw
+    setPendingStyles((prev) => ({ ...prev, [cssProperty]: cssValue }))
+  }
+
+  const handleBatchUpdateBorder = (changes: Array<[BorderPropertyKey, BorderProperties[BorderPropertyKey]]>) => {
+    for (const [key, value] of changes) {
+      handleUpdateBorder(key, value)
+    }
+  }
+
   const handleUpdateFlex = (key: 'flexDirection' | 'justifyContent' | 'alignItems', value: string) => {
     setFlex((prev) => ({ ...prev, [key]: value }))
     setPendingStyles((prev) => ({ ...prev, [camelToKebab(key)]: value }))
@@ -140,6 +165,18 @@ export function DirectEditDemo() {
       borderTopRightRadius: createValue(8),
       borderBottomRightRadius: createValue(8),
       borderBottomLeftRadius: createValue(8),
+    })
+    setBorder({
+      borderStyle: 'solid',
+      borderWidth: createValue(1),
+      borderTopStyle: 'solid',
+      borderTopWidth: createValue(1),
+      borderRightStyle: 'solid',
+      borderRightWidth: createValue(1),
+      borderBottomStyle: 'solid',
+      borderBottomWidth: createValue(1),
+      borderLeftStyle: 'solid',
+      borderLeftWidth: createValue(1),
     })
     setFlex({
       display: 'flex',
@@ -202,6 +239,7 @@ export function DirectEditDemo() {
             elementInfo={ELEMENT_INFO}
             computedSpacing={spacing}
             computedBorderRadius={borderRadius}
+            computedBorder={border}
             computedFlex={flex}
             computedSizing={sizing}
             computedColor={color}
@@ -210,6 +248,8 @@ export function DirectEditDemo() {
             onSelectParent={() => {}}
             onUpdateSpacing={handleUpdateSpacing}
             onUpdateBorderRadius={handleUpdateBorderRadius}
+            onUpdateBorder={handleUpdateBorder}
+            onBatchUpdateBorder={handleBatchUpdateBorder}
             onUpdateFlex={handleUpdateFlex}
             onUpdateSizing={handleUpdateSizing}
             onUpdateColor={handleUpdateColor}
@@ -226,6 +266,15 @@ export function DirectEditDemo() {
                 style={{
                   padding: `${spacing.paddingTop.raw} ${spacing.paddingRight.raw} ${spacing.paddingBottom.raw} ${spacing.paddingLeft.raw}`,
                   borderRadius: `${borderRadius.borderTopLeftRadius.raw} ${borderRadius.borderTopRightRadius.raw} ${borderRadius.borderBottomRightRadius.raw} ${borderRadius.borderBottomLeftRadius.raw}`,
+                  borderTopStyle: border.borderTopStyle,
+                  borderTopWidth: border.borderTopWidth.raw,
+                  borderRightStyle: border.borderRightStyle,
+                  borderRightWidth: border.borderRightWidth.raw,
+                  borderBottomStyle: border.borderBottomStyle,
+                  borderBottomWidth: border.borderBottomWidth.raw,
+                  borderLeftStyle: border.borderLeftStyle,
+                  borderLeftWidth: border.borderLeftWidth.raw,
+                  borderColor: `#${color.borderColor.hex}`,
                   gap: spacing.gap.raw,
                   flexDirection: flex.flexDirection,
                   justifyContent: flex.justifyContent,
