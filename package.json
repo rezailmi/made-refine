@@ -1,6 +1,6 @@
 {
   "name": "made-refine",
-  "version": "0.1.0-beta.8",
+  "version": "0.1.0-beta.9",
   "description": "Visual CSS editor for React",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
@@ -101,6 +101,7 @@
     "css:build": "tailwindcss -i ./src/styles.css -o ./dist/styles.css -m",
     "prebuild": "mkdir -p dist && tailwindcss -i ./src/styles.css -o ./dist/styles.css -m",
     "build": "tsup",
+    "pretest": "npm run build",
     "test": "vitest run",
     "predev": "mkdir -p dist && tailwindcss -i ./src/styles.css -o ./dist/styles.css -m",
     "dev": "concurrently \"tailwindcss -i ./src/styles.css -o ./dist/styles.css -w\" \"tsup --watch --ignore-watch dist\"",
