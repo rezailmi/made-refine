@@ -15,7 +15,11 @@ jobs:
 
       - name: Unpublish old versions
         run: |
-          npm unpublish made-refine@0.1.0-beta.1 || echo "0.1.0-beta.1 already unpublished or not found"
-          npm unpublish made-refine@0.1.0-beta.2 || echo "0.1.0-beta.2 already unpublished or not found"
+          npm unpublish made-refine@0.1.0-beta.3 || echo "0.1.0-beta.3 already unpublished or not found"
+          npm unpublish made-refine@0.1.0-beta.4 || echo "0.1.0-beta.4 already unpublished or not found"
+          npm unpublish made-refine@0.1.0-beta.5 || echo "0.1.0-beta.5 already unpublished or not found"
+          npm unpublish made-refine@0.1.0-beta.6 || echo "0.1.0-beta.6 already unpublished or not found"
+          npm unpublish made-refine@0.1.0-beta.7 || echo "0.1.0-beta.7 already unpublished or not found"
+          npm unpublish made-refine@0.1.0-beta.8 || echo "0.1.0-beta.8 already unpublished or not found"
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
