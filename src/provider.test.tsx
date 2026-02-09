@@ -121,7 +121,7 @@ describe('DirectEditProvider', () => {
     const { result } = renderHook(() => useDirectEdit(), { wrapper })
 
     act(() => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: '.', ctrlKey: true }))
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: '.', code: 'Period', ctrlKey: true }))
     })
     expect(result.current.editModeActive).toBe(true)
 
@@ -144,6 +144,30 @@ describe('DirectEditProvider', () => {
       expect(host.getAttribute('data-theme')).toBe('dark')
       expect(localStorage.getItem('direct-edit-theme')).toBe('dark')
     })
+  })
+
+  it('supports code-based period toggle and ignores shift/alt variants', () => {
+    const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: ',', code: 'Period', ctrlKey: true }))
+    })
+    expect(result.current.editModeActive).toBe(true)
+
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    })
+    expect(result.current.editModeActive).toBe(false)
+
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: '>', code: 'Period', ctrlKey: true, shiftKey: true }))
+    })
+    expect(result.current.editModeActive).toBe(false)
+
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: '.', code: 'Period', ctrlKey: true, altKey: true }))
+    })
+    expect(result.current.editModeActive).toBe(false)
   })
 
   it('exports and sends edits for a selected element', async () => {
