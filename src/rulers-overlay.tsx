@@ -438,9 +438,10 @@ const RULERS_VISIBLE_KEY = 'direct-edit-rulers-visible'
 const RULERS_TOGGLE_EVENT = 'direct-edit-rulers-toggle'
 
 export function useRulersVisible(): [boolean, () => void] {
-  const [visible, setVisible] = React.useState(
-    () => typeof window !== 'undefined' ? localStorage.getItem(RULERS_VISIBLE_KEY) !== 'false' : true,
-  )
+  const [visible, setVisible] = React.useState(() => {
+    if (typeof window === 'undefined') return true
+    try { return localStorage.getItem(RULERS_VISIBLE_KEY) !== 'false' } catch { return true }
+  })
 
   React.useEffect(() => {
     function handler(e: Event) {
@@ -453,7 +454,7 @@ export function useRulersVisible(): [boolean, () => void] {
   const toggle = React.useCallback(() => {
     setVisible((prev) => {
       const next = !prev
-      localStorage.setItem(RULERS_VISIBLE_KEY, String(next))
+      try { localStorage.setItem(RULERS_VISIBLE_KEY, String(next)) } catch {}
       window.dispatchEvent(new CustomEvent(RULERS_TOGGLE_EVENT, { detail: next }))
       return next
     })

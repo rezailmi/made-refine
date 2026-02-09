@@ -2,14 +2,6 @@ import * as React from 'react'
 import type { Comment } from './types'
 import { cn } from './cn'
 import { ChevronLeft, Check, Copy, Trash2, ArrowUp, Send, X } from 'lucide-react'
-import {
-  Menu,
-  MenuTrigger,
-  MenuPortal,
-  MenuPositioner,
-  MenuPopup,
-  MenuItem,
-} from './ui/menu'
 
 function formatRelativeTime(timestamp: number): string {
   const seconds = Math.floor((Date.now() - timestamp) / 1000)
@@ -320,42 +312,32 @@ function CommentThread({
           <ChevronLeft className="size-3.5" />
         </button>
         <div className="flex items-center gap-0.5">
-          <Menu>
-            <MenuTrigger
-              className="flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-              title="Export"
-            >
-              {copied ? (
-                <Check className="size-3.5 text-green-500" />
-              ) : sendStatus === 'sent' ? (
-                <Check className="size-3.5 text-green-500" />
-              ) : sendStatus === 'offline' ? (
-                <X className="size-3.5 text-red-500" />
-              ) : (
-                <Copy className="size-3.5" />
-              )}
-            </MenuTrigger>
-            <MenuPortal>
-              <MenuPositioner side="bottom" sideOffset={4} align="end" className="z-[99999]">
-                <MenuPopup className="min-w-[140px] overflow-hidden rounded-lg border-0 bg-popover p-1 text-popover-foreground shadow-lg animate-in fade-in-0 zoom-in-95">
-                  <MenuItem
-                    className="flex cursor-default select-none items-center gap-2 rounded-md px-2 py-1.5 text-xs outline-none hover:bg-muted data-[highlighted]:bg-muted"
-                    onClick={handleCopy}
-                  >
-                    <Copy className="size-3.5" />
-                    Copy
-                  </MenuItem>
-                  <MenuItem
-                    className="flex cursor-default select-none items-center gap-2 rounded-md px-2 py-1.5 text-xs outline-none hover:bg-muted data-[highlighted]:bg-muted"
-                    onClick={handleSendToAgent}
-                  >
-                    <Send className="size-3.5" />
-                    Send to Agent
-                  </MenuItem>
-                </MenuPopup>
-              </MenuPositioner>
-            </MenuPortal>
-          </Menu>
+          <button
+            type="button"
+            className="flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            onClick={handleCopy}
+            title="Copy"
+          >
+            {copied ? (
+              <Check className="size-3.5 text-green-500" />
+            ) : (
+              <Copy className="size-3.5" />
+            )}
+          </button>
+          <button
+            type="button"
+            className="flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            onClick={handleSendToAgent}
+            title="Send to Agent"
+          >
+            {sendStatus === 'sent' ? (
+              <Check className="size-3.5 text-green-500" />
+            ) : sendStatus === 'offline' ? (
+              <X className="size-3.5 text-red-500" />
+            ) : (
+              <Send className="size-3.5" />
+            )}
+          </button>
           <button
             type="button"
             className="flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"

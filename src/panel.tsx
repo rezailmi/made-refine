@@ -69,7 +69,7 @@ import {
   AArrowUp,
   LetterText,
   Plus,
-  Zap,
+  Send,
 } from 'lucide-react'
 
 const STORAGE_KEY = 'direct-edit-panel-position'
@@ -88,13 +88,13 @@ function getInitialPosition(): Position {
     return { x: 0, y: 0 }
   }
 
-  const stored = localStorage.getItem(STORAGE_KEY)
-  if (stored) {
-    try {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY)
+    if (stored) {
       return JSON.parse(stored)
-    } catch {
-      // Fall through to default
     }
+  } catch {
+    // Fall through to default
   }
 
   return {
@@ -1829,52 +1829,59 @@ export function DirectEditPanelInner({
         )}
       </div>
 
-      <div className="flex shrink-0 items-center justify-end gap-1 border-t border-border/50 bg-muted/20 px-3 py-2">
+      <div
+        className={cn(
+          'flex shrink-0 items-center gap-1 border-t border-border/50 bg-muted/20 px-3 py-2',
+          isDraggable && 'cursor-grab active:cursor-grabbing'
+        )}
+        onPointerDown={onHeaderPointerDown}
+        onPointerMove={onHeaderPointerMove}
+        onPointerUp={onHeaderPointerUp}
+      >
+        {hasPendingChanges && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onReset}
+            title="Reset"
+            className="size-7"
+          >
+            <RotateCcw className="size-3.5" />
+          </Button>
+        )}
+        <div className="flex-1" />
         <Button
           variant="ghost"
-          size="sm"
-          onClick={onReset}
-          disabled={!hasPendingChanges}
-          className="h-7 flex-1 px-2 text-xs"
-        >
-          <RotateCcw className="mr-1 size-3" />
-          Reset
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
+          size="icon"
           onClick={handleCopy}
-          disabled={!hasPendingChanges}
           title="Copy edits"
-          className="h-7 flex-1 px-2 text-xs"
+          className="size-7"
         >
           {copyError ? (
-            <X className="mr-1 size-3 text-red-500" />
+            <X className="size-3.5 text-red-500" />
           ) : copied ? (
-            <Check className="mr-1 size-3 text-green-500" />
+            <Check className="size-3.5 text-green-500" />
           ) : (
-            <Copy className="mr-1 size-3" />
+            <Copy className="size-3.5" />
           )}
-          Copy
         </Button>
         <Button
           variant="outline"
-          size="sm"
+          size="icon"
           onClick={handleSendToAgent}
           disabled={!hasPendingChanges || sendStatus === 'sending'}
           title="Apply changes via agent"
-          className="h-7 flex-1 px-2 text-xs"
+          className="size-7"
         >
           {sendStatus === 'offline' ? (
-            <X className="mr-1 size-3 text-red-500" />
+            <X className="size-3.5 text-red-500" />
           ) : sendStatus === 'sent' ? (
-            <Check className="mr-1 size-3 text-green-500" />
+            <Check className="size-3.5 text-green-500" />
           ) : sendStatus === 'sending' ? (
-            <Zap className="mr-1 size-3 animate-pulse" />
+            <Send className="size-3.5 animate-pulse" />
           ) : (
-            <Zap className="mr-1 size-3" />
+            <Send className="size-3.5" />
           )}
-          Apply
         </Button>
       </div>
     </div>
@@ -1964,7 +1971,7 @@ function DirectEditPanelContent() {
     setIsDragging(false)
     ;(e.target as HTMLElement).releasePointerCapture(e.pointerId)
 
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(position))
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(position)) } catch {}
   }
 
   React.useEffect(() => {

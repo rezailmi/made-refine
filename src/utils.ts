@@ -1562,8 +1562,7 @@ function getReactComponentStack(element: HTMLElement): ReactComponentFrame[] {
 }
 
 export function getElementDisplayName(element: HTMLElement): string {
-  const stack = getReactComponentStack(element)
-  return stack[0]?.name ?? element.tagName.toLowerCase()
+  return element.tagName.toLowerCase()
 }
 
 const STABLE_ATTRIBUTES = ['data-testid', 'data-qa', 'data-cy', 'aria-label', 'role'] as const
@@ -1892,6 +1891,36 @@ interface ExportChange {
   property: string
   value: string
   tailwind: string
+}
+
+export function buildElementContext(locator: ElementLocator): string {
+  const lines: string[] = []
+
+  const primaryFrame = getPrimaryFrame(locator)
+  const componentLabel = primaryFrame?.name ? primaryFrame.name : locator.tagName
+  const formattedSource = locator.domSource?.file
+    ? formatSourceLocation(locator.domSource.file, locator.domSource.line, locator.domSource.column)
+    : primaryFrame?.file
+      ? formatSourceLocation(primaryFrame.file, primaryFrame.line, primaryFrame.column)
+      : null
+
+  lines.push(`@<${componentLabel}>`)
+  lines.push('')
+  lines.push(locator.targetHtml || locator.domContextHtml || '')
+  lines.push(`in ${formattedSource ?? '(file not available)'}`)
+
+  if (!formattedSource) {
+    const selector = locator.domSelector?.trim()
+    const text = locator.textPreview?.trim()
+    if (selector) {
+      lines.push(`selector: ${selector}`)
+    }
+    if (text) {
+      lines.push(`text: ${text}`)
+    }
+  }
+
+  return lines.join('\n')
 }
 
 export function buildEditExport(

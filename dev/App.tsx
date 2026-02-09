@@ -60,10 +60,12 @@ export default function App() {
 
           {/* Pricing Card */}
           <div style={{ border: `1px solid ${gray[200]}`, borderRadius: 12, padding: 24, backgroundColor: '#fff', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ fontSize: 13, fontWeight: 500, color: gray[500], marginBottom: 8, textTransform: 'uppercase' as const, letterSpacing: '0.05em', padding: 8, borderRadius: 8, border: '1px solid #D1D1D1' }}>Pro Plan</div>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 16 }}>
-              <span style={{ fontSize: 36, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1 }}>$29</span>
-              <span style={{ fontSize: 14, color: gray[500] }}>/mo</span>
+            <div style={{ fontSize: 13, fontWeight: 500, color: gray[500], marginBottom: 16, textTransform: 'uppercase' as const, letterSpacing: '0.05em', padding: 8, borderRadius: 8, border: '1px solid #D1D1D1' }}>
+              Pro Plan
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginTop: 8 }}>
+                <span style={{ fontSize: 36, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1, color: gray[900] }}>$29</span>
+                <span style={{ fontSize: 14, color: gray[500] }}>/mo</span>
+              </div>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20, flex: 1 }}>
               {['Unlimited projects', 'Priority support', 'Custom domains'].map((feature) => (
