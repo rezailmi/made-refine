@@ -12,6 +12,7 @@ export function PortalContainerProvider({ children }: { children: React.ReactNod
   const [container, setContainer] = React.useState<HTMLElement | null>(null)
 
   React.useEffect(() => {
+    const disableInlineStyles = document.documentElement.hasAttribute('data-direct-edit-disable-styles')
     const host = document.createElement('div')
     host.setAttribute('data-direct-edit-host', '')
     Object.assign(host.style, {
@@ -22,9 +23,11 @@ export function PortalContainerProvider({ children }: { children: React.ReactNod
     })
 
     const shadow = host.attachShadow({ mode: 'open' })
-    const style = document.createElement('style')
-    style.textContent = cssText
-    shadow.appendChild(style)
+    if (!disableInlineStyles) {
+      const style = document.createElement('style')
+      style.textContent = cssText
+      shadow.appendChild(style)
+    }
 
     const root = document.createElement('div')
     root.setAttribute('data-direct-edit-root', '')
