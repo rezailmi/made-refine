@@ -72,8 +72,6 @@ export type BorderStyle =
   | 'outset'
 
 export interface BorderProperties {
-  borderStyle: BorderStyle
-  borderWidth: CSSPropertyValue
   borderTopStyle: BorderStyle
   borderTopWidth: CSSPropertyValue
   borderRightStyle: BorderStyle

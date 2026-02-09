@@ -605,10 +605,16 @@ function BorderSideIcon({ side, className }: { side: 'Top' | 'Right' | 'Bottom' 
 }
 
 const BORDER_STYLE_OPTIONS: Array<{ value: BorderStyle; label: string }> = [
+  { value: 'none', label: 'None' },
+  { value: 'hidden', label: 'Hidden' },
   { value: 'solid', label: 'Solid' },
   { value: 'dashed', label: 'Dashed' },
   { value: 'dotted', label: 'Dotted' },
   { value: 'double', label: 'Double' },
+  { value: 'groove', label: 'Groove' },
+  { value: 'ridge', label: 'Ridge' },
+  { value: 'inset', label: 'Inset' },
+  { value: 'outset', label: 'Outset' },
 ]
 
 const BORDER_SIDES = ['Top', 'Right', 'Bottom', 'Left'] as const
@@ -622,7 +628,16 @@ interface BorderInputsProps {
 }
 
 function BorderInputs({ border, borderColor, onChange, onBatchChange, onBorderColorChange }: BorderInputsProps) {
-  const currentStyle = border.borderTopStyle || 'none'
+  const stylesMatch = BORDER_SIDES.every(
+    (s) => (border[`border${s}Style` as keyof BorderProperties] as BorderStyle) === border.borderTopStyle,
+  )
+  const widthsMatch = BORDER_SIDES.every((s) => {
+    const w = border[`border${s}Width` as keyof BorderProperties] as CSSPropertyValue
+    return w.numericValue === border.borderTopWidth.numericValue
+  })
+
+  const currentStyle = stylesMatch ? border.borderTopStyle || 'none' : 'mixed'
+  const allWidth = widthsMatch ? border.borderTopWidth : null
 
   const handleStyleChange = (style: BorderStyle) => {
     const changes: Array<[BorderPropertyKey, BorderProperties[BorderPropertyKey]]> = []
@@ -659,8 +674,6 @@ function BorderInputs({ border, borderColor, onChange, onBatchChange, onBorderCo
     onBatchChange(changes)
   }
 
-  const allWidth = border.borderTopWidth
-
   return (
     <div className="space-y-2">
       {/* Row 1: Border style + thickness side by side */}
@@ -671,7 +684,7 @@ function BorderInputs({ border, borderColor, onChange, onBatchChange, onBorderCo
               <SelectTrigger className="flex h-7 w-full items-center justify-between rounded-md border-0 bg-muted px-2 text-xs hover:bg-muted-foreground/10 focus:outline-none">
                 <span className="flex items-center gap-2">
                   <Square className="size-3.5 text-muted-foreground" />
-                  <span>{BORDER_STYLE_OPTIONS.find((o) => o.value === currentStyle)?.label ?? 'None'}</span>
+                  <span>{currentStyle === 'mixed' ? 'Mixed' : BORDER_STYLE_OPTIONS.find((o) => o.value === currentStyle)?.label ?? currentStyle}</span>
                 </span>
                 <SelectIcon>
                   <ChevronDown className="size-3 text-muted-foreground" />
@@ -734,7 +747,7 @@ function BorderInputs({ border, borderColor, onChange, onBatchChange, onBorderCo
             <SelectTrigger className="flex h-7 flex-1 items-center justify-between rounded-md border-0 bg-muted px-2 text-xs hover:bg-muted-foreground/10 focus:outline-none">
               <span className="flex items-center gap-2">
                 <Square className="size-3.5 text-muted-foreground" />
-                <span>{BORDER_STYLE_OPTIONS.find((o) => o.value === currentStyle)?.label ?? 'None'}</span>
+                <span>{currentStyle === 'mixed' ? 'Mixed' : BORDER_STYLE_OPTIONS.find((o) => o.value === currentStyle)?.label ?? currentStyle}</span>
               </span>
               <SelectIcon>
                 <ChevronDown className="size-3 text-muted-foreground" />
@@ -765,7 +778,8 @@ function BorderInputs({ border, borderColor, onChange, onBatchChange, onBorderCo
               type="number"
               min={0}
               step={0.5}
-              value={Math.round(allWidth.numericValue * 100) / 100}
+              value={allWidth ? Math.round(allWidth.numericValue * 100) / 100 : ''}
+              placeholder={allWidth ? undefined : '–'}
               onChange={(e) => handleAllWidthChange(parseFloat(e.target.value) || 0)}
               onFocus={selectOnFocus}
               className="h-7 pl-7 pr-2 text-center text-xs tabular-nums"

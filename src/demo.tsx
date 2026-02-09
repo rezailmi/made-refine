@@ -58,8 +58,6 @@ export function DirectEditDemo() {
   })
 
   const [border, setBorder] = React.useState<BorderProperties>({
-    borderStyle: 'solid',
-    borderWidth: createValue(1),
     borderTopStyle: 'solid',
     borderTopWidth: createValue(1),
     borderRightStyle: 'solid',
@@ -167,8 +165,6 @@ export function DirectEditDemo() {
       borderBottomLeftRadius: createValue(8),
     })
     setBorder({
-      borderStyle: 'solid',
-      borderWidth: createValue(1),
       borderTopStyle: 'solid',
       borderTopWidth: createValue(1),
       borderRightStyle: 'solid',

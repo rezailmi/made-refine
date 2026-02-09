@@ -911,6 +911,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     const sizing = getComputedSizing(el)
     const color = getComputedColorStyles(el)
     const typography = getComputedTypography(el)
+    const border = getComputedBorderStyles(el)
     setState((prev) => ({
       ...prev,
       computedSpacing: spacing,
@@ -919,6 +920,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
       computedSizing: sizing,
       computedColor: color,
       computedTypography: typography,
+      computedBorder: border,
       originalStyles: getOriginalInlineStyles(el),
       pendingStyles: {},
     }))

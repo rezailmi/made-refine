@@ -100,17 +100,25 @@ export function getComputedStyles(element: HTMLElement): {
 export function getComputedBorderStyles(element: HTMLElement): BorderProperties {
   const computed = window.getComputedStyle(element)
 
+  const topStyle = computed.borderTopStyle as BorderStyle
+  const rightStyle = computed.borderRightStyle as BorderStyle
+  const bottomStyle = computed.borderBottomStyle as BorderStyle
+  const leftStyle = computed.borderLeftStyle as BorderStyle
+
+  const topWidth = parsePropertyValue(computed.borderTopWidth)
+  const rightWidth = parsePropertyValue(computed.borderRightWidth)
+  const bottomWidth = parsePropertyValue(computed.borderBottomWidth)
+  const leftWidth = parsePropertyValue(computed.borderLeftWidth)
+
   return {
-    borderStyle: computed.borderTopStyle as BorderProperties['borderStyle'],
-    borderWidth: parsePropertyValue(computed.borderTopWidth),
-    borderTopStyle: computed.borderTopStyle as BorderStyle,
-    borderTopWidth: parsePropertyValue(computed.borderTopWidth),
-    borderRightStyle: computed.borderRightStyle as BorderStyle,
-    borderRightWidth: parsePropertyValue(computed.borderRightWidth),
-    borderBottomStyle: computed.borderBottomStyle as BorderStyle,
-    borderBottomWidth: parsePropertyValue(computed.borderBottomWidth),
-    borderLeftStyle: computed.borderLeftStyle as BorderStyle,
-    borderLeftWidth: parsePropertyValue(computed.borderLeftWidth),
+    borderTopStyle: topStyle,
+    borderTopWidth: topWidth,
+    borderRightStyle: rightStyle,
+    borderRightWidth: rightWidth,
+    borderBottomStyle: bottomStyle,
+    borderBottomWidth: bottomWidth,
+    borderLeftStyle: leftStyle,
+    borderLeftWidth: leftWidth,
   }
 }
 
@@ -379,27 +387,44 @@ export function stylesToTailwind(styles: Record<string, string>): string {
         dotted: 'border-dotted',
         double: 'border-double',
       }
-      classes.push(styleMap[value] || `border-[${value}]`)
+      classes.push(styleMap[value] || `[border-style:${value}]`)
       continue
     }
 
     // Tailwind has no per-side border-style utilities — consolidate when all sides match
     if (prop === 'border-top-style' || prop === 'border-right-style' || prop === 'border-bottom-style' || prop === 'border-left-style') {
-      if (prop === 'border-top-style') {
-        const allSame =
-          styles['border-top-style'] === styles['border-right-style'] &&
-          styles['border-top-style'] === styles['border-bottom-style'] &&
-          styles['border-top-style'] === styles['border-left-style']
-        if (allSame) {
-          const styleMap: Record<string, string> = {
-            none: 'border-none',
-            solid: 'border-solid',
-            dashed: 'border-dashed',
-            dotted: 'border-dotted',
-            double: 'border-double',
+      const allPresent =
+        'border-top-style' in styles &&
+        'border-right-style' in styles &&
+        'border-bottom-style' in styles &&
+        'border-left-style' in styles
+      if (allPresent) {
+        // Only emit once (from border-top-style) when all four sides are present
+        if (prop === 'border-top-style') {
+          const allSame =
+            styles['border-top-style'] === styles['border-right-style'] &&
+            styles['border-top-style'] === styles['border-bottom-style'] &&
+            styles['border-top-style'] === styles['border-left-style']
+          if (allSame) {
+            const styleMap: Record<string, string> = {
+              none: 'border-none',
+              solid: 'border-solid',
+              dashed: 'border-dashed',
+              dotted: 'border-dotted',
+              double: 'border-double',
+            }
+            classes.push(styleMap[value] || `[border-style:${value}]`)
+          } else {
+            // Sides differ — emit each side individually
+            classes.push(`[border-top-style:${styles['border-top-style']}]`)
+            classes.push(`[border-right-style:${styles['border-right-style']}]`)
+            classes.push(`[border-bottom-style:${styles['border-bottom-style']}]`)
+            classes.push(`[border-left-style:${styles['border-left-style']}]`)
           }
-          classes.push(styleMap[value] || `border-[${value}]`)
         }
+      } else {
+        // Emit arbitrary-property syntax for individual side styles
+        classes.push(`[${prop}:${value}]`)
       }
       continue
     }
@@ -481,8 +506,6 @@ export const borderRadiusPropertyToCSSMap: Record<BorderRadiusPropertyKey, strin
 }
 
 export const borderPropertyToCSSMap: Record<BorderPropertyKey, string> = {
-  borderStyle: 'border-style',
-  borderWidth: 'border-width',
   borderTopStyle: 'border-top-style',
   borderTopWidth: 'border-top-width',
   borderRightStyle: 'border-right-style',
