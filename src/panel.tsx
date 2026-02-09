@@ -33,7 +33,7 @@ import { useMeasurement } from './use-measurement'
 import { MeasurementOverlay } from './measurement-overlay'
 import { useMove } from './use-move'
 import { getStoredGuidelines } from './use-guidelines'
-import { calculateGuidelineMeasurements } from './utils'
+import { calculateGuidelineMeasurements, isTextElement } from './utils'
 import { MoveOverlay } from './move-overlay'
 import { SelectionOverlay } from './selection-overlay'
 import { CommentOverlay } from './comment-overlay'
@@ -1923,6 +1923,9 @@ function DirectEditPanelContent() {
     exportComment,
     sendCommentToAgent,
     setActiveCommentId,
+    startTextEditing,
+    commitTextEditing,
+    textEditingElement,
   } = useDirectEdit()
 
   const [position, setPosition] = React.useState<Position>(getInitialPosition)
@@ -1993,7 +1996,39 @@ function DirectEditPanelContent() {
       <div
         data-direct-edit="overlay"
         className={cn('fixed inset-0 z-[99990]', activeTool === 'comment' ? 'cursor-crosshair' : 'cursor-default')}
-        style={{ pointerEvents: 'auto' }}
+        style={{ pointerEvents: textEditingElement ? 'none' : 'auto' }}
+        onDoubleClick={(e) => {
+          e.preventDefault()
+          if (activeTool !== 'select') return
+
+          const el = e.currentTarget
+          el.style.pointerEvents = 'none'
+          const elementUnder = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null
+          el.style.pointerEvents = textEditingElement ? 'none' : 'auto'
+
+          if (elementUnder && elementUnder !== document.body && elementUnder !== document.documentElement) {
+            let resolvedElement: HTMLElement = elementUnder
+            let current: HTMLElement | null = elementUnder
+            while (current && current !== document.body) {
+              const parent: HTMLElement | null = current.parentElement
+              if (parent) {
+                const display = getComputedStyle(parent).display
+                if (display === 'flex' || display === 'inline-flex') {
+                  resolvedElement = current
+                  break
+                }
+              }
+              current = parent
+            }
+
+            if (isTextElement(resolvedElement)) {
+              if (selectedElement !== resolvedElement) {
+                selectElement(resolvedElement)
+              }
+              startTextEditing(resolvedElement)
+            }
+          }
+        }}
         onMouseMove={(e) => {
           const el = e.currentTarget
           el.style.pointerEvents = 'none'
@@ -2157,6 +2192,12 @@ function DirectEditPanelContent() {
           isDragging={dragState.isDragging}
           ghostPosition={dragState.ghostPosition}
           onMoveStart={handleMoveStart}
+          isTextEditing={Boolean(textEditingElement)}
+          onDoubleClick={() => {
+            if (selectedElement) {
+              startTextEditing(selectedElement)
+            }
+          }}
         />
       )}
 

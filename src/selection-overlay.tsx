@@ -1,12 +1,15 @@
 import * as React from 'react'
 
 const BLUE = '#0D99FF'
+const DRAG_THRESHOLD = 4
 
 export interface SelectionOverlayProps {
   selectedElement: HTMLElement
   isDragging: boolean
   ghostPosition?: { x: number; y: number }
   onMoveStart: (e: React.PointerEvent) => void
+  isTextEditing?: boolean
+  onDoubleClick?: () => void
 }
 
 export function SelectionOverlay({
@@ -14,8 +17,11 @@ export function SelectionOverlay({
   isDragging,
   ghostPosition,
   onMoveStart,
+  isTextEditing,
+  onDoubleClick,
 }: SelectionOverlayProps) {
   const [rect, setRect] = React.useState(() => selectedElement.getBoundingClientRect())
+  const cleanupRef = React.useRef<(() => void) | null>(null)
 
   React.useEffect(() => {
     function updateRect() {
@@ -41,10 +47,48 @@ export function SelectionOverlay({
     }
   }, [selectedElement])
 
+  React.useEffect(() => {
+    return () => { cleanupRef.current?.() }
+  }, [])
+
   const handlePointerDown = (e: React.PointerEvent) => {
+    e.stopPropagation()
+    // No preventDefault — allows browser to generate native dblclick events
+
+    cleanupRef.current?.()
+
+    const origin = { x: e.clientX, y: e.clientY }
+    const savedEvent = e
+
+    const onMove = (moveEvent: PointerEvent) => {
+      const dx = moveEvent.clientX - origin.x
+      const dy = moveEvent.clientY - origin.y
+      if (dx * dx + dy * dy >= DRAG_THRESHOLD * DRAG_THRESHOLD) {
+        cleanup()
+        onMoveStart(savedEvent)
+      }
+    }
+
+    const onUp = () => {
+      cleanup()
+    }
+
+    const cleanup = () => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+      cleanupRef.current = null
+    }
+
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+    cleanupRef.current = cleanup
+  }
+
+  const handleDoubleClick = (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    onMoveStart(e)
+    cleanupRef.current?.()
+    onDoubleClick?.()
   }
 
   const displayX = isDragging && ghostPosition ? ghostPosition.x : rect.left
@@ -74,7 +118,7 @@ export function SelectionOverlay({
         />
       </svg>
 
-      {!isDragging && (
+      {!isDragging && !isTextEditing && (
         <div
           data-direct-edit="selection-handle"
           style={{
@@ -88,6 +132,7 @@ export function SelectionOverlay({
             pointerEvents: 'auto',
           }}
           onPointerDown={handlePointerDown}
+          onDoubleClick={handleDoubleClick}
         />
       )}
     </>
