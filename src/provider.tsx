@@ -1062,14 +1062,22 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     }
   }, [])
 
+  // Toggle edit mode: plain Cmd/Ctrl + Period
+  // Uses capture phase so it fires before any stopPropagation() in the host app (e.g. Tauri webview)
+  // Uses e.code for layout independence (fallback to e.key for virtual keyboards)
   React.useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent) {
-      if ((e.metaKey || e.ctrlKey) && e.key === '.') {
+    function handleToggle(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && (e.code === 'Period' || e.key === '.')) {
         e.preventDefault()
         toggleEditMode()
-        return
       }
+    }
+    window.addEventListener('keydown', handleToggle, true)
+    return () => window.removeEventListener('keydown', handleToggle, true)
+  }, [toggleEditMode])
 
+  React.useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !e.shiftKey) {
         e.preventDefault()
         undo()
