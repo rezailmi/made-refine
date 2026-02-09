@@ -43,6 +43,7 @@ import {
   getElementDisplayName,
   getElementLocator,
   stylesToTailwind,
+  isTextElement,
 } from './utils'
 import { formatColorValue } from './ui/color-utils'
 import { sendEditToAgent as postEditToAgent, sendCommentToAgent as postCommentToAgent } from './mcp-client'
@@ -80,6 +81,8 @@ export interface DirectEditContextValue extends DirectEditState {
   exportAllEdits: () => Promise<boolean>
   clearSessionEdits: () => void
   removeSessionEdit: (element: HTMLElement) => void
+  startTextEditing: (element: HTMLElement) => void
+  commitTextEditing: () => void
 }
 
 const DirectEditContext = React.createContext<DirectEditContextValue | null>(null)
@@ -116,6 +119,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     theme: 'system',
     comments: [],
     activeCommentId: null,
+    textEditingElement: null,
   })
 
   // Read persisted theme on mount (SSR-safe)
@@ -142,7 +146,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     if (undoStackRef.current.length > 50) {
       undoStackRef.current = undoStackRef.current.slice(-50)
     }
-    if (entry.type === 'edit' || entry.type === 'move') {
+    if (entry.type === 'edit' || entry.type === 'move' || entry.type === 'textEdit') {
       removedSessionEditsRef.current.delete(entry.element)
     }
   }, [])
@@ -157,8 +161,9 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     const pendingStyles = { ...current.pendingStyles }
     const hasPendingStyles = Object.keys(pendingStyles).length > 0
     const hasMove = Boolean(existing?.move)
+    const hasTextEdit = Boolean(existing?.textEdit)
 
-    if (!hasPendingStyles && !hasMove) {
+    if (!hasPendingStyles && !hasMove && !hasTextEdit) {
       if (sessionEditsRef.current.delete(el)) {
         setSessionEditCount(sessionEditsRef.current.size)
       }
@@ -172,6 +177,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
       originalStyles: existing?.originalStyles ?? { ...current.originalStyles },
       pendingStyles,
       move: existing?.move ?? null,
+      textEdit: existing?.textEdit ?? null,
     })
     setSessionEditCount(sessionEditsRef.current.size)
   }, [])
@@ -219,8 +225,56 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
       theme: prev.theme,
       comments: prev.comments,
       activeCommentId: prev.activeCommentId,
+      textEditingElement: null,
     }))
   }, [pushUndo, saveCurrentToSession])
+
+  const finalizeTextEditing = React.useCallback((editingElement: HTMLElement) => {
+    const newText = editingElement.textContent ?? ''
+    const existing = sessionEditsRef.current.get(editingElement)
+    const originalText = existing?.textEdit?.originalText
+      ?? editingElement.getAttribute('data-direct-edit-original-text')
+      ?? newText
+    const previousText = existing?.textEdit?.newText ?? originalText
+
+    editingElement.removeAttribute('contenteditable')
+    editingElement.removeAttribute('data-direct-edit-original-text')
+    editingElement.blur()
+
+    if (newText !== previousText) {
+      pushUndo({ type: 'textEdit', element: editingElement, originalText, previousText })
+      removedSessionEditsRef.current.delete(editingElement)
+
+      if (newText === originalText) {
+        // Reverted to original - remove textEdit from session
+        if (existing) {
+          if (Object.keys(existing.pendingStyles).length > 0 || existing.move) {
+            sessionEditsRef.current.set(editingElement, { ...existing, textEdit: null })
+          } else {
+            sessionEditsRef.current.delete(editingElement)
+          }
+        }
+      } else {
+        const current = stateRef.current
+        const locator = existing?.locator ?? getElementLocator(editingElement)
+        const originalStyles = existing?.originalStyles
+          ?? (current.selectedElement === editingElement ? { ...current.originalStyles } : {})
+        const pendingStyles = existing?.pendingStyles
+          ?? (current.selectedElement === editingElement ? { ...current.pendingStyles } : {})
+        sessionEditsRef.current.set(editingElement, {
+          element: editingElement,
+          locator,
+          originalStyles,
+          pendingStyles,
+          move: existing?.move ?? null,
+          textEdit: { originalText, newText },
+        })
+      }
+      setSessionEditCount(sessionEditsRef.current.size)
+    }
+
+    setState((prev) => (prev.textEditingElement ? { ...prev, textEditingElement: null } : prev))
+  }, [pushUndo])
 
   const closePanel = React.useCallback(() => {
     setState((prev) => ({
@@ -230,13 +284,18 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
   }, [])
 
   const toggleEditMode = React.useCallback(() => {
+    const current = stateRef.current
+    if (current.editModeActive && current.textEditingElement) {
+      finalizeTextEditing(current.textEditingElement)
+    }
+
     setState((prev) => ({
       ...prev,
       editModeActive: !prev.editModeActive,
       activeTool: prev.editModeActive ? 'select' : prev.activeTool,
       activeCommentId: prev.editModeActive ? null : prev.activeCommentId,
     }))
-  }, [])
+  }, [finalizeTextEditing])
 
   const selectParent = React.useCallback(() => {
     if (state.selectedElement?.parentElement) {
@@ -523,14 +582,17 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
 
     const el = state.selectedElement
     const sessionEntry = sessionEditsRef.current.get(el)
+    if (sessionEntry?.textEdit) {
+      el.textContent = sessionEntry.textEdit.originalText
+    }
     if (sessionEntry?.move) {
-      sessionEditsRef.current.set(el, { ...sessionEntry, pendingStyles: {} })
+      sessionEditsRef.current.set(el, { ...sessionEntry, pendingStyles: {}, textEdit: null })
     } else {
       sessionEditsRef.current.delete(el)
     }
     setSessionEditCount(sessionEditsRef.current.size)
     undoStackRef.current = undoStackRef.current.filter(
-      (entry) => !(entry.type === 'edit' && entry.element === el)
+      (entry) => !((entry.type === 'edit' || entry.type === 'textEdit') && entry.element === el)
     )
 
     const allCSSProps = [
@@ -644,6 +706,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
             theme: prev.theme,
             comments: prev.comments,
             activeCommentId: prev.activeCommentId,
+            textEditingElement: null,
           }))
         } else {
           setState((prev) => ({
@@ -678,7 +741,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
         const sessionEntry = sessionEditsRef.current.get(entry.element)
         if (sessionEntry) {
           const restoredMove = entry.previousSessionMove
-          if (Object.keys(sessionEntry.pendingStyles).length > 0 || restoredMove) {
+          if (Object.keys(sessionEntry.pendingStyles).length > 0 || restoredMove || sessionEntry.textEdit) {
             sessionEditsRef.current.set(entry.element, { ...sessionEntry, move: restoredMove })
           } else {
             sessionEditsRef.current.delete(entry.element)
@@ -690,6 +753,41 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
           const elementInfo = getElementInfo(entry.element)
           setState((prev) => ({ ...prev, elementInfo }))
         }
+        break
+      }
+      case 'textEdit': {
+        if (!entry.element.isConnected) return
+        entry.element.textContent = entry.previousText
+
+        const desiredTextEdit = entry.previousText === entry.originalText
+          ? null
+          : { originalText: entry.originalText, newText: entry.previousText }
+        const sessionEntry = sessionEditsRef.current.get(entry.element)
+
+        if (sessionEntry) {
+          if (desiredTextEdit) {
+            sessionEditsRef.current.set(entry.element, {
+              ...sessionEntry,
+              textEdit: desiredTextEdit,
+            })
+          } else if (Object.keys(sessionEntry.pendingStyles).length > 0 || sessionEntry.move) {
+            sessionEditsRef.current.set(entry.element, { ...sessionEntry, textEdit: null })
+          } else {
+            sessionEditsRef.current.delete(entry.element)
+          }
+        } else if (desiredTextEdit) {
+          const current = stateRef.current
+          sessionEditsRef.current.set(entry.element, {
+            element: entry.element,
+            locator: getElementLocator(entry.element),
+            originalStyles: current.selectedElement === entry.element ? { ...current.originalStyles } : {},
+            pendingStyles: current.selectedElement === entry.element ? { ...current.pendingStyles } : {},
+            move: null,
+            textEdit: desiredTextEdit,
+          })
+        }
+
+        setSessionEditCount(sessionEditsRef.current.size)
         break
       }
     }
@@ -731,6 +829,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
           locator,
           originalStyles: existing?.originalStyles ?? { ...stateRef.current.originalStyles },
           pendingStyles: existing?.pendingStyles ?? { ...stateRef.current.pendingStyles },
+          textEdit: existing?.textEdit ?? null,
           move: newParent
             ? {
                 ...fromFields,
@@ -773,6 +872,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
         theme: prev.theme,
         comments: prev.comments,
         activeCommentId: prev.activeCommentId,
+        textEditingElement: null,
       }))
     },
     [pushUndo]
@@ -868,6 +968,59 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     })
   }, [])
 
+  const startTextEditing = React.useCallback((element: HTMLElement) => {
+    if (!isTextElement(element)) return
+    if (stateRef.current.textEditingElement) return
+
+    // Determine original text: prefer existing session edit's original
+    const existing = sessionEditsRef.current.get(element)
+    const originalText = existing?.textEdit?.originalText ?? (element.textContent ?? '')
+    element.setAttribute('data-direct-edit-original-text', originalText)
+
+    element.setAttribute('contenteditable', 'true')
+    element.focus()
+
+    // Select all text for easy replacement
+    const selection = window.getSelection()
+    if (selection) {
+      const range = document.createRange()
+      range.selectNodeContents(element)
+      selection.removeAllRanges()
+      selection.addRange(range)
+    }
+
+    setState((prev) => ({ ...prev, textEditingElement: element }))
+  }, [])
+
+  const commitTextEditing = React.useCallback(() => {
+    const editingElement = stateRef.current.textEditingElement
+    if (!editingElement) return
+
+    finalizeTextEditing(editingElement)
+  }, [finalizeTextEditing])
+
+  // Click-outside listener for text editing
+  React.useEffect(() => {
+    const editingElement = state.textEditingElement
+    if (!editingElement) return
+
+    function handleMouseDown(e: MouseEvent) {
+      if (!editingElement!.contains(e.target as Node)) {
+        commitTextEditing()
+      }
+    }
+
+    // Delay to avoid catching the double-click that started editing
+    const rafId = requestAnimationFrame(() => {
+      document.addEventListener('mousedown', handleMouseDown, true)
+    })
+
+    return () => {
+      cancelAnimationFrame(rafId)
+      document.removeEventListener('mousedown', handleMouseDown, true)
+    }
+  }, [state.textEditingElement, commitTextEditing])
+
   const getSessionEdits = React.useCallback((): SessionEdit[] => {
     saveCurrentToSession()
     const edits: SessionEdit[] = []
@@ -930,6 +1083,9 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     const sessionEdit = sessionEditsRef.current.get(element)
     if (sessionEdit) {
       revertElementStyles(element, sessionEdit)
+      if (sessionEdit.textEdit) {
+        element.textContent = sessionEdit.textEdit.originalText
+      }
     }
     sessionEditsRef.current.delete(element)
     removedSessionEditsRef.current.add(element)
@@ -942,6 +1098,9 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
   const clearSessionEdits = React.useCallback(() => {
     for (const [el, sessionEdit] of sessionEditsRef.current.entries()) {
       revertElementStyles(el, sessionEdit)
+      if (sessionEdit.textEdit) {
+        el.textContent = sessionEdit.textEdit.originalText
+      }
       removedSessionEditsRef.current.add(el)
     }
     const current = stateRef.current
@@ -963,17 +1122,14 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
   }, [revertElementStyles, refreshSelectedElement])
 
   const exportEdits = React.useCallback(async () => {
-    if (
-      !state.selectedElement ||
-      !state.elementInfo ||
-      !state.pendingStyles ||
-      Object.keys(state.pendingStyles).length === 0
-    ) {
-      return false
-    }
+    if (!state.selectedElement || !state.elementInfo) return false
+    const sessionEdit = sessionEditsRef.current.get(state.selectedElement)
+    const hasPendingStyles = Object.keys(state.pendingStyles).length > 0
+    const hasTextEdit = Boolean(sessionEdit?.textEdit)
+    if (!hasPendingStyles && !hasTextEdit) return false
 
     const locator = getElementLocator(state.selectedElement)
-    const exportMarkdown = buildEditExport(locator, state.pendingStyles)
+    const exportMarkdown = buildEditExport(locator, state.pendingStyles, sessionEdit?.textEdit)
     try {
       await navigator.clipboard.writeText(exportMarkdown)
       return true
@@ -983,26 +1139,19 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
   }, [
     state.selectedElement,
     state.elementInfo,
-    state.computedSpacing,
-    state.computedBorderRadius,
-    state.computedBorder,
-    state.computedFlex,
-    state.computedSizing,
     state.pendingStyles,
+    sessionEditCount,
   ])
 
   const sendEditToAgent = React.useCallback(async () => {
-    if (
-      !state.selectedElement ||
-      !state.elementInfo ||
-      !state.pendingStyles ||
-      Object.keys(state.pendingStyles).length === 0
-    ) {
-      return false
-    }
+    if (!state.selectedElement || !state.elementInfo) return false
+    const sessionEdit = sessionEditsRef.current.get(state.selectedElement)
+    const hasPendingStyles = Object.keys(state.pendingStyles).length > 0
+    const hasTextEdit = Boolean(sessionEdit?.textEdit)
+    if (!hasPendingStyles && !hasTextEdit) return false
 
     const locator = getElementLocator(state.selectedElement)
-    const exportMarkdown = buildEditExport(locator, state.pendingStyles)
+    const exportMarkdown = buildEditExport(locator, state.pendingStyles, sessionEdit?.textEdit)
     const changes = Object.entries(state.pendingStyles).map(([cssProperty, cssValue]) => ({
       cssProperty,
       cssValue,
@@ -1022,6 +1171,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
         source: locator.domSource || null,
         reactStack: locator.reactStack,
         changes,
+        textChange: sessionEdit?.textEdit ?? null,
         exportMarkdown,
       })
       return result.ok
@@ -1032,6 +1182,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     state.selectedElement,
     state.elementInfo,
     state.pendingStyles,
+    sessionEditCount,
   ])
 
   const sendCommentToAgent = React.useCallback(async (id: string) => {
@@ -1071,6 +1222,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
       }
 
       if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !e.shiftKey) {
+        if (state.textEditingElement) return // let browser handle contenteditable undo
         e.preventDefault()
         undo()
         return
@@ -1100,7 +1252,21 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
         }
       }
 
+      if (e.key === 'Enter' && state.editModeActive && !state.textEditingElement && state.selectedElement) {
+        const active = document.activeElement
+        const isInput = active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement || (active instanceof HTMLElement && active.isContentEditable)
+        if (!isInput && isTextElement(state.selectedElement)) {
+          e.preventDefault()
+          startTextEditing(state.selectedElement)
+          return
+        }
+      }
+
       if (e.key === 'Escape') {
+        if (state.textEditingElement) {
+          commitTextEditing()
+          return
+        }
         if (state.activeCommentId) {
           setState((prev) => {
             let comments = prev.comments
@@ -1122,7 +1288,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [state.isOpen, state.editModeActive, state.activeCommentId, state.activeTool, closePanel, toggleEditMode, undo])
+  }, [state.isOpen, state.editModeActive, state.activeCommentId, state.activeTool, state.textEditingElement, state.selectedElement, closePanel, toggleEditMode, undo, commitTextEditing, startTextEditing])
 
   const contextValue: DirectEditContextValue = {
     ...state,
@@ -1158,6 +1324,8 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     exportAllEdits,
     clearSessionEdits,
     removeSessionEdit,
+    startTextEditing,
+    commitTextEditing,
   }
 
   return (

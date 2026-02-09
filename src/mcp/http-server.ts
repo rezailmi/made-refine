@@ -114,15 +114,25 @@ const cssChangeSchema = z.object({
   tailwindClass: z.string(),
 })
 
+const textChangeSchema = z.object({
+  originalText: z.string().max(10_000),
+  newText: z.string().max(10_000),
+})
+
 const editPayloadSchema = z
   .object({
     element: visualEditElementSchema,
     source: sourceLocationSchema.nullable(),
     reactStack: z.array(reactComponentFrameSchema),
-    changes: z.array(cssChangeSchema).min(1),
+    changes: z.array(cssChangeSchema),
+    textChange: textChangeSchema.nullable().optional(),
     exportMarkdown: z.string().max(50_000),
   })
   .strict()
+  .refine(
+    (data) => data.changes.length > 0 || data.textChange,
+    { message: 'At least one CSS change or a text change is required' }
+  )
 
 const commentPayloadSchema = z
   .object({

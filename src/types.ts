@@ -152,6 +152,7 @@ export interface DirectEditState {
   theme: Theme
   comments: Comment[]
   activeCommentId: string | null
+  textEditingElement: HTMLElement | null
 }
 
 export type SizingMode = 'fixed' | 'fill' | 'fit'
@@ -234,7 +235,14 @@ export interface UndoMoveEntry {
   previousSessionMove: SessionEdit['move']
 }
 
-export type UndoEntry = UndoEditEntry | UndoSelectionEntry | UndoMoveEntry
+export interface UndoTextEditEntry {
+  type: 'textEdit'
+  element: HTMLElement
+  originalText: string
+  previousText: string
+}
+
+export type UndoEntry = UndoEditEntry | UndoSelectionEntry | UndoMoveEntry | UndoTextEditEntry
 
 export interface Guideline {
   id: string
@@ -254,5 +262,9 @@ export interface SessionEdit {
     fromSiblingAfter: string | null
     toSiblingBefore: string | null
     toSiblingAfter: string | null
+  } | null
+  textEdit: {
+    originalText: string
+    newText: string
   } | null
 }

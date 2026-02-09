@@ -1896,7 +1896,8 @@ interface ExportChange {
 
 export function buildEditExport(
   locator: ElementLocator,
-  pendingStyles: Record<string, string>
+  pendingStyles: Record<string, string>,
+  textEdit?: { originalText: string; newText: string } | null
 ): string
 export function buildEditExport(
   element: HTMLElement | null,
@@ -1910,7 +1911,7 @@ export function buildEditExport(
 export function buildEditExport(
   arg1: ElementLocator | HTMLElement | null,
   arg2: ElementInfo | Record<string, string>,
-  arg3?: SpacingProperties | null,
+  arg3?: SpacingProperties | null | { originalText: string; newText: string },
   arg4?: BorderRadiusProperties | null,
   arg5?: FlexProperties | null,
   arg6?: SizingProperties | null,
@@ -1918,12 +1919,14 @@ export function buildEditExport(
 ): string {
   const isLocator = Boolean(arg1 && typeof arg1 === 'object' && 'domSelector' in arg1)
   if (!isLocator) {
-    void arg3
     void arg4
     void arg5
     void arg6
   }
   const pendingStyles = (isLocator ? (arg2 as Record<string, string>) : arg7) || {}
+  const textEdit = isLocator && arg3 && typeof arg3 === 'object' && 'originalText' in arg3
+    ? (arg3 as { originalText: string; newText: string })
+    : null
   let locator: ElementLocator
 
   if (isLocator) {
@@ -1991,6 +1994,12 @@ export function buildEditExport(
     }
   }
 
+  if (textEdit) {
+    lines.push('text content changed:')
+    lines.push(`from: "${textEdit.originalText}"`)
+    lines.push(`to: "${textEdit.newText}"`)
+  }
+
   return lines.join('\n')
 }
 
@@ -2050,7 +2059,7 @@ export function buildSessionExport(edits: SessionEdit[]): string {
   const blocks: string[] = []
 
   for (const edit of edits) {
-    let block = buildEditExport(edit.locator, edit.pendingStyles)
+    let block = buildEditExport(edit.locator, edit.pendingStyles, edit.textEdit)
     if (edit.move) {
       const fromPosition = formatPosition(edit.move.fromSiblingBefore, edit.move.fromSiblingAfter)
       const toPosition = formatPosition(edit.move.toSiblingBefore, edit.move.toSiblingAfter)

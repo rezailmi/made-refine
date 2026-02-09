@@ -26,6 +26,11 @@ export interface CSSChange {
   tailwindClass: string
 }
 
+export interface TextChange {
+  originalText: string
+  newText: string
+}
+
 export interface VisualEdit {
   id: string
   timestamp: number
@@ -35,6 +40,7 @@ export interface VisualEdit {
   source: SourceLocation | null
   reactStack: ReactComponentFrame[]
   changes: CSSChange[]
+  textChange?: TextChange | null
   exportMarkdown: string
 }
 

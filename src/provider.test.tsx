@@ -258,4 +258,107 @@ describe('DirectEditProvider', () => {
     expect(result.current.sessionEditCount).toBe(0)
     expect(target.style.getPropertyValue('padding-top')).toBe('6px')
   })
+
+  it('restores text edit session state when undoing after reverting to original', async () => {
+    const target = createTarget('text-target')
+    target.textContent = 'Original text'
+
+    const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+    act(() => {
+      result.current.selectElement(target)
+    })
+
+    await waitFor(() => {
+      expect(result.current.selectedElement).toBe(target)
+    })
+
+    act(() => {
+      result.current.startTextEditing(target)
+    })
+
+    await waitFor(() => {
+      expect(result.current.textEditingElement).toBe(target)
+    })
+
+    act(() => {
+      target.textContent = 'Edited text'
+      result.current.commitTextEditing()
+    })
+
+    await waitFor(() => {
+      expect(result.current.sessionEditCount).toBe(1)
+    })
+
+    act(() => {
+      result.current.startTextEditing(target)
+    })
+
+    await waitFor(() => {
+      expect(result.current.textEditingElement).toBe(target)
+    })
+
+    act(() => {
+      target.textContent = 'Original text'
+      result.current.commitTextEditing()
+    })
+
+    await waitFor(() => {
+      expect(result.current.sessionEditCount).toBe(0)
+    })
+
+    act(() => {
+      result.current.undo()
+    })
+
+    await waitFor(() => {
+      expect(result.current.sessionEditCount).toBe(1)
+    })
+    expect(target.textContent).toBe('Edited text')
+
+    const edits = result.current.getSessionEdits()
+    expect(edits).toHaveLength(1)
+    expect(edits[0].textEdit).toEqual({
+      originalText: 'Original text',
+      newText: 'Edited text',
+    })
+  })
+
+  it('commits text editing and clears contenteditable when turning edit mode off', async () => {
+    const target = createTarget('toggle-text-target')
+    target.textContent = 'Before'
+
+    const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+    act(() => {
+      result.current.selectElement(target)
+      result.current.toggleEditMode()
+    })
+
+    await waitFor(() => {
+      expect(result.current.editModeActive).toBe(true)
+    })
+
+    act(() => {
+      result.current.startTextEditing(target)
+    })
+
+    await waitFor(() => {
+      expect(result.current.textEditingElement).toBe(target)
+    })
+    expect(target.getAttribute('contenteditable')).toBe('true')
+
+    act(() => {
+      target.textContent = 'After'
+      result.current.toggleEditMode()
+    })
+
+    await waitFor(() => {
+      expect(result.current.editModeActive).toBe(false)
+      expect(result.current.textEditingElement).toBeNull()
+      expect(target.hasAttribute('contenteditable')).toBe(false)
+      expect(result.current.sessionEditCount).toBe(1)
+    })
+    expect(target.textContent).toBe('After')
+  })
 })
