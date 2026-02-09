@@ -1,5 +1,46 @@
 import { describe, expect, it } from 'vitest'
-import { stylesToTailwind } from './utils'
+import { getComputedColorStyles, stylesToTailwind } from './utils'
+
+describe('getComputedColorStyles', () => {
+  it('uses the first visible side when top border is not visible', () => {
+    const el = document.createElement('div')
+    el.style.borderTopStyle = 'none'
+    el.style.borderTopWidth = '0px'
+    el.style.borderTopColor = 'rgb(255, 0, 0)'
+    el.style.borderRightStyle = 'solid'
+    el.style.borderRightWidth = '2px'
+    el.style.borderRightColor = 'rgb(0, 255, 0)'
+    el.style.borderBottomStyle = 'none'
+    el.style.borderBottomWidth = '0px'
+    el.style.borderLeftStyle = 'none'
+    el.style.borderLeftWidth = '0px'
+    document.body.appendChild(el)
+
+    const color = getComputedColorStyles(el)
+
+    expect(color.borderColor.hex).toBe('00FF00')
+    expect(color.borderColor.alpha).toBe(100)
+    el.remove()
+  })
+
+  it('returns transparent border color when all sides are not visible', () => {
+    const el = document.createElement('div')
+    el.style.borderTopStyle = 'none'
+    el.style.borderTopWidth = '0px'
+    el.style.borderRightStyle = 'hidden'
+    el.style.borderRightWidth = '2px'
+    el.style.borderBottomStyle = 'none'
+    el.style.borderBottomWidth = '0px'
+    el.style.borderLeftStyle = 'none'
+    el.style.borderLeftWidth = '0px'
+    document.body.appendChild(el)
+
+    const color = getComputedColorStyles(el)
+
+    expect(color.borderColor.alpha).toBe(0)
+    el.remove()
+  })
+})
 
 describe('stylesToTailwind', () => {
   describe('border-style shorthand', () => {

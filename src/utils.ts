@@ -781,15 +781,23 @@ const TRANSPARENT_COLOR: ColorValue = { hex: '000000', alpha: 0, raw: 'transpare
 export function getComputedColorStyles(element: HTMLElement): ColorProperties {
   const computed = window.getComputedStyle(element)
 
-  const hasBorder =
-    computed.borderTopStyle !== 'none' && parseFloat(computed.borderTopWidth) > 0
+  const borderSides = [
+    { style: computed.borderTopStyle, width: computed.borderTopWidth, color: computed.borderTopColor },
+    { style: computed.borderRightStyle, width: computed.borderRightWidth, color: computed.borderRightColor },
+    { style: computed.borderBottomStyle, width: computed.borderBottomWidth, color: computed.borderBottomColor },
+    { style: computed.borderLeftStyle, width: computed.borderLeftWidth, color: computed.borderLeftColor },
+  ]
+  const visibleBorderSide = borderSides.find(
+    (side) => side.style !== 'none' && side.style !== 'hidden' && parseFloat(side.width) > 0
+  )
+  const hasBorder = Boolean(visibleBorderSide)
   const hasOutline =
     computed.outlineStyle !== 'none' && parseFloat(computed.outlineWidth) > 0
 
   return {
     backgroundColor: parseColorValue(computed.backgroundColor),
     color: parseColorValue(computed.color),
-    borderColor: hasBorder ? parseColorValue(computed.borderTopColor) : TRANSPARENT_COLOR,
+    borderColor: hasBorder && visibleBorderSide ? parseColorValue(visibleBorderSide.color) : TRANSPARENT_COLOR,
     outlineColor: hasOutline ? parseColorValue(computed.outlineColor) : TRANSPARENT_COLOR,
   }
 }
