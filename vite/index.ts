@@ -31,7 +31,8 @@ export function madeRefine(_options?: MadeRefineOptions): Plugin {
       if (config.command !== 'serve') return null
       if (!/\.[jt]sx$/.test(id)) return null
       if (id.includes('node_modules')) return null
-      if (id.includes('made-refine')) return null
+      const normalizedId = id.replace(/\\/g, '/')
+      if (normalizedId.includes('/node_modules/made-refine/')) return null
 
       const projectRoot = config.root
       const relativePath = path.relative(projectRoot, id)
