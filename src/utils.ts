@@ -2,12 +2,15 @@ import type {
   CSSPropertyValue,
   SpacingProperties,
   BorderRadiusProperties,
+  BorderStyle,
+  BorderProperties,
   FlexProperties,
   SizingProperties,
   SizingValue,
   SizingMode,
   SpacingPropertyKey,
   BorderRadiusPropertyKey,
+  BorderPropertyKey,
   FlexPropertyKey,
   SizingPropertyKey,
   TypographyPropertyKey,
@@ -94,6 +97,31 @@ export function getComputedStyles(element: HTMLElement): {
   }
 }
 
+export function getComputedBorderStyles(element: HTMLElement): BorderProperties {
+  const computed = window.getComputedStyle(element)
+
+  const topStyle = computed.borderTopStyle as BorderStyle
+  const rightStyle = computed.borderRightStyle as BorderStyle
+  const bottomStyle = computed.borderBottomStyle as BorderStyle
+  const leftStyle = computed.borderLeftStyle as BorderStyle
+
+  const topWidth = parsePropertyValue(computed.borderTopWidth)
+  const rightWidth = parsePropertyValue(computed.borderRightWidth)
+  const bottomWidth = parsePropertyValue(computed.borderBottomWidth)
+  const leftWidth = parsePropertyValue(computed.borderLeftWidth)
+
+  return {
+    borderTopStyle: topStyle,
+    borderTopWidth: topWidth,
+    borderRightStyle: rightStyle,
+    borderRightWidth: rightWidth,
+    borderBottomStyle: bottomStyle,
+    borderBottomWidth: bottomWidth,
+    borderLeftStyle: leftStyle,
+    borderLeftWidth: leftWidth,
+  }
+}
+
 export function getOriginalInlineStyles(element: HTMLElement): Record<string, string> {
   const styles: Record<string, string> = {}
   const relevantProps = [
@@ -113,6 +141,17 @@ export function getOriginalInlineStyles(element: HTMLElement): Record<string, st
     'border-top-right-radius',
     'border-bottom-right-radius',
     'border-bottom-left-radius',
+    'border',
+    'border-style',
+    'border-width',
+    'border-top-style',
+    'border-top-width',
+    'border-right-style',
+    'border-right-width',
+    'border-bottom-style',
+    'border-bottom-width',
+    'border-left-style',
+    'border-left-width',
     'display',
     'flex-direction',
     'justify-content',
@@ -177,6 +216,26 @@ const tailwindClassMap: Record<string, { prefix: string; scale: Record<number, s
   gap: {
     prefix: 'gap',
     scale: { 0: '0', 1: 'px', 2: '0.5', 4: '1', 8: '2', 12: '3', 16: '4', 20: '5', 24: '6', 32: '8' },
+  },
+  'border-width': {
+    prefix: 'border',
+    scale: { 0: '0', 1: '', 2: '2', 4: '4', 8: '8' },
+  },
+  'border-top-width': {
+    prefix: 'border-t',
+    scale: { 0: '0', 1: '', 2: '2', 4: '4', 8: '8' },
+  },
+  'border-right-width': {
+    prefix: 'border-r',
+    scale: { 0: '0', 1: '', 2: '2', 4: '4', 8: '8' },
+  },
+  'border-bottom-width': {
+    prefix: 'border-b',
+    scale: { 0: '0', 1: '', 2: '2', 4: '4', 8: '8' },
+  },
+  'border-left-width': {
+    prefix: 'border-l',
+    scale: { 0: '0', 1: '', 2: '2', 4: '4', 8: '8' },
   },
   'border-radius': {
     prefix: 'rounded',
@@ -320,6 +379,56 @@ export function stylesToTailwind(styles: Record<string, string>): string {
       continue
     }
 
+    if (prop === 'border-style') {
+      const styleMap: Record<string, string> = {
+        none: 'border-none',
+        solid: 'border-solid',
+        dashed: 'border-dashed',
+        dotted: 'border-dotted',
+        double: 'border-double',
+      }
+      classes.push(styleMap[value] || `[border-style:${value}]`)
+      continue
+    }
+
+    // Tailwind has no per-side border-style utilities — consolidate when all sides match
+    if (prop === 'border-top-style' || prop === 'border-right-style' || prop === 'border-bottom-style' || prop === 'border-left-style') {
+      const allPresent =
+        'border-top-style' in styles &&
+        'border-right-style' in styles &&
+        'border-bottom-style' in styles &&
+        'border-left-style' in styles
+      if (allPresent) {
+        // Only emit once (from border-top-style) when all four sides are present
+        if (prop === 'border-top-style') {
+          const allSame =
+            styles['border-top-style'] === styles['border-right-style'] &&
+            styles['border-top-style'] === styles['border-bottom-style'] &&
+            styles['border-top-style'] === styles['border-left-style']
+          if (allSame) {
+            const styleMap: Record<string, string> = {
+              none: 'border-none',
+              solid: 'border-solid',
+              dashed: 'border-dashed',
+              dotted: 'border-dotted',
+              double: 'border-double',
+            }
+            classes.push(styleMap[value] || `[border-style:${value}]`)
+          } else {
+            // Sides differ — emit each side individually
+            classes.push(`[border-top-style:${styles['border-top-style']}]`)
+            classes.push(`[border-right-style:${styles['border-right-style']}]`)
+            classes.push(`[border-bottom-style:${styles['border-bottom-style']}]`)
+            classes.push(`[border-left-style:${styles['border-left-style']}]`)
+          }
+        }
+      } else {
+        // Emit arbitrary-property syntax for individual side styles
+        classes.push(`[${prop}:${value}]`)
+      }
+      continue
+    }
+
     if (prop === 'outline-color') {
       const colorValue = parseColorValue(value)
       classes.push(colorToTailwind('outlineColor', colorValue))
@@ -394,6 +503,17 @@ export const borderRadiusPropertyToCSSMap: Record<BorderRadiusPropertyKey, strin
   borderTopRightRadius: 'border-top-right-radius',
   borderBottomRightRadius: 'border-bottom-right-radius',
   borderBottomLeftRadius: 'border-bottom-left-radius',
+}
+
+export const borderPropertyToCSSMap: Record<BorderPropertyKey, string> = {
+  borderTopStyle: 'border-top-style',
+  borderTopWidth: 'border-top-width',
+  borderRightStyle: 'border-right-style',
+  borderRightWidth: 'border-right-width',
+  borderBottomStyle: 'border-bottom-style',
+  borderBottomWidth: 'border-bottom-width',
+  borderLeftStyle: 'border-left-style',
+  borderLeftWidth: 'border-left-width',
 }
 
 export const flexPropertyToCSSMap: Record<FlexPropertyKey, string> = {
@@ -661,15 +781,23 @@ const TRANSPARENT_COLOR: ColorValue = { hex: '000000', alpha: 0, raw: 'transpare
 export function getComputedColorStyles(element: HTMLElement): ColorProperties {
   const computed = window.getComputedStyle(element)
 
-  const hasBorder =
-    computed.borderTopStyle !== 'none' && parseFloat(computed.borderTopWidth) > 0
+  const borderSides = [
+    { style: computed.borderTopStyle, width: computed.borderTopWidth, color: computed.borderTopColor },
+    { style: computed.borderRightStyle, width: computed.borderRightWidth, color: computed.borderRightColor },
+    { style: computed.borderBottomStyle, width: computed.borderBottomWidth, color: computed.borderBottomColor },
+    { style: computed.borderLeftStyle, width: computed.borderLeftWidth, color: computed.borderLeftColor },
+  ]
+  const visibleBorderSide = borderSides.find(
+    (side) => side.style !== 'none' && side.style !== 'hidden' && parseFloat(side.width) > 0
+  )
+  const hasBorder = Boolean(visibleBorderSide)
   const hasOutline =
     computed.outlineStyle !== 'none' && parseFloat(computed.outlineWidth) > 0
 
   return {
     backgroundColor: parseColorValue(computed.backgroundColor),
     color: parseColorValue(computed.color),
-    borderColor: hasBorder ? parseColorValue(computed.borderTopColor) : TRANSPARENT_COLOR,
+    borderColor: hasBorder && visibleBorderSide ? parseColorValue(visibleBorderSide.color) : TRANSPARENT_COLOR,
     outlineColor: hasOutline ? parseColorValue(computed.outlineColor) : TRANSPARENT_COLOR,
   }
 }
@@ -1943,10 +2071,13 @@ export type {
   CSSPropertyValue,
   SpacingProperties,
   BorderRadiusProperties,
+  BorderStyle,
+  BorderProperties,
   FlexProperties,
   DirectEditState,
   SpacingPropertyKey,
   BorderRadiusPropertyKey,
+  BorderPropertyKey,
   FlexPropertyKey,
   MeasurementLine,
   MeasurementState,
