@@ -25,7 +25,7 @@ import {
   SelectItemText,
 } from './ui/select'
 import { cn } from './cn'
-import type { SpacingPropertyKey, BorderRadiusPropertyKey, CSSPropertyValue, SizingValue, SizingMode, SizingPropertyKey, ColorValue, ColorPropertyKey, TypographyPropertyKey, TypographyProperties } from './types'
+import type { SpacingPropertyKey, BorderRadiusPropertyKey, BorderPropertyKey, BorderProperties, BorderStyle, CSSPropertyValue, SizingValue, SizingMode, SizingPropertyKey, ColorValue, ColorPropertyKey, TypographyPropertyKey, TypographyProperties } from './types'
 import { formatColorValue } from './ui/color-utils'
 import { ColorPickerPopover, ColorPickerGroup } from './ui/color-picker'
 import { Slider } from './ui/slider'
@@ -50,10 +50,6 @@ import {
   ArrowLeft,
   MoveHorizontal,
   MoveVertical,
-  CornerUpLeft,
-  CornerUpRight,
-  CornerDownLeft,
-  CornerDownRight,
   ChevronsLeftRightEllipsis,
   Grid2x2,
   Columns2,
@@ -72,6 +68,7 @@ import {
   WrapText,
   AArrowUp,
   LetterText,
+  Plus,
   Zap,
 } from 'lucide-react'
 
@@ -156,6 +153,17 @@ function PaddingInputs({ values, onChange }: PaddingInputsProps) {
       <div className="space-y-1.5">
         <div className="flex items-center gap-1.5">
           <div className="relative flex-1">
+            <ArrowLeft className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+            <Input
+              type="number"
+              value={values.left?.numericValue ?? 0}
+              onChange={(e) => handleChange(['left'], parseFloat(e.target.value) || 0)}
+              onFocus={selectOnFocus}
+              className="h-7 pl-7 pr-2 text-center text-xs tabular-nums"
+              title="Left"
+            />
+          </div>
+          <div className="relative flex-1">
             <ArrowUp className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
             <Input
               type="number"
@@ -164,17 +172,6 @@ function PaddingInputs({ values, onChange }: PaddingInputsProps) {
               onFocus={selectOnFocus}
               className="h-7 pl-7 pr-2 text-center text-xs tabular-nums"
               title="Top"
-            />
-          </div>
-          <div className="relative flex-1">
-            <ArrowRight className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
-            <Input
-              type="number"
-              value={values.right?.numericValue ?? 0}
-              onChange={(e) => handleChange(['right'], parseFloat(e.target.value) || 0)}
-              onFocus={selectOnFocus}
-              className="h-7 pl-7 pr-2 text-center text-xs tabular-nums"
-              title="Right"
             />
           </div>
           <Button
@@ -189,6 +186,17 @@ function PaddingInputs({ values, onChange }: PaddingInputsProps) {
         </div>
         <div className="flex items-center gap-1.5">
           <div className="relative flex-1">
+            <ArrowRight className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+            <Input
+              type="number"
+              value={values.right?.numericValue ?? 0}
+              onChange={(e) => handleChange(['right'], parseFloat(e.target.value) || 0)}
+              onFocus={selectOnFocus}
+              className="h-7 pl-7 pr-2 text-center text-xs tabular-nums"
+              title="Right"
+            />
+          </div>
+          <div className="relative flex-1">
             <ArrowDown className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
             <Input
               type="number"
@@ -197,17 +205,6 @@ function PaddingInputs({ values, onChange }: PaddingInputsProps) {
               onFocus={selectOnFocus}
               className="h-7 pl-7 pr-2 text-center text-xs tabular-nums"
               title="Bottom"
-            />
-          </div>
-          <div className="relative flex-1">
-            <ArrowLeft className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
-            <Input
-              type="number"
-              value={values.left?.numericValue ?? 0}
-              onChange={(e) => handleChange(['left'], parseFloat(e.target.value) || 0)}
-              onFocus={selectOnFocus}
-              className="h-7 pl-7 pr-2 text-center text-xs tabular-nums"
-              title="Left"
             />
           </div>
           <div className="size-7 shrink-0" />
@@ -293,6 +290,17 @@ function MarginInputs({ values, onChange }: MarginInputsProps) {
       <div className="space-y-1.5">
         <div className="flex items-center gap-1.5">
           <div className="relative flex-1">
+            <ArrowLeft className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+            <Input
+              type="number"
+              value={values.left?.numericValue ?? 0}
+              onChange={(e) => handleChange(['left'], parseFloat(e.target.value) || 0)}
+              onFocus={selectOnFocus}
+              className="h-7 pl-7 pr-2 text-center text-xs tabular-nums"
+              title="Left"
+            />
+          </div>
+          <div className="relative flex-1">
             <ArrowUp className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
             <Input
               type="number"
@@ -301,17 +309,6 @@ function MarginInputs({ values, onChange }: MarginInputsProps) {
               onFocus={selectOnFocus}
               className="h-7 pl-7 pr-2 text-center text-xs tabular-nums"
               title="Top"
-            />
-          </div>
-          <div className="relative flex-1">
-            <ArrowRight className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
-            <Input
-              type="number"
-              value={values.right?.numericValue ?? 0}
-              onChange={(e) => handleChange(['right'], parseFloat(e.target.value) || 0)}
-              onFocus={selectOnFocus}
-              className="h-7 pl-7 pr-2 text-center text-xs tabular-nums"
-              title="Right"
             />
           </div>
           <Button
@@ -326,6 +323,17 @@ function MarginInputs({ values, onChange }: MarginInputsProps) {
         </div>
         <div className="flex items-center gap-1.5">
           <div className="relative flex-1">
+            <ArrowRight className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+            <Input
+              type="number"
+              value={values.right?.numericValue ?? 0}
+              onChange={(e) => handleChange(['right'], parseFloat(e.target.value) || 0)}
+              onFocus={selectOnFocus}
+              className="h-7 pl-7 pr-2 text-center text-xs tabular-nums"
+              title="Right"
+            />
+          </div>
+          <div className="relative flex-1">
             <ArrowDown className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
             <Input
               type="number"
@@ -334,17 +342,6 @@ function MarginInputs({ values, onChange }: MarginInputsProps) {
               onFocus={selectOnFocus}
               className="h-7 pl-7 pr-2 text-center text-xs tabular-nums"
               title="Bottom"
-            />
-          </div>
-          <div className="relative flex-1">
-            <ArrowLeft className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
-            <Input
-              type="number"
-              value={values.left?.numericValue ?? 0}
-              onChange={(e) => handleChange(['left'], parseFloat(e.target.value) || 0)}
-              onFocus={selectOnFocus}
-              className="h-7 pl-7 pr-2 text-center text-xs tabular-nums"
-              title="Left"
             />
           </div>
           <div className="size-7 shrink-0" />
@@ -412,6 +409,20 @@ function valueToSlider(value: number): number {
   return value >= BORDER_RADIUS_FULL ? BORDER_RADIUS_SLIDER_MAX : Math.min(value, BORDER_RADIUS_SLIDER_MAX - 1)
 }
 
+function RadiusCornerIcon({ corner, className }: { corner: 'topLeft' | 'topRight' | 'bottomLeft' | 'bottomRight'; className?: string }) {
+  const paths: Record<string, string> = {
+    topLeft: 'M5 19V8a3 3 0 0 1 3-3h11',
+    topRight: 'M19 19V8a3 3 0 0 0-3-3H5',
+    bottomLeft: 'M5 5v11a3 3 0 0 0 3 3h11',
+    bottomRight: 'M19 5v11a3 3 0 0 1-3 3H5',
+  }
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className={cn('size-3', className)}>
+      <path d={paths[corner]} />
+    </svg>
+  )
+}
+
 function BorderRadiusInputs({ values, onChange }: BorderRadiusInputsProps) {
   const [individual, setIndividual] = React.useState(false)
 
@@ -454,7 +465,7 @@ function BorderRadiusInputs({ values, onChange }: BorderRadiusInputsProps) {
       <div className="space-y-1.5">
         <div className="flex items-center gap-1.5">
           <div className="relative flex-1">
-            <CornerUpLeft className="absolute left-1.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+            <RadiusCornerIcon corner="topLeft" className="absolute left-1.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <Input
               type="number"
               value={values.topLeft?.numericValue ?? 0}
@@ -465,7 +476,7 @@ function BorderRadiusInputs({ values, onChange }: BorderRadiusInputsProps) {
             />
           </div>
           <div className="relative flex-1">
-            <CornerUpRight className="absolute left-1.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+            <RadiusCornerIcon corner="topRight" className="absolute left-1.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <Input
               type="number"
               value={values.topRight?.numericValue ?? 0}
@@ -487,7 +498,7 @@ function BorderRadiusInputs({ values, onChange }: BorderRadiusInputsProps) {
         </div>
         <div className="flex items-center gap-1.5">
           <div className="relative flex-1">
-            <CornerDownLeft className="absolute left-1.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+            <RadiusCornerIcon corner="bottomLeft" className="absolute left-1.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <Input
               type="number"
               value={values.bottomLeft?.numericValue ?? 0}
@@ -498,7 +509,7 @@ function BorderRadiusInputs({ values, onChange }: BorderRadiusInputsProps) {
             />
           </div>
           <div className="relative flex-1">
-            <CornerDownRight className="absolute left-1.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+            <RadiusCornerIcon corner="bottomRight" className="absolute left-1.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <Input
               type="number"
               value={values.bottomRight?.numericValue ?? 0}
@@ -555,6 +566,304 @@ function BorderRadiusInputs({ values, onChange }: BorderRadiusInputsProps) {
         <Grid2x2 className="size-3" />
       </Button>
     </div>
+  )
+}
+
+function BorderSideIcon({ side, className }: { side: 'Top' | 'Right' | 'Bottom' | 'Left'; className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className={cn('size-3', className)}>
+      {/* Top */}
+      <line x1="3" y1="3" x2="21" y2="3"
+        stroke="currentColor"
+        strokeWidth={side === 'Top' ? 2.5 : 1.5}
+        strokeDasharray={side === 'Top' ? 'none' : '3 2'}
+        strokeOpacity={side === 'Top' ? 1 : 0.35}
+      />
+      {/* Right */}
+      <line x1="21" y1="3" x2="21" y2="21"
+        stroke="currentColor"
+        strokeWidth={side === 'Right' ? 2.5 : 1.5}
+        strokeDasharray={side === 'Right' ? 'none' : '3 2'}
+        strokeOpacity={side === 'Right' ? 1 : 0.35}
+      />
+      {/* Bottom */}
+      <line x1="3" y1="21" x2="21" y2="21"
+        stroke="currentColor"
+        strokeWidth={side === 'Bottom' ? 2.5 : 1.5}
+        strokeDasharray={side === 'Bottom' ? 'none' : '3 2'}
+        strokeOpacity={side === 'Bottom' ? 1 : 0.35}
+      />
+      {/* Left */}
+      <line x1="3" y1="3" x2="3" y2="21"
+        stroke="currentColor"
+        strokeWidth={side === 'Left' ? 2.5 : 1.5}
+        strokeDasharray={side === 'Left' ? 'none' : '3 2'}
+        strokeOpacity={side === 'Left' ? 1 : 0.35}
+      />
+    </svg>
+  )
+}
+
+const BORDER_STYLE_OPTIONS: Array<{ value: BorderStyle; label: string }> = [
+  { value: 'none', label: 'None' },
+  { value: 'hidden', label: 'Hidden' },
+  { value: 'solid', label: 'Solid' },
+  { value: 'dashed', label: 'Dashed' },
+  { value: 'dotted', label: 'Dotted' },
+  { value: 'double', label: 'Double' },
+  { value: 'groove', label: 'Groove' },
+  { value: 'ridge', label: 'Ridge' },
+  { value: 'inset', label: 'Inset' },
+  { value: 'outset', label: 'Outset' },
+]
+
+const BORDER_SIDES = ['Top', 'Right', 'Bottom', 'Left'] as const
+
+interface BorderInputsProps {
+  border: BorderProperties
+  borderColor?: ColorValue
+  onChange: (key: BorderPropertyKey, value: BorderProperties[BorderPropertyKey]) => void
+  onBatchChange: (changes: Array<[BorderPropertyKey, BorderProperties[BorderPropertyKey]]>) => void
+  onBorderColorChange?: (value: ColorValue) => void
+}
+
+function BorderInputs({ border, borderColor, onChange, onBatchChange, onBorderColorChange }: BorderInputsProps) {
+  const stylesMatch = BORDER_SIDES.every(
+    (s) => (border[`border${s}Style` as keyof BorderProperties] as BorderStyle) === border.borderTopStyle,
+  )
+  const widthsMatch = BORDER_SIDES.every((s) => {
+    const w = border[`border${s}Width` as keyof BorderProperties] as CSSPropertyValue
+    return w.numericValue === border.borderTopWidth.numericValue
+  })
+
+  const currentStyle = stylesMatch ? border.borderTopStyle || 'none' : 'mixed'
+  const allWidth = widthsMatch ? border.borderTopWidth : null
+
+  const handleStyleChange = (style: BorderStyle) => {
+    const changes: Array<[BorderPropertyKey, BorderProperties[BorderPropertyKey]]> = []
+    for (const s of BORDER_SIDES) {
+      if (style !== 'none') {
+        const w = border[`border${s}Width` as keyof BorderProperties] as CSSPropertyValue
+        if (w.numericValue <= 0) {
+          changes.push([`border${s}Width` as BorderPropertyKey, { numericValue: 1, unit: 'px', raw: '1px' }])
+        }
+      }
+      changes.push([`border${s}Style` as BorderPropertyKey, style])
+    }
+    onBatchChange(changes)
+  }
+
+  const [individual, setIndividual] = React.useState(false)
+
+  const handleWidthChange = (side: string, numericValue: number) => {
+    const clamped = Math.max(0, numericValue)
+    onChange(`border${side}Width` as BorderPropertyKey, {
+      numericValue: clamped,
+      unit: 'px',
+      raw: `${clamped}px`,
+    })
+  }
+
+  const handleAllWidthChange = (numericValue: number) => {
+    const clamped = Math.max(0, numericValue)
+    const value: CSSPropertyValue = { numericValue: clamped, unit: 'px', raw: `${clamped}px` }
+    const changes: Array<[BorderPropertyKey, BorderProperties[BorderPropertyKey]]> = []
+    for (const s of BORDER_SIDES) {
+      changes.push([`border${s}Width` as BorderPropertyKey, value])
+    }
+    onBatchChange(changes)
+  }
+
+  return (
+    <div className="space-y-2">
+      {/* Row 1: Border style + thickness side by side */}
+      {individual ? (
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-1.5">
+            <Select value={currentStyle} onValueChange={(val) => val && handleStyleChange(val as BorderStyle)}>
+              <SelectTrigger className="flex h-7 w-full items-center justify-between rounded-md border-0 bg-muted px-2 text-xs hover:bg-muted-foreground/10 focus:outline-none">
+                <span className="flex items-center gap-2">
+                  <Square className="size-3.5 text-muted-foreground" />
+                  <span>{currentStyle === 'mixed' ? 'Mixed' : BORDER_STYLE_OPTIONS.find((o) => o.value === currentStyle)?.label ?? currentStyle}</span>
+                </span>
+                <SelectIcon>
+                  <ChevronDown className="size-3 text-muted-foreground" />
+                </SelectIcon>
+              </SelectTrigger>
+              <SelectPortal>
+                <SelectPositioner sideOffset={4} className="z-[99999]">
+                  <SelectPopup className="min-w-[120px] overflow-hidden rounded-lg border-0 bg-popover p-1 text-popover-foreground shadow-lg animate-in fade-in-0 zoom-in-95">
+                    {BORDER_STYLE_OPTIONS.map((option) => (
+                      <SelectItem
+                        key={option.value}
+                        value={option.value}
+                        className="relative flex cursor-default select-none items-center rounded-md py-2 pl-7 pr-2 text-xs outline-none hover:bg-muted hover:text-foreground data-[highlighted]:bg-muted data-[highlighted]:text-foreground"
+                      >
+                        <SelectItemIndicator className="absolute left-2 flex items-center justify-center">
+                          <Check className="size-3" />
+                        </SelectItemIndicator>
+                        <SelectItemText>{option.label}</SelectItemText>
+                      </SelectItem>
+                    ))}
+                  </SelectPopup>
+                </SelectPositioner>
+              </SelectPortal>
+            </Select>
+            <Button
+              variant="secondary"
+              size="icon"
+              className="size-7 shrink-0"
+              onClick={() => setIndividual(false)}
+              title="Combined mode"
+            >
+              <Columns2 className="size-3" />
+            </Button>
+          </div>
+          <div className="flex items-center gap-1.5">
+            {BORDER_SIDES.map((side) => {
+              const w = border[`border${side}Width` as keyof BorderProperties] as CSSPropertyValue
+              return (
+                <div key={side} className="relative flex-1">
+                  <BorderSideIcon side={side} className="absolute left-1.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    type="number"
+                    min={0}
+                    step={0.5}
+                    value={Math.round(w.numericValue * 100) / 100}
+                    onChange={(e) => handleWidthChange(side, parseFloat(e.target.value) || 0)}
+                    onFocus={selectOnFocus}
+                    className="h-7 pl-6 pr-1 text-center text-xs tabular-nums"
+                    title={`Border ${side.toLowerCase()} width`}
+                  />
+                </div>
+              )
+            })}
+            <div className="size-7 shrink-0" />
+          </div>
+        </div>
+      ) : (
+        <div className="flex items-center gap-1.5">
+          <Select value={currentStyle} onValueChange={(val) => val && handleStyleChange(val as BorderStyle)}>
+            <SelectTrigger className="flex h-7 flex-1 items-center justify-between rounded-md border-0 bg-muted px-2 text-xs hover:bg-muted-foreground/10 focus:outline-none">
+              <span className="flex items-center gap-2">
+                <Square className="size-3.5 text-muted-foreground" />
+                <span>{currentStyle === 'mixed' ? 'Mixed' : BORDER_STYLE_OPTIONS.find((o) => o.value === currentStyle)?.label ?? currentStyle}</span>
+              </span>
+              <SelectIcon>
+                <ChevronDown className="size-3 text-muted-foreground" />
+              </SelectIcon>
+            </SelectTrigger>
+            <SelectPortal>
+              <SelectPositioner sideOffset={4} className="z-[99999]">
+                <SelectPopup className="min-w-[120px] overflow-hidden rounded-lg border-0 bg-popover p-1 text-popover-foreground shadow-lg animate-in fade-in-0 zoom-in-95">
+                  {BORDER_STYLE_OPTIONS.map((option) => (
+                    <SelectItem
+                      key={option.value}
+                      value={option.value}
+                      className="relative flex cursor-default select-none items-center rounded-md py-2 pl-7 pr-2 text-xs outline-none hover:bg-muted hover:text-foreground data-[highlighted]:bg-muted data-[highlighted]:text-foreground"
+                    >
+                      <SelectItemIndicator className="absolute left-2 flex items-center justify-center">
+                        <Check className="size-3" />
+                      </SelectItemIndicator>
+                      <SelectItemText>{option.label}</SelectItemText>
+                    </SelectItem>
+                  ))}
+                </SelectPopup>
+              </SelectPositioner>
+            </SelectPortal>
+          </Select>
+          <div className="relative w-16">
+            <MoveHorizontal className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+            <Input
+              type="number"
+              min={0}
+              step={0.5}
+              value={allWidth ? Math.round(allWidth.numericValue * 100) / 100 : ''}
+              placeholder={allWidth ? undefined : '–'}
+              onChange={(e) => handleAllWidthChange(parseFloat(e.target.value) || 0)}
+              onFocus={selectOnFocus}
+              className="h-7 pl-7 pr-2 text-center text-xs tabular-nums"
+              title="Border width (all sides)"
+            />
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-7 shrink-0"
+            onClick={() => setIndividual(true)}
+            title="Individual mode"
+          >
+            <Grid2x2 className="size-3" />
+          </Button>
+        </div>
+      )}
+
+      {/* Row 3: Border color */}
+      {borderColor && onBorderColorChange && (
+        <ColorInput
+          id="border-color"
+          label="Border"
+          icon={<Square className="size-3.5" />}
+          value={borderColor}
+          onChange={onBorderColorChange}
+        />
+      )}
+    </div>
+  )
+}
+
+interface BorderSectionProps {
+  border: BorderProperties
+  borderColor?: ColorValue
+  onChange: (key: BorderPropertyKey, value: BorderProperties[BorderPropertyKey]) => void
+  onBatchChange: (changes: Array<[BorderPropertyKey, BorderProperties[BorderPropertyKey]]>) => void
+  onBorderColorChange?: (value: ColorValue) => void
+}
+
+function BorderSection({ border, borderColor, onChange, onBatchChange, onBorderColorChange }: BorderSectionProps) {
+  const hasBorder = BORDER_SIDES.some((s) => {
+    const style = border[`border${s}Style` as keyof BorderProperties] as BorderStyle
+    const width = border[`border${s}Width` as keyof BorderProperties] as CSSPropertyValue
+    return style !== 'none' && width.numericValue > 0
+  })
+
+  const handleAddBorder = () => {
+    const changes: Array<[BorderPropertyKey, BorderProperties[BorderPropertyKey]]> = []
+    for (const s of BORDER_SIDES) {
+      changes.push([`border${s}Style` as BorderPropertyKey, 'solid'])
+      const w = border[`border${s}Width` as keyof BorderProperties] as CSSPropertyValue
+      if (w.numericValue <= 0) {
+        changes.push([`border${s}Width` as BorderPropertyKey, { numericValue: 1, unit: 'px', raw: '1px' }])
+      }
+    }
+    onBatchChange(changes)
+  }
+
+  const headerActions = !hasBorder ? (
+    <button
+      type="button"
+      className="flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-muted-foreground/10 hover:text-foreground"
+      onClick={handleAddBorder}
+      title="Add border"
+    >
+      <Plus className="size-3.5" />
+    </button>
+  ) : null
+
+  return (
+    <CollapsibleSection title="Border" actions={headerActions}>
+      {hasBorder ? (
+        <ColorPickerGroup>
+          <BorderInputs
+            border={border}
+            borderColor={borderColor}
+            onChange={onChange}
+            onBatchChange={onBatchChange}
+            onBorderColorChange={onBorderColorChange}
+          />
+        </ColorPickerGroup>
+      ) : null}
+    </CollapsibleSection>
   )
 }
 
@@ -1105,16 +1414,18 @@ function FillSection({
 }
 interface CollapsibleSectionProps {
   title: string
+  actions?: React.ReactNode
   children: React.ReactNode
 }
 
-function CollapsibleSection({ title, children }: CollapsibleSectionProps) {
+function CollapsibleSection({ title, actions, children }: CollapsibleSectionProps) {
   return (
     <div>
-      <div className="flex w-full items-center border-b border-border/50 px-3 py-2.5 text-xs font-medium text-foreground">
-        {title}
+      <div className="flex w-full items-center justify-between border-b border-border/50 px-3 py-2.5 text-xs font-medium text-foreground">
+        <span>{title}</span>
+        {actions}
       </div>
-      <div className="px-3 py-3.5">{children}</div>
+      {children != null && <div className="px-3 py-3.5">{children}</div>}
     </div>
   )
 }
@@ -1147,6 +1458,7 @@ export interface DirectEditPanelInnerProps {
     borderBottomRightRadius: CSSPropertyValue
     borderBottomLeftRadius: CSSPropertyValue
   }
+  computedBorder: BorderProperties
   computedFlex: {
     flexDirection: 'row' | 'row-reverse' | 'column' | 'column-reverse'
     justifyContent: string
@@ -1169,6 +1481,8 @@ export interface DirectEditPanelInnerProps {
   onSelectChild?: () => void
   onUpdateSpacing: (key: SpacingPropertyKey, value: CSSPropertyValue) => void
   onUpdateBorderRadius: (key: BorderRadiusPropertyKey, value: CSSPropertyValue) => void
+  onUpdateBorder: (key: BorderPropertyKey, value: BorderProperties[BorderPropertyKey]) => void
+  onBatchUpdateBorder: (changes: Array<[BorderPropertyKey, BorderProperties[BorderPropertyKey]]>) => void
   onUpdateFlex: (key: 'flexDirection' | 'justifyContent' | 'alignItems', value: string) => void
   onUpdateSizing: (key: SizingPropertyKey, value: SizingValue) => void
   onUpdateColor: (key: ColorPropertyKey, value: ColorValue) => void
@@ -1189,6 +1503,7 @@ export function DirectEditPanelInner({
   elementInfo,
   computedSpacing,
   computedBorderRadius,
+  computedBorder,
   computedFlex,
   computedSizing,
   computedColor,
@@ -1199,6 +1514,8 @@ export function DirectEditPanelInner({
   onSelectChild,
   onUpdateSpacing,
   onUpdateBorderRadius,
+  onUpdateBorder,
+  onBatchUpdateBorder,
   onUpdateFlex,
   onUpdateSizing,
   onUpdateColor,
@@ -1475,6 +1792,14 @@ export function DirectEditPanelInner({
           />
         </CollapsibleSection>
 
+        <BorderSection
+          border={computedBorder}
+          borderColor={computedColor?.borderColor}
+          onChange={onUpdateBorder}
+          onBatchChange={onBatchUpdateBorder}
+          onBorderColorChange={(value) => onUpdateColor('borderColor', value)}
+        />
+
         {computedColor && (
           <CollapsibleSection title="Selection Colors">
             <FillSection
@@ -1488,7 +1813,7 @@ export function DirectEditPanelInner({
               onOutlineColorChange={(value) => onUpdateColor('outlineColor', value)}
               hasTextContent={elementInfo.isTextElement}
               showBackgroundColor={computedColor.backgroundColor.alpha > 0}
-              showBorderColor={computedColor.borderColor.alpha > 0}
+              showBorderColor={false}
               showOutlineColor={computedColor.outlineColor.alpha > 0}
             />
           </CollapsibleSection>
@@ -1564,12 +1889,15 @@ function DirectEditPanelContent() {
     elementInfo,
     computedSpacing,
     computedBorderRadius,
+    computedBorder,
     computedFlex,
     computedSizing,
     computedColor,
     computedTypography,
     updateSpacingProperty,
     updateBorderRadiusProperty,
+    updateBorderProperty,
+    updateBorderProperties,
     updateFlexProperty,
     updateSizingProperty,
     updateColorProperty,
@@ -1810,7 +2138,7 @@ function DirectEditPanelContent() {
     container
   ) : null
 
-  if (!isOpen || !computedSpacing || !elementInfo || !computedBorderRadius || !computedFlex || !computedSizing || !computedColor || !computedTypography || !container) return <>{overlay}{commentOverlay}</>
+  if (!isOpen || !computedSpacing || !elementInfo || !computedBorderRadius || !computedBorder || !computedFlex || !computedSizing || !computedColor || !computedTypography || !container) return <>{overlay}{commentOverlay}</>
 
   const handleMoveStart = (e: React.PointerEvent) => {
     if (selectedElement) {
@@ -1851,6 +2179,7 @@ function DirectEditPanelContent() {
         elementInfo={elementInfo}
         computedSpacing={computedSpacing}
         computedBorderRadius={computedBorderRadius}
+        computedBorder={computedBorder}
         computedFlex={computedFlex}
         computedSizing={computedSizing}
         computedColor={computedColor}
@@ -1861,6 +2190,8 @@ function DirectEditPanelContent() {
         onSelectChild={selectChild}
         onUpdateSpacing={updateSpacingProperty}
         onUpdateBorderRadius={updateBorderRadiusProperty}
+        onUpdateBorder={updateBorderProperty}
+        onBatchUpdateBorder={updateBorderProperties}
         onUpdateFlex={updateFlexProperty}
         onUpdateSizing={updateSizingProperty}
         onUpdateColor={updateColorProperty}

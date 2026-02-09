@@ -4,6 +4,8 @@ import type {
   DirectEditState,
   SpacingPropertyKey,
   BorderRadiusPropertyKey,
+  BorderPropertyKey,
+  BorderProperties,
   FlexPropertyKey,
   SizingPropertyKey,
   TypographyPropertyKey,
@@ -20,11 +22,13 @@ import type {
 import type { MoveInfo } from './use-move'
 import {
   getComputedStyles,
+  getComputedBorderStyles,
   getOriginalInlineStyles,
   getElementInfo,
   formatPropertyValue,
   propertyToCSSMap,
   borderRadiusPropertyToCSSMap,
+  borderPropertyToCSSMap,
   flexPropertyToCSSMap,
   sizingPropertyToCSSMap,
   typographyPropertyToCSSMap,
@@ -50,6 +54,8 @@ export interface DirectEditContextValue extends DirectEditState {
   closePanel: () => void
   updateSpacingProperty: (key: SpacingPropertyKey, value: CSSPropertyValue) => void
   updateBorderRadiusProperty: (key: BorderRadiusPropertyKey, value: CSSPropertyValue) => void
+  updateBorderProperty: (key: BorderPropertyKey, value: BorderProperties[BorderPropertyKey]) => void
+  updateBorderProperties: (changes: Array<[BorderPropertyKey, BorderProperties[BorderPropertyKey]]>) => void
   updateFlexProperty: (key: FlexPropertyKey, value: string) => void
   updateSizingProperty: (key: SizingPropertyKey, value: SizingValue) => void
   updateColorProperty: (key: ColorPropertyKey, value: ColorValue) => void
@@ -98,6 +104,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     elementInfo: null,
     computedSpacing: null,
     computedBorderRadius: null,
+    computedBorder: null,
     computedFlex: null,
     computedSizing: null,
     computedColor: null,
@@ -187,6 +194,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     }
 
     const { spacing, borderRadius, flex } = getComputedStyles(element)
+    const border = getComputedBorderStyles(element)
     const sizing = getComputedSizing(element)
     const color = getComputedColorStyles(element)
     const typography = getComputedTypography(element)
@@ -199,6 +207,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
       elementInfo,
       computedSpacing: spacing,
       computedBorderRadius: borderRadius,
+      computedBorder: border,
       computedFlex: flex,
       computedSizing: sizing,
       computedColor: color,
@@ -294,6 +303,70 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
         pendingStyles: {
           ...prev.pendingStyles,
           [cssProperty]: cssValue,
+        },
+      }))
+    },
+    [state.selectedElement, pushUndo]
+  )
+
+  const updateBorderProperty = React.useCallback(
+    (key: BorderPropertyKey, value: BorderProperties[BorderPropertyKey]) => {
+      if (!state.selectedElement) return
+
+      const cssProperty = borderPropertyToCSSMap[key]
+      const cssValue = typeof value === 'string' ? value : formatPropertyValue(value)
+
+      const previousValue = state.selectedElement.style.getPropertyValue(cssProperty) || null
+      pushUndo({ type: 'edit', element: state.selectedElement, properties: [{ cssProperty, previousValue }] })
+
+      state.selectedElement.style.setProperty(cssProperty, cssValue)
+
+      const border = getComputedBorderStyles(state.selectedElement)
+      const color = getComputedColorStyles(state.selectedElement)
+
+      setState((prev) => ({
+        ...prev,
+        computedBorder: border,
+        computedColor: color,
+        pendingStyles: {
+          ...prev.pendingStyles,
+          [cssProperty]: cssValue,
+        },
+      }))
+    },
+    [state.selectedElement, pushUndo]
+  )
+
+  const updateBorderProperties = React.useCallback(
+    (changes: Array<[BorderPropertyKey, BorderProperties[BorderPropertyKey]]>) => {
+      if (!state.selectedElement || changes.length === 0) return
+
+      const properties: Array<{ cssProperty: string; previousValue: string | null }> = []
+      const pendingUpdates: Record<string, string> = {}
+
+      for (const [key, value] of changes) {
+        const cssProperty = borderPropertyToCSSMap[key]
+        const cssValue = typeof value === 'string' ? value : formatPropertyValue(value)
+
+        const previousValue = state.selectedElement.style.getPropertyValue(cssProperty) || null
+        properties.push({ cssProperty, previousValue })
+
+        state.selectedElement.style.setProperty(cssProperty, cssValue)
+        pendingUpdates[cssProperty] = cssValue
+      }
+
+      pushUndo({ type: 'edit', element: state.selectedElement, properties })
+
+      const border = getComputedBorderStyles(state.selectedElement)
+      const color = getComputedColorStyles(state.selectedElement)
+
+      setState((prev) => ({
+        ...prev,
+        computedBorder: border,
+        computedColor: color,
+        pendingStyles: {
+          ...prev.pendingStyles,
+          ...pendingUpdates,
         },
       }))
     },
@@ -463,6 +536,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     const allCSSProps = [
       ...Object.values(propertyToCSSMap),
       ...Object.values(borderRadiusPropertyToCSSMap),
+      ...Object.values(borderPropertyToCSSMap),
       ...Object.values(flexPropertyToCSSMap),
       ...Object.values(sizingPropertyToCSSMap),
       ...Object.values(colorPropertyToCSSMap),
@@ -478,6 +552,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     }
 
     const { spacing, borderRadius, flex } = getComputedStyles(state.selectedElement)
+    const border = getComputedBorderStyles(state.selectedElement)
     const sizing = getComputedSizing(state.selectedElement)
     const color = getComputedColorStyles(state.selectedElement)
     const typography = getComputedTypography(state.selectedElement)
@@ -486,6 +561,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
       ...prev,
       computedSpacing: spacing,
       computedBorderRadius: borderRadius,
+      computedBorder: border,
       computedFlex: flex,
       computedSizing: sizing,
       computedColor: color,
@@ -511,6 +587,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
         const current = stateRef.current
         if (current.selectedElement === entry.element) {
           const { spacing, borderRadius, flex } = getComputedStyles(entry.element)
+          const border = getComputedBorderStyles(entry.element)
           const sizing = getComputedSizing(entry.element)
           const color = getComputedColorStyles(entry.element)
           const typography = getComputedTypography(entry.element)
@@ -526,6 +603,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
             ...prev,
             computedSpacing: spacing,
             computedBorderRadius: borderRadius,
+            computedBorder: border,
             computedFlex: flex,
             computedSizing: sizing,
             computedColor: color,
@@ -543,6 +621,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
             prevEl.style.setProperty(prop, value)
           }
           const { spacing, borderRadius, flex } = getComputedStyles(prevEl)
+          const border = getComputedBorderStyles(prevEl)
           const sizing = getComputedSizing(prevEl)
           const color = getComputedColorStyles(prevEl)
           const typography = getComputedTypography(prevEl)
@@ -553,6 +632,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
             elementInfo,
             computedSpacing: spacing,
             computedBorderRadius: borderRadius,
+            computedBorder: border,
             computedFlex: flex,
             computedSizing: sizing,
             computedColor: color,
@@ -573,6 +653,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
             elementInfo: null,
             computedSpacing: null,
             computedBorderRadius: null,
+            computedBorder: null,
             computedFlex: null,
             computedSizing: null,
             computedColor: null,
@@ -668,6 +749,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
       // Refresh element state without going through selectElement,
       // which would push an extra selection undo entry.
       const { spacing, borderRadius, flex } = getComputedStyles(element)
+      const border = getComputedBorderStyles(element)
       const sizing = getComputedSizing(element)
       const color = getComputedColorStyles(element)
       const typography = getComputedTypography(element)
@@ -679,6 +761,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
         elementInfo,
         computedSpacing: spacing,
         computedBorderRadius: borderRadius,
+        computedBorder: border,
         computedFlex: flex,
         computedSizing: sizing,
         computedColor: color,
@@ -828,6 +911,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     const sizing = getComputedSizing(el)
     const color = getComputedColorStyles(el)
     const typography = getComputedTypography(el)
+    const border = getComputedBorderStyles(el)
     setState((prev) => ({
       ...prev,
       computedSpacing: spacing,
@@ -836,6 +920,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
       computedSizing: sizing,
       computedColor: color,
       computedTypography: typography,
+      computedBorder: border,
       originalStyles: getOriginalInlineStyles(el),
       pendingStyles: {},
     }))
@@ -900,6 +985,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     state.elementInfo,
     state.computedSpacing,
     state.computedBorderRadius,
+    state.computedBorder,
     state.computedFlex,
     state.computedSizing,
     state.pendingStyles,
@@ -1046,6 +1132,8 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     closePanel,
     updateSpacingProperty,
     updateBorderRadiusProperty,
+    updateBorderProperty,
+    updateBorderProperties,
     updateFlexProperty,
     updateSizingProperty,
     updateColorProperty,
