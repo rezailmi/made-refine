@@ -196,6 +196,7 @@ export interface DragState {
   isDragging: boolean
   draggedElement: HTMLElement | null
   originalParent: HTMLElement | null
+  originalPreviousSibling: HTMLElement | null
   originalNextSibling: HTMLElement | null
   ghostPosition: { x: number; y: number }
   dragOffset: { x: number; y: number }
@@ -232,6 +233,7 @@ export interface UndoMoveEntry {
   element: HTMLElement
   originalParent: HTMLElement
   originalNextSibling: HTMLElement | null
+  previousSessionMove: SessionEdit['move']
 }
 
 export type UndoEntry = UndoEditEntry | UndoSelectionEntry | UndoMoveEntry
@@ -240,4 +242,19 @@ export interface Guideline {
   id: string
   orientation: 'horizontal' | 'vertical'
   position: number // page-absolute px
+}
+
+export interface SessionEdit {
+  element: HTMLElement
+  locator: ElementLocator
+  originalStyles: Record<string, string>
+  pendingStyles: Record<string, string>
+  move: {
+    fromParentName: string
+    toParentName: string
+    fromSiblingBefore: string | null
+    fromSiblingAfter: string | null
+    toSiblingBefore: string | null
+    toSiblingAfter: string | null
+  } | null
 }

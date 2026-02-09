@@ -1,7 +1,15 @@
 import * as React from 'react'
 import type { Comment } from './types'
 import { cn } from './cn'
-import { ChevronLeft, Check, Copy, Trash2, ArrowUp } from 'lucide-react'
+import { ChevronLeft, Check, Copy, Trash2, ArrowUp, Send, X } from 'lucide-react'
+import {
+  Menu,
+  MenuTrigger,
+  MenuPortal,
+  MenuPositioner,
+  MenuPopup,
+  MenuItem,
+} from './ui/menu'
 
 function formatRelativeTime(timestamp: number): string {
   const seconds = Math.floor((Date.now() - timestamp) / 1000)
@@ -22,6 +30,7 @@ export interface CommentOverlayProps {
   onAddReply: (id: string, text: string) => void
   onDelete: (id: string) => void
   onExport: (id: string) => Promise<boolean>
+  onSendToAgent: (id: string) => Promise<boolean>
 }
 
 export function CommentOverlay({
@@ -32,6 +41,7 @@ export function CommentOverlay({
   onAddReply,
   onDelete,
   onExport,
+  onSendToAgent,
 }: CommentOverlayProps) {
   if (comments.length === 0) return null
 
@@ -49,6 +59,7 @@ export function CommentOverlay({
           onAddReply={(text) => onAddReply(comment.id, text)}
           onDelete={() => onDelete(comment.id)}
           onExport={() => onExport(comment.id)}
+          onSendToAgent={() => onSendToAgent(comment.id)}
         />
       ))}
     </>
@@ -65,6 +76,7 @@ interface CommentPinProps {
   onAddReply: (text: string) => void
   onDelete: () => void
   onExport: () => Promise<boolean>
+  onSendToAgent: () => Promise<boolean>
 }
 
 function CommentPin({
@@ -77,6 +89,7 @@ function CommentPin({
   onAddReply,
   onDelete,
   onExport,
+  onSendToAgent,
 }: CommentPinProps) {
   const [position, setPosition] = React.useState(comment.clickPosition)
   const [flipHorizontal, setFlipHorizontal] = React.useState(false)
@@ -152,6 +165,7 @@ function CommentPin({
             onAddReply={onAddReply}
             onDelete={onDelete}
             onExport={onExport}
+            onSendToAgent={onSendToAgent}
           />
         )
       )}
@@ -232,6 +246,7 @@ interface CommentThreadProps {
   onAddReply: (text: string) => void
   onDelete: () => void
   onExport: () => Promise<boolean>
+  onSendToAgent: () => Promise<boolean>
 }
 
 function CommentThread({
@@ -244,9 +259,11 @@ function CommentThread({
   onAddReply,
   onDelete,
   onExport,
+  onSendToAgent,
 }: CommentThreadProps) {
   const [replyText, setReplyText] = React.useState('')
   const [copied, setCopied] = React.useState(false)
+  const [sendStatus, setSendStatus] = React.useState<'idle' | 'sending' | 'sent' | 'offline'>('idle')
   const inputRef = React.useRef<HTMLInputElement>(null)
 
   React.useEffect(() => {
@@ -258,6 +275,19 @@ function CommentThread({
     if (success) {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
+    }
+  }
+
+  const handleSendToAgent = async () => {
+    if (sendStatus === 'sending') return
+    setSendStatus('sending')
+    const success = await onSendToAgent()
+    if (success) {
+      setSendStatus('sent')
+      setTimeout(() => setSendStatus('idle'), 2000)
+    } else {
+      setSendStatus('offline')
+      setTimeout(() => setSendStatus('idle'), 2000)
     }
   }
 
@@ -290,14 +320,42 @@ function CommentThread({
           <ChevronLeft className="size-3.5" />
         </button>
         <div className="flex items-center gap-0.5">
-          <button
-            type="button"
-            className="flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-            onClick={handleCopy}
-            title="Copy"
-          >
-            {copied ? <Check className="size-3.5 text-green-500" /> : <Copy className="size-3.5" />}
-          </button>
+          <Menu>
+            <MenuTrigger
+              className="flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              title="Export"
+            >
+              {copied ? (
+                <Check className="size-3.5 text-green-500" />
+              ) : sendStatus === 'sent' ? (
+                <Check className="size-3.5 text-green-500" />
+              ) : sendStatus === 'offline' ? (
+                <X className="size-3.5 text-red-500" />
+              ) : (
+                <Copy className="size-3.5" />
+              )}
+            </MenuTrigger>
+            <MenuPortal>
+              <MenuPositioner side="bottom" sideOffset={4} align="end" className="z-[99999]">
+                <MenuPopup className="min-w-[140px] overflow-hidden rounded-lg border-0 bg-popover p-1 text-popover-foreground shadow-lg animate-in fade-in-0 zoom-in-95">
+                  <MenuItem
+                    className="flex cursor-default select-none items-center gap-2 rounded-md px-2 py-1.5 text-xs outline-none hover:bg-muted data-[highlighted]:bg-muted"
+                    onClick={handleCopy}
+                  >
+                    <Copy className="size-3.5" />
+                    Copy
+                  </MenuItem>
+                  <MenuItem
+                    className="flex cursor-default select-none items-center gap-2 rounded-md px-2 py-1.5 text-xs outline-none hover:bg-muted data-[highlighted]:bg-muted"
+                    onClick={handleSendToAgent}
+                  >
+                    <Send className="size-3.5" />
+                    Send to Agent
+                  </MenuItem>
+                </MenuPopup>
+              </MenuPositioner>
+            </MenuPortal>
+          </Menu>
           <button
             type="button"
             className="flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"

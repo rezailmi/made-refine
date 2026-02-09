@@ -25,6 +25,7 @@ import type {
   MeasurementLine,
   Guideline,
   DropIndicator,
+  SessionEdit,
 } from './types'
 
 declare global {
@@ -1529,6 +1530,11 @@ function getReactComponentStack(element: HTMLElement): ReactComponentFrame[] {
   return getRenderStack(fiber)
 }
 
+export function getElementDisplayName(element: HTMLElement): string {
+  const stack = getReactComponentStack(element)
+  return stack[0]?.name ?? element.tagName.toLowerCase()
+}
+
 const STABLE_ATTRIBUTES = ['data-testid', 'data-qa', 'data-cy', 'aria-label', 'role'] as const
 const MAX_SELECTOR_DEPTH = 4
 
@@ -1997,6 +2003,36 @@ export function buildCommentExport(
   }
 
   return lines.join('\n')
+}
+
+function formatPosition(
+  siblingBefore: string | null,
+  siblingAfter: string | null
+): string {
+  if (siblingBefore && siblingAfter) return `after <${siblingBefore}>`
+  if (siblingBefore && !siblingAfter) return `after <${siblingBefore}> (last)`
+  if (!siblingBefore && siblingAfter) return `before <${siblingAfter}> (first)`
+  return '(only child)'
+}
+
+export function buildSessionExport(edits: SessionEdit[]): string {
+  const blocks: string[] = []
+
+  for (const edit of edits) {
+    let block = buildEditExport(edit.locator, edit.pendingStyles)
+    if (edit.move) {
+      const fromPosition = formatPosition(edit.move.fromSiblingBefore, edit.move.fromSiblingAfter)
+      const toPosition = formatPosition(edit.move.toSiblingBefore, edit.move.toSiblingAfter)
+      if (edit.move.fromParentName === edit.move.toParentName) {
+        block += `\nmoved: in <${edit.move.toParentName}>, from ${fromPosition} to ${toPosition}`
+      } else {
+        block += `\nmoved: from <${edit.move.fromParentName}> ${fromPosition} to <${edit.move.toParentName}> ${toPosition}`
+      }
+    }
+    blocks.push(block)
+  }
+
+  return blocks.join('\n\n---\n\n')
 }
 
 export type {
