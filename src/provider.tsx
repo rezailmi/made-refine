@@ -37,6 +37,7 @@ import {
   getComputedColorStyles,
   colorPropertyToCSSMap,
   getComputedTypography,
+  buildElementContext,
   buildEditExport,
   buildCommentExport,
   buildSessionExport,
@@ -227,6 +228,11 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
       activeCommentId: prev.activeCommentId,
       textEditingElement: null,
     }))
+
+    // Auto-copy element context to clipboard on selection
+    const locator = getElementLocator(element)
+    const context = buildElementContext(locator)
+    navigator.clipboard.writeText(`implement the visual edits\n\n${context}`).catch(() => {})
   }, [pushUndo, saveCurrentToSession])
 
   const finalizeTextEditing = React.useCallback((editingElement: HTMLElement) => {
@@ -948,7 +954,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
 
     const exportMarkdown = buildCommentExport(comment.locator, comment.text, comment.replies)
     try {
-      await navigator.clipboard.writeText(exportMarkdown)
+      await navigator.clipboard.writeText(`implement the visual edits\n\n${exportMarkdown}`)
       return true
     } catch {
       return false
@@ -1040,7 +1046,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     if (edits.length === 0) return false
     const text = buildSessionExport(edits)
     try {
-      await navigator.clipboard.writeText(text)
+      await navigator.clipboard.writeText(`implement the visual edits\n\n${text}`)
       return true
     } catch {
       return false
@@ -1126,12 +1132,13 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     const sessionEdit = sessionEditsRef.current.get(state.selectedElement)
     const hasPendingStyles = Object.keys(state.pendingStyles).length > 0
     const hasTextEdit = Boolean(sessionEdit?.textEdit)
-    if (!hasPendingStyles && !hasTextEdit) return false
 
     const locator = getElementLocator(state.selectedElement)
-    const exportMarkdown = buildEditExport(locator, state.pendingStyles, sessionEdit?.textEdit)
+    const exportMarkdown = hasPendingStyles || hasTextEdit
+      ? buildEditExport(locator, state.pendingStyles, sessionEdit?.textEdit)
+      : buildElementContext(locator)
     try {
-      await navigator.clipboard.writeText(exportMarkdown)
+      await navigator.clipboard.writeText(`implement the visual edits\n\n${exportMarkdown}`)
       return true
     } catch {
       return false

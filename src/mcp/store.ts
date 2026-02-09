@@ -8,6 +8,7 @@ const RESOLVED_TTL_MS = 5 * 60 * 1000
 
 class EditStore {
   private annotations: Map<string, VisualAnnotation> = new Map()
+  private resolvedAt: Map<string, number> = new Map()
   private listeners: Set<UpdateListener> = new Set()
 
   add(annotation: VisualAnnotation): void {
@@ -16,7 +17,10 @@ class EditStore {
       // Evict oldest resolved/dismissed first, then oldest overall
       const evicted =
         this.findOldestByStatus(['applied', 'dismissed']) ?? this.findOldest()
-      if (evicted) this.annotations.delete(evicted)
+      if (evicted) {
+        this.annotations.delete(evicted)
+        this.resolvedAt.delete(evicted)
+      }
     }
     this.annotations.set(annotation.id, annotation)
     this.notify(annotation)
@@ -39,6 +43,9 @@ class EditStore {
     const annotation = this.annotations.get(id)
     if (!annotation) return false
     annotation.status = status
+    if (status === 'applied' || status === 'dismissed') {
+      this.resolvedAt.set(id, Date.now())
+    }
     return true
   }
 
@@ -59,11 +66,12 @@ class EditStore {
   private prune(): void {
     const cutoff = Date.now() - RESOLVED_TTL_MS
     for (const [id, annotation] of this.annotations) {
-      if (
-        (annotation.status === 'applied' || annotation.status === 'dismissed') &&
-        annotation.timestamp < cutoff
-      ) {
-        this.annotations.delete(id)
+      if (annotation.status === 'applied' || annotation.status === 'dismissed') {
+        const resolved = this.resolvedAt.get(id) ?? annotation.timestamp
+        if (resolved < cutoff) {
+          this.annotations.delete(id)
+          this.resolvedAt.delete(id)
+        }
       }
     }
   }
