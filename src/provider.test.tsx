@@ -4,8 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DirectEditProvider, useDirectEdit } from './provider'
 
 const { sendEditToAgentMock, sendCommentToAgentMock } = vi.hoisted(() => ({
-  sendEditToAgentMock: vi.fn(async () => ({ ok: true, id: 'edit-1' })),
-  sendCommentToAgentMock: vi.fn(async () => ({ ok: true, id: 'comment-1' })),
+  sendEditToAgentMock: vi.fn<(...args: unknown[]) => Promise<{ ok: boolean; id: string }>>().mockResolvedValue({ ok: true, id: 'edit-1' }),
+  sendCommentToAgentMock: vi.fn<(...args: unknown[]) => Promise<{ ok: boolean; id: string }>>().mockResolvedValue({ ok: true, id: 'comment-1' }),
 }))
 
 vi.mock('./mcp-client', () => ({
@@ -35,7 +35,7 @@ function createTarget(id: string, styleText = ''): HTMLElement {
 }
 
 function mockClipboard() {
-  const writeText = vi.fn(async () => undefined)
+  const writeText = vi.fn<(...args: unknown[]) => Promise<void>>().mockResolvedValue(undefined)
   Object.defineProperty(window.navigator, 'clipboard', {
     configurable: true,
     value: { writeText },
