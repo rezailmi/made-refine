@@ -109,6 +109,28 @@ describe('useGuidelines', () => {
     expect(result.current.dragPosition).toBe(85)
     expect(result.current.guidelines[0].position).toBe(85)
   })
+
+  it('deletes an existing guideline when dropped inside ruler zone', () => {
+    localStorage.setItem(
+      'direct-edit-guidelines',
+      JSON.stringify([{ id: 'gl-2', orientation: 'horizontal', position: 80 }]),
+    )
+
+    const { result } = renderHook(() => useGuidelines(true))
+
+    expect(result.current.guidelines).toHaveLength(1)
+
+    act(() => {
+      result.current.startDrag('gl-2')
+    })
+
+    act(() => {
+      dispatchPointerEvent('pointerup', { y: 10 })
+    })
+
+    expect(result.current.guidelines).toHaveLength(0)
+    expect(result.current.activeGuideline).toBeNull()
+  })
 })
 
 describe('useRulersVisible', () => {
