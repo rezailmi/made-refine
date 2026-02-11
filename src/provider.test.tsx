@@ -76,6 +76,7 @@ describe('DirectEditProvider', () => {
   })
 
   it('selects an element, updates styles, supports undo, and resets to original', async () => {
+    mockClipboard()
     const target = createTarget('card', 'padding-top: 8px; margin-left: 4px;')
     const { result } = renderHook(() => useDirectEdit(), { wrapper })
 
@@ -185,6 +186,9 @@ describe('DirectEditProvider', () => {
       expect(result.current.selectedElement).toBe(target)
     })
 
+    // Reset after selectElement's auto-copy to clipboard
+    clipboardWrite.mockClear()
+
     act(() => {
       result.current.updateSpacingProperty('paddingTop', cssValue(12))
     })
@@ -257,6 +261,9 @@ describe('DirectEditProvider', () => {
     await waitFor(() => {
       expect(result.current.selectedElement).toBe(target)
     })
+
+    // Reset after selectElement's auto-copy to clipboard
+    clipboardWrite.mockClear()
 
     act(() => {
       result.current.updateSpacingProperty('paddingTop', cssValue(20))

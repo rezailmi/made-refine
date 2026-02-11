@@ -33,7 +33,11 @@ import { useMeasurement } from './use-measurement'
 import { MeasurementOverlay } from './measurement-overlay'
 import { useMove } from './use-move'
 import { getStoredGuidelines } from './use-guidelines'
-import { calculateGuidelineMeasurements, isTextElement } from './utils'
+import {
+  calculateGuidelineMeasurements, isTextElement,
+  resolveElementTarget, computeHoverHighlight,
+  elementFromPointWithoutOverlays, findChildAtPoint,
+} from './utils'
 import { MoveOverlay } from './move-overlay'
 import { SelectionOverlay } from './selection-overlay'
 import { CommentOverlay } from './comment-overlay'
@@ -2007,120 +2011,29 @@ function DirectEditPanelContent() {
         onDoubleClick={(e) => {
           e.preventDefault()
           if (activeTool !== 'select') return
-
-          const el = e.currentTarget
-          el.style.pointerEvents = 'none'
-          const elementUnder = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null
-          el.style.pointerEvents = textEditingElement ? 'none' : 'auto'
-
+          const elementUnder = elementFromPointWithoutOverlays(e.clientX, e.clientY)
           if (elementUnder && elementUnder !== document.body && elementUnder !== document.documentElement) {
-            let resolvedElement: HTMLElement = elementUnder
-            let current: HTMLElement | null = elementUnder
-            while (current && current !== document.body) {
-              const parent: HTMLElement | null = current.parentElement
-              if (parent) {
-                const display = getComputedStyle(parent).display
-                if (display === 'flex' || display === 'inline-flex') {
-                  resolvedElement = current
-                  break
-                }
-              }
-              current = parent
-            }
-
-            if (isTextElement(resolvedElement)) {
-              if (selectedElement !== resolvedElement) {
-                selectElement(resolvedElement)
-              }
-              startTextEditing(resolvedElement)
+            const resolved = resolveElementTarget(elementUnder, selectedElement)
+            if (isTextElement(resolved)) {
+              if (selectedElement !== resolved) selectElement(resolved)
+              startTextEditing(resolved)
             }
           }
         }}
         onMouseMove={(e) => {
-          const el = e.currentTarget
-          el.style.pointerEvents = 'none'
-          const elementUnder = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null
-          el.style.pointerEvents = 'auto'
-
-          if (
-            elementUnder &&
-            elementUnder !== document.body &&
-            elementUnder !== document.documentElement &&
-            !elementUnder.closest('[data-direct-edit]') &&
-            !elementUnder.closest('[data-direct-edit-host]') &&
-            elementUnder !== selectedElement
-          ) {
-            // Check if elementUnder itself is a flex container
-            const ownDisplay = getComputedStyle(elementUnder).display
-            if (ownDisplay === 'flex' || ownDisplay === 'inline-flex') {
-              setHoverHighlight({
-                flexContainer: elementUnder,
-                children: Array.from(elementUnder.children).filter(
-                  (child): child is HTMLElement => child instanceof HTMLElement
-                ),
-              })
-              return
-            }
-
-            // Walk up to find a flex parent
-            let current: HTMLElement | null = elementUnder
-            while (current && current !== document.body) {
-              const parent: HTMLElement | null = current.parentElement
-              if (parent) {
-                const display = getComputedStyle(parent).display
-                if (display === 'flex' || display === 'inline-flex') {
-                  setHoverHighlight({
-                    flexContainer: parent,
-                    children: Array.from(parent.children).filter(
-                      (child): child is HTMLElement => child instanceof HTMLElement
-                    ),
-                  })
-                  return
-                }
-              }
-              current = parent
-            }
-            setHoverHighlight({ flexContainer: elementUnder, children: [] })
-          } else {
-            setHoverHighlight(null)
-          }
+          const elementUnder = elementFromPointWithoutOverlays(e.clientX, e.clientY)
+          setHoverHighlight(computeHoverHighlight(elementUnder, selectedElement))
         }}
         onMouseLeave={() => setHoverHighlight(null)}
         onClick={(e) => {
           e.preventDefault()
           setHoverHighlight(null)
-
-          if (activeCommentId) {
-            setActiveCommentId(null)
-            return
-          }
-
-          const el = e.currentTarget
-          el.style.pointerEvents = 'none'
-          const elementUnder = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null
-          el.style.pointerEvents = 'auto'
-
+          if (activeCommentId) { setActiveCommentId(null); return }
+          const elementUnder = elementFromPointWithoutOverlays(e.clientX, e.clientY)
           if (elementUnder && elementUnder !== document.body && elementUnder !== document.documentElement) {
-            // Resolve target element using flex walk-up (shared by select and comment tools)
-            let resolvedElement: HTMLElement = elementUnder
-            let current: HTMLElement | null = elementUnder
-            while (current && current !== document.body) {
-              const parent: HTMLElement | null = current.parentElement
-              if (parent) {
-                const display = getComputedStyle(parent).display
-                if (display === 'flex' || display === 'inline-flex') {
-                  resolvedElement = current
-                  break
-                }
-              }
-              current = parent
-            }
-
-            if (activeTool === 'comment') {
-              addComment(resolvedElement, { x: e.clientX, y: e.clientY })
-            } else {
-              selectElement(resolvedElement)
-            }
+            const resolved = resolveElementTarget(elementUnder, selectedElement)
+            if (activeTool === 'comment') addComment(resolved, { x: e.clientX, y: e.clientY })
+            else selectElement(resolved)
           }
         }}
       />
@@ -2200,9 +2113,36 @@ function DirectEditPanelContent() {
           ghostPosition={dragState.ghostPosition}
           onMoveStart={handleMoveStart}
           isTextEditing={Boolean(textEditingElement)}
-          onDoubleClick={() => {
-            if (selectedElement) {
+          onDoubleClick={(clientX, clientY) => {
+            if (!selectedElement) return
+            if (isTextElement(selectedElement)) {
               startTextEditing(selectedElement)
+              return
+            }
+            const elementUnder = elementFromPointWithoutOverlays(clientX, clientY)
+            if (elementUnder && elementUnder !== selectedElement && selectedElement.contains(elementUnder)) {
+              const resolved = resolveElementTarget(elementUnder, selectedElement)
+              if (isTextElement(resolved)) {
+                selectElement(resolved)
+                startTextEditing(resolved)
+              }
+            }
+          }}
+          onHoverElement={(element) => {
+            setHoverHighlight(computeHoverHighlight(element, selectedElement))
+          }}
+          onClickThrough={(clientX, clientY) => {
+            if (!selectedElement) return
+            const elementUnder = elementFromPointWithoutOverlays(clientX, clientY)
+            if (!elementUnder) return
+            if (elementUnder !== selectedElement && selectedElement.contains(elementUnder)) {
+              const resolved = resolveElementTarget(elementUnder, selectedElement)
+              selectElement(resolved)
+              return
+            }
+            const child = findChildAtPoint(selectedElement, clientX, clientY)
+            if (child) {
+              selectElement(child)
             }
           }}
         />
