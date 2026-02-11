@@ -245,6 +245,8 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
 
     editingElement.removeAttribute('contenteditable')
     editingElement.removeAttribute('data-direct-edit-original-text')
+    editingElement.style.outline = ''
+    editingElement.style.outlineOffset = ''
     editingElement.blur()
 
     if (newText !== previousText) {
@@ -984,6 +986,8 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     element.setAttribute('data-direct-edit-original-text', originalText)
 
     element.setAttribute('contenteditable', 'true')
+    element.style.outline = '1px solid #0D99FF'
+    element.style.outlineOffset = '0px'
     element.focus()
 
     // Select all text for easy replacement

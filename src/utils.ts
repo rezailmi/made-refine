@@ -545,9 +545,18 @@ const TEXT_ELEMENT_TAGS = new Set([
   'legend', 'dt', 'dd', 'abbr', 'cite', 'code', 'pre',
 ])
 
+function hasDirectNonWhitespaceText(element: HTMLElement): boolean {
+  return Array.from(element.childNodes).some(
+    (node) => node.nodeType === Node.TEXT_NODE && Boolean(node.textContent?.trim())
+  )
+}
+
 export function isTextElement(element: HTMLElement): boolean {
   const tagName = element.tagName.toLowerCase()
   if (TEXT_ELEMENT_TAGS.has(tagName)) {
+    return true
+  }
+  if (hasDirectNonWhitespaceText(element)) {
     return true
   }
   if (element.children.length === 0 && element.textContent?.trim()) {
@@ -1274,6 +1283,193 @@ export function detectChildrenDirection(
     return { axis: 'horizontal', reversed: second.right < first.left }
   }
   return { axis: 'vertical', reversed: second.bottom < first.top }
+}
+
+function htmlChildren(el: HTMLElement): HTMLElement[] {
+  return Array.from(el.children).filter(
+    (child): child is HTMLElement => child instanceof HTMLElement
+  )
+}
+
+/** Walk up from `element` to find the nearest flex/inline-flex ancestor, stopping at `boundary`. */
+function findFlexAncestor(
+  element: HTMLElement,
+  boundary: HTMLElement | null,
+): { flexParent: HTMLElement; child: HTMLElement } | null {
+  let current: HTMLElement | null = element
+  while (current && current !== document.body) {
+    const parent: HTMLElement | null = current.parentElement
+    if (!parent) break
+    const display = getComputedStyle(parent).display
+    if (display === 'flex' || display === 'inline-flex') {
+      return { flexParent: parent, child: current }
+    }
+    if (boundary && parent === boundary) break
+    current = parent
+  }
+  return null
+}
+
+export function computeHoverHighlight(
+  elementUnder: HTMLElement | null,
+  selectedElement: HTMLElement | null,
+): { flexContainer: HTMLElement; children: HTMLElement[] } | null {
+  if (
+    !elementUnder ||
+    elementUnder === document.body ||
+    elementUnder === document.documentElement ||
+    elementUnder.closest('[data-direct-edit]') ||
+    elementUnder.closest('[data-direct-edit-host]') ||
+    elementUnder === selectedElement
+  ) {
+    return null
+  }
+
+  // When hovering descendants of the selected element, stop walk-up at the boundary
+  const boundary = selectedElement?.contains(elementUnder) ? selectedElement : null
+
+  const ownDisplay = getComputedStyle(elementUnder).display
+  if (ownDisplay === 'flex' || ownDisplay === 'inline-flex') {
+    return { flexContainer: elementUnder, children: htmlChildren(elementUnder) }
+  }
+
+  const found = findFlexAncestor(elementUnder, boundary)
+  if (found) {
+    return { flexContainer: found.flexParent, children: htmlChildren(found.flexParent) }
+  }
+
+  return { flexContainer: elementUnder, children: [] }
+}
+
+export function resolveElementTarget(
+  elementUnder: HTMLElement,
+  selectedElement: HTMLElement | null,
+): HTMLElement {
+  const boundary = selectedElement?.contains(elementUnder) ? selectedElement : null
+  const found = findFlexAncestor(elementUnder, boundary)
+  if (found && found.flexParent === boundary) return elementUnder
+  return found?.child ?? elementUnder
+}
+
+/** Finds the text-owning element at a point within `boundary` using browser caret hit-testing. */
+export function findTextOwnerAtPoint(
+  boundary: HTMLElement,
+  clientX: number,
+  clientY: number,
+): HTMLElement | null {
+  const doc = document as Document & {
+    caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node } | null
+    caretRangeFromPoint?: (x: number, y: number) => Range | null
+  }
+
+  const caretNode =
+    doc.caretPositionFromPoint?.(clientX, clientY)?.offsetNode
+    ?? doc.caretRangeFromPoint?.(clientX, clientY)?.startContainer
+    ?? null
+  if (!caretNode || caretNode.nodeType !== Node.TEXT_NODE) return null
+
+  const textNode = caretNode as Text
+  if (!(textNode.nodeValue ?? '').trim()) return null
+
+  const owner = textNode.parentElement
+  if (!owner || !boundary.contains(owner)) return null
+  if (owner.closest('[data-direct-edit]') || owner.closest('[data-direct-edit-host]')) return null
+
+  // Guard against caret APIs returning nearby text nodes.
+  const range = document.createRange()
+  range.selectNodeContents(textNode)
+  const hitsText = Array.from(range.getClientRects()).some(
+    (r) => clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom
+  )
+  range.detach?.()
+  return hitsText ? owner : null
+}
+
+/** Fallback text hit-testing by scanning text nodes and rendered rects within `boundary`. */
+export function findTextOwnerByRangeScan(
+  boundary: HTMLElement,
+  clientX: number,
+  clientY: number,
+): HTMLElement | null {
+  const walker = document.createTreeWalker(boundary, NodeFilter.SHOW_TEXT)
+  let current: Node | null = walker.nextNode()
+
+  while (current) {
+    const textNode = current as Text
+    if ((textNode.nodeValue ?? '').trim()) {
+      const owner = textNode.parentElement
+      if (
+        owner &&
+        boundary.contains(owner) &&
+        !owner.closest('[data-direct-edit]') &&
+        !owner.closest('[data-direct-edit-host]')
+      ) {
+        const range = document.createRange()
+        range.selectNodeContents(textNode)
+        const hitsText = Array.from(range.getClientRects()).some(
+          (r) => clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom
+        )
+        range.detach?.()
+        if (hitsText) return owner
+      }
+    }
+    current = walker.nextNode()
+  }
+
+  return null
+}
+
+/** Wrap the direct text node under the point into a span so it becomes independently selectable. */
+export function ensureDirectTextSpanAtPoint(
+  parent: HTMLElement,
+  clientX: number,
+  clientY: number,
+): HTMLElement | null {
+  const directTextNodes = Array.from(parent.childNodes).filter(
+    (node): node is Text => node.nodeType === Node.TEXT_NODE && Boolean(node.textContent?.trim())
+  )
+
+  for (const textNode of directTextNodes) {
+    const range = document.createRange()
+    range.selectNodeContents(textNode)
+    const hitsText = Array.from(range.getClientRects()).some(
+      (r) => clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom
+    )
+    range.detach?.()
+
+    if (!hitsText) continue
+
+    const span = document.createElement('span')
+    span.setAttribute('data-direct-edit-generated', 'text-span')
+    span.textContent = textNode.textContent ?? ''
+    parent.replaceChild(span, textNode)
+    return span
+  }
+
+  return null
+}
+
+/** When elementFromPoint returns the selected element (bare text, padding, gap),
+ *  find the best child element to drill into at the given coordinates. */
+export function findChildAtPoint(
+  parent: HTMLElement,
+  clientX: number,
+  clientY: number,
+): HTMLElement | null {
+  const children = htmlChildren(parent)
+  if (children.length === 0) return null
+
+  // Direct hit: child whose bbox contains the click
+  const hit = children.find((child) => {
+    const r = child.getBoundingClientRect()
+    return clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom
+  })
+  if (hit) return hit
+
+  // Single-child fallback should not steal clicks from parent's direct text.
+  if (children.length === 1 && !hasDirectNonWhitespaceText(parent)) return children[0]
+
+  return null
 }
 
 export function elementFromPointWithoutOverlays(x: number, y: number): HTMLElement | null {

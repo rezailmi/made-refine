@@ -186,6 +186,9 @@ describe('DirectEditProvider', () => {
       expect(result.current.selectedElement).toBe(target)
     })
 
+    // Reset after selectElement's auto-copy to clipboard
+    clipboardWrite.mockClear()
+
     act(() => {
       result.current.updateSpacingProperty('paddingTop', cssValue(12))
     })
@@ -259,6 +262,9 @@ describe('DirectEditProvider', () => {
     await waitFor(() => {
       expect(result.current.selectedElement).toBe(target)
     })
+
+    // Reset after selectElement's auto-copy to clipboard
+    clipboardWrite.mockClear()
 
     act(() => {
       result.current.updateSpacingProperty('paddingTop', cssValue(20))

@@ -1,7 +1,9 @@
 import * as React from 'react'
+import { elementFromPointWithoutOverlays } from './utils'
 
 const BLUE = '#0D99FF'
 const DRAG_THRESHOLD = 4
+const DBLCLICK_DELAY = 300
 
 export interface SelectionOverlayProps {
   selectedElement: HTMLElement
@@ -9,7 +11,9 @@ export interface SelectionOverlayProps {
   ghostPosition?: { x: number; y: number }
   onMoveStart: (e: React.PointerEvent) => void
   isTextEditing?: boolean
-  onDoubleClick?: () => void
+  onDoubleClick?: (clientX: number, clientY: number) => void
+  onHoverElement?: (element: HTMLElement | null) => void
+  onClickThrough?: (clientX: number, clientY: number) => void
 }
 
 export function SelectionOverlay({
@@ -19,9 +23,12 @@ export function SelectionOverlay({
   onMoveStart,
   isTextEditing,
   onDoubleClick,
+  onHoverElement,
+  onClickThrough,
 }: SelectionOverlayProps) {
   const [rect, setRect] = React.useState(() => selectedElement.getBoundingClientRect())
   const cleanupRef = React.useRef<(() => void) | null>(null)
+  const clickThroughTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
 
   React.useEffect(() => {
     function updateRect() {
@@ -48,14 +55,22 @@ export function SelectionOverlay({
   }, [selectedElement])
 
   React.useEffect(() => {
-    return () => { cleanupRef.current?.() }
+    return () => {
+      cleanupRef.current?.()
+      if (clickThroughTimerRef.current) clearTimeout(clickThroughTimerRef.current)
+    }
   }, [])
 
   const handlePointerDown = (e: React.PointerEvent) => {
+    if (e.button !== 0) return
     e.stopPropagation()
     // No preventDefault — allows browser to generate native dblclick events
 
     cleanupRef.current?.()
+    if (clickThroughTimerRef.current) {
+      clearTimeout(clickThroughTimerRef.current)
+      clickThroughTimerRef.current = null
+    }
 
     const origin = { x: e.clientX, y: e.clientY }
     const savedEvent = e
@@ -69,8 +84,15 @@ export function SelectionOverlay({
       }
     }
 
-    const onUp = () => {
+    const onUp = (upEvent: PointerEvent) => {
       cleanup()
+      if (onClickThrough) {
+        const { clientX, clientY } = upEvent
+        clickThroughTimerRef.current = setTimeout(() => {
+          clickThroughTimerRef.current = null
+          onClickThrough(clientX, clientY)
+        }, DBLCLICK_DELAY)
+      }
     }
 
     const cleanup = () => {
@@ -88,7 +110,21 @@ export function SelectionOverlay({
     e.preventDefault()
     e.stopPropagation()
     cleanupRef.current?.()
-    onDoubleClick?.()
+    if (clickThroughTimerRef.current) {
+      clearTimeout(clickThroughTimerRef.current)
+      clickThroughTimerRef.current = null
+    }
+    onDoubleClick?.(e.clientX, e.clientY)
+  }
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!onHoverElement) return
+    const elementUnder = elementFromPointWithoutOverlays(e.clientX, e.clientY)
+    onHoverElement(elementUnder)
+  }
+
+  const handleMouseLeave = () => {
+    onHoverElement?.(null)
   }
 
   const displayX = isDragging && ghostPosition ? ghostPosition.x : rect.left
@@ -107,15 +143,17 @@ export function SelectionOverlay({
           zIndex: 99996,
         }}
       >
-        <rect
-          x={displayX}
-          y={displayY}
-          width={rect.width}
-          height={rect.height}
-          fill="transparent"
-          stroke={BLUE}
-          strokeWidth={2}
-        />
+        {!isTextEditing && (
+          <rect
+            x={displayX}
+            y={displayY}
+            width={rect.width}
+            height={rect.height}
+            fill="transparent"
+            stroke={BLUE}
+            strokeWidth={1}
+          />
+        )}
       </svg>
 
       {!isDragging && !isTextEditing && (
@@ -133,6 +171,8 @@ export function SelectionOverlay({
           }}
           onPointerDown={handlePointerDown}
           onDoubleClick={handleDoubleClick}
+          onMouseMove={handleMouseMove}
+          onMouseLeave={handleMouseLeave}
         />
       )}
     </>

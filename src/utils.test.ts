@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
-import { getComputedColorStyles, stylesToTailwind } from './utils'
+import { describe, expect, it, vi } from 'vitest'
+import { ensureDirectTextSpanAtPoint, getComputedColorStyles, stylesToTailwind } from './utils'
 
 describe('getComputedColorStyles', () => {
   it('uses the first visible side when top border is not visible', () => {
@@ -140,5 +140,77 @@ describe('stylesToTailwind', () => {
     it('maps text-align', () => {
       expect(stylesToTailwind({ 'text-align': 'center' })).toBe('text-center')
     })
+  })
+})
+
+describe('ensureDirectTextSpanAtPoint', () => {
+  it('wraps the direct text node hit by point', () => {
+    const parent = document.createElement('div')
+    const text = document.createTextNode('Priority support')
+    parent.appendChild(text)
+    document.body.appendChild(parent)
+
+    let selected: Text | null = null
+    const spy = vi.spyOn(document, 'createRange').mockImplementation(() => ({
+      selectNodeContents: (node: Node) => { selected = node as Text },
+      getClientRects: () => {
+        if (selected !== text) return []
+        return [{
+          left: 10,
+          top: 10,
+          right: 150,
+          bottom: 30,
+          width: 140,
+          height: 20,
+          x: 10,
+          y: 10,
+          toJSON: () => ({}),
+        }]
+      },
+      detach: () => {},
+    }) as unknown as Range)
+
+    const span = ensureDirectTextSpanAtPoint(parent, 20, 20)
+    expect(span).not.toBeNull()
+    expect(span?.tagName.toLowerCase()).toBe('span')
+    expect(span?.textContent).toBe('Priority support')
+    expect(parent.firstChild).toBe(span)
+
+    spy.mockRestore()
+    parent.remove()
+  })
+
+  it('returns null when click misses direct text rects', () => {
+    const parent = document.createElement('div')
+    const text = document.createTextNode('Custom domains')
+    parent.appendChild(text)
+    document.body.appendChild(parent)
+
+    let selected: Text | null = null
+    const spy = vi.spyOn(document, 'createRange').mockImplementation(() => ({
+      selectNodeContents: (node: Node) => { selected = node as Text },
+      getClientRects: () => {
+        if (selected !== text) return []
+        return [{
+          left: 10,
+          top: 10,
+          right: 80,
+          bottom: 20,
+          width: 70,
+          height: 10,
+          x: 10,
+          y: 10,
+          toJSON: () => ({}),
+        }]
+      },
+      detach: () => {},
+    }) as unknown as Range)
+
+    const span = ensureDirectTextSpanAtPoint(parent, 200, 200)
+    expect(span).toBeNull()
+    expect(parent.firstChild).toBe(text)
+
+    spy.mockRestore()
+    parent.remove()
   })
 })
