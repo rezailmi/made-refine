@@ -10,12 +10,11 @@ const GUIDELINE_COLOR = '#FF6B6B'
 const HIT_ZONE = 9
 
 function useRulerColors() {
-  const [dark, setDark] = React.useState(() =>
-    typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches
-  )
+  const [dark, setDark] = React.useState(false)
 
   React.useEffect(() => {
     const mq = window.matchMedia('(prefers-color-scheme: dark)')
+    setDark(mq.matches)
     const handler = (e: MediaQueryListEvent) => setDark(e.matches)
     mq.addEventListener('change', handler)
     return () => mq.removeEventListener('change', handler)
@@ -59,13 +58,15 @@ function HorizontalRuler({
     const canvas = canvasRef.current
     if (!canvas) return
     const dpr = window.devicePixelRatio || 1
-    const width = viewportWidth - RULER_SIZE
+    const width = Math.max(0, viewportWidth - RULER_SIZE)
     const height = RULER_SIZE
 
     canvas.width = width * dpr
     canvas.height = height * dpr
     canvas.style.width = `${width}px`
     canvas.style.height = `${height}px`
+
+    if (width === 0) return
 
     const ctx = canvas.getContext('2d')
     if (!ctx) return
@@ -137,12 +138,14 @@ function VerticalRuler({
     if (!canvas) return
     const dpr = window.devicePixelRatio || 1
     const width = RULER_SIZE
-    const height = viewportHeight - RULER_SIZE
+    const height = Math.max(0, viewportHeight - RULER_SIZE)
 
     canvas.width = width * dpr
     canvas.height = height * dpr
     canvas.style.width = `${width}px`
     canvas.style.height = `${height}px`
+
+    if (height === 0) return
 
     const ctx = canvas.getContext('2d')
     if (!ctx) return
@@ -368,8 +371,9 @@ function GuidelineLine({
 // --- Viewport size hooks ---
 
 function useViewportWidth() {
-  const [width, setWidth] = React.useState(typeof window !== 'undefined' ? window.innerWidth : 0)
+  const [width, setWidth] = React.useState(0)
   React.useEffect(() => {
+    setWidth(window.innerWidth)
     const onResize = () => setWidth(window.innerWidth)
     window.addEventListener('resize', onResize)
     return () => window.removeEventListener('resize', onResize)
@@ -378,8 +382,9 @@ function useViewportWidth() {
 }
 
 function useViewportHeight() {
-  const [height, setHeight] = React.useState(typeof window !== 'undefined' ? window.innerHeight : 0)
+  const [height, setHeight] = React.useState(0)
   React.useEffect(() => {
+    setHeight(window.innerHeight)
     const onResize = () => setHeight(window.innerHeight)
     window.addEventListener('resize', onResize)
     return () => window.removeEventListener('resize', onResize)
@@ -391,6 +396,14 @@ function useViewportHeight() {
 
 export function RulersOverlay({ enabled }: { enabled: boolean }) {
   const container = usePortalContainer()
+
+  const hostElement = React.useMemo(() => {
+    if (!container) return null
+    const root = container.getRootNode()
+    if (root instanceof ShadowRoot) return root.host as HTMLElement
+    return null
+  }, [container])
+
   const {
     guidelines,
     activeGuideline,
@@ -399,7 +412,7 @@ export function RulersOverlay({ enabled }: { enabled: boolean }) {
     startCreate,
     startDrag,
     deleteGuideline,
-  } = useGuidelines(enabled)
+  } = useGuidelines(enabled, hostElement)
 
   if (!enabled || !container) return null
 
@@ -438,10 +451,13 @@ const RULERS_VISIBLE_KEY = 'direct-edit-rulers-visible'
 const RULERS_TOGGLE_EVENT = 'direct-edit-rulers-toggle'
 
 export function useRulersVisible(): [boolean, () => void] {
-  const [visible, setVisible] = React.useState(() => {
-    if (typeof window === 'undefined') return true
-    try { return localStorage.getItem(RULERS_VISIBLE_KEY) !== 'false' } catch { return true }
-  })
+  const [visible, setVisible] = React.useState(true)
+
+  React.useEffect(() => {
+    try {
+      if (localStorage.getItem(RULERS_VISIBLE_KEY) === 'false') setVisible(false)
+    } catch { /* ignore */ }
+  }, [])
 
   React.useEffect(() => {
     function handler(e: Event) {
@@ -472,6 +488,9 @@ export function Rulers() {
 
     function handleKeyDown(e: KeyboardEvent) {
       if (e.shiftKey && e.key === 'R' && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        const active = document.activeElement
+        const isInput = active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement || (active instanceof HTMLElement && active.isContentEditable)
+        if (isInput) return
         e.preventDefault()
         toggleRulers()
       }

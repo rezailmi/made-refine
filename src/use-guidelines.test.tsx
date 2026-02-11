@@ -1,5 +1,5 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useGuidelines, getStoredGuidelines } from './use-guidelines'
 import { useRulersVisible } from './rulers-overlay'
 
@@ -33,6 +33,7 @@ describe('useGuidelines', () => {
   })
 
   afterEach(() => {
+    vi.restoreAllMocks()
     resetStorage()
     document.body.innerHTML = ''
   })
@@ -86,7 +87,7 @@ describe('useGuidelines', () => {
     expect(result.current.activeGuideline).toBeNull()
   })
 
-  it('can start dragging an existing guideline and update position', () => {
+  it('can start dragging an existing guideline and update position', async () => {
     localStorage.setItem(
       'direct-edit-guidelines',
       JSON.stringify([{ id: 'gl-1', orientation: 'vertical', position: 40 }]),
@@ -94,7 +95,9 @@ describe('useGuidelines', () => {
 
     const { result } = renderHook(() => useGuidelines(true))
 
-    expect(result.current.guidelines).toHaveLength(1)
+    await waitFor(() => {
+      expect(result.current.guidelines).toHaveLength(1)
+    })
     expect(result.current.guidelines[0].position).toBe(40)
 
     act(() => {
@@ -110,7 +113,7 @@ describe('useGuidelines', () => {
     expect(result.current.guidelines[0].position).toBe(85)
   })
 
-  it('deletes an existing guideline when dropped inside ruler zone', () => {
+  it('deletes an existing guideline when dropped inside ruler zone', async () => {
     localStorage.setItem(
       'direct-edit-guidelines',
       JSON.stringify([{ id: 'gl-2', orientation: 'horizontal', position: 80 }]),
@@ -118,7 +121,9 @@ describe('useGuidelines', () => {
 
     const { result } = renderHook(() => useGuidelines(true))
 
-    expect(result.current.guidelines).toHaveLength(1)
+    await waitFor(() => {
+      expect(result.current.guidelines).toHaveLength(1)
+    })
 
     act(() => {
       result.current.startDrag('gl-2')
@@ -130,6 +135,30 @@ describe('useGuidelines', () => {
 
     expect(result.current.guidelines).toHaveLength(0)
     expect(result.current.activeGuideline).toBeNull()
+  })
+
+  it('does not write an empty snapshot before hydration completes', async () => {
+    const stored = [{ id: 'gl-hydrate', orientation: 'vertical', position: 42 }]
+    localStorage.setItem('direct-edit-guidelines', JSON.stringify(stored))
+    const setItemSpy = vi.spyOn(window.localStorage, 'setItem')
+
+    window.localStorage.setItem('probe', '1')
+    expect(setItemSpy).toHaveBeenCalledWith('probe', '1')
+    window.localStorage.removeItem('probe')
+    setItemSpy.mockClear()
+
+    renderHook(() => useGuidelines(true))
+
+    await waitFor(() => {
+      expect(setItemSpy).toHaveBeenCalledWith('direct-edit-guidelines', JSON.stringify(stored))
+    })
+
+    const guidelineWrites = setItemSpy.mock.calls.filter(
+      ([key]) => key === 'direct-edit-guidelines',
+    )
+
+    expect(guidelineWrites[0]?.[1]).toBe(JSON.stringify(stored))
+    expect(guidelineWrites.some(([, value]) => value === '[]')).toBe(false)
   })
 })
 
@@ -154,9 +183,11 @@ describe('useRulersVisible', () => {
     expect(localStorage.getItem('direct-edit-rulers-visible')).toBe('false')
   })
 
-  it('reads initial visibility from localStorage', () => {
+  it('reads initial visibility from localStorage', async () => {
     localStorage.setItem('direct-edit-rulers-visible', 'false')
     const { result } = renderHook(() => useRulersVisible())
-    expect(result.current[0]).toBe(false)
+    await waitFor(() => {
+      expect(result.current[0]).toBe(false)
+    })
   })
 })

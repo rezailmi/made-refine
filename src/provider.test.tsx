@@ -76,6 +76,7 @@ describe('DirectEditProvider', () => {
   })
 
   it('selects an element, updates styles, supports undo, and resets to original', async () => {
+    mockClipboard()
     const target = createTarget('card', 'padding-top: 8px; margin-left: 4px;')
     const { result } = renderHook(() => useDirectEdit(), { wrapper })
 
@@ -189,6 +190,7 @@ describe('DirectEditProvider', () => {
       result.current.updateSpacingProperty('paddingTop', cssValue(12))
     })
 
+    clipboardWrite.mockClear()
     const copied = await result.current.exportEdits()
     expect(copied).toBe(true)
     expect(clipboardWrite).toHaveBeenCalledTimes(1)
@@ -270,6 +272,7 @@ describe('DirectEditProvider', () => {
     expect(edits).toHaveLength(1)
     expect(edits[0].pendingStyles['padding-top']).toBe('20px')
 
+    clipboardWrite.mockClear()
     const copied = await result.current.exportAllEdits()
     expect(copied).toBe(true)
     expect(clipboardWrite).toHaveBeenCalledTimes(1)
