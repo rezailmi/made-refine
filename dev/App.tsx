@@ -82,7 +82,7 @@ export default function App() {
 
           {/* Colors */}
           <div style={{ border: `1px solid ${gray[200]}`, borderRadius: 12, padding: 24, backgroundColor: '#fff' }}>
-            <div style={{ fontSize: 13, fontWeight: 500, color: gray[500], marginBottom: 16, textTransform: 'uppercase' as const, letterSpacing: '0.05em' }}>Palette</div>
+            <div style={{ fontSize: 13, fontWeight: 500, color: gray[500], marginBottom: 16, letterSpacing: '0.05em' }}>Palette</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 16 }}>
               {[
                 { color: blue[500], name: 'Blue' },
@@ -92,8 +92,8 @@ export default function App() {
                 { color: amber, name: 'Amber' },
                 { color: rose, name: 'Rose' },
               ].map((swatch) => (
-                <div key={swatch.name}>
-                  <div style={{ height: 40, borderRadius: 6, background: swatch.color, marginBottom: 4 }} />
+                <div key={swatch.name} style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
+                  <div style={{ height: 40, borderRadius: 6, background: swatch.color, marginBottom: 4, width: 40 }} />
                   <div style={{ fontSize: 11, color: gray[500], textAlign: 'center' }}>{swatch.name}</div>
                 </div>
               ))}
