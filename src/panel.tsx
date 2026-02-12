@@ -43,7 +43,6 @@ import { SelectionOverlay } from './selection-overlay'
 import { CommentOverlay } from './comment-overlay'
 import {
   X,
-  RotateCcw,
   Copy,
   Check,
   ChevronUp,
@@ -81,7 +80,7 @@ import {
 
 const STORAGE_KEY = 'direct-edit-panel-position'
 const PANEL_WIDTH = 300
-const PANEL_HEIGHT = 560
+const PANEL_HEIGHT = 420
 
 const selectOnFocus = (e: React.FocusEvent<HTMLInputElement>) => e.target.select()
 
@@ -1485,6 +1484,95 @@ function CollapsibleSection({ title, actions, children }: CollapsibleSectionProp
   )
 }
 
+type SectionKey = 'layout' | 'radius' | 'border' | 'colors' | 'text'
+
+const SECTION_LABELS: Record<SectionKey, string> = {
+  layout: 'Layout',
+  radius: 'Radius',
+  border: 'Border',
+  colors: 'Colors',
+  text: 'Text',
+}
+
+function useSectionNav(sectionRefs: Record<SectionKey, React.RefObject<HTMLDivElement | null>>) {
+  const scrollRef = React.useRef<HTMLDivElement>(null)
+  const [activeSection, setActiveSection] = React.useState<SectionKey>('layout')
+
+  React.useEffect(() => {
+    const scrollEl = scrollRef.current
+    if (!scrollEl) return
+
+    const handleScroll = () => {
+      const keys = Object.keys(sectionRefs) as SectionKey[]
+      let closest: SectionKey = 'layout'
+      let closestDist = Infinity
+
+      for (const key of keys) {
+        const el = sectionRefs[key].current
+        if (!el) continue
+        const dist = Math.abs(el.getBoundingClientRect().top - scrollEl.getBoundingClientRect().top)
+        if (dist < closestDist) {
+          closestDist = dist
+          closest = key
+        }
+      }
+
+      setActiveSection(closest)
+    }
+
+    scrollEl.addEventListener('scroll', handleScroll, { passive: true })
+    return () => scrollEl.removeEventListener('scroll', handleScroll)
+  }, [sectionRefs])
+
+  return { scrollRef, activeSection }
+}
+
+function SectionNav({
+  scrollRef,
+  activeSection,
+  showColors,
+  showText,
+  sectionRefs,
+}: {
+  scrollRef: React.RefObject<HTMLDivElement | null>
+  activeSection: SectionKey
+  showColors: boolean
+  showText: boolean
+  sectionRefs: Record<SectionKey, React.RefObject<HTMLDivElement | null>>
+}) {
+  const sections: SectionKey[] = ['layout', 'radius', 'border']
+  if (showColors) sections.push('colors')
+  if (showText) sections.push('text')
+
+  const handleClick = (key: SectionKey) => {
+    const el = sectionRefs[key].current
+    const scrollEl = scrollRef.current
+    if (!el || !scrollEl) return
+    const top = el.offsetTop - scrollEl.offsetTop
+    scrollEl.scrollTo({ top, behavior: 'smooth' })
+  }
+
+  return (
+    <div className="flex shrink-0 gap-0.5 border-b border-border/50 px-2 py-1">
+      {sections.map((key) => (
+        <button
+          key={key}
+          type="button"
+          className={cn(
+            'rounded-md px-2 py-1 text-xs font-medium transition-colors',
+            activeSection === key
+              ? 'bg-muted text-foreground'
+              : 'text-muted-foreground hover:text-foreground'
+          )}
+          onClick={() => handleClick(key)}
+        >
+          {SECTION_LABELS[key]}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 export interface DirectEditPanelInnerProps {
   elementInfo: {
     tagName: string
@@ -1628,6 +1716,15 @@ export function DirectEditPanelInner({
   const hasPendingChanges = Object.keys(pendingStyles).length > 0
   const isDraggable = onHeaderPointerDown !== undefined
 
+  const sectionRefs = {
+    layout: React.useRef<HTMLDivElement>(null),
+    radius: React.useRef<HTMLDivElement>(null),
+    border: React.useRef<HTMLDivElement>(null),
+    colors: React.useRef<HTMLDivElement>(null),
+    text: React.useRef<HTMLDivElement>(null),
+  }
+  const { scrollRef, activeSection } = useSectionNav(sectionRefs)
+
   return (
     <div
       ref={panelRef}
@@ -1701,7 +1798,15 @@ export function DirectEditPanelInner({
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto">
+      <SectionNav
+        scrollRef={scrollRef}
+        activeSection={activeSection}
+        showColors={!!computedColor}
+        showText={elementInfo.isTextElement && !!computedTypography}
+        sectionRefs={sectionRefs}
+      />
+
+      <div className="flex-1 overflow-y-auto" ref={scrollRef}>
         <CollapsibleSection title="Layout" actions={
           <button
             type="button"
@@ -1712,7 +1817,7 @@ export function DirectEditPanelInner({
             {elementInfo.isFlexContainer ? <Minus className="size-3.5" strokeWidth={1.5} /> : <Plus className="size-3.5" strokeWidth={1.5} />}
           </button>
         }>
-          <div className="space-y-3">
+          <div className="space-y-3" ref={sectionRefs.layout}>
             {elementInfo.isFlexContainer && (
               <div>
                 <div className="mb-2 text-xs font-medium text-muted-foreground">Flex</div>
@@ -1842,52 +1947,60 @@ export function DirectEditPanelInner({
           </div>
         </CollapsibleSection>
 
-        <CollapsibleSection title="Radius">
-          <BorderRadiusInputs
-            values={{
-              topLeft: computedBorderRadius.borderTopLeftRadius,
-              topRight: computedBorderRadius.borderTopRightRadius,
-              bottomRight: computedBorderRadius.borderBottomRightRadius,
-              bottomLeft: computedBorderRadius.borderBottomLeftRadius,
-            }}
-            onChange={onUpdateBorderRadius}
-          />
-        </CollapsibleSection>
-
-        <BorderSection
-          border={computedBorder}
-          borderColor={computedColor?.borderColor}
-          onChange={onUpdateBorder}
-          onBatchChange={onBatchUpdateBorder}
-          onBorderColorChange={(value) => onUpdateColor('borderColor', value)}
-        />
-
-        {computedColor && (
-          <CollapsibleSection title="Selection Colors">
-            <FillSection
-              backgroundColor={computedColor.backgroundColor}
-              textColor={computedColor.color}
-              borderColor={computedColor.borderColor}
-              outlineColor={computedColor.outlineColor}
-              onBackgroundChange={(value) => onUpdateColor('backgroundColor', value)}
-              onTextChange={(value) => onUpdateColor('color', value)}
-              onBorderColorChange={(value) => onUpdateColor('borderColor', value)}
-              onOutlineColorChange={(value) => onUpdateColor('outlineColor', value)}
-              hasTextContent={elementInfo.isTextElement}
-              showBackgroundColor={computedColor.backgroundColor.alpha > 0}
-              showBorderColor={false}
-              showOutlineColor={computedColor.outlineColor.alpha > 0}
+        <div ref={sectionRefs.radius}>
+          <CollapsibleSection title="Radius">
+            <BorderRadiusInputs
+              values={{
+                topLeft: computedBorderRadius.borderTopLeftRadius,
+                topRight: computedBorderRadius.borderTopRightRadius,
+                bottomRight: computedBorderRadius.borderBottomRightRadius,
+                bottomLeft: computedBorderRadius.borderBottomLeftRadius,
+              }}
+              onChange={onUpdateBorderRadius}
             />
           </CollapsibleSection>
+        </div>
+
+        <div ref={sectionRefs.border}>
+          <BorderSection
+            border={computedBorder}
+            borderColor={computedColor?.borderColor}
+            onChange={onUpdateBorder}
+            onBatchChange={onBatchUpdateBorder}
+            onBorderColorChange={(value) => onUpdateColor('borderColor', value)}
+          />
+        </div>
+
+        {computedColor && (
+          <div ref={sectionRefs.colors}>
+            <CollapsibleSection title="Colors">
+              <FillSection
+                backgroundColor={computedColor.backgroundColor}
+                textColor={computedColor.color}
+                borderColor={computedColor.borderColor}
+                outlineColor={computedColor.outlineColor}
+                onBackgroundChange={(value) => onUpdateColor('backgroundColor', value)}
+                onTextChange={(value) => onUpdateColor('color', value)}
+                onBorderColorChange={(value) => onUpdateColor('borderColor', value)}
+                onOutlineColorChange={(value) => onUpdateColor('outlineColor', value)}
+                hasTextContent={elementInfo.isTextElement}
+                showBackgroundColor={computedColor.backgroundColor.alpha > 0}
+                showBorderColor={false}
+                showOutlineColor={computedColor.outlineColor.alpha > 0}
+              />
+            </CollapsibleSection>
+          </div>
         )}
 
         {elementInfo.isTextElement && computedTypography && (
-          <CollapsibleSection title="Text">
-            <TypographyInputs
-              typography={computedTypography}
-              onUpdate={onUpdateTypography}
-            />
-          </CollapsibleSection>
+          <div ref={sectionRefs.text}>
+            <CollapsibleSection title="Text">
+              <TypographyInputs
+                typography={computedTypography}
+                onUpdate={onUpdateTypography}
+              />
+            </CollapsibleSection>
+          </div>
         )}
       </div>
 
@@ -1900,17 +2013,6 @@ export function DirectEditPanelInner({
         onPointerMove={onHeaderPointerMove}
         onPointerUp={onHeaderPointerUp}
       >
-        {hasPendingChanges && (
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onReset}
-            title="Reset"
-            className="size-7"
-          >
-            <RotateCcw className="size-3.5" />
-          </Button>
-        )}
         <div className="flex-1" />
         <Button
           variant="ghost"
