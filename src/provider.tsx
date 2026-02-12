@@ -59,6 +59,7 @@ export interface DirectEditContextValue extends DirectEditState {
   updateBorderProperty: (key: BorderPropertyKey, value: BorderProperties[BorderPropertyKey]) => void
   updateBorderProperties: (changes: Array<[BorderPropertyKey, BorderProperties[BorderPropertyKey]]>) => void
   updateFlexProperty: (key: FlexPropertyKey, value: string) => void
+  toggleFlexLayout: () => void
   updateSizingProperty: (key: SizingPropertyKey, value: SizingValue) => void
   updateColorProperty: (key: ColorPropertyKey, value: ColorValue) => void
   updateTypographyProperty: (key: TypographyPropertyKey, value: CSSPropertyValue | string) => void
@@ -468,6 +469,52 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     [state.selectedElement, pushUndo]
   )
 
+  const toggleFlexLayout = React.useCallback(() => {
+    if (!state.selectedElement) return
+
+    const element = state.selectedElement
+    const flexProps = ['display', 'flex-direction', 'justify-content', 'align-items'] as const
+    const properties = flexProps.map((cssProperty) => ({
+      cssProperty,
+      previousValue: element.style.getPropertyValue(cssProperty) || null,
+    }))
+
+    pushUndo({ type: 'edit', element, properties })
+
+    const isCurrentlyFlex = state.elementInfo?.isFlexContainer ?? false
+
+    if (isCurrentlyFlex) {
+      for (const cssProperty of flexProps) {
+        element.style.removeProperty(cssProperty)
+      }
+    } else {
+      element.style.setProperty('display', 'flex')
+    }
+
+    const { spacing, borderRadius, flex } = getComputedStyles(element)
+    const sizing = getComputedSizing(element)
+    const elementInfo = getElementInfo(element)
+
+    const newPending = { ...stateRef.current.pendingStyles }
+    if (isCurrentlyFlex) {
+      for (const cssProperty of flexProps) {
+        delete newPending[cssProperty]
+      }
+    } else {
+      newPending['display'] = 'flex'
+    }
+
+    setState((prev) => ({
+      ...prev,
+      computedFlex: flex,
+      computedSpacing: spacing,
+      computedBorderRadius: borderRadius,
+      computedSizing: sizing,
+      elementInfo,
+      pendingStyles: newPending,
+    }))
+  }, [state.selectedElement, state.elementInfo, pushUndo])
+
   const updateSizingProperty = React.useCallback(
     (key: SizingPropertyKey, value: SizingValue) => {
       if (!state.selectedElement) return
@@ -661,6 +708,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
           const sizing = getComputedSizing(entry.element)
           const color = getComputedColorStyles(entry.element)
           const typography = getComputedTypography(entry.element)
+          const elementInfo = getElementInfo(entry.element)
           const newPending = { ...current.pendingStyles }
           for (const { cssProperty, previousValue } of entry.properties) {
             if (previousValue === null) {
@@ -678,6 +726,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
             computedSizing: sizing,
             computedColor: color,
             computedTypography: typography,
+            elementInfo,
             pendingStyles: newPending,
           }))
         }
@@ -1271,6 +1320,16 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
         }
       }
 
+      if (e.key === 'A' && e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey && state.editModeActive && state.selectedElement) {
+        const active = document.activeElement
+        const isInput = active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement || (active instanceof HTMLElement && active.isContentEditable)
+        if (!isInput) {
+          e.preventDefault()
+          toggleFlexLayout()
+          return
+        }
+      }
+
       if (e.key === 'Enter' && state.editModeActive && !state.textEditingElement && state.selectedElement) {
         const active = document.activeElement
         const isInput = active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement || (active instanceof HTMLElement && active.isContentEditable)
@@ -1307,7 +1366,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [state.isOpen, state.editModeActive, state.activeCommentId, state.activeTool, state.textEditingElement, state.selectedElement, closePanel, toggleEditMode, undo, commitTextEditing, startTextEditing])
+  }, [state.isOpen, state.editModeActive, state.activeCommentId, state.activeTool, state.textEditingElement, state.selectedElement, closePanel, toggleEditMode, toggleFlexLayout, undo, commitTextEditing, startTextEditing])
 
   const contextValue = React.useMemo<DirectEditContextValue>(() => ({
     ...state,
@@ -1320,6 +1379,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     updateBorderProperty,
     updateBorderProperties,
     updateFlexProperty,
+    toggleFlexLayout,
     updateSizingProperty,
     updateColorProperty,
     updateTypographyProperty,
