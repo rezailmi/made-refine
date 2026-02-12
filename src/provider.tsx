@@ -1309,7 +1309,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [state.isOpen, state.editModeActive, state.activeCommentId, state.activeTool, state.textEditingElement, state.selectedElement, closePanel, toggleEditMode, undo, commitTextEditing, startTextEditing])
 
-  const contextValue: DirectEditContextValue = {
+  const contextValue = React.useMemo<DirectEditContextValue>(() => ({
     ...state,
     selectElement,
     selectParent,
@@ -1345,7 +1345,43 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     removeSessionEdit,
     startTextEditing,
     commitTextEditing,
-  }
+  }), [
+    state,
+    selectElement,
+    selectParent,
+    selectChild,
+    closePanel,
+    updateSpacingProperty,
+    updateBorderRadiusProperty,
+    updateBorderProperty,
+    updateBorderProperties,
+    updateFlexProperty,
+    updateSizingProperty,
+    updateColorProperty,
+    updateTypographyProperty,
+    resetToOriginal,
+    exportEdits,
+    sendEditToAgent,
+    sendCommentToAgent,
+    toggleEditMode,
+    undo,
+    handleMoveComplete,
+    setActiveTool,
+    setTheme,
+    addComment,
+    updateCommentText,
+    addCommentReply,
+    deleteComment,
+    exportComment,
+    setActiveCommentId,
+    sessionEditCount,
+    getSessionEdits,
+    exportAllEdits,
+    clearSessionEdits,
+    removeSessionEdit,
+    startTextEditing,
+    commitTextEditing,
+  ])
 
   return (
     <PortalContainerProvider>
