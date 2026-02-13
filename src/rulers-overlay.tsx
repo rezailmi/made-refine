@@ -448,32 +448,62 @@ export function RulersOverlay({ enabled }: { enabled: boolean }) {
 }
 
 const RULERS_VISIBLE_KEY = 'direct-edit-rulers-visible'
-const RULERS_TOGGLE_EVENT = 'direct-edit-rulers-toggle'
+
+const canUseDOM = typeof window !== 'undefined'
+const rulersVisibleListeners = new Set<() => void>()
+
+function readStoredRulersVisible(): boolean {
+  if (!canUseDOM) {
+    return true
+  }
+
+  try {
+    return localStorage.getItem(RULERS_VISIBLE_KEY) !== 'false'
+  } catch {
+    return true
+  }
+}
+
+let rulersVisibleSnapshot = readStoredRulersVisible()
+
+function emitRulersVisible() {
+  rulersVisibleListeners.forEach((listener) => listener())
+}
+
+function setRulersVisible(next: boolean) {
+  if (rulersVisibleSnapshot === next) {
+    return
+  }
+
+  rulersVisibleSnapshot = next
+
+  if (canUseDOM) {
+    try {
+      localStorage.setItem(RULERS_VISIBLE_KEY, String(next))
+    } catch {
+      // ignore write failures (e.g. private mode)
+    }
+  }
+
+  emitRulersVisible()
+}
+
+function subscribeRulersVisible(listener: () => void) {
+  rulersVisibleListeners.add(listener)
+  return () => {
+    rulersVisibleListeners.delete(listener)
+  }
+}
 
 export function useRulersVisible(): [boolean, () => void] {
-  const [visible, setVisible] = React.useState(true)
-
-  React.useEffect(() => {
-    try {
-      if (localStorage.getItem(RULERS_VISIBLE_KEY) === 'false') setVisible(false)
-    } catch { /* ignore */ }
-  }, [])
-
-  React.useEffect(() => {
-    function handler(e: Event) {
-      setVisible((e as CustomEvent<boolean>).detail)
-    }
-    window.addEventListener(RULERS_TOGGLE_EVENT, handler)
-    return () => window.removeEventListener(RULERS_TOGGLE_EVENT, handler)
-  }, [])
+  const visible = React.useSyncExternalStore(
+    subscribeRulersVisible,
+    () => rulersVisibleSnapshot,
+    () => true,
+  )
 
   const toggle = React.useCallback(() => {
-    setVisible((prev) => {
-      const next = !prev
-      try { localStorage.setItem(RULERS_VISIBLE_KEY, String(next)) } catch {}
-      window.dispatchEvent(new CustomEvent(RULERS_TOGGLE_EVENT, { detail: next }))
-      return next
-    })
+    setRulersVisible(!rulersVisibleSnapshot)
   }, [])
 
   return [visible, toggle]
