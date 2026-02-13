@@ -68,7 +68,7 @@ jobs:
           bun-version: latest
 
       - name: Install dependencies
-        run: bun install --no-save
+        run: bun install --frozen-lockfile
 
       - name: Build
         run: bun run build
@@ -81,7 +81,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      id-token: write
 
     steps:
       - uses: actions/checkout@v4
@@ -103,7 +102,12 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
       - name: Install dependencies
-        run: bun install --no-save
+        run: bun install --frozen-lockfile
+
+      - name: Verify npm authentication
+        run: npm whoami
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Build
         run: bun run build
@@ -130,9 +134,6 @@ jobs:
           VERSION=$(bun -e "import pkg from './package.json'; console.log(pkg.version)")
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Push version commit and tag
-        run: git push origin HEAD:main --follow-tags
-
       - name: Resolve publish tag
         id: publish_tag
         run: |
@@ -150,9 +151,12 @@ jobs:
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
       - name: Publish to npm
-        run: bun publish --tag "${{ steps.publish_tag.outputs.tag }}"
+        run: npm publish --tag "${{ steps.publish_tag.outputs.tag }}"
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Push version commit and tag
+        run: git push origin HEAD:main --follow-tags
 
   unpublish:
     if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.task == 'unpublish' && github.ref == 'refs/heads/main' }}
@@ -191,7 +195,21 @@ jobs:
       - name: Unpublish selected versions
         run: |
           for VERSION in $(echo "${{ github.event.inputs.unpublish_versions }}" | tr ',' ' '); do
-            bunx npm unpublish "made-refine@$VERSION" || echo "$VERSION already unpublished or not found"
+            set +e
+            OUTPUT=$(bunx npm unpublish "made-refine@$VERSION" 2>&1)
+            STATUS=$?
+            set -e
+
+            echo "$OUTPUT"
+
+            if [ "$STATUS" -ne 0 ]; then
+              if echo "$OUTPUT" | grep -qiE "404|not found|is not in this registry|already unpublished"; then
+                echo "$VERSION already unpublished or not found"
+              else
+                echo "Failed to unpublish $VERSION"
+                exit "$STATUS"
+              fi
+            fi
           done
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
