@@ -10,16 +10,18 @@ import { describe, expect, it } from 'vitest'
 const root = process.cwd()
 
 function getPackedFiles(): string[] {
-  const output = execSync('npm pack --dry-run --json', {
+  const output = execSync('bun pm pack --dry-run', {
     cwd: root,
     encoding: 'utf8',
   })
-  const parsed = JSON.parse(output) as Array<{ files: Array<{ path: string }> }>
-  return parsed[0]?.files?.map((file) => file.path) ?? []
+  return output
+    .split('\n')
+    .map((line) => line.match(/^packed\s+\S+\s+(.+)$/)?.[1]?.trim())
+    .filter((file): file is string => Boolean(file))
 }
 
-describe('npm package portability', () => {
-  it('ships required runtime artifacts in npm pack output', () => {
+describe('package portability', () => {
+  it('ships required runtime artifacts in bun pack output', () => {
     const files = getPackedFiles()
     expect(files).toEqual(
       expect.arrayContaining([

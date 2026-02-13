@@ -1964,12 +1964,6 @@ export function DirectEditPanelInner({
           {elementInfo.id && (
             <span className="ml-1.5 text-xs text-muted-foreground">#{elementInfo.id}</span>
           )}
-          {elementInfo.classList.length > 0 && (
-            <span className="ml-1.5 truncate text-xs text-muted-foreground">
-              .{elementInfo.classList.slice(0, 3).join(' .')}
-              {elementInfo.classList.length > 3 && ` +${elementInfo.classList.length - 3}`}
-            </span>
-          )}
         </div>
         <div className="flex shrink-0 items-center gap-1">
           {onSelectParent && (
