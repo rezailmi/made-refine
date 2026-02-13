@@ -184,7 +184,7 @@ function NewCommentInput({ position, flipHorizontal, flipVertical, onSubmit, onC
   return (
     <div
       data-direct-edit="comment-card"
-      className="fixed z-[99999] flex items-center gap-1.5 rounded-lg border border-foreground/10 bg-background p-1.5 shadow-2xl"
+      className="fixed z-[99999] flex items-center gap-1.5 rounded-lg outline outline-1 outline-foreground/10 bg-background p-1.5 shadow-lg"
       style={{
         width: 220,
         left: flipHorizontal ? position.x - 220 - 8 : position.x + 14,
@@ -293,7 +293,7 @@ function CommentThread({
   return (
     <div
       data-direct-edit="comment-card"
-      className="fixed z-[99999] w-[280px] overflow-hidden rounded-lg border border-foreground/10 bg-background shadow-2xl"
+      className="fixed z-[99999] w-[280px] overflow-hidden rounded-lg outline outline-1 outline-foreground/10 bg-background shadow-lg"
       style={{
         left: flipHorizontal ? position.x - 280 - 8 : position.x + 14,
         top: flipVertical ? position.y - 220 : position.y - 14,

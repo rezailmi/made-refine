@@ -160,7 +160,7 @@ export function DirectEditToolbarInner({
         data-direct-edit="toolbar"
         style={{ pointerEvents: 'auto', touchAction: 'none', ...dockStyle }}
         className={cn(
-          'group z-[99999] flex rounded-[14px] border border-foreground/10 bg-background p-1.5 shadow-xl transition-shadow duration-200',
+          'group z-[99999] flex rounded-[14px] outline outline-1 outline-foreground/10 bg-background p-1.5 shadow-lg transition-shadow duration-200',
           isVertical ? 'flex-col items-center' : 'flex-row items-center',
           isDragging && 'cursor-grabbing select-none shadow-2xl',
           className
@@ -288,7 +288,7 @@ export function DirectEditToolbarInner({
                 </Tooltip>
                 <EditsPopoverPortal>
                   <Popover.Positioner side={tooltipSide} sideOffset={12} className="fixed z-[99999]" style={{ pointerEvents: 'auto' }}>
-                    <Popover.Popup ref={editsPopupRef} className="w-[280px] rounded-lg border border-foreground/10 bg-background shadow-xl" onPointerDown={(e: React.PointerEvent) => e.stopPropagation()}>
+                    <Popover.Popup ref={editsPopupRef} className="w-[280px] rounded-lg outline outline-1 outline-foreground/10 bg-background shadow-lg" onPointerDown={(e: React.PointerEvent) => e.stopPropagation()}>
                       <div className="flex items-center justify-between px-3 pb-1 pt-2.5">
                         <span className="text-xs font-medium text-foreground">Session edits ({editsSnapshot.length})</span>
                         {editsSnapshot.length > 0 && (
@@ -388,7 +388,7 @@ export function DirectEditToolbarInner({
                 </Tooltip>
                 <ThemePopoverPortal>
                   <Popover.Positioner side={tooltipSide} sideOffset={12} className="fixed z-[99999]" style={{ pointerEvents: 'auto' }}>
-                    <Popover.Popup ref={settingsPopupRef} className="w-[220px] rounded-lg border border-foreground/10 bg-background p-1 shadow-xl" onPointerDown={(e: React.PointerEvent) => e.stopPropagation()}>
+                    <Popover.Popup ref={settingsPopupRef} className="w-[220px] rounded-lg outline outline-1 outline-foreground/10 bg-background p-1 shadow-lg" onPointerDown={(e: React.PointerEvent) => e.stopPropagation()}>
                       <div className="px-2.5 pb-1 pt-1.5 text-[10px] font-medium text-foreground">Theme</div>
                       {([
                         { value: 'light' as const, label: 'Light', Icon: Sun },
