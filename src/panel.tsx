@@ -1141,7 +1141,7 @@ function ColorInput({ id, label, icon, value, onChange }: ColorInputProps) {
     <div>
       <div className="flex h-7 items-center rounded-md border-0 bg-muted">
         {/* Color swatch with popover picker */}
-        <div className="ml-1.5">
+        <div className="ml-1">
           <ColorPickerPopover id={id} value={value} onChange={onChange}>
             <div
               className="size-5 cursor-pointer rounded-sm shadow-[inset_0_0_0_1px_rgba(0,0,0,0.1)]"
@@ -1730,7 +1730,7 @@ export function DirectEditPanelInner({
       ref={panelRef}
       data-direct-edit="panel"
       className={cn(
-        'flex flex-col overflow-hidden rounded-xl border border-foreground/10 bg-background shadow-2xl',
+        'flex flex-col overflow-hidden rounded-xl outline outline-1 outline-foreground/10 bg-background shadow-lg',
         isDragging && 'cursor-grabbing select-none',
         className
       )}
