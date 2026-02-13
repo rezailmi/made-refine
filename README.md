@@ -9,14 +9,15 @@ A visual CSS editor for React. Select any element and adjust padding, border-rad
 Run this in your project root:
 
 ```bash
-bunx made-refine init
+npx made-refine init
 ```
 
 The CLI auto-detects your framework (Next.js, Vite, or TanStack Start), installs the package, and configures everything — with a diff preview before any file changes.
+If you use Bun, you can run `bunx made-refine init` instead.
 
 Or, paste this prompt into any AI coding assistant (Cursor, Copilot, Claude Code, etc.):
 
-> Add made-refine to this project. Run `bunx made-refine init` and follow the prompts.
+> Add made-refine to this project. Run `npx made-refine init` and follow the prompts. If Bun is available, `bunx made-refine init` also works.
 
 ---
 
@@ -249,12 +250,14 @@ Add this to `.mcp.json` in your project root:
 {
   "mcpServers": {
     "made-refine": {
-      "command": "bunx",
-      "args": ["made-refine-mcp"]
+      "command": "npx",
+      "args": ["-y", "made-refine-mcp"]
     }
   }
 }
 ```
+
+If you use Bun, set `"command": "bunx"` and `"args": ["made-refine-mcp"]`.
 
 Restart Claude Code. You should see the Made-Refine tools available.
 
