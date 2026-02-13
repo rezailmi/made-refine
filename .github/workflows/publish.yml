@@ -150,7 +150,12 @@ jobs:
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
       - name: Publish to npm
-        run: npm publish --provenance --tag "${{ steps.publish_tag.outputs.tag }}"
+        run: |
+          if [ "${{ github.event.repository.private }}" = "true" ]; then
+            npm publish --tag "${{ steps.publish_tag.outputs.tag }}"
+          else
+            npm publish --provenance --tag "${{ steps.publish_tag.outputs.tag }}"
+          fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
