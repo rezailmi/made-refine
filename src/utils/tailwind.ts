@@ -277,6 +277,34 @@ export function stylesToTailwind(styles: Record<string, string>): string {
       continue
     }
 
+    if (prop === 'outline-style') {
+      const styleMap: Record<string, string> = {
+        none: 'outline-none',
+        solid: 'outline-solid',
+        dashed: 'outline-dashed',
+        dotted: 'outline-dotted',
+        double: 'outline-double',
+      }
+      classes.push(styleMap[value] || `[outline-style:${value}]`)
+      continue
+    }
+
+    if (prop === 'outline-width') {
+      const parsed = parsePropertyValue(value)
+      if (parsed.unit === 'px') {
+        const knownWidths: Record<number, string> = { 0: '0', 1: '', 2: '2', 4: '4', 8: '8' }
+        if (Object.prototype.hasOwnProperty.call(knownWidths, parsed.numericValue)) {
+          const suffix = knownWidths[parsed.numericValue]
+          classes.push(suffix === '' ? 'outline' : `outline-${suffix}`)
+        } else {
+          classes.push(`outline-[${value}]`)
+        }
+      } else {
+        classes.push(`outline-[${value}]`)
+      }
+      continue
+    }
+
     if (prop === 'font-size') {
       classes.push(`text-[${value}]`)
       continue

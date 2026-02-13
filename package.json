@@ -24,10 +24,10 @@
     "./styles": "./dist/styles.css",
     "./styles.css": "./dist/styles.css",
     "./babel": {
-      "require": "./babel/index.cjs"
+      "require": "./dist/babel.cjs"
     },
     "./vite": {
-      "types": "./vite/index.d.ts",
+      "types": "./dist/vite.d.ts",
       "import": "./dist/vite.mjs"
     },
     "./preload.iife": "./dist/preload/preload.js",
@@ -40,8 +40,6 @@
   "sideEffects": true,
   "files": [
     "dist",
-    "babel",
-    "vite",
     "README.md",
     "LICENSE"
   ],
@@ -100,6 +98,7 @@
   "scripts": {
     "css:build": "tailwindcss -i ./src/styles.css -o ./dist/styles.css -m",
     "prebuild": "mkdir -p dist && tailwindcss -i ./src/styles.css -o ./dist/styles.css -m",
+    "postbuild": "cp vite/index.d.ts dist/vite.d.ts",
     "build": "tsup",
     "pretest": "npm run build",
     "test": "vitest run",

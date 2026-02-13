@@ -1,21 +1,92 @@
 name: Publish
 
 on:
-  release:
-    types: [published]
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
     inputs:
-      fix_tags:
-        description: 'Fix dist-tags only (no publish)'
-        type: boolean
-        default: false
+      task:
+        description: Task to run
+        required: true
+        default: release
+        type: choice
+        options:
+          - release
+          - unpublish
+      bump:
+        description: Version bump type (release only)
+        required: true
+        default: patch
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+          - prerelease
+      preid:
+        description: Pre-release identifier (prerelease only)
+        required: false
+        default: beta
+        type: string
+      npm_tag:
+        description: npm dist-tag (auto = latest for stable, beta for prerelease)
+        required: true
+        default: auto
+        type: choice
+        options:
+          - auto
+          - latest
+          - beta
+          - next
+      unpublish_versions:
+        description: Space-separated versions to unpublish (unpublish only)
+        required: false
+        default: "0.1.0-beta.3 0.1.0-beta.4 0.1.0-beta.5 0.1.0-beta.6 0.1.0-beta.7 0.1.0-beta.8"
+        type: string
+      confirm_unpublish:
+        description: Type UNPUBLISH to confirm unpublish task
+        required: false
+        default: ""
+        type: string
+
+concurrency:
+  group: publish-${{ github.event_name }}-${{ github.ref }}-${{ github.event.inputs.task || 'ci' }}
+  cancel-in-progress: false
 
 jobs:
-  publish:
+  ci:
+    if: ${{ github.event_name == 'push' || github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build
+        run: bun run build
+
+      - name: Typecheck
+        run: bunx tsc --noEmit
+
+  release:
+    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.task == 'release' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: oven-sh/setup-bun@v2
         with:
@@ -26,21 +97,97 @@ jobs:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
 
+      - name: Configure git author
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
       - name: Install dependencies
         run: bun install
 
       - name: Build
         run: bun run build
 
+      - name: Typecheck
+        run: bunx tsc --noEmit
+
+      - name: Validate release inputs
+        run: |
+          if [ "${{ github.event.inputs.bump }}" = "prerelease" ] && [ -z "${{ github.event.inputs.preid }}" ]; then
+            echo "preid is required when bump=prerelease"
+            exit 1
+          fi
+
+      - name: Bump version
+        id: version
+        run: |
+          if [ "${{ github.event.inputs.bump }}" = "prerelease" ]; then
+            npm version prerelease --preid "${{ github.event.inputs.preid }}" -m "chore(release): %s"
+          else
+            npm version "${{ github.event.inputs.bump }}" -m "chore(release): %s"
+          fi
+
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Push version commit and tag
+        run: git push origin HEAD:main --follow-tags
+
+      - name: Resolve publish tag
+        id: publish_tag
+        run: |
+          TAG="${{ github.event.inputs.npm_tag }}"
+          VERSION="${{ steps.version.outputs.version }}"
+
+          if [ "$TAG" = "auto" ]; then
+            if [[ "$VERSION" == *-* ]]; then
+              TAG="beta"
+            else
+              TAG="latest"
+            fi
+          fi
+
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
       - name: Publish to npm
-        if: ${{ !inputs.fix_tags }}
-        run: npm publish --tag beta
+        run: npm publish --provenance --tag "${{ steps.publish_tag.outputs.tag }}"
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      - name: Update latest tag
+  unpublish:
+    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.task == 'unpublish' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Validate unpublish confirmation and versions
         run: |
-          VERSION=$(node -p "require('./package.json').version")
-          npm dist-tag add made-refine@$VERSION latest
+          if [ "${{ github.event.inputs.confirm_unpublish }}" != "UNPUBLISH" ]; then
+            echo "Set confirm_unpublish to UNPUBLISH to run unpublish task."
+            exit 1
+          fi
+
+          VERSIONS="${{ github.event.inputs.unpublish_versions }}"
+          if [ -z "$VERSIONS" ]; then
+            echo "No versions provided."
+            exit 1
+          fi
+
+          for VERSION in $(echo "$VERSIONS" | tr ',' ' '); do
+            if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$ ]]; then
+              echo "Invalid version: $VERSION"
+              exit 1
+            fi
+          done
+
+      - name: Unpublish selected versions
+        run: |
+          for VERSION in $(echo "${{ github.event.inputs.unpublish_versions }}" | tr ',' ' '); do
+            npm unpublish "made-refine@$VERSION" || echo "$VERSION already unpublished or not found"
+          done
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

@@ -246,6 +246,7 @@ export function DirectEditDemo() {
             onUpdateBorderRadius={handleUpdateBorderRadius}
             onUpdateBorder={handleUpdateBorder}
             onBatchUpdateBorder={handleBatchUpdateBorder}
+            onSetCSS={() => {}}
             onUpdateFlex={handleUpdateFlex}
             onToggleFlex={() => {}}
             onUpdateSizing={handleUpdateSizing}

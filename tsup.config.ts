@@ -49,6 +49,17 @@ export default defineConfig([
     external: ['vite'],
   },
   {
+    entry: { babel: 'babel/index.cjs' },
+    format: ['cjs'],
+    outDir: 'dist',
+    outExtension: () => ({ js: '.cjs' }),
+    dts: false,
+    splitting: false,
+    sourcemap: false,
+    clean: false,
+    platform: 'node',
+  },
+  {
     entry: { cli: 'src/cli.ts' },
     format: ['cjs'],
     outDir: 'dist',

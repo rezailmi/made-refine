@@ -142,6 +142,8 @@ export function getOriginalInlineStyles(element: HTMLElement): Record<string, st
     'color',
     'border-color',
     'outline-color',
+    'outline-style',
+    'outline-width',
     'font-family',
     'font-weight',
     'font-size',
