@@ -1,7 +1,8 @@
 import * as React from 'react'
-import type { Comment } from './types'
+import type { Comment, ElementLocator } from './types'
 import { cn } from './cn'
 import { ChevronLeft, Check, Copy, Trash2, ArrowUp, Send, X } from 'lucide-react'
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from './ui/tooltip'
 
 function formatRelativeTime(timestamp: number): string {
   const seconds = Math.floor((Date.now() - timestamp) / 1000)
@@ -12,6 +13,18 @@ function formatRelativeTime(timestamp: number): string {
   if (hours < 24) return `${hours}h ago`
   const days = Math.floor(hours / 24)
   return `${days}d ago`
+}
+
+function ElementLabel({ locator }: { locator: ElementLocator }) {
+  return (
+    <span className="truncate text-[10px] text-muted-foreground">
+      <code className="font-medium">&lt;{locator.tagName.toLowerCase()}&gt;</code>
+      {locator.id && <span>#{locator.id}</span>}
+      {!locator.id && locator.classList.length > 0 && (
+        <span>.{locator.classList.slice(0, 2).join('.')}{locator.classList.length > 2 ? `\u2026` : ''}</span>
+      )}
+    </span>
+  )
 }
 
 export interface CommentOverlayProps {
@@ -84,8 +97,10 @@ function CommentPin({
   onSendToAgent,
 }: CommentPinProps) {
   const [position, setPosition] = React.useState(comment.clickPosition)
+  const [elementRect, setElementRect] = React.useState<DOMRect | null>(null)
   const [flipHorizontal, setFlipHorizontal] = React.useState(false)
   const [flipVertical, setFlipVertical] = React.useState(false)
+  const [autoExport, setAutoExport] = React.useState(false)
 
   React.useEffect(() => {
     function updatePosition() {
@@ -95,6 +110,7 @@ function CommentPin({
         x: rect.left + comment.relativePosition.x,
         y: rect.top + comment.relativePosition.y,
       })
+      setElementRect(rect)
     }
 
     updatePosition()
@@ -119,6 +135,30 @@ function CommentPin({
 
   return (
     <>
+      {isActive && elementRect && (
+        <svg
+          data-direct-edit="comment-highlight"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            width: '100vw',
+            height: '100vh',
+            pointerEvents: 'none',
+            zIndex: 99997,
+          }}
+        >
+          <rect
+            x={elementRect.left}
+            y={elementRect.top}
+            width={elementRect.width}
+            height={elementRect.height}
+            fill="rgba(59, 130, 246, 0.06)"
+            stroke="#3B82F6"
+            strokeWidth={1}
+          />
+        </svg>
+      )}
+
       <div
         data-direct-edit="comment-pin"
         className="group/pin fixed z-[99998] flex size-3 cursor-pointer items-center justify-center rounded-full bg-blue-500 shadow-md ring-2 ring-white transition-transform hover:scale-[1.67] hover:shadow-lg"
@@ -143,7 +183,10 @@ function CommentPin({
             position={position}
             flipHorizontal={flipHorizontal}
             flipVertical={flipVertical}
-            onSubmit={(text) => onUpdateText(text)}
+            onSubmit={(text) => {
+              onUpdateText(text)
+              setAutoExport(true)
+            }}
             onCancel={onClose}
           />
         ) : (
@@ -154,10 +197,15 @@ function CommentPin({
             flipHorizontal={flipHorizontal}
             flipVertical={flipVertical}
             onClose={onClose}
-            onAddReply={onAddReply}
+            onAddReply={(text) => {
+              onAddReply(text)
+              setAutoExport(true)
+            }}
             onDelete={onDelete}
             onExport={onExport}
             onSendToAgent={onSendToAgent}
+            autoExport={autoExport}
+            onAutoExportDone={() => setAutoExport(false)}
           />
         )
       )}
@@ -184,7 +232,7 @@ function NewCommentInput({ position, flipHorizontal, flipVertical, onSubmit, onC
   return (
     <div
       data-direct-edit="comment-card"
-      className="fixed z-[99999] flex items-center gap-1.5 rounded-lg outline outline-1 outline-foreground/10 bg-background p-1.5 shadow-lg"
+      className="fixed z-[99999] flex items-center gap-1.5 rounded-xl outline outline-1 outline-foreground/10 bg-background p-1.5 shadow-lg"
       style={{
         width: 220,
         left: flipHorizontal ? position.x - 220 - 8 : position.x + 14,
@@ -239,6 +287,8 @@ interface CommentThreadProps {
   onDelete: () => void
   onExport: () => Promise<boolean>
   onSendToAgent: () => Promise<boolean>
+  autoExport: boolean
+  onAutoExportDone: () => void
 }
 
 function CommentThread({
@@ -252,6 +302,8 @@ function CommentThread({
   onDelete,
   onExport,
   onSendToAgent,
+  autoExport,
+  onAutoExportDone,
 }: CommentThreadProps) {
   const [replyText, setReplyText] = React.useState('')
   const [copied, setCopied] = React.useState(false)
@@ -261,6 +313,18 @@ function CommentThread({
   React.useEffect(() => {
     inputRef.current?.focus()
   }, [])
+
+  React.useEffect(() => {
+    if (autoExport) {
+      onAutoExportDone()
+      onExport().then((success) => {
+        if (success) {
+          setCopied(true)
+          setTimeout(() => setCopied(false), 2000)
+        }
+      })
+    }
+  }, [autoExport])
 
   const handleCopy = async () => {
     const success = await onExport()
@@ -293,7 +357,7 @@ function CommentThread({
   return (
     <div
       data-direct-edit="comment-card"
-      className="fixed z-[99999] w-[280px] overflow-hidden rounded-lg outline outline-1 outline-foreground/10 bg-background shadow-lg"
+      className="fixed z-[99999] w-[280px] overflow-hidden rounded-xl outline outline-1 outline-foreground/10 bg-background shadow-lg"
       style={{
         left: flipHorizontal ? position.x - 280 - 8 : position.x + 14,
         top: flipVertical ? position.y - 220 : position.y - 14,
@@ -302,52 +366,83 @@ function CommentThread({
       onClick={(e) => e.stopPropagation()}
     >
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-border/50 px-2 py-1.5">
-        <button
-          type="button"
-          className="flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-          onClick={onClose}
-          title="Back"
-        >
-          <ChevronLeft className="size-3.5" />
-        </button>
-        <div className="flex items-center gap-0.5">
-          <button
-            type="button"
-            className="flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-            onClick={handleCopy}
-            title="Copy"
-          >
-            {copied ? (
-              <Check className="size-3.5 text-green-500" />
-            ) : (
-              <Copy className="size-3.5" />
-            )}
-          </button>
-          <button
-            type="button"
-            className="flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-            onClick={handleSendToAgent}
-            title="Send to Agent"
-          >
-            {sendStatus === 'sent' ? (
-              <Check className="size-3.5 text-green-500" />
-            ) : sendStatus === 'offline' ? (
-              <X className="size-3.5 text-red-500" />
-            ) : (
-              <Send className="size-3.5" />
-            )}
-          </button>
-          <button
-            type="button"
-            className="flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-            onClick={onDelete}
-            title="Delete"
-          >
-            <Trash2 className="size-3.5" />
-          </button>
+      <TooltipProvider delayDuration={300} closeDelay={0}>
+        <div className="flex items-center justify-between border-b border-border/50 px-2 py-1.5">
+          <div className="flex min-w-0 items-center gap-1">
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <button
+                    type="button"
+                    className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                    onClick={onClose}
+                  />
+                }
+              >
+                <ChevronLeft className="size-3.5" />
+              </TooltipTrigger>
+              <TooltipContent side="bottom">Back</TooltipContent>
+            </Tooltip>
+            <ElementLabel locator={comment.locator} />
+          </div>
+          <div className="flex shrink-0 items-center gap-0.5">
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <button
+                    type="button"
+                    className="flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                    onClick={handleCopy}
+                  />
+                }
+              >
+                {copied ? (
+                  <Check className="size-3.5 text-green-500" />
+                ) : (
+                  <Copy className="size-3.5" />
+                )}
+              </TooltipTrigger>
+              <TooltipContent side="bottom">{copied ? 'Copied' : 'Copy'}</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <button
+                    type="button"
+                    className="flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                    onClick={handleSendToAgent}
+                  />
+                }
+              >
+                {sendStatus === 'sent' ? (
+                  <Check className="size-3.5 text-green-500" />
+                ) : sendStatus === 'offline' ? (
+                  <X className="size-3.5 text-red-500" />
+                ) : (
+                  <Send className="size-3.5" />
+                )}
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                {sendStatus === 'sent' ? 'Sent' : sendStatus === 'offline' ? 'Offline' : 'Send to Agent'}
+              </TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <button
+                    type="button"
+                    className="flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                    onClick={onDelete}
+                  />
+                }
+              >
+                <Trash2 className="size-3.5" />
+              </TooltipTrigger>
+              <TooltipContent side="bottom">Delete</TooltipContent>
+            </Tooltip>
+          </div>
         </div>
-      </div>
+      </TooltipProvider>
 
       {/* Thread body */}
       <div className="max-h-48 overflow-y-auto">

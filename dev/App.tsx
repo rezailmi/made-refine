@@ -118,7 +118,7 @@ export default function App() {
 
           {/* Notification */}
           <div style={{ border: `1px solid ${gray[200]}`, borderRadius: 12, padding: 24, backgroundColor: '#fff' }}>
-            <div style={{ fontSize: 13, fontWeight: 500, color: gray[500], marginBottom: 16, textTransform: 'uppercase' as const, letterSpacing: '0.05em' }}>Notifications</div>
+            <div style={{ fontSize: 13, fontWeight: 500, color: '#000', marginBottom: 16 }}>Notifications</div>
             {[
               { initials: 'SM', title: 'Sara mentioned you', desc: 'in Design Review #14', time: '2m' },
               { initials: 'TR', title: 'Tom requested review', desc: 'on Homepage redesign', time: '1h' },
@@ -136,7 +136,7 @@ export default function App() {
 
           {/* Stats */}
           <div style={{ border: `1px solid ${gray[200]}`, borderRadius: 12, padding: 24, backgroundColor: '#fff' }}>
-            <div style={{ fontSize: 13, fontWeight: 500, color: gray[500], marginBottom: 16, textTransform: 'uppercase' as const, letterSpacing: '0.05em' }}>This month</div>
+            <div style={{ fontSize: 13, fontWeight: 500, color: gray[500], marginBottom: 16 }}>This month</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               {[
                 { label: 'Revenue', value: '$12,480', bar: 0.78 },

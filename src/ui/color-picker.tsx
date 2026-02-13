@@ -157,7 +157,7 @@ function NumericInput({
 
   return (
     <div className="flex items-center gap-1">
-      <span className="w-3 text-[10px] text-muted-foreground">{label}</span>
+      <span className="w-3 text-xs text-muted-foreground">{label}</span>
       <input
         type="text"
         value={local}
@@ -167,7 +167,7 @@ function NumericInput({
           if (!isNaN(n) && n >= 0 && n <= max) onChange(n)
         }}
         onBlur={() => setLocal(Math.round(value).toString())}
-        className="h-6 w-9 rounded border-0 bg-muted px-1 text-center text-[11px] tabular-nums outline-none"
+        className="h-6 w-9 rounded border-0 bg-muted px-1 text-center text-xs tabular-nums outline-none"
       />
     </div>
   )
@@ -333,7 +333,7 @@ export function ColorPickerPopover({ id, value, onChange, children }: ColorPicke
       </Popover.Trigger>
       <ColorPickerPortal>
         <Popover.Positioner side="bottom" align="start" sideOffset={4} className="fixed z-[99999]" style={{ pointerEvents: 'auto' }}>
-          <Popover.Popup ref={popupRef} className="w-[260px] rounded-lg border-0 bg-popover p-3 shadow-lg">
+          <Popover.Popup ref={popupRef} className="w-[260px] rounded-xl outline outline-1 outline-foreground/10 bg-background p-3 shadow-lg">
             {/* Gradient area + sliders */}
             <div className="flex gap-2">
               <SaturationValueArea
@@ -373,11 +373,11 @@ export function ColorPickerPopover({ id, value, onChange, children }: ColorPicke
 
             {/* Hex + Alpha row */}
             <div className="mt-1.5 flex items-center gap-1.5">
-              <span className="text-[10px] text-muted-foreground">#</span>
+              <span className="text-xs text-muted-foreground">#</span>
               <HexInput value={currentHex} onChange={handleHexInput} />
-              <span className="text-[10px] text-muted-foreground">/</span>
+              <span className="text-xs text-muted-foreground">/</span>
               <AlphaInput value={alpha} onChange={handleAlphaInput} />
-              <span className="text-[10px] text-muted-foreground">%</span>
+              <span className="text-xs text-muted-foreground">%</span>
             </div>
           </Popover.Popup>
         </Popover.Positioner>
@@ -402,7 +402,7 @@ function HexInput({ value, onChange }: { value: string; onChange: (v: string) =>
         onChange(e.target.value)
       }}
       onBlur={() => setLocal(value)}
-      className="h-6 w-[60px] rounded border-0 bg-muted px-1 font-mono text-[11px] uppercase outline-none"
+      className="h-6 w-[60px] rounded border-0 bg-muted px-1 font-mono text-xs uppercase outline-none"
       maxLength={6}
     />
   )
@@ -424,7 +424,7 @@ function AlphaInput({ value, onChange }: { value: number; onChange: (v: string) 
         onChange(e.target.value)
       }}
       onBlur={() => setLocal(value.toString())}
-      className="h-6 w-8 rounded border-0 bg-muted px-1 text-center text-[11px] tabular-nums outline-none"
+      className="h-6 w-8 rounded border-0 bg-muted px-1 text-center text-xs tabular-nums outline-none"
       maxLength={3}
     />
   )

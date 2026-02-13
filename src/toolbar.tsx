@@ -138,7 +138,7 @@ export function DirectEditToolbarInner({
     setEditsOpen(false)
   }, [isDragging])
 
-  const kbdClass = 'inline-flex items-center justify-center rounded bg-white/20 px-1.5 py-0.5 font-mono text-[10px] min-w-[20px] min-h-[18px]'
+  const kbdClass = 'inline-flex items-center justify-center rounded bg-gray-200 text-gray-500 px-1.5 py-0.5 font-mono text-[10px] min-w-[20px] min-h-[18px] dark:bg-gray-700 dark:text-gray-400'
   const popupKbdClass = 'inline-flex items-center justify-center rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground min-w-[20px] min-h-[18px]'
 
   const shortcutContent = isMac ? (
@@ -160,7 +160,7 @@ export function DirectEditToolbarInner({
         data-direct-edit="toolbar"
         style={{ pointerEvents: 'auto', touchAction: 'none', ...dockStyle }}
         className={cn(
-          'group z-[99999] flex rounded-[14px] outline outline-1 outline-foreground/10 bg-background p-1.5 shadow-lg transition-shadow duration-200',
+          'group z-[99999] flex rounded-xl outline outline-1 outline-foreground/10 bg-background p-1.5 shadow-lg transition-shadow duration-200',
           isVertical ? 'flex-col items-center' : 'flex-row items-center',
           isDragging && 'cursor-grabbing select-none shadow-2xl',
           className
@@ -171,13 +171,10 @@ export function DirectEditToolbarInner({
         onPointerCancel={handlePointerCancel}
         onLostPointerCapture={handlePointerCancel}
       >
-        {/* Handlebar — slides in on hover or while dragging */}
+        {/* Handlebar */}
         <div className={cn(
-          'flex shrink-0 cursor-grab items-center justify-center overflow-hidden transition-[max-width,max-height,padding,opacity] duration-200 ease-out',
-          isVertical
-            ? (isDragging || isSnapping ? 'max-h-3 pt-0 pb-1.5 opacity-100' : 'max-h-0 py-0 opacity-0 group-hover:max-h-3 group-hover:pt-0 group-hover:pb-1.5 group-hover:opacity-100')
-            : (isDragging || isSnapping ? 'max-w-3 pl-0 pr-1.5 opacity-100' : 'max-w-0 px-0 opacity-0 group-hover:max-w-3 group-hover:pl-0 group-hover:pr-1.5 group-hover:opacity-100'),
-          isVertical ? 'w-full' : 'h-full'
+          'flex shrink-0 cursor-grab items-center justify-center',
+          isVertical ? 'w-full pt-0 pb-1.5' : 'h-full pl-0 pr-1.5'
         )}>
           <div className={cn(
             'shrink-0 rounded-full bg-foreground/25',
@@ -288,7 +285,7 @@ export function DirectEditToolbarInner({
                 </Tooltip>
                 <EditsPopoverPortal>
                   <Popover.Positioner side={tooltipSide} sideOffset={12} className="fixed z-[99999]" style={{ pointerEvents: 'auto' }}>
-                    <Popover.Popup ref={editsPopupRef} className="w-[280px] rounded-lg outline outline-1 outline-foreground/10 bg-background shadow-lg" onPointerDown={(e: React.PointerEvent) => e.stopPropagation()}>
+                    <Popover.Popup ref={editsPopupRef} className="w-[280px] rounded-xl outline outline-1 outline-foreground/10 bg-background shadow-lg" onPointerDown={(e: React.PointerEvent) => e.stopPropagation()}>
                       <div className="flex items-center justify-between px-3 pb-1 pt-2.5">
                         <span className="text-xs font-medium text-foreground">Session edits ({editsSnapshot.length})</span>
                         {editsSnapshot.length > 0 && (
@@ -388,7 +385,7 @@ export function DirectEditToolbarInner({
                 </Tooltip>
                 <ThemePopoverPortal>
                   <Popover.Positioner side={tooltipSide} sideOffset={12} className="fixed z-[99999]" style={{ pointerEvents: 'auto' }}>
-                    <Popover.Popup ref={settingsPopupRef} className="w-[220px] rounded-lg outline outline-1 outline-foreground/10 bg-background p-1 shadow-lg" onPointerDown={(e: React.PointerEvent) => e.stopPropagation()}>
+                    <Popover.Popup ref={settingsPopupRef} className="w-[220px] rounded-xl outline outline-1 outline-foreground/10 bg-background p-1 shadow-lg" onPointerDown={(e: React.PointerEvent) => e.stopPropagation()}>
                       <div className="px-2.5 pb-1 pt-1.5 text-[10px] font-medium text-foreground">Theme</div>
                       {([
                         { value: 'light' as const, label: 'Light', Icon: Sun },

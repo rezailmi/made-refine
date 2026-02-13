@@ -150,5 +150,10 @@
   }
 }
 
+/* Lucide icons — use 1px stroke globally */
+.lucide {
+  stroke-width: 1;
+}
+
 /* tailwindcss-animate v4 plugin */
 @plugin "tailwindcss-animate";

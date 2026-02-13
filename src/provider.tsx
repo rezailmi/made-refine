@@ -58,6 +58,7 @@ export interface DirectEditContextValue extends DirectEditState {
   updateBorderRadiusProperty: (key: BorderRadiusPropertyKey, value: CSSPropertyValue) => void
   updateBorderProperty: (key: BorderPropertyKey, value: BorderProperties[BorderPropertyKey]) => void
   updateBorderProperties: (changes: Array<[BorderPropertyKey, BorderProperties[BorderPropertyKey]]>) => void
+  updateRawCSS: (properties: Record<string, string>) => void
   updateFlexProperty: (key: FlexPropertyKey, value: string) => void
   toggleFlexLayout: () => void
   updateSizingProperty: (key: SizingPropertyKey, value: SizingValue) => void
@@ -441,6 +442,38 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     [state.selectedElement, pushUndo]
   )
 
+  const updateRawCSS = React.useCallback(
+    (properties: Record<string, string>) => {
+      if (!state.selectedElement || Object.keys(properties).length === 0) return
+
+      const undoProperties: Array<{ cssProperty: string; previousValue: string | null }> = []
+      const pendingUpdates: Record<string, string> = {}
+
+      for (const [cssProperty, cssValue] of Object.entries(properties)) {
+        const previousValue = state.selectedElement.style.getPropertyValue(cssProperty) || null
+        undoProperties.push({ cssProperty, previousValue })
+        state.selectedElement.style.setProperty(cssProperty, cssValue)
+        pendingUpdates[cssProperty] = cssValue
+      }
+
+      pushUndo({ type: 'edit', element: state.selectedElement, properties: undoProperties })
+
+      const border = getComputedBorderStyles(state.selectedElement)
+      const color = getComputedColorStyles(state.selectedElement)
+
+      setState((prev) => ({
+        ...prev,
+        computedBorder: border,
+        computedColor: color,
+        pendingStyles: {
+          ...prev.pendingStyles,
+          ...pendingUpdates,
+        },
+      }))
+    },
+    [state.selectedElement, pushUndo]
+  )
+
   const updateFlexProperty = React.useCallback(
     (key: FlexPropertyKey, value: string) => {
       if (!state.selectedElement) return
@@ -658,6 +691,8 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
       ...Object.values(sizingPropertyToCSSMap),
       ...Object.values(colorPropertyToCSSMap),
       ...Object.values(typographyPropertyToCSSMap),
+      'outline-style',
+      'outline-width',
     ]
 
     for (const prop of allCSSProps) {
@@ -1378,6 +1413,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     updateBorderRadiusProperty,
     updateBorderProperty,
     updateBorderProperties,
+    updateRawCSS,
     updateFlexProperty,
     toggleFlexLayout,
     updateSizingProperty,
@@ -1415,6 +1451,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     updateBorderRadiusProperty,
     updateBorderProperty,
     updateBorderProperties,
+    updateRawCSS,
     updateFlexProperty,
     updateSizingProperty,
     updateColorProperty,

@@ -8,6 +8,7 @@ import {
   Tooltip,
   TooltipProvider,
   TooltipTrigger,
+  TooltipContent,
   TooltipPortal,
   TooltipPositioner,
   TooltipPopup,
@@ -116,6 +117,15 @@ function NumberInput({ value: propValue, onValueChange, ...props }: NumberInputP
   )
 }
 
+function Tip({ children, label, side = 'top' }: { children: React.ReactElement; label: React.ReactNode; side?: 'top' | 'bottom' | 'left' | 'right' }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger render={children} />
+      <TooltipContent side={side}>{label}</TooltipContent>
+    </Tooltip>
+  )
+}
+
 interface Position {
   x: number
   y: number
@@ -190,53 +200,58 @@ function PaddingInputs({ values, onChange }: PaddingInputsProps) {
     return (
       <div className="space-y-1.5">
         <div className="flex items-center gap-1.5">
-          <div className="relative flex-1">
-            <ArrowLeft className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
-            <NumberInput
-              value={values.left?.numericValue ?? 0}
-              onValueChange={(val) => handleChange(['left'], val)}
-              className="h-7 pl-7 pr-2 text-center text-xs tabular-nums"
-              title="Left"
-            />
-          </div>
-          <div className="relative flex-1">
-            <ArrowUp className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
-            <NumberInput
-              value={values.top?.numericValue ?? 0}
-              onValueChange={(val) => handleChange(['top'], val)}
-              className="h-7 pl-7 pr-2 text-center text-xs tabular-nums"
-              title="Top"
-            />
-          </div>
-          <Button
-            variant="secondary"
-            size="icon"
-            className="size-7 shrink-0"
-            onClick={() => setIndividual(false)}
-            title="Combined mode"
-          >
-            <Columns2 className="size-3" />
-          </Button>
+          <Tip label="Left">
+            <div className="relative flex-1">
+              <ArrowLeft className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+              <NumberInput
+                value={values.left?.numericValue ?? 0}
+                onValueChange={(val) => handleChange(['left'], val)}
+                className="h-7 pl-7 pr-2 text-center text-xs tabular-nums"
+              />
+            </div>
+          </Tip>
+          <Tip label="Top">
+            <div className="relative flex-1">
+              <ArrowUp className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+              <NumberInput
+                value={values.top?.numericValue ?? 0}
+                onValueChange={(val) => handleChange(['top'], val)}
+                className="h-7 pl-7 pr-2 text-center text-xs tabular-nums"
+              />
+            </div>
+          </Tip>
+          <Tip label="Combined mode">
+            <Button
+              variant="secondary"
+              size="icon"
+              className="size-7 shrink-0"
+              onClick={() => setIndividual(false)}
+            >
+              <Columns2 className="size-3.5" />
+            </Button>
+          </Tip>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="relative flex-1">
-            <ArrowRight className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
-            <NumberInput
-              value={values.right?.numericValue ?? 0}
-              onValueChange={(val) => handleChange(['right'], val)}
-              className="h-7 pl-7 pr-2 text-center text-xs tabular-nums"
-              title="Right"
-            />
-          </div>
-          <div className="relative flex-1">
-            <ArrowDown className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
-            <NumberInput
-              value={values.bottom?.numericValue ?? 0}
-              onValueChange={(val) => handleChange(['bottom'], val)}
-              className="h-7 pl-7 pr-2 text-center text-xs tabular-nums"
-              title="Bottom"
-            />
-          </div>
+          <Tip label="Right">
+            <div className="relative flex-1">
+              <ArrowRight className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+              <NumberInput
+                value={values.right?.numericValue ?? 0}
+                onValueChange={(val) => handleChange(['right'], val)}
+                className="h-7 pl-7 pr-2 text-center text-xs tabular-nums"
+              />
+            </div>
+          </Tip>
+          <Tip label="Bottom">
+            <div className="relative flex-1">
+              <ArrowDown className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+              <NumberInput
+                value={values.bottom?.numericValue ?? 0}
+                onValueChange={(val) => handleChange(['bottom'], val)}
+                className="h-7 pl-7 pr-2 text-center text-xs tabular-nums"
+              />
+            </div>
+          </Tip>
           <div className="size-7 shrink-0" />
         </div>
       </div>
@@ -245,33 +260,36 @@ function PaddingInputs({ values, onChange }: PaddingInputsProps) {
 
   return (
     <div className="flex items-center gap-1.5">
-      <div className="relative flex-1">
-        <MoveHorizontal className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
-        <NumberInput
-          value={horizontalValue}
-          onValueChange={(val) => handleChange(['left', 'right'], val)}
-          className="h-7 pl-7 pr-2 text-center text-xs tabular-nums"
-          title="Horizontal (left & right)"
-        />
-      </div>
-      <div className="relative flex-1">
-        <MoveVertical className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
-        <NumberInput
-          value={verticalValue}
-          onValueChange={(val) => handleChange(['top', 'bottom'], val)}
-          className="h-7 pl-7 pr-2 text-center text-xs tabular-nums"
-          title="Vertical (top & bottom)"
-        />
-      </div>
-      <Button
-        variant="ghost"
-        size="icon"
-        className="size-7 shrink-0"
-        onClick={() => setIndividual(true)}
-        title="Individual mode"
-      >
-        <Grid2x2 className="size-3" />
-      </Button>
+      <Tip label="Horizontal (left & right)">
+        <div className="relative flex-1">
+          <MoveHorizontal className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+          <NumberInput
+            value={horizontalValue}
+            onValueChange={(val) => handleChange(['left', 'right'], val)}
+            className="h-7 pl-7 pr-2 text-center text-xs tabular-nums"
+          />
+        </div>
+      </Tip>
+      <Tip label="Vertical (top & bottom)">
+        <div className="relative flex-1">
+          <MoveVertical className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+          <NumberInput
+            value={verticalValue}
+            onValueChange={(val) => handleChange(['top', 'bottom'], val)}
+            className="h-7 pl-7 pr-2 text-center text-xs tabular-nums"
+          />
+        </div>
+      </Tip>
+      <Tip label="Individual mode">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-7 shrink-0 text-muted-foreground"
+          onClick={() => setIndividual(true)}
+        >
+          <Grid2x2 className="size-3.5" />
+        </Button>
+      </Tip>
     </div>
   )
 }
@@ -315,53 +333,58 @@ function MarginInputs({ values, onChange }: MarginInputsProps) {
     return (
       <div className="space-y-1.5">
         <div className="flex items-center gap-1.5">
-          <div className="relative flex-1">
-            <ArrowLeft className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
-            <NumberInput
-              value={values.left?.numericValue ?? 0}
-              onValueChange={(val) => handleChange(['left'], val)}
-              className="h-7 pl-7 pr-2 text-center text-xs tabular-nums"
-              title="Left"
-            />
-          </div>
-          <div className="relative flex-1">
-            <ArrowUp className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
-            <NumberInput
-              value={values.top?.numericValue ?? 0}
-              onValueChange={(val) => handleChange(['top'], val)}
-              className="h-7 pl-7 pr-2 text-center text-xs tabular-nums"
-              title="Top"
-            />
-          </div>
-          <Button
-            variant="secondary"
-            size="icon"
-            className="size-7 shrink-0"
-            onClick={() => setIndividual(false)}
-            title="Combined mode"
-          >
-            <Columns2 className="size-3" />
-          </Button>
+          <Tip label="Left">
+            <div className="relative flex-1">
+              <ArrowLeft className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+              <NumberInput
+                value={values.left?.numericValue ?? 0}
+                onValueChange={(val) => handleChange(['left'], val)}
+                className="h-7 pl-7 pr-2 text-center text-xs tabular-nums"
+              />
+            </div>
+          </Tip>
+          <Tip label="Top">
+            <div className="relative flex-1">
+              <ArrowUp className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+              <NumberInput
+                value={values.top?.numericValue ?? 0}
+                onValueChange={(val) => handleChange(['top'], val)}
+                className="h-7 pl-7 pr-2 text-center text-xs tabular-nums"
+              />
+            </div>
+          </Tip>
+          <Tip label="Combined mode">
+            <Button
+              variant="secondary"
+              size="icon"
+              className="size-7 shrink-0"
+              onClick={() => setIndividual(false)}
+            >
+              <Columns2 className="size-3.5" />
+            </Button>
+          </Tip>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="relative flex-1">
-            <ArrowRight className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
-            <NumberInput
-              value={values.right?.numericValue ?? 0}
-              onValueChange={(val) => handleChange(['right'], val)}
-              className="h-7 pl-7 pr-2 text-center text-xs tabular-nums"
-              title="Right"
-            />
-          </div>
-          <div className="relative flex-1">
-            <ArrowDown className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
-            <NumberInput
-              value={values.bottom?.numericValue ?? 0}
-              onValueChange={(val) => handleChange(['bottom'], val)}
-              className="h-7 pl-7 pr-2 text-center text-xs tabular-nums"
-              title="Bottom"
-            />
-          </div>
+          <Tip label="Right">
+            <div className="relative flex-1">
+              <ArrowRight className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+              <NumberInput
+                value={values.right?.numericValue ?? 0}
+                onValueChange={(val) => handleChange(['right'], val)}
+                className="h-7 pl-7 pr-2 text-center text-xs tabular-nums"
+              />
+            </div>
+          </Tip>
+          <Tip label="Bottom">
+            <div className="relative flex-1">
+              <ArrowDown className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+              <NumberInput
+                value={values.bottom?.numericValue ?? 0}
+                onValueChange={(val) => handleChange(['bottom'], val)}
+                className="h-7 pl-7 pr-2 text-center text-xs tabular-nums"
+              />
+            </div>
+          </Tip>
           <div className="size-7 shrink-0" />
         </div>
       </div>
@@ -370,33 +393,36 @@ function MarginInputs({ values, onChange }: MarginInputsProps) {
 
   return (
     <div className="flex items-center gap-1.5">
-      <div className="relative flex-1">
-        <MoveHorizontal className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
-        <NumberInput
-          value={horizontalValue}
-          onValueChange={(val) => handleChange(['left', 'right'], val)}
-          className="h-7 pl-7 pr-2 text-center text-xs tabular-nums"
-          title="Horizontal (left & right)"
-        />
-      </div>
-      <div className="relative flex-1">
-        <MoveVertical className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
-        <NumberInput
-          value={verticalValue}
-          onValueChange={(val) => handleChange(['top', 'bottom'], val)}
-          className="h-7 pl-7 pr-2 text-center text-xs tabular-nums"
-          title="Vertical (top & bottom)"
-        />
-      </div>
-      <Button
-        variant="ghost"
-        size="icon"
-        className="size-7 shrink-0"
-        onClick={() => setIndividual(true)}
-        title="Individual mode"
-      >
-        <Grid2x2 className="size-3" />
-      </Button>
+      <Tip label="Horizontal (left & right)">
+        <div className="relative flex-1">
+          <MoveHorizontal className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+          <NumberInput
+            value={horizontalValue}
+            onValueChange={(val) => handleChange(['left', 'right'], val)}
+            className="h-7 pl-7 pr-2 text-center text-xs tabular-nums"
+          />
+        </div>
+      </Tip>
+      <Tip label="Vertical (top & bottom)">
+        <div className="relative flex-1">
+          <MoveVertical className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+          <NumberInput
+            value={verticalValue}
+            onValueChange={(val) => handleChange(['top', 'bottom'], val)}
+            className="h-7 pl-7 pr-2 text-center text-xs tabular-nums"
+          />
+        </div>
+      </Tip>
+      <Tip label="Individual mode">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-7 shrink-0 text-muted-foreground"
+          onClick={() => setIndividual(true)}
+        >
+          <Grid2x2 className="size-3.5" />
+        </Button>
+      </Tip>
     </div>
   )
 }
@@ -478,53 +504,58 @@ function BorderRadiusInputs({ values, onChange }: BorderRadiusInputsProps) {
     return (
       <div className="space-y-1.5">
         <div className="flex items-center gap-1.5">
-          <div className="relative flex-1">
-            <RadiusCornerIcon corner="topLeft" className="absolute left-1.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <NumberInput
-              value={values.topLeft?.numericValue ?? 0}
-              onValueChange={(val) => handleChange(['topLeft'], val)}
-              className="h-7 pl-6 pr-1 text-center text-xs tabular-nums"
-              title="Top Left"
-            />
-          </div>
-          <div className="relative flex-1">
-            <RadiusCornerIcon corner="topRight" className="absolute left-1.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <NumberInput
-              value={values.topRight?.numericValue ?? 0}
-              onValueChange={(val) => handleChange(['topRight'], val)}
-              className="h-7 pl-6 pr-1 text-center text-xs tabular-nums"
-              title="Top Right"
-            />
-          </div>
-          <Button
-            variant="secondary"
-            size="icon"
-            className="size-7 shrink-0"
-            onClick={() => setIndividual(false)}
-            title="Combined mode"
-          >
-            <Columns2 className="size-3" />
-          </Button>
+          <Tip label="Top Left">
+            <div className="relative flex-1">
+              <RadiusCornerIcon corner="topLeft" className="absolute left-1.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <NumberInput
+                value={values.topLeft?.numericValue ?? 0}
+                onValueChange={(val) => handleChange(['topLeft'], val)}
+                className="h-7 pl-6 pr-1 text-center text-xs tabular-nums"
+              />
+            </div>
+          </Tip>
+          <Tip label="Top Right">
+            <div className="relative flex-1">
+              <RadiusCornerIcon corner="topRight" className="absolute left-1.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <NumberInput
+                value={values.topRight?.numericValue ?? 0}
+                onValueChange={(val) => handleChange(['topRight'], val)}
+                className="h-7 pl-6 pr-1 text-center text-xs tabular-nums"
+              />
+            </div>
+          </Tip>
+          <Tip label="Combined mode">
+            <Button
+              variant="secondary"
+              size="icon"
+              className="size-7 shrink-0"
+              onClick={() => setIndividual(false)}
+            >
+              <Columns2 className="size-3.5" />
+            </Button>
+          </Tip>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="relative flex-1">
-            <RadiusCornerIcon corner="bottomLeft" className="absolute left-1.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <NumberInput
-              value={values.bottomLeft?.numericValue ?? 0}
-              onValueChange={(val) => handleChange(['bottomLeft'], val)}
-              className="h-7 pl-6 pr-1 text-center text-xs tabular-nums"
-              title="Bottom Left"
-            />
-          </div>
-          <div className="relative flex-1">
-            <RadiusCornerIcon corner="bottomRight" className="absolute left-1.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <NumberInput
-              value={values.bottomRight?.numericValue ?? 0}
-              onValueChange={(val) => handleChange(['bottomRight'], val)}
-              className="h-7 pl-6 pr-1 text-center text-xs tabular-nums"
-              title="Bottom Right"
-            />
-          </div>
+          <Tip label="Bottom Left">
+            <div className="relative flex-1">
+              <RadiusCornerIcon corner="bottomLeft" className="absolute left-1.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <NumberInput
+                value={values.bottomLeft?.numericValue ?? 0}
+                onValueChange={(val) => handleChange(['bottomLeft'], val)}
+                className="h-7 pl-6 pr-1 text-center text-xs tabular-nums"
+              />
+            </div>
+          </Tip>
+          <Tip label="Bottom Right">
+            <div className="relative flex-1">
+              <RadiusCornerIcon corner="bottomRight" className="absolute left-1.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <NumberInput
+                value={values.bottomRight?.numericValue ?? 0}
+                onValueChange={(val) => handleChange(['bottomRight'], val)}
+                className="h-7 pl-6 pr-1 text-center text-xs tabular-nums"
+              />
+            </div>
+          </Tip>
           <div className="size-7 shrink-0" />
         </div>
       </div>
@@ -562,15 +593,16 @@ function BorderRadiusInputs({ values, onChange }: BorderRadiusInputsProps) {
         onFocus={selectOnFocus}
         className="h-7 w-14 px-2 text-center text-xs tabular-nums"
       />
-      <Button
-        variant="ghost"
-        size="icon"
-        className="size-7 shrink-0"
-        onClick={() => setIndividual(true)}
-        title="Individual mode"
-      >
-        <Grid2x2 className="size-3" />
-      </Button>
+      <Tip label="Individual mode">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-7 shrink-0 text-muted-foreground"
+          onClick={() => setIndividual(true)}
+        >
+          <Grid2x2 className="size-3.5" />
+        </Button>
+      </Tip>
     </div>
   )
 }
@@ -616,21 +648,36 @@ const BORDER_STYLE_OPTIONS: Array<{ value: BorderStyle; label: string }> = [
   { value: 'dotted', label: 'Dotted' },
 ]
 
+type BorderPosition = 'border' | 'outline'
+const BORDER_POSITION_OPTIONS: Array<{ value: BorderPosition; label: string }> = [
+  { value: 'border', label: 'Border' },
+  { value: 'outline', label: 'Outline' },
+]
+
 const BORDER_SIDES = ['Top', 'Right', 'Bottom', 'Left'] as const
 
 interface BorderInputsProps {
   border: BorderProperties
   borderColor?: ColorValue
+  outlineColor?: ColorValue
   onChange: (key: BorderPropertyKey, value: BorderProperties[BorderPropertyKey]) => void
   onBatchChange: (changes: Array<[BorderPropertyKey, BorderProperties[BorderPropertyKey]]>) => void
   onBorderColorChange?: (value: ColorValue) => void
+  onOutlineColorChange?: (value: ColorValue) => void
+  onSetCSS?: (properties: Record<string, string>) => void
+  borderPosition: BorderPosition
+  onPositionChange: (position: BorderPosition) => void
+  outlineStyle?: BorderStyle
+  outlineWidth?: number
 }
 
 const BORDER_SIDE_OPTIONS = ['All', 'Top', 'Right', 'Bottom', 'Left', 'Custom'] as const
 type BorderSideOption = typeof BORDER_SIDE_OPTIONS[number]
 
-function BorderInputs({ border, borderColor, onChange, onBatchChange, onBorderColorChange }: BorderInputsProps) {
+function BorderInputs({ border, borderColor, outlineColor, onChange, onBatchChange, onBorderColorChange, onOutlineColorChange, onSetCSS, borderPosition, onPositionChange, outlineStyle, outlineWidth }: BorderInputsProps) {
   const [selectedSide, setSelectedSide] = React.useState<BorderSideOption>('All')
+
+  const isOutline = borderPosition === 'outline'
 
   const activeSides = selectedSide === 'All' || selectedSide === 'Custom'
     ? BORDER_SIDES
@@ -645,10 +692,22 @@ function BorderInputs({ border, borderColor, onChange, onBatchChange, onBorderCo
     return w.numericValue === first.numericValue
   })
 
-  const currentStyle = stylesMatch ? (border[`border${activeSides[0]}Style` as keyof BorderProperties] as BorderStyle) || 'solid' : 'solid'
-  const currentWidth = widthsMatch ? (border[`border${activeSides[0]}Width` as keyof BorderProperties] as CSSPropertyValue) : null
+  const currentStyle = isOutline
+    ? (outlineStyle || 'solid')
+    : (stylesMatch ? (border[`border${activeSides[0]}Style` as keyof BorderProperties] as BorderStyle) || 'solid' : 'solid')
+  const currentWidth = isOutline
+    ? (outlineWidth ?? 0)
+    : (widthsMatch ? (border[`border${activeSides[0]}Width` as keyof BorderProperties] as CSSPropertyValue)?.numericValue ?? 0 : null)
 
   const handleStyleChange = (style: BorderStyle) => {
+    if (isOutline && onSetCSS) {
+      const props: Record<string, string> = { 'outline-style': style }
+      if ((outlineWidth ?? 0) <= 0) {
+        props['outline-width'] = '1px'
+      }
+      onSetCSS(props)
+      return
+    }
     const changes: Array<[BorderPropertyKey, BorderProperties[BorderPropertyKey]]> = []
     for (const s of activeSides) {
       const w = border[`border${s}Width` as keyof BorderProperties] as CSSPropertyValue
@@ -662,6 +721,10 @@ function BorderInputs({ border, borderColor, onChange, onBatchChange, onBorderCo
 
   const handleAllWidthChange = (numericValue: number) => {
     const clamped = Math.max(0, numericValue)
+    if (isOutline && onSetCSS) {
+      onSetCSS({ 'outline-width': `${clamped}px` })
+      return
+    }
     const value: CSSPropertyValue = { numericValue: clamped, unit: 'px', raw: `${clamped}px` }
     const changes: Array<[BorderPropertyKey, BorderProperties[BorderPropertyKey]]> = []
     for (const s of activeSides) {
@@ -679,30 +742,42 @@ function BorderInputs({ border, borderColor, onChange, onBatchChange, onBorderCo
     })
   }
 
+  const activeColor = isOutline ? outlineColor : borderColor
+  const activeColorChange = isOutline ? onOutlineColorChange : onBorderColorChange
+
   return (
     <div className="space-y-2">
+      {/* Row 1: Color */}
+      {activeColor && activeColorChange && (
+        <ColorInput
+          id={isOutline ? 'outline-color' : 'border-color'}
+          label={isOutline ? 'Outline' : 'Border'}
+          icon={isOutline ? <Focus className="size-3.5" /> : <Square className="size-3.5" />}
+          value={activeColor}
+          onChange={activeColorChange}
+        />
+      )}
+
+      {/* Row 2: Position + Style + Width + Side — all on one row */}
       <div className="flex items-center gap-1.5">
-        <Select value={currentStyle} onValueChange={(val) => val && handleStyleChange(val as BorderStyle)}>
-          <SelectTrigger className="flex h-7 w-[80px] items-center justify-between rounded-md border-0 bg-muted px-2 text-xs hover:bg-muted-foreground/10 focus:outline-none">
-            <span className="flex items-center gap-1.5">
-              <Square className="size-3.5 text-muted-foreground" />
-              <span>{BORDER_STYLE_OPTIONS.find((o) => o.value === currentStyle)?.label ?? currentStyle}</span>
-            </span>
+        <Select value={borderPosition} onValueChange={(val) => val && onPositionChange(val as BorderPosition)}>
+          <SelectTrigger className="flex h-7 flex-1 items-center justify-between rounded-md border-0 bg-muted px-2 text-xs hover:bg-muted-foreground/10 focus:outline-none">
+            <span>{BORDER_POSITION_OPTIONS.find((o) => o.value === borderPosition)?.label}</span>
             <SelectIcon>
-              <ChevronDown className="size-3 text-muted-foreground" />
+              <ChevronDown className="size-3.5 text-muted-foreground" />
             </SelectIcon>
           </SelectTrigger>
           <SelectPortal>
             <SelectPositioner sideOffset={4} className="z-[99999]">
-              <SelectPopup className="min-w-[100px] overflow-hidden rounded-lg border-0 bg-popover p-1 text-popover-foreground shadow-lg animate-in fade-in-0 zoom-in-95">
-                {BORDER_STYLE_OPTIONS.map((option) => (
+              <SelectPopup className="min-w-[100px] overflow-hidden rounded-xl outline outline-1 outline-foreground/10 bg-background p-1 text-popover-foreground shadow-lg animate-in fade-in-0 zoom-in-95">
+                {BORDER_POSITION_OPTIONS.map((option) => (
                   <SelectItem
                     key={option.value}
                     value={option.value}
                     className="relative flex cursor-default select-none items-center rounded-md py-1.5 pl-6 pr-2 text-xs outline-none hover:bg-muted data-[highlighted]:bg-muted"
                   >
                     <SelectItemIndicator className="absolute left-1.5 flex items-center justify-center">
-                      <Check className="size-3" />
+                      <Check className="size-3.5" />
                     </SelectItemIndicator>
                     <SelectItemText>{option.label}</SelectItemText>
                   </SelectItem>
@@ -712,76 +787,104 @@ function BorderInputs({ border, borderColor, onChange, onBatchChange, onBorderCo
           </SelectPortal>
         </Select>
 
-        <NumberInput
-          min={0}
-          step={0.5}
-          value={currentWidth ? Math.round(currentWidth.numericValue * 100) / 100 : 0}
-          placeholder={currentWidth ? undefined : '–'}
-          onValueChange={handleAllWidthChange}
-          className="h-7 w-14 px-2 text-center text-xs tabular-nums"
-          title="Border width"
-        />
-
-        <Select value={selectedSide} onValueChange={(val) => val && setSelectedSide(val as BorderSideOption)}>
+        <Select value={currentStyle} onValueChange={(val) => val && handleStyleChange(val as BorderStyle)}>
           <SelectTrigger className="flex h-7 flex-1 items-center justify-between rounded-md border-0 bg-muted px-2 text-xs hover:bg-muted-foreground/10 focus:outline-none">
             <span className="flex items-center gap-1.5">
-              <Square className="size-3 text-muted-foreground" />
-              <span>{selectedSide}</span>
+              <Square className="size-3.5 text-muted-foreground" />
+              <span>{BORDER_STYLE_OPTIONS.find((o) => o.value === currentStyle)?.label ?? currentStyle}</span>
             </span>
             <SelectIcon>
-              <ChevronDown className="size-3 text-muted-foreground" />
+              <ChevronDown className="size-3.5 text-muted-foreground" />
             </SelectIcon>
           </SelectTrigger>
           <SelectPortal>
             <SelectPositioner sideOffset={4} className="z-[99999]">
-              <SelectPopup className="min-w-[90px] overflow-hidden rounded-lg border-0 bg-popover p-1 text-popover-foreground shadow-lg animate-in fade-in-0 zoom-in-95">
-                {BORDER_SIDE_OPTIONS.map((side) => (
+              <SelectPopup className="min-w-[100px] overflow-hidden rounded-xl outline outline-1 outline-foreground/10 bg-background p-1 text-popover-foreground shadow-lg animate-in fade-in-0 zoom-in-95">
+                {BORDER_STYLE_OPTIONS.map((option) => (
                   <SelectItem
-                    key={side}
-                    value={side}
+                    key={option.value}
+                    value={option.value}
                     className="relative flex cursor-default select-none items-center rounded-md py-1.5 pl-6 pr-2 text-xs outline-none hover:bg-muted data-[highlighted]:bg-muted"
                   >
                     <SelectItemIndicator className="absolute left-1.5 flex items-center justify-center">
-                      <Check className="size-3" />
+                      <Check className="size-3.5" />
                     </SelectItemIndicator>
-                    <SelectItemText>{side}</SelectItemText>
+                    <SelectItemText>{option.label}</SelectItemText>
                   </SelectItem>
                 ))}
               </SelectPopup>
             </SelectPositioner>
           </SelectPortal>
         </Select>
+
+        <Tip label={isOutline ? 'Outline width' : 'Border width'}>
+          <div>
+            <NumberInput
+              min={0}
+              step={0.5}
+              value={typeof currentWidth === 'number' ? Math.round(currentWidth * 100) / 100 : 0}
+              placeholder={currentWidth === null ? '–' : undefined}
+              onValueChange={handleAllWidthChange}
+              className="h-7 w-11 px-2 text-center text-xs tabular-nums"
+            />
+          </div>
+        </Tip>
+
+        {!isOutline && (
+          <Select value={selectedSide} onValueChange={(val) => val && setSelectedSide(val as BorderSideOption)}>
+            <Tip label={`Sides: ${selectedSide}`}>
+              <SelectTrigger className="flex size-7 shrink-0 items-center justify-center rounded-md border-0 bg-muted text-muted-foreground hover:bg-muted-foreground/10 hover:text-foreground focus:outline-none">
+                {selectedSide === 'Custom' ? (
+                  <Grid2x2 className="size-3.5" strokeWidth={1} />
+                ) : selectedSide === 'All' ? (
+                  <Square className="size-3.5" />
+                ) : (
+                  <BorderSideIcon side={selectedSide} className="" />
+                )}
+              </SelectTrigger>
+            </Tip>
+            <SelectPortal>
+              <SelectPositioner sideOffset={4} className="z-[99999]">
+                <SelectPopup className="min-w-[90px] overflow-hidden rounded-xl outline outline-1 outline-foreground/10 bg-background p-1 text-popover-foreground shadow-lg animate-in fade-in-0 zoom-in-95">
+                  {BORDER_SIDE_OPTIONS.map((side) => (
+                    <SelectItem
+                      key={side}
+                      value={side}
+                      className="relative flex cursor-default select-none items-center rounded-md py-1.5 pl-6 pr-2 text-xs outline-none hover:bg-muted data-[highlighted]:bg-muted"
+                    >
+                      <SelectItemIndicator className="absolute left-1.5 flex items-center justify-center">
+                        <Check className="size-3.5" />
+                      </SelectItemIndicator>
+                      <SelectItemText>{side}</SelectItemText>
+                    </SelectItem>
+                  ))}
+                </SelectPopup>
+              </SelectPositioner>
+            </SelectPortal>
+          </Select>
+        )}
       </div>
 
-      {selectedSide === 'Custom' && (
+      {!isOutline && selectedSide === 'Custom' && (
         <div className="grid grid-cols-2 gap-1.5">
           {BORDER_SIDES.map((side) => {
             const w = border[`border${side}Width` as keyof BorderProperties] as CSSPropertyValue
             return (
-              <div key={side} className="relative">
-                <BorderSideIcon side={side} className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <NumberInput
-                  min={0}
-                  step={0.5}
-                  value={Math.round(w.numericValue * 100) / 100}
-                  onValueChange={(val) => handleSideWidthChange(side, val)}
-                  className="h-7 pl-7 pr-2 text-xs tabular-nums"
-                  title={`Border ${side.toLowerCase()} width`}
-                />
-              </div>
+              <Tip label={`Border ${side.toLowerCase()} width`} key={side}>
+                <div className="relative">
+                  <BorderSideIcon side={side} className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <NumberInput
+                    min={0}
+                    step={0.5}
+                    value={Math.round(w.numericValue * 100) / 100}
+                    onValueChange={(val) => handleSideWidthChange(side, val)}
+                    className="h-7 pl-7 pr-2 text-xs tabular-nums"
+                  />
+                </div>
+              </Tip>
             )
           })}
         </div>
-      )}
-
-      {borderColor && onBorderColorChange && (
-        <ColorInput
-          id="border-color"
-          label="Border"
-          icon={<Square className="size-3.5" />}
-          value={borderColor}
-          onChange={onBorderColorChange}
-        />
       )}
     </div>
   )
@@ -790,19 +893,45 @@ function BorderInputs({ border, borderColor, onChange, onBatchChange, onBorderCo
 interface BorderSectionProps {
   border: BorderProperties
   borderColor?: ColorValue
+  outlineColor?: ColorValue
   onChange: (key: BorderPropertyKey, value: BorderProperties[BorderPropertyKey]) => void
   onBatchChange: (changes: Array<[BorderPropertyKey, BorderProperties[BorderPropertyKey]]>) => void
   onBorderColorChange?: (value: ColorValue) => void
+  onOutlineColorChange?: (value: ColorValue) => void
+  onSetCSS?: (properties: Record<string, string>) => void
+  pendingStyles?: Record<string, string>
 }
 
-function BorderSection({ border, borderColor, onChange, onBatchChange, onBorderColorChange }: BorderSectionProps) {
-  const hasBorder = BORDER_SIDES.some((s) => {
-    const style = border[`border${s}Style` as keyof BorderProperties] as BorderStyle
-    const width = border[`border${s}Width` as keyof BorderProperties] as CSSPropertyValue
-    return style !== 'none' && width.numericValue > 0
-  })
+function BorderSection({ border, borderColor, outlineColor, onChange, onBatchChange, onBorderColorChange, onOutlineColorChange, onSetCSS, pendingStyles }: BorderSectionProps) {
+  // Auto-detect initial position from pending styles
+  const hasOutlinePending = Boolean(
+    pendingStyles?.['outline-style'] || pendingStyles?.['outline-width']
+  )
+  const [borderPosition, setBorderPosition] = React.useState<BorderPosition>(
+    hasOutlinePending ? 'outline' : 'border'
+  )
+
+  const isOutline = borderPosition === 'outline'
+
+  // Derive outline values from pending styles or computed
+  const outlineStyleValue = (pendingStyles?.['outline-style'] as BorderStyle) || 'none'
+  const outlineWidthValue = pendingStyles?.['outline-width']
+    ? parseFloat(pendingStyles['outline-width'])
+    : 0
+
+  const hasBorder = isOutline
+    ? (outlineStyleValue !== 'none' && outlineWidthValue > 0)
+    : BORDER_SIDES.some((s) => {
+        const style = border[`border${s}Style` as keyof BorderProperties] as BorderStyle
+        const width = border[`border${s}Width` as keyof BorderProperties] as CSSPropertyValue
+        return style !== 'none' && width.numericValue > 0
+      })
 
   const handleAddBorder = () => {
+    if (isOutline && onSetCSS) {
+      onSetCSS({ 'outline-style': 'solid', 'outline-width': '1px' })
+      return
+    }
     const changes: Array<[BorderPropertyKey, BorderProperties[BorderPropertyKey]]> = []
     for (const s of BORDER_SIDES) {
       changes.push([`border${s}Style` as BorderPropertyKey, 'solid'])
@@ -815,6 +944,10 @@ function BorderSection({ border, borderColor, onChange, onBatchChange, onBorderC
   }
 
   const handleRemoveBorder = () => {
+    if (isOutline && onSetCSS) {
+      onSetCSS({ 'outline-style': 'none', 'outline-width': '0px' })
+      return
+    }
     const changes: Array<[BorderPropertyKey, BorderProperties[BorderPropertyKey]]> = []
     for (const s of BORDER_SIDES) {
       changes.push([`border${s}Style` as BorderPropertyKey, 'none'])
@@ -823,15 +956,69 @@ function BorderSection({ border, borderColor, onChange, onBatchChange, onBorderC
     onBatchChange(changes)
   }
 
+  const handlePositionChange = (newPosition: BorderPosition) => {
+    if (newPosition === borderPosition) return
+
+    if (newPosition === 'outline' && onSetCSS) {
+      // Transfer border values to outline
+      const firstSideStyle = border.borderTopStyle !== 'none' ? border.borderTopStyle : 'solid'
+      const firstSideWidth = border.borderTopWidth.numericValue > 0 ? border.borderTopWidth.numericValue : 1
+
+      // Clear border props
+      const clearChanges: Array<[BorderPropertyKey, BorderProperties[BorderPropertyKey]]> = []
+      for (const s of BORDER_SIDES) {
+        clearChanges.push([`border${s}Style` as BorderPropertyKey, 'none'])
+        clearChanges.push([`border${s}Width` as BorderPropertyKey, { numericValue: 0, unit: 'px', raw: '0px' }])
+      }
+      onBatchChange(clearChanges)
+
+      // Set outline props
+      if (hasBorder) {
+        onSetCSS({
+          'outline-style': firstSideStyle,
+          'outline-width': `${firstSideWidth}px`,
+        })
+        // Transfer border color to outline color
+        if (borderColor && onOutlineColorChange) {
+          onOutlineColorChange(borderColor)
+        }
+      }
+    } else if (newPosition === 'border' && onSetCSS) {
+      // Transfer outline values to border
+      const style = outlineStyleValue !== 'none' ? outlineStyleValue : 'solid'
+      const width = outlineWidthValue > 0 ? outlineWidthValue : 1
+
+      // Clear outline props
+      onSetCSS({ 'outline-style': 'none', 'outline-width': '0px' })
+
+      // Set border props
+      if (hasBorder) {
+        const changes: Array<[BorderPropertyKey, BorderProperties[BorderPropertyKey]]> = []
+        for (const s of BORDER_SIDES) {
+          changes.push([`border${s}Style` as BorderPropertyKey, style])
+          changes.push([`border${s}Width` as BorderPropertyKey, { numericValue: width, unit: 'px', raw: `${width}px` }])
+        }
+        onBatchChange(changes)
+        // Transfer outline color to border color
+        if (outlineColor && onBorderColorChange) {
+          onBorderColorChange(outlineColor)
+        }
+      }
+    }
+
+    setBorderPosition(newPosition)
+  }
+
   const headerActions = (
-    <button
-      type="button"
-      className="flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-muted-foreground/10 hover:text-foreground"
-      onClick={hasBorder ? handleRemoveBorder : handleAddBorder}
-      title={hasBorder ? 'Remove border' : 'Add border'}
-    >
-      {hasBorder ? <Minus className="size-3.5" strokeWidth={1.5} /> : <Plus className="size-3.5" strokeWidth={1.5} />}
-    </button>
+    <Tip label={hasBorder ? 'Remove border' : 'Add border'}>
+      <button
+        type="button"
+        className="flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-muted-foreground/10 hover:text-foreground"
+        onClick={hasBorder ? handleRemoveBorder : handleAddBorder}
+      >
+        {hasBorder ? <Minus className="size-3.5" /> : <Plus className="size-3.5" />}
+      </button>
+    </Tip>
   )
 
   return (
@@ -841,9 +1028,16 @@ function BorderSection({ border, borderColor, onChange, onBatchChange, onBorderC
           <BorderInputs
             border={border}
             borderColor={borderColor}
+            outlineColor={outlineColor}
             onChange={onChange}
             onBatchChange={onBatchChange}
             onBorderColorChange={onBorderColorChange}
+            onOutlineColorChange={onOutlineColorChange}
+            onSetCSS={onSetCSS}
+            borderPosition={borderPosition}
+            onPositionChange={handlePositionChange}
+            outlineStyle={outlineStyleValue}
+            outlineWidth={outlineWidthValue}
           />
         </ColorPickerGroup>
       ) : null}
@@ -923,7 +1117,7 @@ function AlignmentGrid({ justifyContent, alignItems, onChange }: AlignmentGridPr
         {({ payload }) => (
           <TooltipPortal>
             <TooltipPositioner side="bottom" sideOffset={8} className="fixed z-[99999]">
-              <TooltipPopup className="overflow-hidden rounded-md bg-[#171717] px-3 py-1.5 text-xs text-[#fafafa] animate-in fade-in-0 zoom-in-95 data-[closed]:animate-out data-[closed]:fade-out-0 data-[closed]:zoom-out-95 data-[side=bottom]:slide-in-from-top-2">
+              <TooltipPopup className="flex flex-col rounded-md bg-[canvas] px-2 py-1 text-xs origin-(--transform-origin) shadow-lg shadow-gray-200 outline-1 outline-gray-200 transition-[transform,scale,opacity] data-starting-style:scale-90 data-starting-style:opacity-0 data-ending-style:scale-90 data-ending-style:opacity-0 data-instant:transition-none dark:shadow-none dark:outline-gray-300 dark:-outline-offset-1">
                 justify: {payload?.justify}, align: {payload?.align}
               </TooltipPopup>
             </TooltipPositioner>
@@ -962,7 +1156,7 @@ function SizingFixedInput({ value, onValueChange }: { value: number; onValueChan
         }
       }}
       onFocus={selectOnFocus}
-      className="w-full min-w-0 flex-1 bg-transparent tabular-nums outline-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none [appearance:textfield]"
+      className="w-full min-w-0 flex-1 bg-transparent text-xs tabular-nums outline-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none [appearance:textfield]"
     />
   )
 }
@@ -1005,15 +1199,15 @@ function SizingDropdown({ label, value, onChange }: SizingDropdownProps) {
         if (val) onChange({ mode: val as SizingMode, value: value.value })
       }}>
         <SelectTrigger className="flex h-full items-center justify-center border-l border-border/30 px-1.5 hover:bg-muted-foreground/10">
-          <ChevronsUpDown className="size-3 text-muted-foreground" />
+          <ChevronsUpDown className="size-3.5 text-muted-foreground" />
         </SelectTrigger>
         <SelectPortal>
           <SelectPositioner side="bottom" sideOffset={4} alignItemWithTrigger={false} className="z-[99999]">
-            <SelectPopup className="min-w-[100px] overflow-hidden rounded-lg border-0 bg-popover p-1 text-popover-foreground shadow-lg animate-in fade-in-0 zoom-in-95">
+            <SelectPopup className="min-w-[100px] overflow-hidden rounded-xl outline outline-1 outline-foreground/10 bg-background p-1 text-popover-foreground shadow-lg animate-in fade-in-0 zoom-in-95">
               {SIZING_OPTIONS.map((option) => (
                 <SelectItem key={option.value} value={option.value} className="relative flex cursor-default select-none items-center rounded-md py-1.5 pl-6 pr-2 text-xs outline-none hover:bg-muted data-[highlighted]:bg-muted">
                   <SelectItemIndicator className="absolute left-1.5 flex items-center justify-center">
-                    <Check className="size-3" />
+                    <Check className="size-3.5" />
                   </SelectItemIndicator>
                   <SelectItemText>{option.label}</SelectItemText>
                 </SelectItem>
@@ -1077,16 +1271,17 @@ function SizingInputs({ width, height, onWidthChange, onHeightChange }: SizingIn
     <div className="flex items-center gap-2">
       <SizingDropdown label="W" value={width} onChange={handleWidthChange} />
       <SizingDropdown label="H" value={height} onChange={handleHeightChange} />
-      <Button
-        variant={locked ? 'secondary' : 'ghost'}
-        size="icon"
-        className="size-7 shrink-0"
-        onClick={handleLockToggle}
-        disabled={!canLock}
-        title={locked ? 'Unlock aspect ratio' : 'Lock aspect ratio'}
-      >
-        {locked ? <Link className="size-3" /> : <Unlink className="size-3" />}
-      </Button>
+      <Tip label={locked ? 'Unlock aspect ratio' : 'Lock aspect ratio'}>
+        <Button
+          variant={locked ? 'secondary' : 'ghost'}
+          size="icon"
+          className="size-7 shrink-0"
+          onClick={handleLockToggle}
+          disabled={!canLock}
+        >
+          {locked ? <Link className="size-3.5" /> : <Unlink className="size-3.5" />}
+        </Button>
+      </Tip>
     </div>
   )
 }
@@ -1242,12 +1437,12 @@ function TypographyInputs({ typography, onUpdate }: TypographyInputsProps) {
             <span>{getFontFamilyLabel(typography.fontFamily)}</span>
           </span>
           <SelectIcon>
-            <ChevronDown className="size-3 text-muted-foreground" />
+            <ChevronDown className="size-3.5 text-muted-foreground" />
           </SelectIcon>
         </SelectTrigger>
         <SelectPortal>
           <SelectPositioner sideOffset={4} className="z-[99999]">
-            <SelectPopup className="min-w-[180px] overflow-hidden rounded-lg border-0 bg-popover p-1 text-popover-foreground shadow-lg animate-in fade-in-0 zoom-in-95">
+            <SelectPopup className="min-w-[180px] overflow-hidden rounded-xl outline outline-1 outline-foreground/10 bg-background p-1 text-popover-foreground shadow-lg animate-in fade-in-0 zoom-in-95">
               {FONT_FAMILIES.map((option) => (
                 <SelectItem
                   key={option.value}
@@ -1255,7 +1450,7 @@ function TypographyInputs({ typography, onUpdate }: TypographyInputsProps) {
                   className="relative flex cursor-default select-none items-center rounded-md py-2 pl-7 pr-2 text-xs outline-none hover:bg-muted hover:text-foreground data-[highlighted]:bg-muted data-[highlighted]:text-foreground"
                 >
                   <SelectItemIndicator className="absolute left-2 flex items-center justify-center">
-                    <Check className="size-3" />
+                    <Check className="size-3.5" />
                   </SelectItemIndicator>
                   <SelectItemText>{option.label}</SelectItemText>
                 </SelectItem>
@@ -1272,12 +1467,12 @@ function TypographyInputs({ typography, onUpdate }: TypographyInputsProps) {
             <span>{getFontWeightLabel(typography.fontWeight)}</span>
           </span>
           <SelectIcon>
-            <ChevronDown className="size-3 text-muted-foreground" />
+            <ChevronDown className="size-3.5 text-muted-foreground" />
           </SelectIcon>
         </SelectTrigger>
         <SelectPortal>
           <SelectPositioner sideOffset={4} className="z-[99999]">
-            <SelectPopup className="min-w-[140px] overflow-hidden rounded-lg border-0 bg-popover p-1 text-popover-foreground shadow-lg animate-in fade-in-0 zoom-in-95">
+            <SelectPopup className="min-w-[140px] overflow-hidden rounded-xl outline outline-1 outline-foreground/10 bg-background p-1 text-popover-foreground shadow-lg animate-in fade-in-0 zoom-in-95">
               {FONT_WEIGHTS.map((option) => (
                 <SelectItem
                   key={option.value}
@@ -1285,7 +1480,7 @@ function TypographyInputs({ typography, onUpdate }: TypographyInputsProps) {
                   className="relative flex cursor-default select-none items-center rounded-md py-2 pl-7 pr-2 text-xs outline-none hover:bg-muted hover:text-foreground data-[highlighted]:bg-muted data-[highlighted]:text-foreground"
                 >
                   <SelectItemIndicator className="absolute left-2 flex items-center justify-center">
-                    <Check className="size-3" />
+                    <Check className="size-3.5" />
                   </SelectItemIndicator>
                   <SelectItemText>{option.label}</SelectItemText>
                 </SelectItem>
@@ -1296,95 +1491,104 @@ function TypographyInputs({ typography, onUpdate }: TypographyInputsProps) {
       </Select>
 
       <div className="flex gap-2">
-        <div className="relative flex-1">
-          <AArrowUp className="absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-          <NumberInput
-            value={Math.round(typography.fontSize.numericValue)}
-            onValueChange={handleFontSizeChange}
-            className="h-7 pl-7 pr-2 text-center text-xs tabular-nums"
-            title="Font Size"
-          />
-        </div>
-        <div className="relative flex-1">
-          <WrapText className="absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-          <NumberInput
-            value={Math.round(typography.lineHeight.numericValue)}
-            onValueChange={handleLineHeightChange}
-            className="h-7 pl-7 pr-2 text-center text-xs tabular-nums"
-            title="Line Height"
-          />
-        </div>
-        <div className="relative flex-1">
-          <LetterText className="absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-          <NumberInput
-            step="0.01"
-            value={Math.round(typography.letterSpacing.numericValue * 100) / 100}
-            onValueChange={handleLetterSpacingChange}
-            className="h-7 pl-7 pr-2 text-center text-xs tabular-nums"
-            title="Letter Spacing (em)"
-          />
-        </div>
+        <Tip label="Font Size">
+          <div className="relative flex-1">
+            <AArrowUp className="absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+            <NumberInput
+              value={Math.round(typography.fontSize.numericValue)}
+              onValueChange={handleFontSizeChange}
+              className="h-7 pl-7 pr-2 text-center text-xs tabular-nums"
+            />
+          </div>
+        </Tip>
+        <Tip label="Line Height">
+          <div className="relative flex-1">
+            <WrapText className="absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+            <NumberInput
+              value={Math.round(typography.lineHeight.numericValue)}
+              onValueChange={handleLineHeightChange}
+              className="h-7 pl-7 pr-2 text-center text-xs tabular-nums"
+            />
+          </div>
+        </Tip>
+        <Tip label="Letter Spacing (em)">
+          <div className="relative flex-1">
+            <LetterText className="absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+            <NumberInput
+              step="0.01"
+              value={Math.round(typography.letterSpacing.numericValue * 100) / 100}
+              onValueChange={handleLetterSpacingChange}
+              className="h-7 pl-7 pr-2 text-center text-xs tabular-nums"
+            />
+          </div>
+        </Tip>
       </div>
 
       <div className="flex items-center gap-3">
         <div className="flex gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            className={typography.textAlign === 'left' || typography.textAlign === 'start' ? 'size-7 bg-muted text-foreground' : 'size-7 text-muted-foreground'}
-            onClick={() => onUpdate('textAlign', 'left')}
-            title="Align Left"
-          >
-            <AlignLeft className="size-3.5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className={typography.textAlign === 'center' ? 'size-7 bg-muted text-foreground' : 'size-7 text-muted-foreground'}
-            onClick={() => onUpdate('textAlign', 'center')}
-            title="Align Center"
-          >
-            <AlignCenter className="size-3.5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className={typography.textAlign === 'right' || typography.textAlign === 'end' ? 'size-7 bg-muted text-foreground' : 'size-7 text-muted-foreground'}
-            onClick={() => onUpdate('textAlign', 'right')}
-            title="Align Right"
-          >
-            <AlignRight className="size-3.5" />
-          </Button>
+          <Tip label="Align Left">
+            <Button
+              variant="ghost"
+              size="icon"
+              className={typography.textAlign === 'left' || typography.textAlign === 'start' ? 'size-7 bg-muted text-foreground' : 'size-7 text-muted-foreground'}
+              onClick={() => onUpdate('textAlign', 'left')}
+            >
+              <AlignLeft className="size-3.5" />
+            </Button>
+          </Tip>
+          <Tip label="Align Center">
+            <Button
+              variant="ghost"
+              size="icon"
+              className={typography.textAlign === 'center' ? 'size-7 bg-muted text-foreground' : 'size-7 text-muted-foreground'}
+              onClick={() => onUpdate('textAlign', 'center')}
+            >
+              <AlignCenter className="size-3.5" />
+            </Button>
+          </Tip>
+          <Tip label="Align Right">
+            <Button
+              variant="ghost"
+              size="icon"
+              className={typography.textAlign === 'right' || typography.textAlign === 'end' ? 'size-7 bg-muted text-foreground' : 'size-7 text-muted-foreground'}
+              onClick={() => onUpdate('textAlign', 'right')}
+            >
+              <AlignRight className="size-3.5" />
+            </Button>
+          </Tip>
         </div>
 
         <div className="flex gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            className={typography.textVerticalAlign === 'flex-start' ? 'size-7 bg-muted text-foreground' : 'size-7 text-muted-foreground'}
-            onClick={() => onUpdate('textVerticalAlign', 'flex-start')}
-            title="Align Top"
-          >
-            <AlignVerticalJustifyStart className="size-3.5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className={typography.textVerticalAlign === 'center' ? 'size-7 bg-muted text-foreground' : 'size-7 text-muted-foreground'}
-            onClick={() => onUpdate('textVerticalAlign', 'center')}
-            title="Align Middle"
-          >
-            <AlignVerticalJustifyCenter className="size-3.5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className={typography.textVerticalAlign === 'flex-end' ? 'size-7 bg-muted text-foreground' : 'size-7 text-muted-foreground'}
-            onClick={() => onUpdate('textVerticalAlign', 'flex-end')}
-            title="Align Bottom"
-          >
-            <AlignVerticalJustifyEnd className="size-3.5" />
-          </Button>
+          <Tip label="Align Top">
+            <Button
+              variant="ghost"
+              size="icon"
+              className={typography.textVerticalAlign === 'flex-start' ? 'size-7 bg-muted text-foreground' : 'size-7 text-muted-foreground'}
+              onClick={() => onUpdate('textVerticalAlign', 'flex-start')}
+            >
+              <AlignVerticalJustifyStart className="size-3.5" />
+            </Button>
+          </Tip>
+          <Tip label="Align Middle">
+            <Button
+              variant="ghost"
+              size="icon"
+              className={typography.textVerticalAlign === 'center' ? 'size-7 bg-muted text-foreground' : 'size-7 text-muted-foreground'}
+              onClick={() => onUpdate('textVerticalAlign', 'center')}
+            >
+              <AlignVerticalJustifyCenter className="size-3.5" />
+            </Button>
+          </Tip>
+          <Tip label="Align Bottom">
+            <Button
+              variant="ghost"
+              size="icon"
+              className={typography.textVerticalAlign === 'flex-end' ? 'size-7 bg-muted text-foreground' : 'size-7 text-muted-foreground'}
+              onClick={() => onUpdate('textVerticalAlign', 'flex-end')}
+            >
+              <AlignVerticalJustifyEnd className="size-3.5" />
+            </Button>
+          </Tip>
         </div>
       </div>
     </div>
@@ -1541,19 +1745,24 @@ function SectionNav({
   sectionRefs: Record<SectionKey, React.RefObject<HTMLDivElement | null>>
 }) {
   const sections: SectionKey[] = ['layout', 'radius', 'border']
-  if (showColors) sections.push('colors')
   if (showText) sections.push('text')
+  if (showColors) sections.push('colors')
 
   const handleClick = (key: SectionKey) => {
-    const el = sectionRefs[key].current
     const scrollEl = scrollRef.current
-    if (!el || !scrollEl) return
+    if (!scrollEl) return
+    if (key === 'layout') {
+      scrollEl.scrollTo({ top: 0, behavior: 'smooth' })
+      return
+    }
+    const el = sectionRefs[key].current
+    if (!el) return
     const top = el.offsetTop - scrollEl.offsetTop
     scrollEl.scrollTo({ top, behavior: 'smooth' })
   }
 
   return (
-    <div className="flex shrink-0 gap-0.5 border-b border-border/50 px-2 py-1">
+    <div className="flex shrink-0 gap-0.5 border-b border-border/50 px-2 py-1 bg-background">
       {sections.map((key) => (
         <button
           key={key}
@@ -1626,6 +1835,7 @@ export interface DirectEditPanelInnerProps {
   onUpdateBorderRadius: (key: BorderRadiusPropertyKey, value: CSSPropertyValue) => void
   onUpdateBorder: (key: BorderPropertyKey, value: BorderProperties[BorderPropertyKey]) => void
   onBatchUpdateBorder: (changes: Array<[BorderPropertyKey, BorderProperties[BorderPropertyKey]]>) => void
+  onSetCSS: (properties: Record<string, string>) => void
   onUpdateFlex: (key: 'flexDirection' | 'justifyContent' | 'alignItems', value: string) => void
   onToggleFlex: () => void
   onUpdateSizing: (key: SizingPropertyKey, value: SizingValue) => void
@@ -1660,6 +1870,7 @@ export function DirectEditPanelInner({
   onUpdateBorderRadius,
   onUpdateBorder,
   onBatchUpdateBorder,
+  onSetCSS,
   onUpdateFlex,
   onToggleFlex,
   onUpdateSizing,
@@ -1726,11 +1937,12 @@ export function DirectEditPanelInner({
   const { scrollRef, activeSection } = useSectionNav(sectionRefs)
 
   return (
+    <TooltipProvider delayDuration={200}>
     <div
       ref={panelRef}
       data-direct-edit="panel"
       className={cn(
-        'flex flex-col overflow-hidden rounded-xl outline outline-1 outline-foreground/10 bg-background shadow-lg',
+        'flex flex-col overflow-hidden rounded-xl outline outline-1 outline-foreground/10 shadow-lg',
         isDragging && 'cursor-grabbing select-none',
         className
       )}
@@ -1738,63 +1950,62 @@ export function DirectEditPanelInner({
     >
       <div
         className={cn(
-          'flex shrink-0 items-center gap-2 border-b border-border/50 bg-background/60 px-3 py-2.5 backdrop-blur-xl',
+          'flex shrink-0 items-center gap-2 border-b border-border/50 bg-background pl-3 pr-2 py-2',
           isDraggable && 'cursor-grab active:cursor-grabbing'
         )}
         onPointerDown={onHeaderPointerDown}
         onPointerMove={onHeaderPointerMove}
         onPointerUp={onHeaderPointerUp}
       >
-        <span className="flex-1 text-xs font-medium">Refine</span>
-        {onClose && (
-          <Button variant="ghost" size="icon" className="size-6" onClick={onClose}>
-            <X className="size-4" />
-          </Button>
-        )}
-      </div>
-
-      <div className="shrink-0 border-b border-border/50 px-3 py-2">
-        <div className="flex items-center justify-between gap-2">
-          <div className="min-w-0 flex-1">
-            <code className="text-xs font-medium text-foreground">
-              &lt;{elementInfo.tagName}&gt;
-            </code>
-            {elementInfo.id && (
-              <span className="ml-1.5 text-xs text-muted-foreground">#{elementInfo.id}</span>
-            )}
-            {elementInfo.classList.length > 0 && (
-              <div className="mt-0.5 truncate text-xs text-muted-foreground">
-                .{elementInfo.classList.slice(0, 3).join(' .')}
-                {elementInfo.classList.length > 3 && ` +${elementInfo.classList.length - 3}`}
-              </div>
-            )}
-          </div>
-          <div className="flex shrink-0 gap-1">
-            {onSelectParent && (
+        <div className="min-w-0 flex-1">
+          <code className="text-xs font-medium text-foreground">
+            &lt;{elementInfo.tagName}&gt;
+          </code>
+          {elementInfo.id && (
+            <span className="ml-1.5 text-xs text-muted-foreground">#{elementInfo.id}</span>
+          )}
+          {elementInfo.classList.length > 0 && (
+            <span className="ml-1.5 truncate text-xs text-muted-foreground">
+              .{elementInfo.classList.slice(0, 3).join(' .')}
+              {elementInfo.classList.length > 3 && ` +${elementInfo.classList.length - 3}`}
+            </span>
+          )}
+        </div>
+        <div className="flex shrink-0 items-center gap-1">
+          {onSelectParent && (
+            <Tip label="Select Parent">
               <Button
-                variant="outline"
+                variant="ghost"
                 size="icon"
                 onClick={onSelectParent}
                 disabled={!elementInfo.parentElement}
                 className="size-7"
-                title="Select Parent"
               >
                 <ChevronUp className="size-3.5" />
               </Button>
-            )}
-            {onSelectChild && (
+            </Tip>
+          )}
+          {onSelectChild && (
+            <Tip label="Select Child">
               <Button
-                variant="outline"
+                variant="ghost"
                 size="icon"
                 onClick={onSelectChild}
                 disabled={!elementInfo.hasChildren}
                 className="size-7"
-                title="Select Child"
               >
                 <ChevronDown className="size-3.5" />
               </Button>
-            )}
-          </div>
+            </Tip>
+          )}
+          {onClose && (
+            <>
+              <div className="mx-0.5 h-4 w-px bg-border" />
+              <Button variant="ghost" size="icon" className="size-7" onClick={onClose}>
+                <X className="size-3.5" />
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
@@ -1806,16 +2017,17 @@ export function DirectEditPanelInner({
         sectionRefs={sectionRefs}
       />
 
-      <div className="flex-1 overflow-y-auto" ref={scrollRef}>
+      <div className="flex-1 overflow-y-auto backdrop-blur-xl bg-background/85" ref={scrollRef}>
         <CollapsibleSection title="Layout" actions={
-          <button
-            type="button"
-            className="flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-muted-foreground/10 hover:text-foreground"
-            onClick={onToggleFlex}
-            title={elementInfo.isFlexContainer ? 'Remove flex (Shift+A)' : 'Add flex (Shift+A)'}
-          >
-            {elementInfo.isFlexContainer ? <Minus className="size-3.5" strokeWidth={1.5} /> : <Plus className="size-3.5" strokeWidth={1.5} />}
-          </button>
+          <Tip label={elementInfo.isFlexContainer ? 'Remove flex (Shift+A)' : 'Add flex (Shift+A)'}>
+            <button
+              type="button"
+              className="flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-muted-foreground/10 hover:text-foreground"
+              onClick={onToggleFlex}
+            >
+              {elementInfo.isFlexContainer ? <Minus className="size-3.5" /> : <Plus className="size-3.5" />}
+            </button>
+          </Tip>
         }>
           <div className="space-y-3" ref={sectionRefs.layout}>
             {elementInfo.isFlexContainer && (
@@ -1824,32 +2036,34 @@ export function DirectEditPanelInner({
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-2">
                     <div className="flex h-7 gap-0.5 rounded-lg bg-muted p-0.5">
-                      <button
-                        type="button"
-                        className={cn(
-                          'flex flex-1 items-center justify-center rounded-md transition-all',
-                          computedFlex.flexDirection === 'row'
-                            ? 'bg-background text-blue-500 shadow-sm'
-                            : 'text-muted-foreground hover:text-foreground'
-                        )}
-                        onClick={() => onUpdateFlex('flexDirection', 'row')}
-                        title="Row"
-                      >
-                        <ArrowRight className="size-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        className={cn(
-                          'flex flex-1 items-center justify-center rounded-md transition-all',
-                          computedFlex.flexDirection === 'column'
-                            ? 'bg-background text-blue-500 shadow-sm'
-                            : 'text-muted-foreground hover:text-foreground'
-                        )}
-                        onClick={() => onUpdateFlex('flexDirection', 'column')}
-                        title="Column"
-                      >
-                        <ArrowDown className="size-3.5" />
-                      </button>
+                      <Tip label="Row">
+                        <button
+                          type="button"
+                          className={cn(
+                            'flex flex-1 items-center justify-center rounded-md transition-all',
+                            computedFlex.flexDirection === 'row'
+                              ? 'bg-background text-blue-500 shadow-sm'
+                              : 'text-muted-foreground hover:text-foreground'
+                          )}
+                          onClick={() => onUpdateFlex('flexDirection', 'row')}
+                        >
+                          <ArrowRight className="size-3.5" />
+                        </button>
+                      </Tip>
+                      <Tip label="Column">
+                        <button
+                          type="button"
+                          className={cn(
+                            'flex flex-1 items-center justify-center rounded-md transition-all',
+                            computedFlex.flexDirection === 'column'
+                              ? 'bg-background text-blue-500 shadow-sm'
+                              : 'text-muted-foreground hover:text-foreground'
+                          )}
+                          onClick={() => onUpdateFlex('flexDirection', 'column')}
+                        >
+                          <ArrowDown className="size-3.5" />
+                        </button>
+                      </Tip>
                     </div>
 
                     <div className="flex h-7 items-center overflow-hidden rounded-md border-0 bg-muted text-xs">
@@ -1875,15 +2089,15 @@ export function DirectEditPanelInner({
                         if (val) onUpdateFlex('justifyContent', val === 'fixed' ? 'flex-start' : val)
                       }}>
                         <SelectTrigger className="flex h-full items-center justify-center border-l border-border/30 px-1.5 hover:bg-muted-foreground/10">
-                          <ChevronsUpDown className="size-3 text-muted-foreground" />
+                          <ChevronsUpDown className="size-3.5 text-muted-foreground" />
                         </SelectTrigger>
                         <SelectPortal>
                           <SelectPositioner side="bottom" sideOffset={4} alignItemWithTrigger={false} className="z-[99999]">
-                            <SelectPopup className="min-w-[120px] overflow-hidden rounded-lg border-0 bg-popover p-1 text-popover-foreground shadow-lg animate-in fade-in-0 zoom-in-95">
+                            <SelectPopup className="min-w-[120px] overflow-hidden rounded-xl outline outline-1 outline-foreground/10 bg-background p-1 text-popover-foreground shadow-lg animate-in fade-in-0 zoom-in-95">
                               {DISTRIBUTE_MODES.map((mode) => (
                                 <SelectItem key={mode} value={mode} className="relative flex cursor-default select-none items-center rounded-md py-1.5 pl-6 pr-2 text-xs outline-none hover:bg-muted data-[highlighted]:bg-muted">
                                   <SelectItemIndicator className="absolute left-1.5 flex items-center justify-center">
-                                    <Check className="size-3" />
+                                    <Check className="size-3.5" />
                                   </SelectItemIndicator>
                                   <SelectItemText>{DISTRIBUTE_LABELS[mode]}</SelectItemText>
                                 </SelectItem>
@@ -1965,15 +2179,30 @@ export function DirectEditPanelInner({
           <BorderSection
             border={computedBorder}
             borderColor={computedColor?.borderColor}
+            outlineColor={computedColor?.outlineColor}
             onChange={onUpdateBorder}
             onBatchChange={onBatchUpdateBorder}
             onBorderColorChange={(value) => onUpdateColor('borderColor', value)}
+            onOutlineColorChange={(value) => onUpdateColor('outlineColor', value)}
+            onSetCSS={onSetCSS}
+            pendingStyles={pendingStyles}
           />
         </div>
 
+        {elementInfo.isTextElement && computedTypography && (
+          <div ref={sectionRefs.text}>
+            <CollapsibleSection title="Text">
+              <TypographyInputs
+                typography={computedTypography}
+                onUpdate={onUpdateTypography}
+              />
+            </CollapsibleSection>
+          </div>
+        )}
+
         {computedColor && (
           <div ref={sectionRefs.colors}>
-            <CollapsibleSection title="Colors">
+            <CollapsibleSection title="Selection colors">
               <FillSection
                 backgroundColor={computedColor.backgroundColor}
                 textColor={computedColor.color}
@@ -1991,22 +2220,11 @@ export function DirectEditPanelInner({
             </CollapsibleSection>
           </div>
         )}
-
-        {elementInfo.isTextElement && computedTypography && (
-          <div ref={sectionRefs.text}>
-            <CollapsibleSection title="Text">
-              <TypographyInputs
-                typography={computedTypography}
-                onUpdate={onUpdateTypography}
-              />
-            </CollapsibleSection>
-          </div>
-        )}
       </div>
 
       <div
         className={cn(
-          'flex shrink-0 items-center gap-1 border-t border-border/50 bg-muted/20 px-3 py-2',
+          'flex shrink-0 items-center gap-1 border-t border-border/50 bg-background px-3 py-2',
           isDraggable && 'cursor-grab active:cursor-grabbing'
         )}
         onPointerDown={onHeaderPointerDown}
@@ -2014,41 +2232,44 @@ export function DirectEditPanelInner({
         onPointerUp={onHeaderPointerUp}
       >
         <div className="flex-1" />
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={handleCopy}
-          title="Copy edits"
-          className="size-7"
-        >
-          {copyError ? (
-            <X className="size-3.5 text-red-500" />
-          ) : copied ? (
-            <Check className="size-3.5 text-green-500" />
-          ) : (
-            <Copy className="size-3.5" />
-          )}
-        </Button>
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={handleSendToAgent}
-          disabled={!hasPendingChanges || sendStatus === 'sending'}
-          title="Apply changes via agent"
-          className="size-7"
-        >
-          {sendStatus === 'offline' ? (
-            <X className="size-3.5 text-red-500" />
-          ) : sendStatus === 'sent' ? (
-            <Check className="size-3.5 text-green-500" />
-          ) : sendStatus === 'sending' ? (
-            <Send className="size-3.5 animate-pulse" />
-          ) : (
-            <Send className="size-3.5" />
-          )}
-        </Button>
+        <Tip label="Copy edits">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleCopy}
+            className="size-7"
+          >
+            {copyError ? (
+              <X className="size-3.5 text-red-500" />
+            ) : copied ? (
+              <Check className="size-3.5 text-green-500" />
+            ) : (
+              <Copy className="size-3.5" />
+            )}
+          </Button>
+        </Tip>
+        <Tip label="Apply changes via agent">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={handleSendToAgent}
+            disabled={!hasPendingChanges || sendStatus === 'sending'}
+            className="size-7"
+          >
+            {sendStatus === 'offline' ? (
+              <X className="size-3.5 text-red-500" />
+            ) : sendStatus === 'sent' ? (
+              <Check className="size-3.5 text-green-500" />
+            ) : sendStatus === 'sending' ? (
+              <Send className="size-3.5 animate-pulse" />
+            ) : (
+              <Send className="size-3.5" />
+            )}
+          </Button>
+        </Tip>
       </div>
     </div>
+    </TooltipProvider>
   )
 }
 
@@ -2069,6 +2290,7 @@ function DirectEditPanelContent() {
     updateBorderRadiusProperty,
     updateBorderProperty,
     updateBorderProperties,
+    updateRawCSS,
     updateFlexProperty,
     toggleFlexLayout,
     updateSizingProperty,
@@ -2167,7 +2389,7 @@ function DirectEditPanelContent() {
     <>
       <div
         data-direct-edit="overlay"
-        className={cn('fixed inset-0 z-[99990]', activeTool === 'comment' ? 'cursor-crosshair' : 'cursor-default')}
+        className={cn('fixed inset-0 z-[99990] cursor-default')}
         style={{ pointerEvents: textEditingElement ? 'none' : 'auto' }}
         onDoubleClick={(e) => {
           e.preventDefault()
@@ -2341,6 +2563,7 @@ function DirectEditPanelContent() {
         onUpdateBorderRadius={updateBorderRadiusProperty}
         onUpdateBorder={updateBorderProperty}
         onBatchUpdateBorder={updateBorderProperties}
+        onSetCSS={updateRawCSS}
         onUpdateFlex={updateFlexProperty}
         onToggleFlex={toggleFlexLayout}
         onUpdateSizing={updateSizingProperty}

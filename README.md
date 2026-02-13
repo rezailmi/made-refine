@@ -354,6 +354,22 @@ These utilities require DOM APIs and must run in the browser:
 - React 18+
 - Next.js 13+ or Vite 4+
 
+## Release to npm
+
+Publishing is handled by GitHub Actions via `.github/workflows/publish.yml`.
+
+1. Go to **Actions** -> **Publish** -> **Run workflow**.
+2. Run it from the `main` branch.
+3. Choose `task`:
+   - `release`: bump version and publish
+   - `unpublish`: remove selected versions from npm
+4. For `release`, choose `bump` (`patch`, `minor`, `major`, or `prerelease`).
+5. If using `prerelease`, set `preid` (default: `beta`).
+6. Keep `npm_tag` as `auto` (stable -> `latest`, prerelease -> `beta`) or override it.
+7. For `unpublish`, set `unpublish_versions` and `confirm_unpublish=UNPUBLISH`.
+
+For release, the workflow bumps `package.json` + lockfile version, creates a git tag, pushes to `main`, and publishes to npm with provenance.
+
 ## CSS Variables
 
 The package uses CSS variables for theming. It will use your app's existing shadcn/ui theme if available, or fall back to sensible defaults:
