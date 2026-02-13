@@ -119,19 +119,18 @@ async function transformFile(
   return false
 }
 
-function detectPackageManager(cwd: string): 'npm' | 'yarn' | 'pnpm' | 'bun' {
+function detectPackageManager(cwd: string): 'bun' | 'pnpm' | 'yarn' {
   if (fs.existsSync(path.join(cwd, 'bun.lockb')) || fs.existsSync(path.join(cwd, 'bun.lock'))) return 'bun'
   if (fs.existsSync(path.join(cwd, 'pnpm-lock.yaml'))) return 'pnpm'
   if (fs.existsSync(path.join(cwd, 'yarn.lock'))) return 'yarn'
-  return 'npm'
+  return 'bun'
 }
 
-function getInstallCommand(pm: 'npm' | 'yarn' | 'pnpm' | 'bun'): string {
+function getInstallCommand(pm: 'bun' | 'pnpm' | 'yarn'): string {
   switch (pm) {
     case 'bun': return 'bun add -d made-refine@beta'
     case 'pnpm': return 'pnpm add -D made-refine@beta'
     case 'yarn': return 'yarn add -D made-refine@beta'
-    default: return 'npm install -D made-refine@beta'
   }
 }
 

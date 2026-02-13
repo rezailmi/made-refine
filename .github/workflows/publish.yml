@@ -122,12 +122,12 @@ jobs:
         id: version
         run: |
           if [ "${{ github.event.inputs.bump }}" = "prerelease" ]; then
-            npm version prerelease --preid "${{ github.event.inputs.preid }}" -m "chore(release): %s"
+            bun pm version prerelease --preid "${{ github.event.inputs.preid }}"
           else
-            npm version "${{ github.event.inputs.bump }}" -m "chore(release): %s"
+            bun pm version "${{ github.event.inputs.bump }}"
           fi
 
-          VERSION=$(node -p "require('./package.json').version")
+          VERSION=$(bun -e "import pkg from './package.json'; console.log(pkg.version)")
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Push version commit and tag
@@ -150,12 +150,7 @@ jobs:
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
       - name: Publish to npm
-        run: |
-          if [ "${{ github.event.repository.private }}" = "true" ]; then
-            npm publish --tag "${{ steps.publish_tag.outputs.tag }}"
-          else
-            npm publish --provenance --tag "${{ steps.publish_tag.outputs.tag }}"
-          fi
+        run: bun publish --tag "${{ steps.publish_tag.outputs.tag }}"
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
@@ -164,6 +159,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -192,7 +191,7 @@ jobs:
       - name: Unpublish selected versions
         run: |
           for VERSION in $(echo "${{ github.event.inputs.unpublish_versions }}" | tr ',' ' '); do
-            npm unpublish "made-refine@$VERSION" || echo "$VERSION already unpublished or not found"
+            bunx npm unpublish "made-refine@$VERSION" || echo "$VERSION already unpublished or not found"
           done
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

@@ -1,6 +1,7 @@
 {
   "name": "made-refine",
   "version": "0.1.5",
+  "packageManager": "bun@1.3.8",
   "description": "Visual CSS editor for React",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
@@ -100,11 +101,11 @@
     "prebuild": "mkdir -p dist && tailwindcss -i ./src/styles.css -o ./dist/styles.css -m",
     "postbuild": "cp vite/index.d.ts dist/vite.d.ts",
     "build": "tsup",
-    "pretest": "npm run build",
+    "pretest": "bun run build",
     "test": "vitest run",
     "predev": "mkdir -p dist && tailwindcss -i ./src/styles.css -o ./dist/styles.css -m",
     "dev": "concurrently \"tailwindcss -i ./src/styles.css -o ./dist/styles.css -w\" \"tsup --watch --ignore-watch dist\"",
     "dev:app": "vite",
-    "dev:all": "concurrently \"npm run dev\" \"npm run dev:app\""
+    "dev:all": "concurrently \"bun run dev\" \"bun run dev:app\""
   }
 }

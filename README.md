@@ -9,14 +9,14 @@ A visual CSS editor for React. Select any element and adjust padding, border-rad
 Run this in your project root:
 
 ```bash
-npx made-refine init
+bunx made-refine init
 ```
 
 The CLI auto-detects your framework (Next.js, Vite, or TanStack Start), installs the package, and configures everything — with a diff preview before any file changes.
 
 Or, paste this prompt into any AI coding assistant (Cursor, Copilot, Claude Code, etc.):
 
-> Add made-refine to this project. Run `npx made-refine init` and follow the prompts.
+> Add made-refine to this project. Run `bunx made-refine init` and follow the prompts.
 
 ---
 
@@ -27,11 +27,7 @@ If you prefer to set things up by hand, follow the instructions below for your f
 ### Installation
 
 ```bash
-npm install made-refine@beta
-# or
 bun add made-refine@beta
-# or
-yarn add made-refine@beta
 ```
 
 ## Next.js Setup
@@ -253,7 +249,7 @@ Add this to `.mcp.json` in your project root:
 {
   "mcpServers": {
     "made-refine": {
-      "command": "npx",
+      "command": "bunx",
       "args": ["made-refine-mcp"]
     }
   }
@@ -368,7 +364,7 @@ Publishing is handled by GitHub Actions via `.github/workflows/publish.yml`.
 6. Keep `npm_tag` as `auto` (stable -> `latest`, prerelease -> `beta`) or override it.
 7. For `unpublish`, set `unpublish_versions` and `confirm_unpublish=UNPUBLISH`.
 
-For release, the workflow bumps `package.json` + lockfile version, creates a git tag, pushes to `main`, and publishes to npm with provenance.
+For release, the workflow bumps `package.json` version, creates a git tag, pushes to `main`, and publishes to npm with Bun.
 
 ## CSS Variables
 

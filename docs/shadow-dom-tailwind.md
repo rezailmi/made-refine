@@ -15,7 +15,7 @@ These Tailwind classes silently fail (no visible error, just no effect):
 All `--tw-*` variable initializations are copied from Tailwind's `@supports` fallback block into `@layer base` in `src/styles.css`. This makes them apply unconditionally inside the Shadow DOM.
 
 **How to re-sync after a Tailwind upgrade:**
-1. Run `npm run build`
+1. Run `bun run build`
 2. Inspect `dist/styles.css` for the `@layer properties { @supports ... { * { ... } } }` block
 3. Copy all `--tw-*` declarations into the `@layer base` rule in `src/styles.css`
 
