@@ -50,6 +50,7 @@ function resetStorage() {
     'direct-edit-rulers-visible',
     'direct-edit-toolbar-dock',
     'direct-edit-panel-position',
+    'direct-edit-border-style-control',
   ]
   for (const key of keys) {
     try {
@@ -116,6 +117,54 @@ describe('DirectEditProvider', () => {
 
     expect(target.style.getPropertyValue('padding-top')).toBe('8px')
     expect(Object.keys(result.current.pendingStyles)).toHaveLength(0)
+  })
+
+  it('adds box shadow, exports it, supports undo, and resets to original', async () => {
+    const clipboardWrite = mockClipboard()
+    const target = createTarget('shadow-card')
+    const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+    act(() => {
+      result.current.selectElement(target)
+    })
+
+    await waitFor(() => {
+      expect(result.current.selectedElement).toBe(target)
+    })
+
+    clipboardWrite.mockClear()
+
+    const shadowValue = '0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -2px rgba(0,0,0,0.1)'
+    act(() => {
+      result.current.updateRawCSS({ 'box-shadow': shadowValue })
+    })
+
+    expect(target.style.getPropertyValue('box-shadow')).toBe(shadowValue)
+    expect(result.current.pendingStyles['box-shadow']).toBe(shadowValue)
+
+    const copied = await result.current.exportEdits()
+    expect(copied).toBe(true)
+    expect(String(clipboardWrite.mock.calls[0][0])).toContain(`box-shadow: ${shadowValue}`)
+
+    act(() => {
+      result.current.undo()
+    })
+
+    expect(target.style.getPropertyValue('box-shadow')).toBe('')
+    expect(result.current.pendingStyles['box-shadow']).toBeUndefined()
+
+    act(() => {
+      result.current.updateRawCSS({ 'box-shadow': 'none' })
+    })
+
+    expect(target.style.getPropertyValue('box-shadow')).toBe('none')
+    expect(result.current.pendingStyles['box-shadow']).toBe('none')
+
+    act(() => {
+      result.current.resetToOriginal()
+    })
+
+    expect(target.style.getPropertyValue('box-shadow')).toBe('')
   })
 
   it('handles keyboard toggles and applies persisted theme to the shadow host', async () => {

@@ -80,6 +80,7 @@ export {
   calculateElementMeasurements,
   parseColorValue,
   getComputedColorStyles,
+  getComputedBoxShadow,
   colorToTailwind,
   getElementLocator,
   isFlexContainer,

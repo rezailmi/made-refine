@@ -26,7 +26,7 @@ import {
   SelectItemText,
 } from './ui/select'
 import { cn } from './cn'
-import type { SpacingPropertyKey, BorderRadiusPropertyKey, BorderPropertyKey, BorderProperties, BorderStyle, CSSPropertyValue, SizingValue, SizingMode, SizingPropertyKey, ColorValue, ColorPropertyKey, TypographyPropertyKey, TypographyProperties } from './types'
+import type { SpacingPropertyKey, BorderRadiusPropertyKey, BorderPropertyKey, BorderProperties, BorderStyle, CSSPropertyValue, SizingValue, SizingMode, SizingPropertyKey, ColorValue, ColorPropertyKey, TypographyPropertyKey, TypographyProperties, BorderStyleControlPreference } from './types'
 import { formatColorValue } from './ui/color-utils'
 import { ColorPickerPopover, ColorPickerGroup } from './ui/color-picker'
 import { Slider } from './ui/slider'
@@ -39,6 +39,7 @@ import {
   resolveElementTarget, computeHoverHighlight,
   elementFromPointWithoutOverlays, findChildAtPoint,
 } from './utils'
+import { createDefaultShadowLayer, parseShadowLayers, serializeShadowLayers, type EditableShadowLayer } from './shadow-utils'
 import { MoveOverlay } from './move-overlay'
 import { SelectionOverlay } from './selection-overlay'
 import { CommentOverlay } from './comment-overlay'
@@ -72,6 +73,7 @@ import {
   WrapText,
   AArrowUp,
   LetterText,
+  Settings2,
   Plus,
   Minus,
   Send,
@@ -666,6 +668,7 @@ interface BorderInputsProps {
   onOutlineColorChange?: (value: ColorValue) => void
   onSetCSS?: (properties: Record<string, string>) => void
   borderPosition: BorderPosition
+  borderStyleControlPreference: BorderStyleControlPreference
   onPositionChange: (position: BorderPosition) => void
   outlineStyle?: BorderStyle
   outlineWidth?: number
@@ -674,7 +677,7 @@ interface BorderInputsProps {
 const BORDER_SIDE_OPTIONS = ['All', 'Top', 'Right', 'Bottom', 'Left', 'Custom'] as const
 type BorderSideOption = typeof BORDER_SIDE_OPTIONS[number]
 
-function BorderInputs({ border, borderColor, outlineColor, onChange, onBatchChange, onBorderColorChange, onOutlineColorChange, onSetCSS, borderPosition, onPositionChange, outlineStyle, outlineWidth }: BorderInputsProps) {
+function BorderInputs({ border, borderColor, outlineColor, onChange, onBatchChange, onBorderColorChange, onOutlineColorChange, onSetCSS, borderPosition, borderStyleControlPreference, onPositionChange, outlineStyle, outlineWidth }: BorderInputsProps) {
   const [selectedSide, setSelectedSide] = React.useState<BorderSideOption>('All')
 
   const isOutline = borderPosition === 'outline'
@@ -744,24 +747,14 @@ function BorderInputs({ border, borderColor, outlineColor, onChange, onBatchChan
 
   const activeColor = isOutline ? outlineColor : borderColor
   const activeColorChange = isOutline ? onOutlineColorChange : onBorderColorChange
+  const currentStyleLabel = BORDER_STYLE_OPTIONS.find((o) => o.value === currentStyle)?.label ?? currentStyle
 
   return (
     <div className="space-y-2">
-      {/* Row 1: Color */}
-      {activeColor && activeColorChange && (
-        <ColorInput
-          id={isOutline ? 'outline-color' : 'border-color'}
-          label={isOutline ? 'Outline' : 'Border'}
-          icon={isOutline ? <Focus className="size-3.5" /> : <Square className="size-3.5" />}
-          value={activeColor}
-          onChange={activeColorChange}
-        />
-      )}
-
-      {/* Row 2: Position + Style + Width + Side — all on one row */}
+      {/* Row 1: Position + Style + Width + Side */}
       <div className="flex items-center gap-1.5">
         <Select value={borderPosition} onValueChange={(val) => val && onPositionChange(val as BorderPosition)}>
-          <SelectTrigger className="flex h-7 flex-1 items-center justify-between rounded-md border-0 bg-muted px-2 text-xs hover:bg-muted-foreground/10 focus:outline-none">
+          <SelectTrigger className="flex h-7 min-w-0 flex-1 items-center justify-between rounded-md border-0 bg-muted px-2 text-xs hover:bg-muted-foreground/10 focus:outline-none">
             <span>{BORDER_POSITION_OPTIONS.find((o) => o.value === borderPosition)?.label}</span>
             <SelectIcon>
               <ChevronDown className="size-3.5 text-muted-foreground" />
@@ -787,19 +780,43 @@ function BorderInputs({ border, borderColor, outlineColor, onChange, onBatchChan
           </SelectPortal>
         </Select>
 
+        <Tip label={isOutline ? 'Outline width' : 'Border width'}>
+          <div className={cn(borderStyleControlPreference === 'icon' && 'min-w-0 flex-1')}>
+            <NumberInput
+              min={0}
+              step={0.5}
+              value={typeof currentWidth === 'number' ? Math.round(currentWidth * 100) / 100 : 0}
+              placeholder={currentWidth === null ? '–' : undefined}
+              onValueChange={handleAllWidthChange}
+              className={cn(
+                'h-7 px-2 text-center text-xs tabular-nums',
+                borderStyleControlPreference === 'icon' ? 'w-full' : 'w-11',
+              )}
+            />
+          </div>
+        </Tip>
+
         <Select value={currentStyle} onValueChange={(val) => val && handleStyleChange(val as BorderStyle)}>
-          <SelectTrigger className="flex h-7 flex-1 items-center justify-between rounded-md border-0 bg-muted px-2 text-xs hover:bg-muted-foreground/10 focus:outline-none">
-            <span className="flex items-center gap-1.5">
-              <Square className="size-3.5 text-muted-foreground" />
-              <span>{BORDER_STYLE_OPTIONS.find((o) => o.value === currentStyle)?.label ?? currentStyle}</span>
-            </span>
-            <SelectIcon>
-              <ChevronDown className="size-3.5 text-muted-foreground" />
-            </SelectIcon>
-          </SelectTrigger>
+          {borderStyleControlPreference === 'icon' ? (
+            <Tip label={`Border style: ${currentStyleLabel}`}>
+              <SelectTrigger className="flex h-7 w-auto shrink-0 items-center justify-center rounded-md border-0 bg-muted px-2 text-xs hover:bg-muted-foreground/10 focus:outline-none">
+                <Settings2 className="size-3.5 text-muted-foreground" />
+              </SelectTrigger>
+            </Tip>
+          ) : (
+            <SelectTrigger className="flex h-7 flex-1 items-center justify-between rounded-md border-0 bg-muted px-2 text-xs hover:bg-muted-foreground/10 focus:outline-none">
+              <span className="flex items-center gap-1.5">
+                <Square className="size-3.5 text-muted-foreground" />
+                <span>{currentStyleLabel}</span>
+              </span>
+              <SelectIcon>
+                <ChevronDown className="size-3.5 text-muted-foreground" />
+              </SelectIcon>
+            </SelectTrigger>
+          )}
           <SelectPortal>
             <SelectPositioner sideOffset={4} className="z-[99999]">
-              <SelectPopup className="min-w-[100px] overflow-hidden rounded-xl outline outline-1 outline-foreground/10 bg-background p-1 text-popover-foreground shadow-lg animate-in fade-in-0 zoom-in-95">
+              <SelectPopup className="min-w-[120px] overflow-hidden rounded-xl outline outline-1 outline-foreground/10 bg-background p-1 text-popover-foreground shadow-lg animate-in fade-in-0 zoom-in-95">
                 {BORDER_STYLE_OPTIONS.map((option) => (
                   <SelectItem
                     key={option.value}
@@ -817,29 +834,16 @@ function BorderInputs({ border, borderColor, outlineColor, onChange, onBatchChan
           </SelectPortal>
         </Select>
 
-        <Tip label={isOutline ? 'Outline width' : 'Border width'}>
-          <div>
-            <NumberInput
-              min={0}
-              step={0.5}
-              value={typeof currentWidth === 'number' ? Math.round(currentWidth * 100) / 100 : 0}
-              placeholder={currentWidth === null ? '–' : undefined}
-              onValueChange={handleAllWidthChange}
-              className="h-7 w-11 px-2 text-center text-xs tabular-nums"
-            />
-          </div>
-        </Tip>
-
         {!isOutline && (
           <Select value={selectedSide} onValueChange={(val) => val && setSelectedSide(val as BorderSideOption)}>
             <Tip label={`Sides: ${selectedSide}`}>
-              <SelectTrigger className="flex size-7 shrink-0 items-center justify-center rounded-md border-0 bg-muted text-muted-foreground hover:bg-muted-foreground/10 hover:text-foreground focus:outline-none">
+              <SelectTrigger className="flex h-7 w-auto shrink-0 items-center justify-center rounded-md border-0 bg-muted px-2 text-xs hover:bg-muted-foreground/10 focus:outline-none">
                 {selectedSide === 'Custom' ? (
-                  <Grid2x2 className="size-3.5" strokeWidth={1} />
+                  <Grid2x2 className="size-3.5 text-muted-foreground" strokeWidth={1} />
                 ) : selectedSide === 'All' ? (
-                  <Square className="size-3.5" />
+                  <Square className="size-3.5 text-muted-foreground" />
                 ) : (
-                  <BorderSideIcon side={selectedSide} className="" />
+                  <BorderSideIcon side={selectedSide} className="text-muted-foreground" />
                 )}
               </SelectTrigger>
             </Tip>
@@ -886,6 +890,17 @@ function BorderInputs({ border, borderColor, outlineColor, onChange, onBatchChan
           })}
         </div>
       )}
+
+      {/* Row 2: Color */}
+      {activeColor && activeColorChange && (
+        <ColorInput
+          id={isOutline ? 'outline-color' : 'border-color'}
+          label={isOutline ? 'Outline' : 'Border'}
+          icon={isOutline ? <Focus className="size-3.5" /> : <Square className="size-3.5" />}
+          value={activeColor}
+          onChange={activeColorChange}
+        />
+      )}
     </div>
   )
 }
@@ -894,6 +909,7 @@ interface BorderSectionProps {
   border: BorderProperties
   borderColor?: ColorValue
   outlineColor?: ColorValue
+  borderStyleControlPreference: BorderStyleControlPreference
   onChange: (key: BorderPropertyKey, value: BorderProperties[BorderPropertyKey]) => void
   onBatchChange: (changes: Array<[BorderPropertyKey, BorderProperties[BorderPropertyKey]]>) => void
   onBorderColorChange?: (value: ColorValue) => void
@@ -902,7 +918,7 @@ interface BorderSectionProps {
   pendingStyles?: Record<string, string>
 }
 
-function BorderSection({ border, borderColor, outlineColor, onChange, onBatchChange, onBorderColorChange, onOutlineColorChange, onSetCSS, pendingStyles }: BorderSectionProps) {
+function BorderSection({ border, borderColor, outlineColor, borderStyleControlPreference, onChange, onBatchChange, onBorderColorChange, onOutlineColorChange, onSetCSS, pendingStyles }: BorderSectionProps) {
   // Auto-detect initial position from pending styles
   const hasOutlinePending = Boolean(
     pendingStyles?.['outline-style'] || pendingStyles?.['outline-width']
@@ -1035,11 +1051,218 @@ function BorderSection({ border, borderColor, outlineColor, onChange, onBatchCha
             onOutlineColorChange={onOutlineColorChange}
             onSetCSS={onSetCSS}
             borderPosition={borderPosition}
+            borderStyleControlPreference={borderStyleControlPreference}
             onPositionChange={handlePositionChange}
             outlineStyle={outlineStyleValue}
             outlineWidth={outlineWidthValue}
           />
         </ColorPickerGroup>
+      ) : null}
+    </CollapsibleSection>
+  )
+}
+
+function ShadowField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string
+  value: number
+  onChange: (value: number) => void
+}) {
+  return (
+    <div className="relative">
+      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">{label}</span>
+      <NumberInput
+        value={value}
+        onValueChange={onChange}
+        className="h-7 pl-7 pr-2 text-xs tabular-nums"
+      />
+    </div>
+  )
+}
+
+function ShadowLayerEditor({
+  layer,
+  index,
+  onChange,
+  onRemoveLayer,
+}: {
+  layer: EditableShadowLayer
+  index: number
+  onChange: (next: EditableShadowLayer) => void
+  onRemoveLayer: () => void
+}) {
+  const [hexInput, setHexInput] = React.useState(layer.color.hex)
+  const [alphaInput, setAlphaInput] = React.useState(String(layer.color.alpha))
+
+  React.useEffect(() => {
+    setHexInput(layer.color.hex)
+    setAlphaInput(String(layer.color.alpha))
+  }, [layer.color.hex, layer.color.alpha])
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-1">
+        <div className="grid flex-1 grid-cols-4 gap-2">
+          <ShadowField label="X" value={layer.x} onChange={(x) => onChange({ ...layer, x })} />
+          <ShadowField label="Y" value={layer.y} onChange={(y) => onChange({ ...layer, y })} />
+          <Tip label="Blur">
+            <div>
+              <ShadowField label="B" value={layer.blur} onChange={(blur) => onChange({ ...layer, blur: Math.max(0, blur) })} />
+            </div>
+          </Tip>
+          <Tip label="Spread">
+            <div>
+              <ShadowField label="S" value={layer.spread} onChange={(spread) => onChange({ ...layer, spread })} />
+            </div>
+          </Tip>
+        </div>
+        <Tip label="Remove shadow layer">
+          <button
+            type="button"
+            className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted-foreground/10 hover:text-foreground"
+            onClick={onRemoveLayer}
+          >
+            <Minus className="size-3.5" />
+          </button>
+        </Tip>
+      </div>
+
+      <div className="flex items-center gap-1">
+        <div className="flex h-7 flex-1 items-center rounded-md border-0 bg-muted">
+          <div className="ml-1">
+            <ColorPickerPopover id={`shadow-color-${index}`} value={layer.color} onChange={(color) => onChange({ ...layer, color })}>
+              <div
+                className="size-5 cursor-pointer rounded-sm shadow-[inset_0_0_0_1px_rgba(0,0,0,0.1)]"
+                style={{ backgroundColor: `#${layer.color.hex}` }}
+              />
+            </ColorPickerPopover>
+          </div>
+          <input
+            type="text"
+            value={hexInput}
+            onChange={(event) => {
+              const cleaned = event.target.value.replace('#', '').toUpperCase()
+              if (!/^[0-9A-F]{0,6}$/.test(cleaned)) return
+              setHexInput(cleaned)
+              if (cleaned.length === 6) {
+                onChange({
+                  ...layer,
+                  color: {
+                    ...layer.color,
+                    hex: cleaned,
+                    raw: formatColorValue({ ...layer.color, hex: cleaned, raw: '' }),
+                  },
+                })
+              }
+            }}
+            onBlur={() => setHexInput(layer.color.hex)}
+            className="h-full w-[68px] bg-transparent px-2 font-mono text-xs uppercase outline-none"
+            maxLength={6}
+            placeholder="000000"
+          />
+          <span className="text-xs text-muted-foreground">/</span>
+          <input
+            type="number"
+            value={alphaInput}
+            onChange={(event) => {
+              setAlphaInput(event.target.value)
+              const parsed = parseInt(event.target.value, 10)
+              if (Number.isNaN(parsed)) return
+              const clamped = Math.max(0, Math.min(100, parsed))
+              onChange({
+                ...layer,
+                color: {
+                  ...layer.color,
+                  alpha: clamped,
+                  raw: formatColorValue({ ...layer.color, alpha: clamped, raw: '' }),
+                },
+              })
+            }}
+            onBlur={() => setAlphaInput(String(layer.color.alpha))}
+            className="h-full w-10 bg-transparent px-1 text-center text-xs tabular-nums outline-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none [appearance:textfield]"
+            min={0}
+            max={100}
+          />
+          <span className="pr-2 text-xs text-muted-foreground">%</span>
+        </div>
+        <div className="size-7 shrink-0" />
+      </div>
+    </div>
+  )
+}
+
+interface ShadowSectionProps {
+  boxShadow?: string
+  onSetCSS?: (properties: Record<string, string>) => void
+  pendingStyles?: Record<string, string>
+}
+
+function ShadowSection({ boxShadow, onSetCSS, pendingStyles }: ShadowSectionProps) {
+  const effectiveShadow = (pendingStyles?.['box-shadow'] ?? boxShadow ?? 'none').trim()
+  const parsedLayers = React.useMemo(() => parseShadowLayers(effectiveShadow), [effectiveShadow])
+  const [layers, setLayers] = React.useState<EditableShadowLayer[]>(parsedLayers)
+  const hasShadow = layers.length > 0
+
+  React.useEffect(() => {
+    setLayers(parsedLayers)
+  }, [parsedLayers])
+
+  const commitLayers = (nextLayers: EditableShadowLayer[]) => {
+    setLayers(nextLayers)
+    if (!onSetCSS) return
+    onSetCSS({ 'box-shadow': serializeShadowLayers(nextLayers) })
+  }
+
+  const handleAddShadow = () => {
+    commitLayers([createDefaultShadowLayer(0)])
+  }
+
+  const updateLayer = (index: number, nextLayer: EditableShadowLayer) => {
+    const nextLayers = layers.map((layer, layerIndex) => (layerIndex === index ? nextLayer : layer))
+    commitLayers(nextLayers)
+  }
+
+  const addLayer = () => {
+    const nextLayers = [...layers, createDefaultShadowLayer(layers.length)]
+    commitLayers(nextLayers)
+  }
+
+  const removeLayer = (index: number) => {
+    const nextLayers = layers.filter((_, layerIndex) => layerIndex !== index)
+    commitLayers(nextLayers)
+  }
+
+  const headerActions = (
+    <div className="flex items-center gap-1">
+      <Tip label={hasShadow ? 'Add shadow layer' : 'Add shadow'}>
+        <button
+          type="button"
+          className="flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-muted-foreground/10 hover:text-foreground"
+          onClick={hasShadow ? addLayer : handleAddShadow}
+        >
+          <Plus className="size-3.5" />
+        </button>
+      </Tip>
+    </div>
+  )
+
+  return (
+    <CollapsibleSection title="Shadow" actions={headerActions}>
+      {hasShadow ? (
+        <div className="space-y-4">
+          {layers.map((layer, index) => (
+            <ShadowLayerEditor
+              key={`shadow-layer-${index}`}
+              layer={layer}
+              index={index}
+              onChange={(nextLayer) => updateLayer(index, nextLayer)}
+              onRemoveLayer={() => removeLayer(index)}
+            />
+          ))}
+        </div>
       ) : null}
     </CollapsibleSection>
   )
@@ -1688,12 +1911,13 @@ function CollapsibleSection({ title, actions, children }: CollapsibleSectionProp
   )
 }
 
-type SectionKey = 'layout' | 'radius' | 'border' | 'colors' | 'text'
+type SectionKey = 'layout' | 'radius' | 'border' | 'shadow' | 'colors' | 'text'
 
 const SECTION_LABELS: Record<SectionKey, string> = {
   layout: 'Layout',
   radius: 'Radius',
   border: 'Border',
+  shadow: 'Shadow',
   colors: 'Colors',
   text: 'Text',
 }
@@ -1744,7 +1968,7 @@ function SectionNav({
   showText: boolean
   sectionRefs: Record<SectionKey, React.RefObject<HTMLDivElement | null>>
 }) {
-  const sections: SectionKey[] = ['layout', 'radius', 'border']
+  const sections: SectionKey[] = ['layout', 'radius', 'border', 'shadow']
   if (showText) sections.push('text')
   if (showColors) sections.push('colors')
 
@@ -1762,13 +1986,13 @@ function SectionNav({
   }
 
   return (
-    <div className="flex shrink-0 gap-0.5 border-b border-border/50 px-2 py-1 bg-background">
+    <div className="flex shrink-0 gap-0.5 overflow-x-auto overflow-y-hidden whitespace-nowrap border-b border-border/50 bg-background px-2 py-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
       {sections.map((key) => (
         <button
           key={key}
           type="button"
           className={cn(
-            'rounded-md px-2 py-1 text-xs font-medium transition-colors',
+            'shrink-0 rounded-md px-2 py-1 text-xs font-medium transition-colors',
             activeSection === key
               ? 'bg-muted text-foreground'
               : 'text-muted-foreground hover:text-foreground'
@@ -1826,6 +2050,8 @@ export interface DirectEditPanelInnerProps {
     borderColor: ColorValue
     outlineColor: ColorValue
   } | null
+  computedBoxShadow?: string
+  borderStyleControlPreference?: BorderStyleControlPreference
   computedTypography: TypographyProperties | null
   pendingStyles: Record<string, string>
   onClose?: () => void
@@ -1861,6 +2087,8 @@ export function DirectEditPanelInner({
   computedFlex,
   computedSizing,
   computedColor,
+  computedBoxShadow = 'none',
+  borderStyleControlPreference = 'icon',
   computedTypography,
   pendingStyles,
   onClose,
@@ -1931,6 +2159,7 @@ export function DirectEditPanelInner({
     layout: React.useRef<HTMLDivElement>(null),
     radius: React.useRef<HTMLDivElement>(null),
     border: React.useRef<HTMLDivElement>(null),
+    shadow: React.useRef<HTMLDivElement>(null),
     colors: React.useRef<HTMLDivElement>(null),
     text: React.useRef<HTMLDivElement>(null),
   }
@@ -2174,10 +2403,19 @@ export function DirectEditPanelInner({
             border={computedBorder}
             borderColor={computedColor?.borderColor}
             outlineColor={computedColor?.outlineColor}
+            borderStyleControlPreference={borderStyleControlPreference}
             onChange={onUpdateBorder}
             onBatchChange={onBatchUpdateBorder}
             onBorderColorChange={(value) => onUpdateColor('borderColor', value)}
             onOutlineColorChange={(value) => onUpdateColor('outlineColor', value)}
+            onSetCSS={onSetCSS}
+            pendingStyles={pendingStyles}
+          />
+        </div>
+
+        <div ref={sectionRefs.shadow}>
+          <ShadowSection
+            boxShadow={computedBoxShadow}
             onSetCSS={onSetCSS}
             pendingStyles={pendingStyles}
           />
@@ -2279,6 +2517,8 @@ function DirectEditPanelContent() {
     computedFlex,
     computedSizing,
     computedColor,
+    computedBoxShadow,
+    borderStyleControlPreference,
     computedTypography,
     updateSpacingProperty,
     updateBorderRadiusProperty,
@@ -2470,7 +2710,7 @@ function DirectEditPanelContent() {
     container
   ) : null
 
-  if (!isOpen || !computedSpacing || !elementInfo || !computedBorderRadius || !computedBorder || !computedFlex || !computedSizing || !computedColor || !computedTypography || !container) return <>{overlay}{commentOverlay}</>
+  if (!isOpen || !computedSpacing || !elementInfo || !computedBorderRadius || !computedBorder || !computedFlex || !computedSizing || !computedColor || computedBoxShadow === null || !computedTypography || !container) return <>{overlay}{commentOverlay}</>
 
   const handleMoveStart = (e: React.PointerEvent) => {
     if (selectedElement) {
@@ -2548,6 +2788,8 @@ function DirectEditPanelContent() {
         computedFlex={computedFlex}
         computedSizing={computedSizing}
         computedColor={computedColor}
+        computedBoxShadow={computedBoxShadow}
+        borderStyleControlPreference={borderStyleControlPreference}
         computedTypography={computedTypography}
         pendingStyles={pendingStyles}
         onClose={closePanel}
