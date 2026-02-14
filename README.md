@@ -383,4 +383,4 @@ The package uses CSS variables for theming. It will use your app's existing shad
 
 ## License
 
-MIT
+MIT (see [LICENSE](./LICENSE))
