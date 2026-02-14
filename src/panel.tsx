@@ -9,9 +9,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
   TooltipContent,
-  TooltipPortal,
-  TooltipPositioner,
-  TooltipPopup,
   createTooltipHandle,
 } from './ui/tooltip'
 import {
@@ -1115,13 +1112,9 @@ function AlignmentGrid({ justifyContent, alignItems, onChange }: AlignmentGridPr
       </div>
       <Tooltip handle={tooltipHandle}>
         {({ payload }) => (
-          <TooltipPortal>
-            <TooltipPositioner side="bottom" sideOffset={8} className="fixed z-[99999]">
-              <TooltipPopup className="flex flex-col rounded-md bg-[canvas] px-2 py-1 text-xs origin-(--transform-origin) shadow-lg shadow-gray-200 outline-1 outline-gray-200 transition-[transform,scale,opacity] data-starting-style:scale-90 data-starting-style:opacity-0 data-ending-style:scale-90 data-ending-style:opacity-0 data-instant:transition-none dark:shadow-none dark:outline-gray-300 dark:-outline-offset-1">
-                justify: {payload?.justify}, align: {payload?.align}
-              </TooltipPopup>
-            </TooltipPositioner>
-          </TooltipPortal>
+          <TooltipContent side="bottom" sideOffset={8} className="flex flex-col">
+            justify: {payload?.justify}, align: {payload?.align}
+          </TooltipContent>
         )}
       </Tooltip>
     </TooltipProvider>
