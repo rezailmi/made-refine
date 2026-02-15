@@ -1,5 +1,5 @@
 import type { ColorPropertyKey, SizingValue } from '../types'
-import { parsePropertyValue } from './css-properties'
+import { parsePropertyValue } from './css-value'
 import { parseColorValue } from './color'
 
 const tailwindClassMap: Record<string, { prefix: string; scale: Record<number, string> }> = {

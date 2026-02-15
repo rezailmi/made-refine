@@ -1,153 +1,154 @@
-# Refactoring Plan: made-refine
+# Refactoring Plan: made-refine (DRY-first)
 
-## Context
+## Goal
 
-The made-refine codebase has grown organically with several maintainability and performance
-issues: an abandoned partial refactor left duplicate utility code across two files, two
-nearly identical panel components (PaddingInputs/MarginInputs), a verbose Select dropdown
-pattern repeated 8+ times, a monolithic React context that triggers unnecessary re-renders,
-and a 2,831-line panel file containing 20+ component definitions. This refactoring eliminates
-~733 lines of duplication, improves render performance via context splitting, and reorganizes
-panel components into a navigable directory structure.
+Prioritize maintainability and DRY improvements first, then apply performance changes with
+clear migration steps so behavior is not regressed and all tests stay green.
+
+## Priorities
+
+1. Remove duplication and reduce file complexity (maintainability first).
+2. Preserve runtime behavior and Shadow DOM isolation.
+3. Land performance work only after internal APIs are cleaner and easier to reason about.
+4. Keep package surface stable where practical; avoid accidental breakage for direct imports.
 
 ---
 
-## Phase 1: Eliminate Duplicated Utility Code
+## Phase 0: Safety Baseline (Before Refactor)
 
-### 1a. Delete duplicate `src/utils/css-properties.ts`
+1. Run and record baseline:
+   - `bunx tsc --noEmit`
+   - `bun run build`
+   - `bunx vitest run`
+2. Capture current behavior for high-risk areas:
+   - Select popups render inside shadow root (not `document.body`).
+   - Spacing behavior allows negative margins but not negative padding.
+   - Existing public exports from `src/index.ts` remain unchanged unless intentionally versioned.
 
-`src/utils/css-properties.ts` (344 lines) is an abandoned partial refactor containing
-exact copies of functions/constants already in `src/utils.ts`:
-- `parsePropertyValue`, `formatPropertyValue`, `getComputedStyles`, `getComputedBorderStyles`,
-  `getOriginalInlineStyles`, all `*PropertyToCSSMap` constants, `getComputedTypography`,
-  `detectSizingMode`, `getSizingValue`, `getComputedSizing`, `sizingValueToCSS`
+---
+
+## Phase 1: DRY Utility Consolidation
+
+### 1a. Remove duplicate utility implementation safely
+
+`src/utils/css-properties.ts` duplicates logic from `src/utils.ts`.
 
 **Actions:**
-1. Update `src/utils/tailwind.ts` line 2: change `import { parsePropertyValue } from './css-properties'`
-   to `import { parsePropertyValue } from '../utils'`
-2. Delete `src/utils/css-properties.ts`
+1. Create a small shared module (for example `src/utils/css-value.ts`) containing
+   `parsePropertyValue` / `formatPropertyValue`.
+2. Update both `src/utils.ts` and `src/utils/tailwind.ts` to import from that shared module.
+3. Replace duplicate code in `src/utils/css-properties.ts` with a temporary compatibility shim
+   (re-exports only), then remove it in a follow-up release.
 
-**Files:** `src/utils/tailwind.ts`, delete `src/utils/css-properties.ts`
+**Why this order:** avoids coupling `src/utils/tailwind.ts` to the heavy `src/utils.ts` module and
+reduces risk of import/bundle side effects.
 
-### 1b. Extract `getAllComputedStyles` helper
+### 1b. Extract one reusable computed-styles snapshot helper
 
-The pattern of calling 6-7 `getComputed*` functions and spreading results into state
-appears **7 times** in `src/provider.tsx` (lines 231-236, 560-562, 740-745, 777-782,
-815-820, 984-990, 1219-1224).
+The provider repeats the same computed style refresh pattern at multiple call sites.
 
-**Action:** Add to `src/utils.ts`:
-```ts
-export function getAllComputedStyles(element: HTMLElement) {
-  const { spacing, borderRadius, flex } = getComputedStyles(element)
-  return {
-    computedSpacing: spacing, computedBorderRadius: borderRadius, computedFlex: flex,
-    computedBorder: getComputedBorderStyles(element),
-    computedSizing: getComputedSizing(element),
-    computedColor: getComputedColorStyles(element),
-    computedBoxShadow: getComputedBoxShadow(element),
-    computedTypography: getComputedTypography(element),
-  }
-}
-```
-Replace all 7 call sites in `src/provider.tsx`.
+**Actions:**
+1. Add `getAllComputedStyles(element)` that returns spacing, border radius, border, flex, sizing,
+   color, box shadow, typography from one normalized path.
+2. Replace duplicated refresh blocks in `src/provider.tsx`.
+3. Keep behavior identical (no functional changes in this phase).
 
-**Files:** `src/utils.ts`, `src/provider.tsx`
+**Files:** `src/utils.ts` (or focused helper module), `src/provider.tsx`
 
 ---
 
-## Phase 2: Unify Duplicated Panel Components
+## Phase 2: DRY Panel Components
 
-### 2a. Merge PaddingInputs + MarginInputs into `SpacingInputs`
+### 2a. Merge `PaddingInputs` + `MarginInputs` into `SpacingInputs`
 
-`PaddingInputs` (lines 163-294) and `MarginInputs` (lines 296-427) in `src/panel.tsx`
-are structurally identical — same state, toggle logic, icons, and layout. Only difference
-is the key prefix (`padding` vs `margin`).
+**Actions:**
+1. Replace both components with one `SpacingInputs` component (`prefix: 'padding' | 'margin'`).
+2. Include explicit constraints:
+   - Padding values clamp to `>= 0`.
+   - Margin values allow negatives.
+3. Keep current per-component UI behavior (combined vs individual mode) unchanged.
 
-**Action:** Replace both with a single `SpacingInputs` component accepting a `prefix` prop.
-Eliminates ~130 lines.
+**Files:** `src/panel.tsx` (then moved in Phase 3)
 
-**Files:** `src/panel.tsx`
+### 2b. Extract `SimpleSelect` without losing variant behavior
 
-### 2b. Extract reusable `SimpleSelect` wrapper
+**Actions:**
+1. Create `src/ui/simple-select.tsx`.
+2. Build it as a thin wrapper around existing primitives from `src/ui/select.tsx` only.
+3. Support variant props for:
+   - `SelectPositioner` options (including `alignItemWithTrigger={false}` cases)
+   - trigger/popup/item class differences
+   - icon-only and label triggers
+4. Replace repeated select markup where patterns truly match.
 
-The full `Select > SelectTrigger > SelectPortal > SelectPositioner > SelectPopup > SelectItem`
-pattern with identical styling is repeated 8+ times in `src/panel.tsx` (border position,
-border style, border side, sizing mode, distribute mode, font family, font weight).
-
-**Action:** Create `src/ui/simple-select.tsx` with a `SimpleSelect` component. Replace
-all 8+ instances. Removes ~200 lines of boilerplate. Reuses existing Select primitives
-from `src/ui/select.tsx`.
-
-**Files:** Create `src/ui/simple-select.tsx`, update `src/panel.tsx`
-
----
-
-## Phase 3: Split Provider for Performance
-
-### 3a. Separate actions context from state context
-
-The single `DirectEditContext` spreads `...state` (15+ reactive props) plus 30+ callbacks
-into one `useMemo`. Since `state` is a dependency, the entire context recreates on every
-state change, forcing all consumers to re-render.
-
-**Action:** Split into two contexts:
-- `DirectEditStateContext` — `state` + `sessionEditCount`
-- `DirectEditActionsContext` — all callbacks (stable, since they already use `stateRef`)
-
-Keep `useDirectEdit()` backward-compatible by merging both. Add `useDirectEditActions()`
-for action-only consumers.
-
-**Files:** `src/provider.tsx`
-
-### 3b. Batch localStorage reads
-
-Two separate mount effects each call `setState` for theme and border preference.
-
-**Action:** Combine into one effect with one `setState` call.
-
-**Files:** `src/provider.tsx`
+**Guardrail:** never import `@base-ui/react/select` directly in panel sections; use
+`src/ui/select.tsx` wrappers so portals stay in the shadow root.
 
 ---
 
-## Phase 4: Extract Panel Sections into `src/panel/`
+## Phase 3: Extract Panel into `src/panel/` Modules
 
-`src/panel.tsx` is 2,831 lines with 20+ components. Extract into a directory:
+Split `src/panel.tsx` into focused files after the DRY primitives exist.
 
-| New file | Components | ~LOC |
-|----------|-----------|------|
-| `src/panel/shared.tsx` | `NumberInput`, `Tip`, `CollapsibleSection`, `SectionNav`, `selectOnFocus` | ~120 |
-| `src/panel/spacing-inputs.tsx` | `SpacingInputs` (merged) | ~100 |
-| `src/panel/border-radius-inputs.tsx` | `BorderRadiusInputs`, `RadiusCornerIcon` | ~120 |
-| `src/panel/border-section.tsx` | `BorderSection`, `BorderInputs`, `BorderSideIcon` | ~200 |
-| `src/panel/shadow-section.tsx` | `ShadowSection`, `ShadowLayerEditor`, `ShadowField` | ~160 |
-| `src/panel/typography-inputs.tsx` | `TypographyInputs` | ~130 |
-| `src/panel/fill-section.tsx` | `FillSection`, `ColorInput` | ~130 |
-| `src/panel/sizing-inputs.tsx` | `SizingInputs`, `SizingDropdown`, `SizingFixedInput` | ~130 |
-| `src/panel/alignment-grid.tsx` | `AlignmentGrid` | ~80 |
-| `src/panel.tsx` (remains) | `DirectEditPanelInner`, `DirectEditPanelContent`, `DirectEditPanel` | ~700 |
+| New file | Components |
+|----------|-----------|
+| `src/panel/shared.tsx` | `NumberInput`, `Tip`, `CollapsibleSection`, `SectionNav`, `selectOnFocus` |
+| `src/panel/spacing-inputs.tsx` | `SpacingInputs` |
+| `src/panel/border-radius-inputs.tsx` | `BorderRadiusInputs`, `RadiusCornerIcon` |
+| `src/panel/border-section.tsx` | `BorderSection`, `BorderInputs`, `BorderSideIcon` |
+| `src/panel/shadow-section.tsx` | `ShadowSection`, `ShadowLayerEditor`, `ShadowField` |
+| `src/panel/typography-inputs.tsx` | `TypographyInputs` |
+| `src/panel/fill-section.tsx` | `FillSection`, `ColorInput` |
+| `src/panel/sizing-inputs.tsx` | `SizingInputs`, `SizingDropdown`, `SizingFixedInput` |
+| `src/panel/alignment-grid.tsx` | `AlignmentGrid` |
 
-**Files:** Create `src/panel/` with 9 files, refactor `src/panel.tsx`
+`src/panel.tsx` should remain as composition + exports (`DirectEditPanelInner`,
+`DirectEditPanelContent`, `DirectEditPanel`).
 
 ---
 
-## Summary
+## Phase 4: Performance Refactor (After Maintainability Cleanup)
 
-| Step | Net LOC change |
-|------|---------------|
-| 1a: Delete duplicate utils | -344 |
-| 1b: `getAllComputedStyles` | -55 |
-| 2a: Merge spacing inputs | -130 |
-| 2b: `SimpleSelect` wrapper | -150 |
-| 3a: Split context | -50 |
-| 3b: Batch localStorage | -4 |
-| 4a: Extract panel sections | ~0 (reorganize) |
-| **Total** | **~-733 lines** |
+### 4a. Stabilize actions first, then split context
 
-## Verification
+**Actions:**
+1. Audit callbacks in `src/provider.tsx`; remove state-based dependencies where safe using `stateRef`.
+2. Split into:
+   - `DirectEditStateContext` (reactive state + `sessionEditCount`)
+   - `DirectEditActionsContext` (stable callbacks)
+3. Keep `useDirectEdit()` for backward compatibility.
+4. Add `useDirectEditState()` and `useDirectEditActions()`.
+5. Migrate internal action-heavy consumers first (e.g., toolbar) to `useDirectEditActions()`.
 
-1. Run `npx tsc --noEmit` — ensure no type errors after all changes
-2. Run existing tests: `npx vitest run` — all tests in `src/provider.test.tsx`,
-   `src/utils.test.ts`, `src/toolbar.test.tsx`, etc. should pass
-3. Run build: `npx tsup` — verify all 6 build configs succeed
-4. Manual smoke test in dev app (`dev/`): toggle edit mode, select elements, modify
-   spacing/border/color/typography, undo, export — verify all functionality works
+**Important:** context split only helps after consumers stop using merged `useDirectEdit()` for
+action-only reads.
+
+### 4b. Batch mount-time localStorage reads
+
+Combine theme and border-style preference initialization into one mount effect with a single
+`setState` call.
+
+---
+
+## Verification Gates (Mandatory)
+
+Run this after **every phase**:
+
+1. `bunx tsc --noEmit`
+2. `bun run build`
+3. `bunx vitest run`
+
+Then run manual smoke checks in `dev/`:
+
+1. Toggle edit mode, select elements, edit spacing/border/color/typography.
+2. Verify undo/reset/export/send flows.
+3. Verify select popups appear correctly inside shadow-root UI.
+4. Verify spacing edge cases: negative margin accepted, padding stays non-negative.
+5. Verify theme + border-style preference persistence after reload.
+
+## Done Criteria
+
+1. DRY targets completed (duplicate utility and duplicated panel UI patterns removed).
+2. `src/panel.tsx` responsibilities reduced via extracted sections.
+3. Performance changes merged only with measurable consumer render reduction.
+4. Typecheck, tests, and build all pass on final branch.
