@@ -18,6 +18,7 @@ import type {
   Theme,
   Comment,
   SessionEdit,
+  SessionItem,
 } from './types'
 import type { MoveInfo } from './use-move'
 import {
@@ -81,6 +82,7 @@ export interface DirectEditContextValue extends DirectEditState {
   setActiveCommentId: (id: string | null) => void
   sessionEditCount: number
   getSessionEdits: () => SessionEdit[]
+  getSessionItems: () => SessionItem[]
   exportAllEdits: () => Promise<boolean>
   clearSessionEdits: () => void
   removeSessionEdit: (element: HTMLElement) => void
@@ -144,6 +146,14 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     stateRef.current = state
   })
 
+  const getExportableComments = React.useCallback((comments: Comment[]): Comment[] => {
+    return comments.filter((comment) => comment.text.trim().length > 0)
+  }, [])
+
+  const syncSessionItemCount = React.useCallback((comments = stateRef.current.comments) => {
+    setSessionEditCount(sessionEditsRef.current.size + getExportableComments(comments).length)
+  }, [getExportableComments])
+
   const pushUndo = React.useCallback((entry: UndoEntry) => {
     undoStackRef.current.push(entry)
     if (undoStackRef.current.length > 50) {
@@ -168,7 +178,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
 
     if (!hasPendingStyles && !hasMove && !hasTextEdit) {
       if (sessionEditsRef.current.delete(el)) {
-        setSessionEditCount(sessionEditsRef.current.size)
+        syncSessionItemCount()
       }
       return
     }
@@ -182,8 +192,8 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
       move: existing?.move ?? null,
       textEdit: existing?.textEdit ?? null,
     })
-    setSessionEditCount(sessionEditsRef.current.size)
-  }, [])
+    syncSessionItemCount()
+  }, [syncSessionItemCount])
 
   React.useEffect(() => {
     if (!state.selectedElement) return
@@ -280,11 +290,11 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
           textEdit: { originalText, newText },
         })
       }
-      setSessionEditCount(sessionEditsRef.current.size)
+      syncSessionItemCount()
     }
 
     setState((prev) => (prev.textEditingElement ? { ...prev, textEditingElement: null } : prev))
-  }, [pushUndo])
+  }, [pushUndo, syncSessionItemCount])
 
   const closePanel = React.useCallback(() => {
     setState((prev) => ({
@@ -678,7 +688,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     } else {
       sessionEditsRef.current.delete(el)
     }
-    setSessionEditCount(sessionEditsRef.current.size)
+    syncSessionItemCount()
     undoStackRef.current = undoStackRef.current.filter(
       (entry) => !((entry.type === 'edit' || entry.type === 'textEdit') && entry.element === el)
     )
@@ -720,7 +730,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
       computedTypography: typography,
       pendingStyles: {},
     }))
-  }, [state.selectedElement, state.originalStyles])
+  }, [state.selectedElement, state.originalStyles, syncSessionItemCount])
 
   const undo = React.useCallback(() => {
     const entry = undoStackRef.current.pop()
@@ -838,7 +848,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
           } else {
             sessionEditsRef.current.delete(entry.element)
           }
-          setSessionEditCount(sessionEditsRef.current.size)
+          syncSessionItemCount()
         }
         const current = stateRef.current
         if (current.selectedElement === entry.element) {
@@ -879,7 +889,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
           })
         }
 
-        setSessionEditCount(sessionEditsRef.current.size)
+        syncSessionItemCount()
         break
       }
     }
@@ -935,7 +945,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
               }
             : null,
         })
-        setSessionEditCount(sessionEditsRef.current.size)
+        syncSessionItemCount()
       }
       // Refresh element state without going through selectElement,
       // which would push an extra selection undo entry.
@@ -1034,6 +1044,10 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     }))
   }, [])
 
+  React.useEffect(() => {
+    syncSessionItemCount(state.comments)
+  }, [state.comments, syncSessionItemCount])
+
   const exportComment = React.useCallback(async (id: string) => {
     const comment = stateRef.current.comments.find((c) => c.id === id)
     if (!comment) return false
@@ -1125,21 +1139,29 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
       }
       edits.push(edit)
     }
-    setSessionEditCount(sessionEditsRef.current.size)
+    syncSessionItemCount()
     return edits
-  }, [saveCurrentToSession])
+  }, [saveCurrentToSession, syncSessionItemCount])
+
+  const getSessionItems = React.useCallback((): SessionItem[] => {
+    const edits = getSessionEdits().map((edit) => ({ type: 'edit', edit } as const))
+    const comments = getExportableComments(stateRef.current.comments).map((comment) => ({ type: 'comment', comment } as const))
+    return [...edits, ...comments]
+  }, [getSessionEdits, getExportableComments])
 
   const exportAllEdits = React.useCallback(async (): Promise<boolean> => {
-    const edits = getSessionEdits()
-    if (edits.length === 0) return false
-    const text = buildSessionExport(edits)
+    const items = getSessionItems()
+    if (items.length === 0) return false
+    const edits = items.filter((item) => item.type === 'edit').map((item) => item.edit)
+    const comments = items.filter((item) => item.type === 'comment').map((item) => item.comment)
+    const text = buildSessionExport(edits, comments)
     try {
       await navigator.clipboard.writeText(`implement the visual edits\n\n${text}`)
       return true
     } catch {
       return false
     }
-  }, [getSessionEdits])
+  }, [getSessionItems])
 
   const revertElementStyles = React.useCallback((element: HTMLElement, sessionEdit: SessionEdit) => {
     for (const prop of Object.keys(sessionEdit.pendingStyles)) {
@@ -1183,11 +1205,11 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     }
     sessionEditsRef.current.delete(element)
     removedSessionEditsRef.current.add(element)
-    setSessionEditCount(sessionEditsRef.current.size)
+    syncSessionItemCount()
     if (stateRef.current.selectedElement === element) {
       refreshSelectedElement()
     }
-  }, [revertElementStyles, refreshSelectedElement])
+  }, [revertElementStyles, refreshSelectedElement, syncSessionItemCount])
 
   const clearSessionEdits = React.useCallback(() => {
     for (const [el, sessionEdit] of sessionEditsRef.current.entries()) {
@@ -1211,9 +1233,14 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
       removedSessionEditsRef.current.add(current.selectedElement)
     }
     sessionEditsRef.current.clear()
-    setSessionEditCount(0)
+    syncSessionItemCount([])
+    setState((prev) => (
+      prev.comments.length > 0 || prev.activeCommentId
+        ? { ...prev, comments: [], activeCommentId: null }
+        : prev
+    ))
     refreshSelectedElement()
-  }, [revertElementStyles, refreshSelectedElement])
+  }, [revertElementStyles, refreshSelectedElement, syncSessionItemCount])
 
   const exportEdits = React.useCallback(async () => {
     if (!state.selectedElement || !state.elementInfo) return false
@@ -1436,6 +1463,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     setActiveCommentId,
     sessionEditCount,
     getSessionEdits,
+    getSessionItems,
     exportAllEdits,
     clearSessionEdits,
     removeSessionEdit,
@@ -1473,6 +1501,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     setActiveCommentId,
     sessionEditCount,
     getSessionEdits,
+    getSessionItems,
     exportAllEdits,
     clearSessionEdits,
     removeSessionEdit,

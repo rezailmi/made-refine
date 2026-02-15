@@ -2308,7 +2308,6 @@ function DirectEditPanelContent() {
     updateCommentText,
     addCommentReply,
     deleteComment,
-    exportComment,
     sendCommentToAgent,
     setActiveCommentId,
     startTextEditing,
@@ -2464,7 +2463,6 @@ function DirectEditPanelContent() {
       onUpdateText={updateCommentText}
       onAddReply={addCommentReply}
       onDelete={deleteComment}
-      onExport={exportComment}
       onSendToAgent={sendCommentToAgent}
     />,
     container

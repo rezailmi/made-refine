@@ -26,6 +26,7 @@ import type {
   Guideline,
   DropIndicator,
   SessionEdit,
+  Comment,
 } from './types'
 
 declare global {
@@ -2280,7 +2281,7 @@ function formatPosition(
   return '(only child)'
 }
 
-export function buildSessionExport(edits: SessionEdit[]): string {
+export function buildSessionExport(edits: SessionEdit[], comments: Comment[] = []): string {
   const blocks: string[] = []
 
   for (const edit of edits) {
@@ -2295,6 +2296,10 @@ export function buildSessionExport(edits: SessionEdit[]): string {
       }
     }
     blocks.push(block)
+  }
+
+  for (const comment of comments) {
+    blocks.push(buildCommentExport(comment.locator, comment.text, comment.replies))
   }
 
   return blocks.join('\n\n---\n\n')

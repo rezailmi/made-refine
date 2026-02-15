@@ -39,10 +39,12 @@ function makeAnnotation(overrides: Partial<VisualAnnotation> = {}): VisualAnnota
 describe('EditStore TTL', () => {
   beforeEach(() => {
     vi.useFakeTimers()
+    store.clear()
   })
 
   afterEach(() => {
     vi.useRealTimers()
+    store.clear()
   })
 
   it('does not prune recently-resolved annotations', () => {
@@ -99,5 +101,35 @@ describe('EditStore TTL', () => {
     // 5+ minutes after dismissal
     vi.advanceTimersByTime(6 * 60 * 1000)
     expect(store.getAll().find((a) => a.id === 'ttl-4')).toBeUndefined()
+  })
+
+  it('builds export markdown across edits and comments with status filtering', () => {
+    store.add(
+      makeAnnotation({
+        id: 'exp-edit',
+        type: 'edit',
+        exportMarkdown: '@<Button>\n\nedits:\npadding-top: 12px',
+      })
+    )
+    const commentAnnotation: VisualAnnotation = {
+      ...makeAnnotation({ id: 'exp-comment' }),
+      type: 'comment',
+      commentText: 'Increase contrast',
+      replies: [],
+      exportMarkdown: '@<Card>\n\ncomment: Increase contrast',
+    }
+    store.add(commentAnnotation)
+    store.updateStatus('exp-comment', 'acknowledged')
+
+    const pending = store.buildExportMarkdown('pending')
+    expect(pending.annotations.map((a) => a.id)).toEqual(['exp-edit'])
+    expect(pending.markdown).toContain('padding-top: 12px')
+    expect(pending.markdown).not.toContain('Increase contrast')
+
+    const all = store.buildExportMarkdown()
+    expect(all.annotations.map((a) => a.id)).toEqual(['exp-edit', 'exp-comment'])
+    expect(all.markdown).toContain('padding-top: 12px')
+    expect(all.markdown).toContain('comment: Increase contrast')
+    expect(all.markdown).toContain('---')
   })
 })

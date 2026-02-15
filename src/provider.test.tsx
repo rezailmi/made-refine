@@ -278,17 +278,35 @@ describe('DirectEditProvider', () => {
     expect(edits).toHaveLength(1)
     expect(edits[0].pendingStyles['padding-top']).toBe('20px')
 
+    act(() => {
+      result.current.addComment(target, { x: 20, y: 24 })
+    })
+    const commentId = result.current.comments[0].id
+    act(() => {
+      result.current.updateCommentText(commentId, 'Increase contrast for readability')
+    })
+
+    await waitFor(() => {
+      expect(result.current.sessionEditCount).toBe(2)
+    })
+
+    const items = result.current.getSessionItems()
+    expect(items).toHaveLength(2)
+    expect(items.some((item) => item.type === 'comment')).toBe(true)
+
     clipboardWrite.mockClear()
     const copied = await result.current.exportAllEdits()
     expect(copied).toBe(true)
     expect(clipboardWrite).toHaveBeenCalledTimes(1)
     expect(String(clipboardWrite.mock.calls[0][0])).toContain('padding-top: 20px')
+    expect(String(clipboardWrite.mock.calls[0][0])).toContain('comment: Increase contrast for readability')
 
     act(() => {
       result.current.clearSessionEdits()
     })
 
     expect(result.current.sessionEditCount).toBe(0)
+    expect(result.current.comments).toHaveLength(0)
     expect(target.style.getPropertyValue('padding-top')).toBe('6px')
   })
 

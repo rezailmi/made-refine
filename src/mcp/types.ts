@@ -1,3 +1,5 @@
+export type AnnotationStatus = 'pending' | 'acknowledged' | 'applied' | 'dismissed'
+
 export interface ReactComponentFrame {
   name: string
   file?: string
@@ -34,7 +36,7 @@ export interface TextChange {
 export interface VisualEdit {
   id: string
   timestamp: number
-  status: 'pending' | 'acknowledged' | 'applied' | 'dismissed'
+  status: AnnotationStatus
   type: 'edit'
   element: VisualEditElement
   source: SourceLocation | null
@@ -47,7 +49,7 @@ export interface VisualEdit {
 export interface VisualComment {
   id: string
   timestamp: number
-  status: 'pending' | 'acknowledged' | 'applied' | 'dismissed'
+  status: AnnotationStatus
   type: 'comment'
   element: VisualEditElement
   source: SourceLocation | null
