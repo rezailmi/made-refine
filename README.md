@@ -15,7 +15,7 @@ Visual CSS editor for React. Edit styles in the browser, then copy agent-ready e
 ## Quick start
 
 ```bash
-npx made-refine init
+npx made-refine@latest init
 ```
 
 This detects your framework, installs the package, previews file changes, and applies them after your confirmation. No manual wiring needed.

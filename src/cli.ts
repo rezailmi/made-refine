@@ -128,9 +128,9 @@ function detectPackageManager(cwd: string): 'bun' | 'pnpm' | 'yarn' {
 
 function getInstallCommand(pm: 'bun' | 'pnpm' | 'yarn'): string {
   switch (pm) {
-    case 'bun': return 'bun add -d made-refine@beta'
-    case 'pnpm': return 'pnpm add -D made-refine@beta'
-    case 'yarn': return 'yarn add -D made-refine@beta'
+    case 'bun': return 'bun add -d made-refine@latest'
+    case 'pnpm': return 'pnpm add -D made-refine@latest'
+    case 'yarn': return 'yarn add -D made-refine@latest'
   }
 }
 
