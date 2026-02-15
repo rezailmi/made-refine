@@ -117,6 +117,7 @@ export interface TypographyProperties {
 export type ActiveTool = 'select' | 'comment'
 
 export type Theme = 'light' | 'dark' | 'system'
+export type BorderStyleControlPreference = 'label' | 'icon'
 
 export interface CommentReply {
   text: string
@@ -144,12 +145,14 @@ export interface DirectEditState {
   computedFlex: FlexProperties | null
   computedSizing: SizingProperties | null
   computedColor: ColorProperties | null
+  computedBoxShadow: string | null
   computedTypography: TypographyProperties | null
   originalStyles: Record<string, string>
   pendingStyles: Record<string, string>
   editModeActive: boolean
   activeTool: ActiveTool
   theme: Theme
+  borderStyleControlPreference: BorderStyleControlPreference
   comments: Comment[]
   activeCommentId: string | null
   textEditingElement: HTMLElement | null

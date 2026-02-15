@@ -96,6 +96,7 @@ export function DirectEditDemo() {
     textAlign: 'left',
     textVerticalAlign: 'flex-start',
   })
+  const [boxShadow, setBoxShadow] = React.useState('none')
 
   const [pendingStyles, setPendingStyles] = React.useState<Record<string, string>>({})
   const [editModeActive, setEditModeActive] = React.useState(false)
@@ -144,6 +145,13 @@ export function DirectEditDemo() {
     setTypography((prev) => ({ ...prev, [key]: value }))
     const cssValue = typeof value === 'string' ? value : value.raw
     setPendingStyles((prev) => ({ ...prev, [camelToKebab(key)]: cssValue }))
+  }
+
+  const handleSetCSS = (properties: Record<string, string>) => {
+    setPendingStyles((prev) => ({ ...prev, ...properties }))
+    if (properties['box-shadow']) {
+      setBoxShadow(properties['box-shadow'])
+    }
   }
 
   const handleReset = () => {
@@ -199,6 +207,7 @@ export function DirectEditDemo() {
       textAlign: 'left',
       textVerticalAlign: 'flex-start',
     })
+    setBoxShadow('none')
     setPendingStyles({})
   }
 
@@ -239,6 +248,8 @@ export function DirectEditDemo() {
             computedFlex={flex}
             computedSizing={sizing}
             computedColor={color}
+            computedBoxShadow={boxShadow}
+            borderStyleControlPreference="icon"
             computedTypography={typography}
             pendingStyles={pendingStyles}
             onSelectParent={() => {}}
@@ -246,7 +257,7 @@ export function DirectEditDemo() {
             onUpdateBorderRadius={handleUpdateBorderRadius}
             onUpdateBorder={handleUpdateBorder}
             onBatchUpdateBorder={handleBatchUpdateBorder}
-            onSetCSS={() => {}}
+            onSetCSS={handleSetCSS}
             onUpdateFlex={handleUpdateFlex}
             onToggleFlex={() => {}}
             onUpdateSizing={handleUpdateSizing}
@@ -274,6 +285,7 @@ export function DirectEditDemo() {
                   borderLeftStyle: border.borderLeftStyle,
                   borderLeftWidth: border.borderLeftWidth.raw,
                   borderColor: `#${color.borderColor.hex}`,
+                  boxShadow,
                   gap: spacing.gap.raw,
                   flexDirection: flex.flexDirection,
                   justifyContent: flex.justifyContent,

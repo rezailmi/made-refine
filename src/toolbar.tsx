@@ -214,7 +214,7 @@ export function DirectEditToolbarInner({
     setEditsOpen(false)
   }, [isDragging])
 
-  const kbdClass = 'inline-flex items-center justify-center rounded bg-gray-200 text-gray-500 px-1.5 py-0.5 font-mono text-[10px] min-w-[20px] min-h-[18px] dark:bg-gray-700 dark:text-gray-400'
+  const kbdClass = 'inline-flex items-center justify-center rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground min-w-[20px] min-h-[18px]'
   const popupKbdClass = 'inline-flex h-5 min-w-[20px] items-center justify-center rounded-md bg-muted px-1.5 font-mono text-[10px] text-muted-foreground'
 
   const shortcutContent = isMac ? (
