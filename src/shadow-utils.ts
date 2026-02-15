@@ -28,67 +28,40 @@ export function createDefaultShadowLayer(index: number): EditableShadowLayer {
   }
 }
 
+function splitPreservingParens(input: string, isSeparator: (char: string) => boolean): string[] {
+  const parts: string[] = []
+  let current = ''
+  let depth = 0
+
+  for (const char of input.trim()) {
+    if (char === '(') {
+      depth += 1
+      current += char
+    } else if (char === ')') {
+      depth = Math.max(0, depth - 1)
+      current += char
+    } else if (depth === 0 && isSeparator(char)) {
+      const part = current.trim()
+      if (part) parts.push(part)
+      current = ''
+    } else {
+      current += char
+    }
+  }
+
+  const tail = current.trim()
+  if (tail) parts.push(tail)
+  return parts
+}
+
 export function splitShadowLayers(value: string): string[] {
   const trimmed = value.trim()
   if (!trimmed || trimmed === 'none') return []
-
-  const layers: string[] = []
-  let current = ''
-  let depth = 0
-
-  for (const char of trimmed) {
-    if (char === '(') {
-      depth += 1
-      current += char
-      continue
-    }
-    if (char === ')') {
-      depth = Math.max(0, depth - 1)
-      current += char
-      continue
-    }
-    if (char === ',' && depth === 0) {
-      const layer = current.trim()
-      if (layer) layers.push(layer)
-      current = ''
-      continue
-    }
-    current += char
-  }
-
-  const tail = current.trim()
-  if (tail) layers.push(tail)
-  return layers
+  return splitPreservingParens(trimmed, (char) => char === ',')
 }
 
 function tokenizeShadowLayer(layer: string): string[] {
-  const tokens: string[] = []
-  let current = ''
-  let depth = 0
-
-  for (const char of layer.trim()) {
-    if (char === '(') {
-      depth += 1
-      current += char
-      continue
-    }
-    if (char === ')') {
-      depth = Math.max(0, depth - 1)
-      current += char
-      continue
-    }
-    if (/\s/.test(char) && depth === 0) {
-      const token = current.trim()
-      if (token) tokens.push(token)
-      current = ''
-      continue
-    }
-    current += char
-  }
-
-  const tail = current.trim()
-  if (tail) tokens.push(tail)
-  return tokens
+  return splitPreservingParens(layer, (char) => /\s/.test(char))
 }
 
 function parseLengthToken(token: string): number | null {
@@ -104,8 +77,7 @@ function parseLengthToken(token: string): number | null {
 }
 
 function formatShadowNumber(value: number): string {
-  const rounded = Math.round(value * 100) / 100
-  return `${rounded}`
+  return String(Math.round(value * 100) / 100)
 }
 
 export function parseShadowLayer(layer: string, fallback: EditableShadowLayer): EditableShadowLayer {

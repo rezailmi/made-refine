@@ -1216,10 +1216,6 @@ function ShadowSection({ boxShadow, onSetCSS, pendingStyles }: ShadowSectionProp
     onSetCSS({ 'box-shadow': serializeShadowLayers(nextLayers) })
   }
 
-  const handleAddShadow = () => {
-    commitLayers([createDefaultShadowLayer(0)])
-  }
-
   const updateLayer = (index: number, nextLayer: EditableShadowLayer) => {
     const nextLayers = layers.map((layer, layerIndex) => (layerIndex === index ? nextLayer : layer))
     commitLayers(nextLayers)
@@ -1241,7 +1237,7 @@ function ShadowSection({ boxShadow, onSetCSS, pendingStyles }: ShadowSectionProp
         <button
           type="button"
           className="flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-muted-foreground/10 hover:text-foreground"
-          onClick={hasShadow ? addLayer : handleAddShadow}
+          onClick={addLayer}
         >
           <Plus className="size-3.5" />
         </button>
