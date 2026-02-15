@@ -162,6 +162,7 @@ export function getOriginalInlineStyles(element: HTMLElement): Record<string, st
     'color',
     'border-color',
     'outline-color',
+    'box-shadow',
     'font-family',
     'font-weight',
     'font-size',
@@ -293,6 +294,33 @@ function getExactScaleValue(value: number, scale: Record<number, string>): strin
   }
   return null
 }
+
+function normalizeTailwindArbitraryValue(value: string): string {
+  return value.trim().replace(/\s+/g, '_')
+}
+
+function normalizeShadowForComparison(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/\s*\/\s*/g, '/')
+    .replace(/\(\s+/g, '(')
+    .replace(/\s+\)/g, ')')
+    .replace(/\s*,\s*/g, ',')
+    .replace(/\s+/g, ' ')
+}
+
+const tailwindShadowClassValues: Array<{ className: string; css: string }> = [
+  { className: 'shadow-2xs', css: '0 1px rgb(0 0 0 / 0.05)' },
+  { className: 'shadow-xs', css: '0 1px 2px 0 rgb(0 0 0 / 0.05)' },
+  { className: 'shadow', css: '0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)' },
+  { className: 'shadow-sm', css: '0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)' },
+  { className: 'shadow-md', css: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)' },
+  { className: 'shadow-lg', css: '0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)' },
+  { className: 'shadow-xl', css: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)' },
+  { className: 'shadow-2xl', css: '0 25px 50px -12px rgb(0 0 0 / 0.25)' },
+  { className: 'shadow-inner', css: 'inset 0 2px 4px 0 rgb(0 0 0 / 0.05)' },
+]
 
 export function stylesToTailwind(styles: Record<string, string>): string {
   const classes: string[] = []
@@ -432,6 +460,21 @@ export function stylesToTailwind(styles: Record<string, string>): string {
     if (prop === 'outline-color') {
       const colorValue = parseColorValue(value)
       classes.push(colorToTailwind('outlineColor', colorValue))
+      continue
+    }
+
+    if (prop === 'box-shadow') {
+      const trimmed = value.trim()
+      if (trimmed === 'none' || trimmed === '') {
+        classes.push('shadow-none')
+      } else {
+        const normalized = normalizeShadowForComparison(trimmed)
+        const preset = tailwindShadowClassValues.find(
+          (entry) => normalizeShadowForComparison(entry.css) === normalized
+        )
+        if (preset) classes.push(preset.className)
+        else classes.push(`shadow-[${normalizeTailwindArbitraryValue(value)}]`)
+      }
       continue
     }
 
@@ -727,16 +770,74 @@ function parseHexColor(hex: string): ColorValue {
   return { hex: h.toUpperCase(), alpha: 100, raw }
 }
 
+function parseRgbChannel(value: string): number | null {
+  const token = value.trim()
+  if (!token) return null
+
+  if (token.endsWith('%')) {
+    const numeric = parseFloat(token.slice(0, -1))
+    if (!Number.isFinite(numeric)) return null
+    return Math.round((Math.max(0, Math.min(100, numeric)) / 100) * 255)
+  }
+
+  const numeric = parseFloat(token)
+  if (!Number.isFinite(numeric)) return null
+  return Math.round(Math.max(0, Math.min(255, numeric)))
+}
+
+function parseRgbAlpha(value: string | undefined): number | null {
+  if (value == null || value.trim() === '') return 1
+  const token = value.trim()
+
+  if (token.endsWith('%')) {
+    const numeric = parseFloat(token.slice(0, -1))
+    if (!Number.isFinite(numeric)) return null
+    return Math.max(0, Math.min(100, numeric)) / 100
+  }
+
+  const numeric = parseFloat(token)
+  if (!Number.isFinite(numeric)) return null
+  return Math.max(0, Math.min(1, numeric))
+}
+
 function parseRgbaColor(rgba: string): ColorValue {
-  const match = rgba.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/)
-  if (!match) {
+  const raw = rgba.trim()
+  const fnMatch = raw.match(/^rgba?\((.*)\)$/i)
+  if (!fnMatch) {
     return { hex: '000000', alpha: 100, raw: rgba }
   }
 
-  const r = parseInt(match[1])
-  const g = parseInt(match[2])
-  const b = parseInt(match[3])
-  const a = match[4] ? parseFloat(match[4]) : 1
+  const body = fnMatch[1].trim()
+  let channelTokens: [string, string, string] | null = null
+  let alphaToken: string | undefined
+
+  const commaParts = body.split(',').map((part) => part.trim()).filter(Boolean)
+  if (commaParts.length === 3 || commaParts.length === 4) {
+    channelTokens = [commaParts[0], commaParts[1], commaParts[2]]
+    alphaToken = commaParts[3]
+  } else {
+    const slashParts = body.split('/')
+    if (slashParts.length === 1 || slashParts.length === 2) {
+      const channels = slashParts[0].trim().split(/\s+/).filter(Boolean)
+      if (channels.length === 3) {
+        channelTokens = [channels[0], channels[1], channels[2]]
+        alphaToken = slashParts[1]?.trim()
+      }
+    }
+  }
+
+  if (!channelTokens) {
+    return { hex: '000000', alpha: 100, raw: rgba }
+  }
+
+  const r = parseRgbChannel(channelTokens[0])
+  const g = parseRgbChannel(channelTokens[1])
+  const b = parseRgbChannel(channelTokens[2])
+  const a = parseRgbAlpha(alphaToken)
+
+  if (r === null || g === null || b === null || a === null) {
+    return { hex: '000000', alpha: 100, raw: rgba }
+  }
 
   const hex = [r, g, b]
     .map((v) => v.toString(16).padStart(2, '0'))
@@ -786,6 +887,12 @@ export function parseColorValue(cssValue: string): ColorValue {
 }
 
 const TRANSPARENT_COLOR: ColorValue = { hex: '000000', alpha: 0, raw: 'transparent' }
+
+export function getComputedBoxShadow(element: HTMLElement): string {
+  const computed = window.getComputedStyle(element)
+  const value = computed.boxShadow.trim()
+  return value || 'none'
+}
 
 export function getComputedColorStyles(element: HTMLElement): ColorProperties {
   const computed = window.getComputedStyle(element)

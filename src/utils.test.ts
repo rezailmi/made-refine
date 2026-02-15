@@ -131,6 +131,23 @@ describe('stylesToTailwind', () => {
     })
   })
 
+  describe('box-shadow', () => {
+    it('maps none to shadow-none', () => {
+      expect(stylesToTailwind({ 'box-shadow': 'none' })).toBe('shadow-none')
+    })
+
+    it('maps Tailwind default shadow values to utility classes', () => {
+      expect(stylesToTailwind({ 'box-shadow': '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)' })).toBe('shadow-md')
+      expect(stylesToTailwind({ 'box-shadow': 'inset 0 2px 4px 0 rgb(0 0 0 / 0.05)' })).toBe('shadow-inner')
+    })
+
+    it('maps custom shadow values to arbitrary Tailwind syntax', () => {
+      expect(stylesToTailwind({ 'box-shadow': '0 4px 6px -1px rgba(0,0,0,0.1)' })).toBe(
+        'shadow-[0_4px_6px_-1px_rgba(0,0,0,0.1)]',
+      )
+    })
+  })
+
   describe('typography', () => {
     it('maps font-weight', () => {
       expect(stylesToTailwind({ 'font-weight': '700' })).toBe('font-bold')
