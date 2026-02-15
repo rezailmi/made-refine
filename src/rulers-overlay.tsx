@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { createPortal } from 'react-dom'
 import { usePortalContainer } from './portal-container'
-import { useDirectEdit } from './hooks'
+import { useDirectEditState } from './hooks'
 import { useGuidelines } from './use-guidelines'
 import type { Guideline } from './types'
 
@@ -510,7 +510,7 @@ export function useRulersVisible(): [boolean, () => void] {
 }
 
 export function Rulers() {
-  const { editModeActive } = useDirectEdit()
+  const { editModeActive } = useDirectEditState()
   const [rulersVisible, toggleRulers] = useRulersVisible()
 
   React.useEffect(() => {

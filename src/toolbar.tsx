@@ -2,7 +2,7 @@ import * as React from 'react'
 import { createPortal } from 'react-dom'
 import { Button as BaseButton } from '@base-ui/react/button'
 import { usePortalContainer } from './portal-container'
-import { useDirectEdit } from './provider'
+import { useDirectEditState, useDirectEditActions } from './provider'
 import { useRulersVisible } from './rulers-overlay'
 import { cn } from './cn'
 import { useToolbarDock } from './use-toolbar-dock'
@@ -616,10 +616,11 @@ export function DirectEditToolbarInner({
 }
 
 function DirectEditToolbarContent() {
+  const { editModeActive, activeTool, theme, sessionEditCount } = useDirectEditState()
   const {
-    editModeActive, toggleEditMode, activeTool, setActiveTool, theme, setTheme,
-    sessionEditCount, getSessionItems, exportAllEdits, clearSessionEdits, removeSessionEdit, deleteComment,
-  } = useDirectEdit()
+    toggleEditMode, setActiveTool, setTheme,
+    getSessionItems, exportAllEdits, clearSessionEdits, removeSessionEdit, deleteComment,
+  } = useDirectEditActions()
   const [rulersVisible, toggleRulers] = useRulersVisible()
 
   return (

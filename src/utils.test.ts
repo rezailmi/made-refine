@@ -1,5 +1,17 @@
 import { describe, expect, it, vi } from 'vitest'
-import { ensureDirectTextSpanAtPoint, getComputedColorStyles, stylesToTailwind } from './utils'
+import {
+  ensureDirectTextSpanAtPoint,
+  getComputedColorStyles,
+  ORIGINAL_STYLE_PROPS,
+  propertyToCSSMap,
+  borderRadiusPropertyToCSSMap,
+  borderPropertyToCSSMap,
+  flexPropertyToCSSMap,
+  sizingPropertyToCSSMap,
+  colorPropertyToCSSMap,
+  typographyPropertyToCSSMap,
+  stylesToTailwind,
+} from './utils'
 
 describe('getComputedColorStyles', () => {
   it('uses the first visible side when top border is not visible', () => {
@@ -157,6 +169,33 @@ describe('stylesToTailwind', () => {
     it('maps text-align', () => {
       expect(stylesToTailwind({ 'text-align': 'center' })).toBe('text-center')
     })
+  })
+})
+
+describe('ORIGINAL_STYLE_PROPS covers all properties that resetToOriginal removes', () => {
+  // resetToOriginal (provider.tsx) builds its removal list from these maps plus
+  // hardcoded extras. If a property is removed during reset but missing from
+  // ORIGINAL_STYLE_PROPS, original inline values are permanently lost.
+  const resetCSSProps = [
+    ...new Set([
+      ...Object.values(propertyToCSSMap),
+      ...Object.values(borderRadiusPropertyToCSSMap),
+      ...Object.values(borderPropertyToCSSMap),
+      ...Object.values(flexPropertyToCSSMap),
+      ...Object.values(sizingPropertyToCSSMap),
+      ...Object.values(colorPropertyToCSSMap),
+      ...Object.values(typographyPropertyToCSSMap),
+      'outline-style',
+      'outline-width',
+      'box-shadow',
+    ]),
+  ]
+
+  it('ORIGINAL_STYLE_PROPS is a superset of the reset property list', () => {
+    const captureSet = new Set<string>(ORIGINAL_STYLE_PROPS)
+    const missing = resetCSSProps.filter((prop) => !captureSet.has(prop))
+
+    expect(missing).toEqual([])
   })
 })
 

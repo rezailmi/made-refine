@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { DirectEditProvider, useDirectEdit } from './provider'
+import { DirectEditProvider, useDirectEdit, useDirectEditActions, useDirectEditState } from './provider'
 
 const { sendEditToAgentMock, sendCommentToAgentMock } = vi.hoisted(() => ({
   sendEditToAgentMock: vi.fn<(...args: unknown[]) => Promise<{ ok: boolean; id: string }>>().mockResolvedValue({ ok: true, id: 'edit-1' }),
@@ -117,6 +117,36 @@ describe('DirectEditProvider', () => {
 
     expect(target.style.getPropertyValue('padding-top')).toBe('8px')
     expect(Object.keys(result.current.pendingStyles)).toHaveLength(0)
+  })
+
+  it('exposes split hooks and keeps actions context stable across state updates', async () => {
+    mockClipboard()
+    const target = createTarget('split-hooks-target', 'padding-top: 2px;')
+
+    const { result } = renderHook(() => ({
+      state: useDirectEditState(),
+      actions: useDirectEditActions(),
+    }), { wrapper })
+
+    const initialActions = result.current.actions
+
+    act(() => {
+      result.current.actions.selectElement(target)
+    })
+
+    await waitFor(() => {
+      expect(result.current.state.selectedElement).toBe(target)
+    })
+    expect(result.current.actions).toBe(initialActions)
+
+    act(() => {
+      result.current.actions.updateSpacingProperty('paddingTop', cssValue(18))
+    })
+
+    await waitFor(() => {
+      expect(result.current.state.pendingStyles['padding-top']).toBe('18px')
+    })
+    expect(result.current.actions).toBe(initialActions)
   })
 
   it('adds box shadow, exports it, supports undo, and resets to original', async () => {
@@ -357,6 +387,45 @@ describe('DirectEditProvider', () => {
     expect(result.current.sessionEditCount).toBe(0)
     expect(result.current.comments).toHaveLength(0)
     expect(target.style.getPropertyValue('padding-top')).toBe('6px')
+  })
+
+  it('preserves session edits for previously edited elements after re-selection', async () => {
+    const clipboardWrite = mockClipboard()
+    const targetA = createTarget('el-a', 'padding-top: 4px;')
+    const targetB = createTarget('el-b', 'margin-left: 2px;')
+    const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+    // Edit element A
+    act(() => { result.current.selectElement(targetA) })
+    await waitFor(() => { expect(result.current.selectedElement).toBe(targetA) })
+    act(() => { result.current.updateSpacingProperty('paddingTop', cssValue(20)) })
+    expect(result.current.pendingStyles['padding-top']).toBe('20px')
+
+    // Switch to element B and edit it
+    act(() => { result.current.selectElement(targetB) })
+    await waitFor(() => { expect(result.current.selectedElement).toBe(targetB) })
+    act(() => { result.current.updateSpacingProperty('marginLeft', cssValue(16)) })
+    expect(result.current.pendingStyles['margin-left']).toBe('16px')
+
+    // Re-select element A — this previously deleted A's session edit
+    act(() => { result.current.selectElement(targetA) })
+    await waitFor(() => { expect(result.current.selectedElement).toBe(targetA) })
+
+    // A's pending styles should be restored from session
+    expect(result.current.pendingStyles['padding-top']).toBe('20px')
+
+    // Both edits must survive in the session
+    await waitFor(() => { expect(result.current.sessionEditCount).toBe(2) })
+    const edits = result.current.getSessionEdits()
+    expect(edits).toHaveLength(2)
+
+    // Export all should include both edits
+    clipboardWrite.mockClear()
+    const copied = await result.current.exportAllEdits()
+    expect(copied).toBe(true)
+    const exported = String(clipboardWrite.mock.calls[0][0])
+    expect(exported).toContain('padding-top: 20px')
+    expect(exported).toContain('margin-left: 16px')
   })
 
   it('restores text edit session state when undoing after reverting to original', async () => {

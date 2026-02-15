@@ -1,1 +1,1 @@
-export { useDirectEdit } from './provider'
+export { useDirectEdit, useDirectEditState, useDirectEditActions } from './provider'

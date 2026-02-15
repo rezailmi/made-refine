@@ -29,6 +29,9 @@ import type {
   Comment,
 } from './types'
 
+export { parsePropertyValue, formatPropertyValue } from './utils/css-value'
+import { parsePropertyValue } from './utils/css-value'
+
 declare global {
   interface Window {
     __DIRECT_EDIT_DEVTOOLS__?: {
@@ -36,32 +39,6 @@ declare global {
       hasHook?: boolean
     }
   }
-}
-
-export function parsePropertyValue(value: string): CSSPropertyValue {
-  const raw = value.trim()
-  const match = raw.match(/^(-?\d*\.?\d+)(px|rem|em|%)?$/)
-
-  if (match) {
-    return {
-      numericValue: parseFloat(match[1]),
-      unit: (match[2] as CSSPropertyValue['unit']) || 'px',
-      raw,
-    }
-  }
-
-  return {
-    numericValue: 0,
-    unit: 'px',
-    raw,
-  }
-}
-
-export function formatPropertyValue(value: CSSPropertyValue): string {
-  if (value.raw === 'auto' || value.raw === 'inherit' || value.raw === 'initial') {
-    return value.raw
-  }
-  return `${value.numericValue}${value.unit}`
 }
 
 export function getComputedStyles(element: HTMLElement): {
@@ -123,9 +100,8 @@ export function getComputedBorderStyles(element: HTMLElement): BorderProperties 
   }
 }
 
-export function getOriginalInlineStyles(element: HTMLElement): Record<string, string> {
-  const styles: Record<string, string> = {}
-  const relevantProps = [
+/** CSS properties captured before editing so resetToOriginal can restore them. */
+export const ORIGINAL_STYLE_PROPS = [
     'padding-top',
     'padding-right',
     'padding-bottom',
@@ -163,6 +139,8 @@ export function getOriginalInlineStyles(element: HTMLElement): Record<string, st
     'color',
     'border-color',
     'outline-color',
+    'outline-style',
+    'outline-width',
     'box-shadow',
     'font-family',
     'font-weight',
@@ -170,9 +148,12 @@ export function getOriginalInlineStyles(element: HTMLElement): Record<string, st
     'line-height',
     'letter-spacing',
     'text-align',
-  ]
+] as const
 
-  for (const prop of relevantProps) {
+export function getOriginalInlineStyles(element: HTMLElement): Record<string, string> {
+  const styles: Record<string, string> = {}
+
+  for (const prop of ORIGINAL_STYLE_PROPS) {
     const value = element.style.getPropertyValue(prop)
     if (value) {
       styles[prop] = value
@@ -916,6 +897,31 @@ export function getComputedColorStyles(element: HTMLElement): ColorProperties {
     color: parseColorValue(computed.color),
     borderColor: hasBorder && visibleBorderSide ? parseColorValue(visibleBorderSide.color) : TRANSPARENT_COLOR,
     outlineColor: hasOutline ? parseColorValue(computed.outlineColor) : TRANSPARENT_COLOR,
+  }
+}
+
+export interface AllComputedStyles {
+  spacing: SpacingProperties
+  borderRadius: BorderRadiusProperties
+  border: BorderProperties
+  flex: FlexProperties
+  sizing: SizingProperties
+  color: ColorProperties
+  boxShadow: string
+  typography: TypographyProperties
+}
+
+export function getAllComputedStyles(element: HTMLElement): AllComputedStyles {
+  const { spacing, borderRadius, flex } = getComputedStyles(element)
+  return {
+    spacing,
+    borderRadius,
+    border: getComputedBorderStyles(element),
+    flex,
+    sizing: getComputedSizing(element),
+    color: getComputedColorStyles(element),
+    boxShadow: getComputedBoxShadow(element),
+    typography: getComputedTypography(element),
   }
 }
 
