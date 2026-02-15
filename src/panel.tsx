@@ -751,7 +751,7 @@ function BorderInputs({ border, borderColor, outlineColor, onChange, onBatchChan
       {/* Row 1: Position + Style + Width + Side */}
       <div className="flex items-center gap-1.5">
         <Select value={borderPosition} onValueChange={(val) => val && onPositionChange(val as BorderPosition)}>
-          <SelectTrigger className="flex h-7 min-w-0 flex-1 items-center justify-between rounded-md border-0 bg-muted px-2 text-xs hover:bg-muted-foreground/10 focus:outline-none">
+          <SelectTrigger className="flex h-7 min-w-0 flex-1 items-center justify-between rounded-md border-0 bg-muted px-2 text-xs hover:bg-muted-foreground/10 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
             <span>{BORDER_POSITION_OPTIONS.find((o) => o.value === borderPosition)?.label}</span>
             <SelectIcon>
               <ChevronDown className="size-3.5 text-muted-foreground" />
@@ -796,12 +796,12 @@ function BorderInputs({ border, borderColor, outlineColor, onChange, onBatchChan
         <Select value={currentStyle} onValueChange={(val) => val && handleStyleChange(val as BorderStyle)}>
           {borderStyleControlPreference === 'icon' ? (
             <Tip label={`Border style: ${currentStyleLabel}`}>
-              <SelectTrigger className="flex h-7 w-auto shrink-0 items-center justify-center rounded-md border-0 bg-muted px-2 text-xs hover:bg-muted-foreground/10 focus:outline-none">
+              <SelectTrigger className="flex h-7 w-auto shrink-0 items-center justify-center rounded-md border-0 bg-muted px-2 text-xs hover:bg-muted-foreground/10 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
                 <Settings2 className="size-3.5 text-muted-foreground" />
               </SelectTrigger>
             </Tip>
           ) : (
-            <SelectTrigger className="flex h-7 flex-1 items-center justify-between rounded-md border-0 bg-muted px-2 text-xs hover:bg-muted-foreground/10 focus:outline-none">
+            <SelectTrigger className="flex h-7 flex-1 items-center justify-between rounded-md border-0 bg-muted px-2 text-xs hover:bg-muted-foreground/10 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
               <span className="flex items-center gap-1.5">
                 <Square className="size-3.5 text-muted-foreground" />
                 <span>{currentStyleLabel}</span>
@@ -834,7 +834,7 @@ function BorderInputs({ border, borderColor, outlineColor, onChange, onBatchChan
         {!isOutline && (
           <Select value={selectedSide} onValueChange={(val) => val && setSelectedSide(val as BorderSideOption)}>
             <Tip label={`Sides: ${selectedSide}`}>
-              <SelectTrigger className="flex h-7 w-auto shrink-0 items-center justify-center rounded-md border-0 bg-muted px-2 text-xs hover:bg-muted-foreground/10 focus:outline-none">
+              <SelectTrigger className="flex h-7 w-auto shrink-0 items-center justify-center rounded-md border-0 bg-muted px-2 text-xs hover:bg-muted-foreground/10 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
                 {selectedSide === 'Custom' ? (
                   <Grid2x2 className="size-3.5 text-muted-foreground" strokeWidth={1} />
                 ) : selectedSide === 'All' ? (
@@ -1026,7 +1026,7 @@ function BorderSection({ border, borderColor, outlineColor, borderStyleControlPr
     <Tip label={hasBorder ? 'Remove border' : 'Add border'}>
       <button
         type="button"
-        className="flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-muted-foreground/10 hover:text-foreground"
+        className="flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-muted-foreground/10 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
         onClick={hasBorder ? handleRemoveBorder : handleAddBorder}
       >
         {hasBorder ? <Minus className="size-3.5" /> : <Plus className="size-3.5" />}
@@ -1392,7 +1392,7 @@ function SizingDropdown({ label, value, onChange }: SizingDropdownProps) {
   }
 
   return (
-    <div className="flex h-7 flex-1 items-center overflow-hidden rounded-md border-0 bg-muted text-xs">
+    <div className="flex h-7 flex-1 items-center overflow-hidden rounded-md border-0 bg-muted text-xs focus-within:outline-none focus-within:ring-1 focus-within:ring-inset focus-within:ring-ring">
       <span className="flex flex-1 items-center gap-1.5 px-2">
         <span className="text-muted-foreground">{label}</span>
         {value.mode === 'fixed' ? (
@@ -1410,7 +1410,7 @@ function SizingDropdown({ label, value, onChange }: SizingDropdownProps) {
       <Select value={value.mode} onValueChange={(val) => {
         if (val) onChange({ mode: val as SizingMode, value: value.value })
       }}>
-        <SelectTrigger className="flex h-full items-center justify-center border-l border-border/30 px-1.5 hover:bg-muted-foreground/10">
+        <SelectTrigger className="flex h-full items-center justify-center border-l border-border/30 px-1.5 hover:bg-muted-foreground/10 focus-visible:outline-none">
           <ChevronsUpDown className="size-3.5 text-muted-foreground" />
         </SelectTrigger>
         <SelectPortal>
@@ -1643,7 +1643,7 @@ function TypographyInputs({ typography, onUpdate }: TypographyInputsProps) {
   return (
     <div className="space-y-3">
       <Select value={typography.fontFamily} onValueChange={(val) => val && onUpdate('fontFamily', val)}>
-        <SelectTrigger className="flex h-7 w-full items-center justify-between rounded-md border-0 bg-muted px-2 text-xs hover:bg-muted-foreground/10 focus:outline-none">
+        <SelectTrigger className="flex h-7 w-full items-center justify-between rounded-md border-0 bg-muted px-2 text-xs hover:bg-muted-foreground/10 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
           <span className="flex items-center gap-2">
             <Type className="size-3.5 text-muted-foreground" />
             <span>{getFontFamilyLabel(typography.fontFamily)}</span>
@@ -1673,7 +1673,7 @@ function TypographyInputs({ typography, onUpdate }: TypographyInputsProps) {
       </Select>
 
       <Select value={typography.fontWeight} onValueChange={(val) => val && onUpdate('fontWeight', val)}>
-        <SelectTrigger className="flex h-7 w-full items-center justify-between rounded-md border-0 bg-muted px-2 text-xs hover:bg-muted-foreground/10 focus:outline-none">
+        <SelectTrigger className="flex h-7 w-full items-center justify-between rounded-md border-0 bg-muted px-2 text-xs hover:bg-muted-foreground/10 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
           <span className="flex items-center gap-2">
             <ALargeSmall className="size-3.5 text-muted-foreground" />
             <span>{getFontWeightLabel(typography.fontWeight)}</span>
@@ -1981,7 +1981,7 @@ function SectionNav({
           key={key}
           type="button"
           className={cn(
-            'shrink-0 rounded-md px-2 py-1 text-xs font-medium transition-colors',
+            'shrink-0 rounded-md px-2 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
             activeSection === key
               ? 'bg-muted text-foreground'
               : 'text-muted-foreground hover:text-foreground'
@@ -2143,6 +2143,7 @@ export function DirectEditPanelInner({
 
   const hasPendingChanges = Object.keys(pendingStyles).length > 0
   const isDraggable = onHeaderPointerDown !== undefined
+  const panelBarBaseClass = 'flex h-11 shrink-0 items-center border-border/50 bg-background pl-3 pr-2'
 
   const sectionRefs = {
     layout: React.useRef<HTMLDivElement>(null),
@@ -2168,7 +2169,8 @@ export function DirectEditPanelInner({
     >
       <div
         className={cn(
-          'flex shrink-0 items-center gap-2 border-b border-border/50 bg-background pl-3 pr-2 py-2',
+          panelBarBaseClass,
+          'gap-2 border-b',
           isDraggable && 'cursor-grab active:cursor-grabbing'
         )}
         onPointerDown={onHeaderPointerDown}
@@ -2234,7 +2236,7 @@ export function DirectEditPanelInner({
           <Tip label={elementInfo.isFlexContainer ? 'Remove flex (Shift+A)' : 'Add flex (Shift+A)'}>
             <button
               type="button"
-              className="flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-muted-foreground/10 hover:text-foreground"
+              className="flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-muted-foreground/10 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               onClick={onToggleFlex}
             >
               {elementInfo.isFlexContainer ? <Minus className="size-3.5" /> : <Plus className="size-3.5" />}
@@ -2278,7 +2280,7 @@ export function DirectEditPanelInner({
                       </Tip>
                     </div>
 
-                    <div className="flex h-7 items-center overflow-hidden rounded-md border-0 bg-muted text-xs">
+                    <div className="flex h-7 items-center overflow-hidden rounded-md border-0 bg-muted text-xs focus-within:outline-none focus-within:ring-1 focus-within:ring-inset focus-within:ring-ring">
                       <span className="flex flex-1 items-center gap-1.5 px-2">
                         <MoveHorizontal className="size-3.5 shrink-0 text-muted-foreground" />
                         {isDistributeValue ? (
@@ -2300,7 +2302,7 @@ export function DirectEditPanelInner({
                       <Select value={distributeMode} onValueChange={(val) => {
                         if (val) onUpdateFlex('justifyContent', val === 'fixed' ? 'flex-start' : val)
                       }}>
-                        <SelectTrigger className="flex h-full items-center justify-center border-l border-border/30 px-1.5 hover:bg-muted-foreground/10">
+                        <SelectTrigger className="flex h-full items-center justify-center border-l border-border/30 px-1.5 hover:bg-muted-foreground/10 focus-visible:outline-none">
                           <ChevronsUpDown className="size-3.5 text-muted-foreground" />
                         </SelectTrigger>
                         <SelectPortal>
@@ -2445,7 +2447,8 @@ export function DirectEditPanelInner({
 
       <div
         className={cn(
-          'flex shrink-0 items-center gap-1 border-t border-border/50 bg-background px-3 py-2',
+          panelBarBaseClass,
+          'gap-1 border-t',
           isDraggable && 'cursor-grab active:cursor-grabbing'
         )}
         onPointerDown={onHeaderPointerDown}

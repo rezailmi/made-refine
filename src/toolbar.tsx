@@ -185,7 +185,7 @@ export function DirectEditToolbarInner({
           <Tooltip>
             <TooltipTrigger
               className={cn(
-                'flex cursor-pointer items-center justify-center rounded-[8px] p-2 transition-colors',
+                'flex cursor-pointer items-center justify-center rounded-[8px] p-2 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
                 editModeActive && activeTool !== 'comment'
                   ? 'bg-foreground text-background hover:bg-foreground/80'
                   : editModeActive && activeTool === 'comment'
@@ -217,11 +217,12 @@ export function DirectEditToolbarInner({
                 : (editModeActive ? 'ml-1 max-w-[200px] opacity-100' : 'ml-0 max-w-0 opacity-0')
             )}
           >
-            <div className={cn('flex gap-1', isVertical ? 'flex-col items-center' : 'flex-row items-center')}>
+            <div className={cn(isVertical ? 'mb-[-2px] pb-[2px]' : 'mr-[-2px] pr-[2px]')}>
+              <div className={cn('flex gap-1', isVertical ? 'flex-col items-center' : 'flex-row items-center')}>
               <Tooltip>
                 <TooltipTrigger
                   className={cn(
-                    'flex cursor-pointer items-center justify-center rounded-[8px] p-2 transition-colors',
+                    'flex cursor-pointer items-center justify-center rounded-[8px] p-2 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring',
                     activeTool === 'comment'
                       ? 'bg-foreground text-background hover:bg-foreground/80'
                       : 'text-muted-foreground hover:bg-muted hover:text-foreground'
@@ -241,7 +242,7 @@ export function DirectEditToolbarInner({
               <Tooltip>
                 <TooltipTrigger
                   className={cn(
-                    'flex cursor-pointer items-center justify-center rounded-[8px] p-2 transition-colors',
+                    'flex cursor-pointer items-center justify-center rounded-[8px] p-2 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring',
                     rulersVisible
                       ? 'bg-muted text-foreground'
                       : 'text-muted-foreground hover:bg-muted hover:text-foreground'
@@ -268,7 +269,7 @@ export function DirectEditToolbarInner({
                   <Popover.Trigger ref={editsTriggerRef} render={
                     <TooltipTrigger
                       className={cn(
-                        'flex cursor-pointer items-center justify-center rounded-[8px] p-2 transition-colors',
+                        'flex cursor-pointer items-center justify-center rounded-[8px] p-2 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring',
                         sessionEditCount > 0 || editsOpen
                           ? 'bg-muted text-foreground'
                           : 'text-muted-foreground hover:bg-muted hover:text-foreground'
@@ -290,7 +291,7 @@ export function DirectEditToolbarInner({
                         {editsSnapshot.length > 0 && (
                           <button
                             type="button"
-                            className="text-[11px] text-muted-foreground hover:text-foreground"
+                            className="rounded text-[11px] text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                             onClick={() => {
                               onClearSessionEdits?.()
                               setEditsSnapshot([])
@@ -324,7 +325,7 @@ export function DirectEditToolbarInner({
                                   </div>
                                   <button
                                     type="button"
-                                    className="ml-2 flex-shrink-0 rounded p-0.5 text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
+                                    className="ml-2 flex-shrink-0 rounded p-0.5 text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                                     onClick={() => {
                                       onRemoveSessionEdit?.(edit.element)
                                       setEditsSnapshot((prev) => prev.filter((_, j) => j !== i))
@@ -339,7 +340,7 @@ export function DirectEditToolbarInner({
                           <div className="border-t border-foreground/10 p-2">
                             <button
                               type="button"
-                              className="flex w-full items-center justify-center rounded-md bg-foreground px-3 py-1.5 text-xs font-medium text-background transition-colors hover:bg-foreground/80"
+                              className="flex w-full items-center justify-center rounded-md bg-foreground px-3 py-1.5 text-xs font-medium text-background transition-colors hover:bg-foreground/80 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                               onClick={async () => {
                                 const success = await onExportAllEdits?.()
                                 if (success) {
@@ -368,7 +369,7 @@ export function DirectEditToolbarInner({
                   <Popover.Trigger ref={settingsTriggerRef} render={
                     <TooltipTrigger
                       className={cn(
-                        'flex cursor-pointer items-center justify-center rounded-[8px] p-2 transition-colors',
+                        'flex cursor-pointer items-center justify-center rounded-[8px] p-2 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring',
                         settingsOpen
                           ? 'bg-muted text-foreground'
                           : 'text-muted-foreground hover:bg-muted hover:text-foreground'
@@ -432,6 +433,7 @@ export function DirectEditToolbarInner({
                   </Popover.Positioner>
                 </ThemePopoverPortal>
               </Popover.Root>
+              </div>
             </div>
           </div>
         </TooltipProvider>
