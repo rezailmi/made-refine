@@ -16,6 +16,7 @@ import type {
   UndoEntry,
   ActiveTool,
   Theme,
+  BorderStyleControlPreference,
   Comment,
   SessionEdit,
 } from './types'
@@ -35,6 +36,7 @@ import {
   getComputedSizing,
   sizingValueToCSS,
   getComputedColorStyles,
+  getComputedBoxShadow,
   colorPropertyToCSSMap,
   getComputedTypography,
   buildElementContext,
@@ -71,6 +73,7 @@ export interface DirectEditContextValue extends DirectEditState {
   handleMoveComplete: (element: HTMLElement, moveInfo: MoveInfo | null) => void
   setActiveTool: (tool: ActiveTool) => void
   setTheme: (theme: Theme) => void
+  setBorderStyleControlPreference: (preference: BorderStyleControlPreference) => void
   addComment: (element: HTMLElement, clickPosition: { x: number; y: number }) => void
   updateCommentText: (id: string, text: string) => void
   addCommentReply: (id: string, text: string) => void
@@ -102,6 +105,8 @@ interface DirectEditProviderProps {
   children: React.ReactNode
 }
 
+const BORDER_STYLE_CONTROL_PREFERENCE_KEY = 'direct-edit-border-style-control'
+
 export function DirectEditProvider({ children }: DirectEditProviderProps) {
 
   const [state, setState] = React.useState<DirectEditState>({
@@ -114,12 +119,14 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     computedFlex: null,
     computedSizing: null,
     computedColor: null,
+    computedBoxShadow: null,
     computedTypography: null,
     originalStyles: {},
     pendingStyles: {},
     editModeActive: false,
     activeTool: 'select',
     theme: 'system',
+    borderStyleControlPreference: 'icon',
     comments: [],
     activeCommentId: null,
     textEditingElement: null,
@@ -131,6 +138,15 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
       const stored = localStorage.getItem('direct-edit-theme')
       if (stored === 'light' || stored === 'dark' || stored === 'system') {
         setState((prev) => ({ ...prev, theme: stored }))
+      }
+    } catch {}
+  }, [])
+
+  React.useEffect(() => {
+    try {
+      const stored = localStorage.getItem(BORDER_STYLE_CONTROL_PREFERENCE_KEY)
+      if (stored === 'label' || stored === 'icon') {
+        setState((prev) => ({ ...prev, borderStyleControlPreference: stored }))
       }
     } catch {}
   }, [])
@@ -206,6 +222,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     const border = getComputedBorderStyles(element)
     const sizing = getComputedSizing(element)
     const color = getComputedColorStyles(element)
+    const boxShadow = getComputedBoxShadow(element)
     const typography = getComputedTypography(element)
     const originalStyles = getOriginalInlineStyles(element)
     const elementInfo = getElementInfo(element)
@@ -220,12 +237,14 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
       computedFlex: flex,
       computedSizing: sizing,
       computedColor: color,
+      computedBoxShadow: boxShadow,
       computedTypography: typography,
       originalStyles,
       pendingStyles: {},
       editModeActive: prev.editModeActive,
       activeTool: prev.activeTool,
       theme: prev.theme,
+      borderStyleControlPreference: prev.borderStyleControlPreference,
       comments: prev.comments,
       activeCommentId: prev.activeCommentId,
       textEditingElement: null,
@@ -428,11 +447,13 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
 
       const border = getComputedBorderStyles(state.selectedElement)
       const color = getComputedColorStyles(state.selectedElement)
+      const boxShadow = getComputedBoxShadow(state.selectedElement)
 
       setState((prev) => ({
         ...prev,
         computedBorder: border,
         computedColor: color,
+        computedBoxShadow: boxShadow,
         pendingStyles: {
           ...prev.pendingStyles,
           ...pendingUpdates,
@@ -460,11 +481,13 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
 
       const border = getComputedBorderStyles(state.selectedElement)
       const color = getComputedColorStyles(state.selectedElement)
+      const boxShadow = getComputedBoxShadow(state.selectedElement)
 
       setState((prev) => ({
         ...prev,
         computedBorder: border,
         computedColor: color,
+        computedBoxShadow: boxShadow,
         pendingStyles: {
           ...prev.pendingStyles,
           ...pendingUpdates,
@@ -693,6 +716,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
       ...Object.values(typographyPropertyToCSSMap),
       'outline-style',
       'outline-width',
+      'box-shadow',
     ]
 
     for (const prop of allCSSProps) {
@@ -707,6 +731,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     const border = getComputedBorderStyles(state.selectedElement)
     const sizing = getComputedSizing(state.selectedElement)
     const color = getComputedColorStyles(state.selectedElement)
+    const boxShadow = getComputedBoxShadow(state.selectedElement)
     const typography = getComputedTypography(state.selectedElement)
 
     setState((prev) => ({
@@ -717,6 +742,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
       computedFlex: flex,
       computedSizing: sizing,
       computedColor: color,
+      computedBoxShadow: boxShadow,
       computedTypography: typography,
       pendingStyles: {},
     }))
@@ -742,6 +768,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
           const border = getComputedBorderStyles(entry.element)
           const sizing = getComputedSizing(entry.element)
           const color = getComputedColorStyles(entry.element)
+          const boxShadow = getComputedBoxShadow(entry.element)
           const typography = getComputedTypography(entry.element)
           const elementInfo = getElementInfo(entry.element)
           const newPending = { ...current.pendingStyles }
@@ -760,6 +787,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
             computedFlex: flex,
             computedSizing: sizing,
             computedColor: color,
+            computedBoxShadow: boxShadow,
             computedTypography: typography,
             elementInfo,
             pendingStyles: newPending,
@@ -778,6 +806,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
           const border = getComputedBorderStyles(prevEl)
           const sizing = getComputedSizing(prevEl)
           const color = getComputedColorStyles(prevEl)
+          const boxShadow = getComputedBoxShadow(prevEl)
           const typography = getComputedTypography(prevEl)
           const elementInfo = getElementInfo(prevEl)
           setState((prev) => ({
@@ -790,12 +819,14 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
             computedFlex: flex,
             computedSizing: sizing,
             computedColor: color,
+            computedBoxShadow: boxShadow,
             computedTypography: typography,
             originalStyles: entry.previousOriginalStyles,
             pendingStyles: entry.previousPendingStyles,
             editModeActive: prev.editModeActive,
             activeTool: prev.activeTool,
             theme: prev.theme,
+            borderStyleControlPreference: prev.borderStyleControlPreference,
             comments: prev.comments,
             activeCommentId: prev.activeCommentId,
             textEditingElement: null,
@@ -812,6 +843,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
             computedFlex: null,
             computedSizing: null,
             computedColor: null,
+            computedBoxShadow: null,
             computedTypography: null,
             originalStyles: {},
             pendingStyles: {},
@@ -943,6 +975,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
       const border = getComputedBorderStyles(element)
       const sizing = getComputedSizing(element)
       const color = getComputedColorStyles(element)
+      const boxShadow = getComputedBoxShadow(element)
       const typography = getComputedTypography(element)
       const elementInfo = getElementInfo(element)
 
@@ -956,12 +989,14 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
         computedFlex: flex,
         computedSizing: sizing,
         computedColor: color,
+        computedBoxShadow: boxShadow,
         computedTypography: typography,
         originalStyles: prev.originalStyles,
         pendingStyles: prev.pendingStyles,
         editModeActive: prev.editModeActive,
         activeTool: prev.activeTool,
         theme: prev.theme,
+        borderStyleControlPreference: prev.borderStyleControlPreference,
         comments: prev.comments,
         activeCommentId: prev.activeCommentId,
         textEditingElement: null,
@@ -981,6 +1016,11 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
   const setTheme = React.useCallback((theme: Theme) => {
     setState((prev) => ({ ...prev, theme }))
     try { localStorage.setItem('direct-edit-theme', theme) } catch {}
+  }, [])
+
+  const setBorderStyleControlPreference = React.useCallback((preference: BorderStyleControlPreference) => {
+    setState((prev) => ({ ...prev, borderStyleControlPreference: preference }))
+    try { localStorage.setItem(BORDER_STYLE_CONTROL_PREFERENCE_KEY, preference) } catch {}
   }, [])
 
   const addComment = React.useCallback((element: HTMLElement, clickPosition: { x: number; y: number }) => {
@@ -1157,6 +1197,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     const { spacing, borderRadius, flex } = getComputedStyles(el)
     const sizing = getComputedSizing(el)
     const color = getComputedColorStyles(el)
+    const boxShadow = getComputedBoxShadow(el)
     const typography = getComputedTypography(el)
     const border = getComputedBorderStyles(el)
     setState((prev) => ({
@@ -1166,6 +1207,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
       computedFlex: flex,
       computedSizing: sizing,
       computedColor: color,
+      computedBoxShadow: boxShadow,
       computedTypography: typography,
       computedBorder: border,
       originalStyles: getOriginalInlineStyles(el),
@@ -1428,6 +1470,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     handleMoveComplete,
     setActiveTool,
     setTheme,
+    setBorderStyleControlPreference,
     addComment,
     updateCommentText,
     addCommentReply,
@@ -1465,6 +1508,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     handleMoveComplete,
     setActiveTool,
     setTheme,
+    setBorderStyleControlPreference,
     addComment,
     updateCommentText,
     addCommentReply,
