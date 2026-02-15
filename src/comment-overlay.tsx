@@ -1,7 +1,7 @@
 import * as React from 'react'
 import type { Comment, ElementLocator } from './types'
 import { cn } from './cn'
-import { ChevronLeft, Check, Copy, Trash2, ArrowUp, Send, X } from 'lucide-react'
+import { ChevronLeft, Check, Trash2, ArrowUp, Send, X } from 'lucide-react'
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from './ui/tooltip'
 
 function formatRelativeTime(timestamp: number): string {
@@ -34,7 +34,6 @@ export interface CommentOverlayProps {
   onUpdateText: (id: string, text: string) => void
   onAddReply: (id: string, text: string) => void
   onDelete: (id: string) => void
-  onExport: (id: string) => Promise<boolean>
   onSendToAgent: (id: string) => Promise<boolean>
 }
 
@@ -45,7 +44,6 @@ export function CommentOverlay({
   onUpdateText,
   onAddReply,
   onDelete,
-  onExport,
   onSendToAgent,
 }: CommentOverlayProps) {
   if (comments.length === 0) return null
@@ -63,7 +61,6 @@ export function CommentOverlay({
           onUpdateText={(text) => onUpdateText(comment.id, text)}
           onAddReply={(text) => onAddReply(comment.id, text)}
           onDelete={() => onDelete(comment.id)}
-          onExport={() => onExport(comment.id)}
           onSendToAgent={() => onSendToAgent(comment.id)}
         />
       ))}
@@ -80,7 +77,6 @@ interface CommentPinProps {
   onUpdateText: (text: string) => void
   onAddReply: (text: string) => void
   onDelete: () => void
-  onExport: () => Promise<boolean>
   onSendToAgent: () => Promise<boolean>
 }
 
@@ -93,14 +89,12 @@ function CommentPin({
   onUpdateText,
   onAddReply,
   onDelete,
-  onExport,
   onSendToAgent,
 }: CommentPinProps) {
   const [position, setPosition] = React.useState(comment.clickPosition)
   const [elementRect, setElementRect] = React.useState<DOMRect | null>(null)
   const [flipHorizontal, setFlipHorizontal] = React.useState(false)
   const [flipVertical, setFlipVertical] = React.useState(false)
-  const [autoExport, setAutoExport] = React.useState(false)
 
   React.useEffect(() => {
     function updatePosition() {
@@ -185,7 +179,6 @@ function CommentPin({
             flipVertical={flipVertical}
             onSubmit={(text) => {
               onUpdateText(text)
-              setAutoExport(true)
             }}
             onCancel={onClose}
           />
@@ -199,13 +192,9 @@ function CommentPin({
             onClose={onClose}
             onAddReply={(text) => {
               onAddReply(text)
-              setAutoExport(true)
             }}
             onDelete={onDelete}
-            onExport={onExport}
             onSendToAgent={onSendToAgent}
-            autoExport={autoExport}
-            onAutoExportDone={() => setAutoExport(false)}
           />
         )
       )}
@@ -285,10 +274,7 @@ interface CommentThreadProps {
   onClose: () => void
   onAddReply: (text: string) => void
   onDelete: () => void
-  onExport: () => Promise<boolean>
   onSendToAgent: () => Promise<boolean>
-  autoExport: boolean
-  onAutoExportDone: () => void
 }
 
 function CommentThread({
@@ -300,39 +286,15 @@ function CommentThread({
   onClose,
   onAddReply,
   onDelete,
-  onExport,
   onSendToAgent,
-  autoExport,
-  onAutoExportDone,
 }: CommentThreadProps) {
   const [replyText, setReplyText] = React.useState('')
-  const [copied, setCopied] = React.useState(false)
   const [sendStatus, setSendStatus] = React.useState<'idle' | 'sending' | 'sent' | 'offline'>('idle')
   const inputRef = React.useRef<HTMLInputElement>(null)
 
   React.useEffect(() => {
     inputRef.current?.focus()
   }, [])
-
-  React.useEffect(() => {
-    if (autoExport) {
-      onAutoExportDone()
-      onExport().then((success) => {
-        if (success) {
-          setCopied(true)
-          setTimeout(() => setCopied(false), 2000)
-        }
-      })
-    }
-  }, [autoExport])
-
-  const handleCopy = async () => {
-    const success = await onExport()
-    if (success) {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    }
-  }
 
   const handleSendToAgent = async () => {
     if (sendStatus === 'sending') return
@@ -386,24 +348,6 @@ function CommentThread({
             <ElementLabel locator={comment.locator} />
           </div>
           <div className="flex shrink-0 items-center gap-0.5">
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <button
-                    type="button"
-                    className="flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                    onClick={handleCopy}
-                  />
-                }
-              >
-                {copied ? (
-                  <Check className="size-3.5 text-green-500" />
-                ) : (
-                  <Copy className="size-3.5" />
-                )}
-              </TooltipTrigger>
-              <TooltipContent side="bottom">{copied ? 'Copied' : 'Copy'}</TooltipContent>
-            </Tooltip>
             <Tooltip>
               <TooltipTrigger
                 render={

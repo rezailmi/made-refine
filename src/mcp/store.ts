@@ -1,4 +1,4 @@
-import type { VisualAnnotation } from './types'
+import type { AnnotationStatus, VisualAnnotation } from './types'
 
 type UpdateListener = (annotation: VisualAnnotation) => void
 
@@ -35,11 +35,24 @@ class EditStore {
     return this.getAll().filter((a) => a.status === 'pending')
   }
 
+  getByStatus(status: AnnotationStatus): VisualAnnotation[] {
+    return this.getAll().filter((a) => a.status === status)
+  }
+
+  buildExportMarkdown(status?: AnnotationStatus): { annotations: VisualAnnotation[]; markdown: string } {
+    const annotations = status ? this.getByStatus(status) : this.getAll()
+    const markdown = annotations
+      .map((annotation) => annotation.exportMarkdown.trim())
+      .filter((block) => block.length > 0)
+      .join('\n\n---\n\n')
+    return { annotations, markdown }
+  }
+
   getById(id: string): VisualAnnotation | undefined {
     return this.annotations.get(id)
   }
 
-  updateStatus(id: string, status: VisualAnnotation['status']): boolean {
+  updateStatus(id: string, status: AnnotationStatus): boolean {
     const annotation = this.annotations.get(id)
     if (!annotation) return false
     annotation.status = status
@@ -76,7 +89,7 @@ class EditStore {
     }
   }
 
-  private findOldestByStatus(statuses: string[]): string | null {
+  private findOldestByStatus(statuses: AnnotationStatus[]): string | null {
     let oldestId: string | null = null
     let oldestTime = Infinity
     for (const [id, annotation] of this.annotations) {
@@ -98,6 +111,11 @@ class EditStore {
       }
     }
     return oldestId
+  }
+
+  clear(): void {
+    this.annotations.clear()
+    this.resolvedAt.clear()
   }
 }
 

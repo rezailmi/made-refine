@@ -15,12 +15,41 @@ export function createMcpServer(): McpServer {
         {
           type: 'text' as const,
           text: pending.length === 0
-            ? 'No pending edits.'
+            ? 'No pending edits or comments.'
             : JSON.stringify(pending, null, 2),
         },
       ],
     }
   })
+
+  server.tool(
+    'export_all_annotations',
+    'Export all visual edits/comments into one markdown payload (for copy/paste into an agent)',
+    {
+      status: z
+        .enum(['pending', 'acknowledged', 'applied', 'dismissed'])
+        .optional()
+        .describe('Optional status filter; omit to export all annotations'),
+    },
+    async ({ status }) => {
+      const { annotations, markdown } = store.buildExportMarkdown(status)
+      if (annotations.length === 0 || markdown.length === 0) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: `No exportable annotations${status ? ` with status: ${status}` : ''}.`,
+          }],
+        }
+      }
+
+      return {
+        content: [{
+          type: 'text' as const,
+          text: `implement the visual edits\n\n${markdown}`,
+        }],
+      }
+    }
+  )
 
   server.tool(
     'get_edit_details',

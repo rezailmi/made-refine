@@ -271,3 +271,7 @@ export interface SessionEdit {
     newText: string
   } | null
 }
+
+export type SessionItem =
+  | { type: 'edit'; edit: SessionEdit }
+  | { type: 'comment'; comment: Comment }
