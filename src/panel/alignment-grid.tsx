@@ -50,7 +50,7 @@ export function AlignmentGrid({ justifyContent, alignItems, onChange }: Alignmen
                   <button
                     type="button"
                     className={cn(
-                      'flex size-7 items-center justify-center rounded transition-all',
+                      'flex h-7 items-center justify-center rounded transition-all',
                       isActive
                         ? 'bg-background shadow-sm'
                         : 'hover:bg-muted-foreground/10'
