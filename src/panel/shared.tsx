@@ -10,15 +10,15 @@ import { cn } from '../cn'
 export const selectOnFocus = (e: React.FocusEvent<HTMLInputElement>) => e.target.select()
 
 interface NumberInputProps extends Omit<React.ComponentProps<typeof Input>, 'value' | 'onChange' | 'type'> {
-  value: number
+  value: number | null
   onValueChange: (value: number) => void
 }
 
 export function NumberInput({ value: propValue, onValueChange, ...props }: NumberInputProps) {
-  const [localValue, setLocalValue] = React.useState(String(propValue))
+  const [localValue, setLocalValue] = React.useState(propValue === null ? '' : String(propValue))
 
   React.useEffect(() => {
-    setLocalValue(String(propValue))
+    setLocalValue(propValue === null ? '' : String(propValue))
   }, [propValue])
 
   return (
@@ -33,7 +33,7 @@ export function NumberInput({ value: propValue, onValueChange, ...props }: Numbe
       }}
       onBlur={() => {
         if (localValue === '' || isNaN(parseFloat(localValue))) {
-          setLocalValue(String(propValue))
+          setLocalValue(propValue === null ? '' : String(propValue))
         }
       }}
       onFocus={selectOnFocus}

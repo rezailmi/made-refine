@@ -70,4 +70,32 @@ describe('SpacingInputs', () => {
     expect(onChange).toHaveBeenNthCalledWith(1, 'marginLeft', { numericValue: -12, unit: 'px', raw: '-12px' })
     expect(onChange).toHaveBeenNthCalledWith(2, 'marginRight', { numericValue: -12, unit: 'px', raw: '-12px' })
   })
+
+  it('shows mixed for combined values and applies the override to both sides', () => {
+    const onChange = vi.fn()
+
+    const { getAllByRole } = render(
+      <SpacingInputs
+        prefix="padding"
+        values={{
+          top: value(8),
+          right: value(16),
+          bottom: value(8),
+          left: value(4),
+        }}
+        onChange={onChange}
+      />,
+    )
+
+    const [horizontalInput, verticalInput] = getAllByRole('spinbutton') as HTMLInputElement[]
+    expect(horizontalInput.placeholder).toBe('mixed')
+    expect(horizontalInput.value).toBe('')
+    expect(verticalInput.value).toBe('8')
+
+    fireEvent.change(horizontalInput, { target: { value: '24' } })
+
+    expect(onChange).toHaveBeenCalledTimes(2)
+    expect(onChange).toHaveBeenNthCalledWith(1, 'paddingLeft', { numericValue: 24, unit: 'px', raw: '24px' })
+    expect(onChange).toHaveBeenNthCalledWith(2, 'paddingRight', { numericValue: 24, unit: 'px', raw: '24px' })
+  })
 })

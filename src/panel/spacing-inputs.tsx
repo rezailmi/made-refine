@@ -45,11 +45,11 @@ export function SpacingInputs({ prefix, values, onChange }: SpacingInputsProps) 
   const horizontalValue =
     values.left.numericValue === values.right.numericValue
       ? values.left.numericValue
-      : values.left.numericValue
+      : null
   const verticalValue =
     values.top.numericValue === values.bottom.numericValue
       ? values.top.numericValue
-      : values.top.numericValue
+      : null
 
   if (individual) {
     return (
@@ -120,6 +120,7 @@ export function SpacingInputs({ prefix, values, onChange }: SpacingInputsProps) 
           <MoveHorizontal className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
           <NumberInput
             value={horizontalValue}
+            placeholder={horizontalValue === null ? 'mixed' : undefined}
             onValueChange={(val) => handleChange(['left', 'right'], val)}
             className="h-7 pl-7 pr-2 text-center text-xs tabular-nums"
           />
@@ -130,6 +131,7 @@ export function SpacingInputs({ prefix, values, onChange }: SpacingInputsProps) 
           <MoveVertical className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
           <NumberInput
             value={verticalValue}
+            placeholder={verticalValue === null ? 'mixed' : undefined}
             onValueChange={(val) => handleChange(['top', 'bottom'], val)}
             className="h-7 pl-7 pr-2 text-center text-xs tabular-nums"
           />

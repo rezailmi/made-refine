@@ -146,6 +146,38 @@ export function BorderInputs({ border, borderColor, outlineColor, onChange, onBa
     onBatchChange(changes)
   }
 
+  const handleSideChange = (newSide: BorderSideOption) => {
+    setSelectedSide(newSide)
+
+    if (newSide === 'Custom') return
+
+    if (newSide === 'All') {
+      // Set all sides to the max width across all sides
+      const maxWidth = Math.max(
+        ...BORDER_SIDES.map((s) => (border[`border${s}Width` as keyof BorderProperties] as CSSPropertyValue).numericValue),
+      )
+      const value: CSSPropertyValue = { numericValue: maxWidth, unit: 'px', raw: `${maxWidth}px` }
+      const changes: Array<[BorderPropertyKey, BorderProperties[BorderPropertyKey]]> = []
+      for (const s of BORDER_SIDES) {
+        changes.push([`border${s}Width` as BorderPropertyKey, value])
+      }
+      onBatchChange(changes)
+      return
+    }
+
+    // Specific side: set that side to currentWidth, zero out the rest
+    const sideWidth = (border[`border${newSide}Width` as keyof BorderProperties] as CSSPropertyValue).numericValue
+    const width = currentWidth ?? sideWidth ?? 1
+    const changes: Array<[BorderPropertyKey, BorderProperties[BorderPropertyKey]]> = []
+    for (const s of BORDER_SIDES) {
+      const value: CSSPropertyValue = s === newSide
+        ? { numericValue: width, unit: 'px', raw: `${width}px` }
+        : { numericValue: 0, unit: 'px', raw: '0px' }
+      changes.push([`border${s}Width` as BorderPropertyKey, value])
+    }
+    onBatchChange(changes)
+  }
+
   const handleSideWidthChange = (side: string, numericValue: number) => {
     const clamped = Math.max(0, numericValue)
     onChange(`border${side}Width` as BorderPropertyKey, {
@@ -175,8 +207,8 @@ export function BorderInputs({ border, borderColor, outlineColor, onChange, onBa
             <NumberInput
               min={0}
               step={0.5}
-              value={typeof currentWidth === 'number' ? Math.round(currentWidth * 100) / 100 : 0}
-              placeholder={currentWidth === null ? '–' : undefined}
+              value={typeof currentWidth === 'number' ? Math.round(currentWidth * 100) / 100 : null}
+              placeholder={currentWidth === null ? 'mixed' : undefined}
               onValueChange={handleAllWidthChange}
               className={cn(
                 'h-7 px-2 text-center text-xs tabular-nums',
@@ -214,7 +246,7 @@ export function BorderInputs({ border, borderColor, outlineColor, onChange, onBa
         {!isOutline && (
           <SimpleSelect
             value={selectedSide}
-            onValueChange={(val) => setSelectedSide(val as BorderSideOption)}
+            onValueChange={(val) => handleSideChange(val as BorderSideOption)}
             options={BORDER_SIDE_OPTIONS.map((side) => ({ value: side, label: side }))}
             popupMinWidth="90px"
           >
