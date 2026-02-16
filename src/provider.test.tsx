@@ -460,7 +460,6 @@ describe('DirectEditProvider', () => {
       expect(result.current.selectedElement).toBe(target)
     })
 
-    // Reset after selectElement's auto-copy to clipboard
     clipboardWrite.mockClear()
 
     act(() => {
@@ -752,7 +751,6 @@ describe('DirectEditProvider', () => {
       expect(result.current.selectedElement).toBe(target)
     })
 
-    // Reset after selectElement's auto-copy to clipboard
     clipboardWrite.mockClear()
 
     act(() => {
