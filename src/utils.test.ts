@@ -11,6 +11,7 @@ import {
   colorPropertyToCSSMap,
   typographyPropertyToCSSMap,
   stylesToTailwind,
+  collapseSpacingShorthands,
 } from './utils'
 
 describe('getComputedColorStyles', () => {
@@ -122,6 +123,30 @@ describe('stylesToTailwind', () => {
     it('uses arbitrary value for non-scale values', () => {
       expect(stylesToTailwind({ 'padding-top': '13px' })).toBe('pt-[13px]')
     })
+
+    it('maps shorthand padding to p-*', () => {
+      expect(stylesToTailwind({ padding: '16px' })).toBe('p-4')
+    })
+
+    it('maps padding-inline to px-*', () => {
+      expect(stylesToTailwind({ 'padding-inline': '8px' })).toBe('px-2')
+    })
+
+    it('maps padding-block to py-*', () => {
+      expect(stylesToTailwind({ 'padding-block': '4px' })).toBe('py-1')
+    })
+
+    it('maps shorthand margin to m-*', () => {
+      expect(stylesToTailwind({ margin: '16px' })).toBe('m-4')
+    })
+
+    it('maps margin-inline to mx-*', () => {
+      expect(stylesToTailwind({ 'margin-inline': '8px' })).toBe('mx-2')
+    })
+
+    it('maps margin-block to my-*', () => {
+      expect(stylesToTailwind({ 'margin-block': '4px' })).toBe('my-1')
+    })
   })
 
   describe('display', () => {
@@ -196,6 +221,102 @@ describe('ORIGINAL_STYLE_PROPS covers all properties that resetToOriginal remove
     const missing = resetCSSProps.filter((prop) => !captureSet.has(prop))
 
     expect(missing).toEqual([])
+  })
+})
+
+describe('collapseSpacingShorthands', () => {
+  it('collapses all 4 equal padding sides to shorthand', () => {
+    const result = collapseSpacingShorthands({
+      'padding-top': '16px',
+      'padding-right': '16px',
+      'padding-bottom': '16px',
+      'padding-left': '16px',
+    })
+    expect(result).toEqual({ padding: '16px' })
+  })
+
+  it('collapses matching horizontal/vertical pairs', () => {
+    const result = collapseSpacingShorthands({
+      'padding-top': '8px',
+      'padding-right': '16px',
+      'padding-bottom': '8px',
+      'padding-left': '16px',
+    })
+    expect(result).toEqual({ 'padding-inline': '16px', 'padding-block': '8px' })
+  })
+
+  it('collapses only horizontal pair when vertical differs', () => {
+    const result = collapseSpacingShorthands({
+      'padding-top': '8px',
+      'padding-right': '16px',
+      'padding-bottom': '12px',
+      'padding-left': '16px',
+    })
+    expect(result).toEqual({ 'padding-top': '8px', 'padding-inline': '16px', 'padding-bottom': '12px' })
+  })
+
+  it('collapses only vertical pair when horizontal differs', () => {
+    const result = collapseSpacingShorthands({
+      'padding-top': '8px',
+      'padding-right': '16px',
+      'padding-bottom': '8px',
+      'padding-left': '12px',
+    })
+    expect(result).toEqual({ 'padding-block': '8px', 'padding-right': '16px', 'padding-left': '12px' })
+  })
+
+  it('does not collapse when all sides differ', () => {
+    const result = collapseSpacingShorthands({
+      'padding-top': '4px',
+      'padding-right': '8px',
+      'padding-bottom': '12px',
+      'padding-left': '16px',
+    })
+    expect(result).toEqual({
+      'padding-top': '4px',
+      'padding-right': '8px',
+      'padding-bottom': '12px',
+      'padding-left': '16px',
+    })
+  })
+
+  it('collapses all 4 equal margin sides to shorthand', () => {
+    const result = collapseSpacingShorthands({
+      'margin-top': '8px',
+      'margin-right': '8px',
+      'margin-bottom': '8px',
+      'margin-left': '8px',
+    })
+    expect(result).toEqual({ margin: '8px' })
+  })
+
+  it('collapses margin horizontal/vertical pairs', () => {
+    const result = collapseSpacingShorthands({
+      'margin-top': '4px',
+      'margin-right': '8px',
+      'margin-bottom': '4px',
+      'margin-left': '8px',
+    })
+    expect(result).toEqual({ 'margin-inline': '8px', 'margin-block': '4px' })
+  })
+
+  it('passes through non-spacing properties unchanged', () => {
+    const result = collapseSpacingShorthands({
+      'padding-top': '16px',
+      'padding-right': '16px',
+      'padding-bottom': '16px',
+      'padding-left': '16px',
+      display: 'flex',
+    })
+    expect(result).toEqual({ padding: '16px', display: 'flex' })
+  })
+
+  it('handles partial sides without collapsing', () => {
+    const result = collapseSpacingShorthands({
+      'padding-top': '16px',
+      'padding-left': '16px',
+    })
+    expect(result).toEqual({ 'padding-top': '16px', 'padding-left': '16px' })
   })
 })
 
