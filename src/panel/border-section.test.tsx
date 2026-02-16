@@ -111,4 +111,56 @@ describe('BorderInputs', () => {
       ['borderLeftWidth', { numericValue: 0, unit: 'px', raw: '0px' }],
     ])
   })
+
+  it('keeps border as none when switching sides from an all-zero state', () => {
+    const onBatchChange = vi.fn()
+
+    const { getByTestId } = render(
+      <BorderInputs
+        border={border(0, 0, 0, 0)}
+        onChange={vi.fn()}
+        onBatchChange={onBatchChange}
+        borderPosition="border"
+        borderStyleControlPreference="label"
+        onPositionChange={vi.fn()}
+      />,
+    )
+
+    const sideSelect = getByTestId('simple-select-All-Top-Right-Bottom-Left-Custom')
+    fireEvent.change(sideSelect, { target: { value: 'Top' } })
+
+    expect(onBatchChange).toHaveBeenCalledTimes(1)
+    expect(onBatchChange).toHaveBeenNthCalledWith(1, [
+      ['borderTopWidth', { numericValue: 0, unit: 'px', raw: '0px' }],
+      ['borderRightWidth', { numericValue: 0, unit: 'px', raw: '0px' }],
+      ['borderBottomWidth', { numericValue: 0, unit: 'px', raw: '0px' }],
+      ['borderLeftWidth', { numericValue: 0, unit: 'px', raw: '0px' }],
+    ])
+  })
+
+  it('updates only the selected side after switching from an all-zero state', () => {
+    const onBatchChange = vi.fn()
+
+    const { getByTestId, getByDisplayValue } = render(
+      <BorderInputs
+        border={border(0, 0, 0, 0)}
+        onChange={vi.fn()}
+        onBatchChange={onBatchChange}
+        borderPosition="border"
+        borderStyleControlPreference="label"
+        onPositionChange={vi.fn()}
+      />,
+    )
+
+    const sideSelect = getByTestId('simple-select-All-Top-Right-Bottom-Left-Custom')
+    fireEvent.change(sideSelect, { target: { value: 'Top' } })
+
+    const widthInput = getByDisplayValue('0')
+    fireEvent.change(widthInput, { target: { value: '5' } })
+
+    expect(onBatchChange).toHaveBeenCalledTimes(2)
+    expect(onBatchChange).toHaveBeenNthCalledWith(2, [
+      ['borderTopWidth', { numericValue: 5, unit: 'px', raw: '5px' }],
+    ])
+  })
 })
