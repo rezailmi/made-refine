@@ -2138,55 +2138,55 @@ function buildDomContextHtml(
   return parentClone.outerHTML
 }
 
+function normalizePreviewWhitespace(value: string): string {
+  return value.replace(/\s+/g, ' ').trim()
+}
+
+function isWordLikeChar(char: string): boolean {
+  return /[A-Za-z0-9]/.test(char)
+}
+
+function getFallbackTextPreview(element: HTMLElement): string {
+  const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT)
+  const tokens: string[] = []
+  let previousRaw = ''
+  let previousParent: HTMLElement | null = null
+
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    const textNode = node as Text
+    const raw = textNode.textContent ?? ''
+    const normalized = normalizePreviewWhitespace(raw)
+    if (!normalized) continue
+
+    if (tokens.length > 0) {
+      const hasExplicitWhitespace = /^\s/.test(raw) || /\s$/.test(previousRaw)
+      const prevLast = previousRaw.slice(-1)
+      const nextFirst = normalized[0]
+      const shouldInsertHeuristicSpace =
+        previousParent !== textNode.parentElement &&
+        isWordLikeChar(prevLast) &&
+        isWordLikeChar(nextFirst)
+
+      if (hasExplicitWhitespace || shouldInsertHeuristicSpace) {
+        tokens.push(' ')
+      }
+    }
+
+    tokens.push(normalized)
+    previousRaw = raw
+    previousParent = textNode.parentElement
+  }
+
+  return tokens.join('')
+}
+
 function getTextPreview(element: HTMLElement): string {
-  const shouldInsertBoundarySpace = (left: string, right: string): boolean => {
-    const leftChar = left[left.length - 1]
-    const rightChar = right[0]
-    if (!leftChar || !rightChar) return false
-    if (/\s/.test(leftChar) || /\s/.test(rightChar)) return false
-    if (/^[,.;:!?)}\]]$/.test(rightChar)) return false
-    if (/^[([{]$/.test(leftChar)) return false
-    return /[A-Za-z0-9]/.test(leftChar) && /[A-Za-z0-9]/.test(rightChar)
+  const innerTextCandidate = normalizePreviewWhitespace(element.innerText ?? '')
+  const text = innerTextCandidate || getFallbackTextPreview(element)
+  if (text.length <= 120) {
+    return text
   }
-
-  const mergeTextParts = (items: string[]): string => {
-    let merged = ''
-    for (const item of items) {
-      if (!item) continue
-      if (!merged) {
-        merged = item
-        continue
-      }
-      if (shouldInsertBoundarySpace(merged, item)) {
-        merged += ' '
-      }
-      merged += item
-    }
-    return merged
-  }
-
-  const parts: string[] = []
-
-  if (typeof document !== 'undefined' && typeof document.createTreeWalker === 'function') {
-    const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT)
-    let node = walker.nextNode()
-    while (node) {
-      const value = (node.textContent ?? '').replace(/\s+/g, ' ').trim()
-      if (value) {
-        parts.push(value)
-      }
-      node = walker.nextNode()
-    }
-  } else {
-    const fallback = (element.textContent ?? '').replace(/\s+/g, ' ').trim()
-    if (fallback) parts.push(fallback)
-  }
-
-  const cleaned = mergeTextParts(parts).replace(/\s+/g, ' ').trim()
-  if (cleaned.length <= 120) {
-    return cleaned
-  }
-  return `${cleaned.slice(0, 117)}...`
+  return `${text.slice(0, 117)}...`
 }
 
 function parseDomSource(element: HTMLElement): DomSourceLocation | null {
@@ -2357,6 +2357,59 @@ export function collapseSpacingShorthands(styles: Record<string, string>): Recor
   return result
 }
 
+function collapseFourSideShorthand(
+  result: Record<string, string>,
+  sides: { top: string; right: string; bottom: string; left: string; all: string }
+): void {
+  if (!(sides.top in result && sides.right in result && sides.bottom in result && sides.left in result)) return
+
+  // Side-specific values are the source of truth when all four are present.
+  delete result[sides.all]
+
+  const top = result[sides.top]
+  const right = result[sides.right]
+  const bottom = result[sides.bottom]
+  const left = result[sides.left]
+  const allEqual = top === right && top === bottom && top === left
+  if (!allEqual) return
+
+  delete result[sides.top]
+  delete result[sides.right]
+  delete result[sides.bottom]
+  delete result[sides.left]
+  result[sides.all] = top
+}
+
+export function collapseExportShorthands(styles: Record<string, string>): Record<string, string> {
+  const result = collapseSpacingShorthands(styles)
+
+  collapseFourSideShorthand(result, {
+    top: 'border-top-style',
+    right: 'border-right-style',
+    bottom: 'border-bottom-style',
+    left: 'border-left-style',
+    all: 'border-style',
+  })
+
+  collapseFourSideShorthand(result, {
+    top: 'border-top-width',
+    right: 'border-right-width',
+    bottom: 'border-bottom-width',
+    left: 'border-left-width',
+    all: 'border-width',
+  })
+
+  collapseFourSideShorthand(result, {
+    top: 'border-top-left-radius',
+    right: 'border-top-right-radius',
+    bottom: 'border-bottom-right-radius',
+    left: 'border-bottom-left-radius',
+    all: 'border-radius',
+  })
+
+  return result
+}
+
 export function buildEditExport(
   locator: ElementLocator,
   pendingStyles: Record<string, string>,
@@ -2413,7 +2466,7 @@ export function buildEditExport(
 
   const changes: ExportChange[] = []
 
-  const collapsedStyles = collapseSpacingShorthands(pendingStyles)
+  const collapsedStyles = collapseExportShorthands(pendingStyles)
   for (const [property, value] of Object.entries(collapsedStyles)) {
     const tailwindClass = stylesToTailwind({ [property]: value })
     changes.push({
