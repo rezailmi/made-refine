@@ -82,6 +82,7 @@ export interface DirectEditActionsContextValue {
   addCommentReply: (id: string, text: string) => void
   deleteComment: (id: string) => void
   exportComment: (id: string) => Promise<boolean>
+  canSendEditToAgent: () => boolean
   sendEditToAgent: () => Promise<boolean>
   sendCommentToAgent: (id: string) => Promise<boolean>
   setActiveCommentId: (id: string | null) => void
@@ -944,6 +945,21 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
   const handleMoveComplete = React.useCallback(
     (element: HTMLElement, moveInfo: MoveInfo | null) => {
       if (moveInfo) {
+        const getAnchor = (node: HTMLElement | null): {
+          selector: string | null
+          source: ReturnType<typeof getElementLocator>['domSource'] | null
+        } => {
+          if (!node) {
+            return { selector: null, source: null }
+          }
+          const locator = getElementLocator(node)
+          const selector = locator.domSelector.trim()
+          return {
+            selector: selector.length > 0 ? selector : null,
+            source: locator.domSource ?? null,
+          }
+        }
+
         const existing = sessionEditsRef.current.get(element)
         pushUndo({
           type: 'move',
@@ -954,6 +970,14 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
         })
         const locator = existing?.locator ?? getElementLocator(element)
         const newParent = element.parentElement
+        const nextPrevSibling = element.previousElementSibling as HTMLElement | null
+        const nextSibling = element.nextElementSibling as HTMLElement | null
+        const fromParentAnchor = getAnchor(moveInfo.originalParent)
+        const fromBeforeAnchor = getAnchor(moveInfo.originalPreviousSibling)
+        const fromAfterAnchor = getAnchor(moveInfo.originalNextSibling)
+        const toParentAnchor = getAnchor(newParent)
+        const toBeforeAnchor = getAnchor(nextPrevSibling)
+        const toAfterAnchor = getAnchor(nextSibling)
 
         // Preserve initial from* from the first move; only update to* on later moves
         const fromFields = existing?.move
@@ -961,6 +985,12 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
               fromParentName: existing.move.fromParentName,
               fromSiblingBefore: existing.move.fromSiblingBefore,
               fromSiblingAfter: existing.move.fromSiblingAfter,
+              fromParentSelector: existing.move.fromParentSelector ?? null,
+              fromSiblingBeforeSelector: existing.move.fromSiblingBeforeSelector ?? null,
+              fromSiblingAfterSelector: existing.move.fromSiblingAfterSelector ?? null,
+              fromParentSource: existing.move.fromParentSource ?? null,
+              fromSiblingBeforeSource: existing.move.fromSiblingBeforeSource ?? null,
+              fromSiblingAfterSource: existing.move.fromSiblingAfterSource ?? null,
             }
           : {
               fromParentName: getElementDisplayName(moveInfo.originalParent),
@@ -970,6 +1000,12 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
               fromSiblingAfter: moveInfo.originalNextSibling
                 ? getElementDisplayName(moveInfo.originalNextSibling)
                 : null,
+              fromParentSelector: fromParentAnchor.selector,
+              fromSiblingBeforeSelector: fromBeforeAnchor.selector,
+              fromSiblingAfterSelector: fromAfterAnchor.selector,
+              fromParentSource: fromParentAnchor.source,
+              fromSiblingBeforeSource: fromBeforeAnchor.source,
+              fromSiblingAfterSource: fromAfterAnchor.source,
             }
 
         sessionEditsRef.current.set(element, {
@@ -982,12 +1018,18 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
             ? {
                 ...fromFields,
                 toParentName: getElementDisplayName(newParent),
-                toSiblingBefore: element.previousElementSibling
-                  ? getElementDisplayName(element.previousElementSibling as HTMLElement)
+                toSiblingBefore: nextPrevSibling
+                  ? getElementDisplayName(nextPrevSibling)
                   : null,
-                toSiblingAfter: element.nextElementSibling
-                  ? getElementDisplayName(element.nextElementSibling as HTMLElement)
+                toSiblingAfter: nextSibling
+                  ? getElementDisplayName(nextSibling)
                   : null,
+                toParentSelector: toParentAnchor.selector,
+                toSiblingBeforeSelector: toBeforeAnchor.selector,
+                toSiblingAfterSelector: toAfterAnchor.selector,
+                toParentSource: toParentAnchor.source,
+                toSiblingBeforeSource: toBeforeAnchor.source,
+                toSiblingAfterSource: toAfterAnchor.source,
               }
             : null,
         })
@@ -1294,10 +1336,18 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     const sessionEdit = sessionEditsRef.current.get(current.selectedElement)
     const hasPendingStyles = Object.keys(current.pendingStyles).length > 0
     const hasTextEdit = Boolean(sessionEdit?.textEdit)
+    const hasMove = Boolean(sessionEdit?.move)
 
     const locator = getElementLocator(current.selectedElement)
-    const exportMarkdown = hasPendingStyles || hasTextEdit
-      ? buildEditExport(locator, current.pendingStyles, sessionEdit?.textEdit)
+    const exportMarkdown = hasPendingStyles || hasTextEdit || hasMove
+      ? hasMove && sessionEdit
+        ? buildSessionExport([{
+            ...sessionEdit,
+            locator,
+            pendingStyles: { ...current.pendingStyles },
+            textEdit: sessionEdit.textEdit,
+          }], [])
+        : buildEditExport(locator, current.pendingStyles, sessionEdit?.textEdit)
       : buildElementContext(locator)
     try {
       await navigator.clipboard.writeText(`implement the visual edits\n\n${exportMarkdown}`)
@@ -1307,16 +1357,31 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     }
   }, [])
 
-  const sendEditToAgent = React.useCallback(async () => {
+  const canSendEditToAgent = React.useCallback(() => {
     const current = stateRef.current
     if (!current.selectedElement || !current.elementInfo) return false
     const sessionEdit = sessionEditsRef.current.get(current.selectedElement)
     const hasPendingStyles = Object.keys(current.pendingStyles).length > 0
     const hasTextEdit = Boolean(sessionEdit?.textEdit)
-    if (!hasPendingStyles && !hasTextEdit) return false
+    const hasMove = Boolean(sessionEdit?.move)
+    return hasPendingStyles || hasTextEdit || hasMove
+  }, [])
+
+  const sendEditToAgent = React.useCallback(async () => {
+    const current = stateRef.current
+    if (!current.selectedElement || !current.elementInfo) return false
+    const sessionEdit = sessionEditsRef.current.get(current.selectedElement)
+    if (!canSendEditToAgent()) return false
 
     const locator = getElementLocator(current.selectedElement)
-    const exportMarkdown = buildEditExport(locator, current.pendingStyles, sessionEdit?.textEdit)
+    const exportMarkdown = sessionEdit?.move
+      ? buildSessionExport([{
+          ...sessionEdit,
+          locator,
+          pendingStyles: { ...current.pendingStyles },
+          textEdit: sessionEdit.textEdit,
+        }], [])
+      : buildEditExport(locator, current.pendingStyles, sessionEdit?.textEdit)
     const collapsedStyles = collapseSpacingShorthands(current.pendingStyles)
     const changes = Object.entries(collapsedStyles).map(([cssProperty, cssValue]) => ({
       cssProperty,
@@ -1344,7 +1409,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     } catch {
       return false
     }
-  }, [])
+  }, [canSendEditToAgent])
 
   const sendCommentToAgent = React.useCallback(async (id: string) => {
     const comment = stateRef.current.comments.find((c) => c.id === id)
@@ -1493,6 +1558,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     updateTypographyProperty,
     resetToOriginal,
     exportEdits,
+    canSendEditToAgent,
     sendEditToAgent,
     sendCommentToAgent,
     toggleEditMode,
@@ -1531,6 +1597,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     updateTypographyProperty,
     resetToOriginal,
     exportEdits,
+    canSendEditToAgent,
     sendEditToAgent,
     sendCommentToAgent,
     toggleEditMode,

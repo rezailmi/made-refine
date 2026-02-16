@@ -35,6 +35,7 @@ export interface CommentOverlayProps {
   onAddReply: (id: string, text: string) => void
   onDelete: (id: string) => void
   onSendToAgent: (id: string) => Promise<boolean>
+  attentionRequest?: { commentId: string; nonce: number } | null
 }
 
 export function CommentOverlay({
@@ -45,6 +46,7 @@ export function CommentOverlay({
   onAddReply,
   onDelete,
   onSendToAgent,
+  attentionRequest = null,
 }: CommentOverlayProps) {
   if (comments.length === 0) return null
 
@@ -62,6 +64,7 @@ export function CommentOverlay({
           onAddReply={(text) => onAddReply(comment.id, text)}
           onDelete={() => onDelete(comment.id)}
           onSendToAgent={() => onSendToAgent(comment.id)}
+          attentionNonce={attentionRequest?.commentId === comment.id ? attentionRequest.nonce : 0}
         />
       ))}
     </>
@@ -78,6 +81,7 @@ interface CommentPinProps {
   onAddReply: (text: string) => void
   onDelete: () => void
   onSendToAgent: () => Promise<boolean>
+  attentionNonce: number
 }
 
 function CommentPin({
@@ -90,6 +94,7 @@ function CommentPin({
   onAddReply,
   onDelete,
   onSendToAgent,
+  attentionNonce,
 }: CommentPinProps) {
   const [position, setPosition] = React.useState(comment.clickPosition)
   const [elementRect, setElementRect] = React.useState<DOMRect | null>(null)
@@ -181,6 +186,7 @@ function CommentPin({
               onUpdateText(text)
             }}
             onCancel={onClose}
+            attentionNonce={attentionNonce}
           />
         ) : (
           <CommentThread
@@ -208,20 +214,52 @@ interface NewCommentInputProps {
   flipVertical: boolean
   onSubmit: (text: string) => void
   onCancel: () => void
+  attentionNonce: number
 }
 
-function NewCommentInput({ position, flipHorizontal, flipVertical, onSubmit, onCancel }: NewCommentInputProps) {
+function NewCommentInput({
+  position,
+  flipHorizontal,
+  flipVertical,
+  onSubmit,
+  onCancel,
+  attentionNonce,
+}: NewCommentInputProps) {
   const [text, setText] = React.useState('')
+  const [showError, setShowError] = React.useState(false)
   const inputRef = React.useRef<HTMLInputElement>(null)
+  const cardRef = React.useRef<HTMLDivElement>(null)
 
   React.useEffect(() => {
     inputRef.current?.focus()
   }, [])
 
+  React.useEffect(() => {
+    if (attentionNonce <= 0) return
+    setShowError(true)
+    cardRef.current?.animate?.(
+      [
+        { transform: 'translateX(0)' },
+        { transform: 'translateX(-6px)' },
+        { transform: 'translateX(6px)' },
+        { transform: 'translateX(-4px)' },
+        { transform: 'translateX(4px)' },
+        { transform: 'translateX(0)' },
+      ],
+      { duration: 260, easing: 'ease-in-out' }
+    )
+    const timeout = window.setTimeout(() => setShowError(false), 420)
+    return () => window.clearTimeout(timeout)
+  }, [attentionNonce])
+
   return (
     <div
+      ref={cardRef}
       data-direct-edit="comment-card"
-      className="fixed z-[99999] flex items-center gap-1.5 rounded-xl outline outline-1 outline-foreground/10 bg-background p-1.5 shadow-lg"
+      className={cn(
+        'fixed z-[99999] flex items-center gap-1.5 rounded-xl outline outline-1 outline-foreground/10 bg-background p-1.5 shadow-lg',
+        showError && 'outline-red-500/70'
+      )}
       style={{
         width: 220,
         left: flipHorizontal ? position.x - 220 - 8 : position.x + 14,
@@ -233,7 +271,11 @@ function NewCommentInput({ position, flipHorizontal, flipVertical, onSubmit, onC
       <input
         ref={inputRef}
         type="text"
-        className="min-w-0 flex-1 bg-transparent px-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none"
+        aria-invalid={showError}
+        className={cn(
+          'min-w-0 flex-1 bg-transparent px-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none',
+          showError && 'placeholder:text-red-400'
+        )}
         placeholder="Add a comment..."
         value={text}
         onChange={(e) => setText(e.target.value)}

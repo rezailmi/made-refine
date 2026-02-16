@@ -265,6 +265,18 @@ export interface SessionEdit {
     fromSiblingAfter: string | null
     toSiblingBefore: string | null
     toSiblingAfter: string | null
+    fromParentSelector?: string | null
+    toParentSelector?: string | null
+    fromSiblingBeforeSelector?: string | null
+    fromSiblingAfterSelector?: string | null
+    toSiblingBeforeSelector?: string | null
+    toSiblingAfterSelector?: string | null
+    fromParentSource?: DomSourceLocation | null
+    toParentSource?: DomSourceLocation | null
+    fromSiblingBeforeSource?: DomSourceLocation | null
+    fromSiblingAfterSource?: DomSourceLocation | null
+    toSiblingBeforeSource?: DomSourceLocation | null
+    toSiblingAfterSource?: DomSourceLocation | null
   } | null
   textEdit: {
     originalText: string

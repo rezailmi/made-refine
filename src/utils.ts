@@ -1857,7 +1857,20 @@ export function getElementDisplayName(element: HTMLElement): string {
 }
 
 const STABLE_ATTRIBUTES = ['data-testid', 'data-qa', 'data-cy', 'aria-label', 'role'] as const
-const MAX_SELECTOR_DEPTH = 4
+const MAX_SELECTOR_DEPTH = 24
+const CONTEXT_ALLOWED_ATTRIBUTES = new Set([
+  'id',
+  'class',
+  'href',
+  'src',
+  'alt',
+  'aria-label',
+  'role',
+  'data-testid',
+  'data-qa',
+  'data-cy',
+  'data-direct-edit-target',
+])
 
 function escapeCssIdentifier(value: string): string {
   if (typeof CSS !== 'undefined' && typeof CSS.escape === 'function') {
@@ -1966,6 +1979,17 @@ function buildDomSelector(element: HTMLElement): string {
 function stripDirectEditNodes(root: Element) {
   const nodes = root.querySelectorAll('[data-direct-edit]')
   nodes.forEach((node) => node.remove())
+}
+
+function sanitizeContextNode(root: HTMLElement) {
+  const nodes: HTMLElement[] = [root, ...Array.from(root.querySelectorAll<HTMLElement>('*'))]
+  for (const node of nodes) {
+    for (const attr of Array.from(node.attributes)) {
+      if (!CONTEXT_ALLOWED_ATTRIBUTES.has(attr.name)) {
+        node.removeAttribute(attr.name)
+      }
+    }
+  }
 }
 
 function buildTargetHtml(element: HTMLElement): string {
@@ -2080,17 +2104,22 @@ function buildDomContextHtml(
 ): string {
   const parent = element.parentElement
   if (!parent) {
-    return element.outerHTML
+    const clone = element.cloneNode(true) as HTMLElement
+    clone.setAttribute('data-direct-edit-target', 'true')
+    stripDirectEditNodes(clone)
+    sanitizeContextNode(clone)
+    return clone.outerHTML
   }
 
   const parentClone = parent.cloneNode(false) as HTMLElement
   const siblings = Array.from(parent.children) as HTMLElement[]
   const selectedIndex = siblings.indexOf(element)
+  const siblingCount = options?.siblingCount ?? 1
   let slice = siblings
 
-  if (options?.siblingCount && options.siblingCount > 0 && selectedIndex >= 0) {
-    const start = Math.max(0, selectedIndex - options.siblingCount)
-    const end = Math.min(siblings.length, selectedIndex + options.siblingCount + 1)
+  if (siblingCount >= 0 && selectedIndex >= 0) {
+    const start = Math.max(0, selectedIndex - siblingCount)
+    const end = Math.min(siblings.length, selectedIndex + siblingCount + 1)
     slice = siblings.slice(start, end)
   }
 
@@ -2101,15 +2130,59 @@ function buildDomContextHtml(
       clone.setAttribute('data-direct-edit-target', 'true')
     }
     stripDirectEditNodes(clone)
+    sanitizeContextNode(clone)
     parentClone.appendChild(clone)
   }
 
+  sanitizeContextNode(parentClone)
   return parentClone.outerHTML
 }
 
 function getTextPreview(element: HTMLElement): string {
-  const text = element.textContent ?? ''
-  const cleaned = text.replace(/\s+/g, ' ').trim()
+  const shouldInsertBoundarySpace = (left: string, right: string): boolean => {
+    const leftChar = left[left.length - 1]
+    const rightChar = right[0]
+    if (!leftChar || !rightChar) return false
+    if (/\s/.test(leftChar) || /\s/.test(rightChar)) return false
+    if (/^[,.;:!?)}\]]$/.test(rightChar)) return false
+    if (/^[([{]$/.test(leftChar)) return false
+    return /[A-Za-z0-9]/.test(leftChar) && /[A-Za-z0-9]/.test(rightChar)
+  }
+
+  const mergeTextParts = (items: string[]): string => {
+    let merged = ''
+    for (const item of items) {
+      if (!item) continue
+      if (!merged) {
+        merged = item
+        continue
+      }
+      if (shouldInsertBoundarySpace(merged, item)) {
+        merged += ' '
+      }
+      merged += item
+    }
+    return merged
+  }
+
+  const parts: string[] = []
+
+  if (typeof document !== 'undefined' && typeof document.createTreeWalker === 'function') {
+    const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT)
+    let node = walker.nextNode()
+    while (node) {
+      const value = (node.textContent ?? '').replace(/\s+/g, ' ').trim()
+      if (value) {
+        parts.push(value)
+      }
+      node = walker.nextNode()
+    }
+  } else {
+    const fallback = (element.textContent ?? '').replace(/\s+/g, ' ').trim()
+    if (fallback) parts.push(fallback)
+  }
+
+  const cleaned = mergeTextParts(parts).replace(/\s+/g, ' ').trim()
   if (cleaned.length <= 120) {
     return cleaned
   }
@@ -2184,9 +2257,7 @@ interface ExportChange {
   tailwind: string
 }
 
-export function buildElementContext(locator: ElementLocator): string {
-  const lines: string[] = []
-
+function getLocatorHeader(locator: ElementLocator): { componentLabel: string; formattedSource: string | null } {
   const primaryFrame = getPrimaryFrame(locator)
   const componentLabel = primaryFrame?.name ? primaryFrame.name : locator.tagName
   const formattedSource = locator.domSource?.file
@@ -2194,24 +2265,40 @@ export function buildElementContext(locator: ElementLocator): string {
     : primaryFrame?.file
       ? formatSourceLocation(primaryFrame.file, primaryFrame.line, primaryFrame.column)
       : null
+  return { componentLabel, formattedSource }
+}
+
+function buildLocatorContextLines(locator: ElementLocator): string[] {
+  const lines: string[] = []
+  const { componentLabel, formattedSource } = getLocatorHeader(locator)
+  const target = (locator.targetHtml || locator.domContextHtml || '').trim()
+  const context = locator.domContextHtml?.trim() || ''
+  const selector = locator.domSelector?.trim()
+  const text = locator.textPreview?.trim()
 
   lines.push(`@<${componentLabel}>`)
   lines.push('')
-  lines.push(locator.targetHtml || locator.domContextHtml || '')
+  if (target) {
+    lines.push('target:')
+    lines.push(target)
+  }
+  if (context && context !== target) {
+    lines.push('context:')
+    lines.push(context)
+  }
   lines.push(`in ${formattedSource ?? '(file not available)'}`)
-
-  if (!formattedSource) {
-    const selector = locator.domSelector?.trim()
-    const text = locator.textPreview?.trim()
-    if (selector) {
-      lines.push(`selector: ${selector}`)
-    }
-    if (text) {
-      lines.push(`text: ${text}`)
-    }
+  if (selector) {
+    lines.push(`selector: ${selector}`)
+  }
+  if (text) {
+    lines.push(`text: ${text}`)
   }
 
-  return lines.join('\n')
+  return lines
+}
+
+export function buildElementContext(locator: ElementLocator): string {
+  return buildLocatorContextLines(locator).join('\n')
 }
 
 const spacingGroups = [
@@ -2336,32 +2423,7 @@ export function buildEditExport(
     })
   }
 
-  const lines: string[] = []
-
-  const primaryFrame = getPrimaryFrame(locator)
-  const componentLabel = primaryFrame?.name ? primaryFrame.name : locator.tagName
-  const formattedSource = locator.domSource?.file
-    ? formatSourceLocation(locator.domSource.file, locator.domSource.line, locator.domSource.column)
-    : primaryFrame?.file
-      ? formatSourceLocation(primaryFrame.file, primaryFrame.line, primaryFrame.column)
-      : null
-
-  lines.push(`@<${componentLabel}>`)
-  lines.push('')
-  lines.push(locator.targetHtml || locator.domContextHtml || '')
-  lines.push(`in ${formattedSource ?? '(file not available)'}`)
-
-  if (!formattedSource) {
-    const selector = locator.domSelector?.trim()
-    const text = locator.textPreview?.trim()
-    if (selector) {
-      lines.push(`selector: ${selector}`)
-    }
-    if (text) {
-      lines.push(`text: ${text}`)
-    }
-  }
-
+  const lines = buildLocatorContextLines(locator)
   lines.push('')
   if (changes.length > 0) {
     lines.push('edits:')
@@ -2385,32 +2447,7 @@ export function buildCommentExport(
   commentText: string,
   replies?: Array<{ text: string; createdAt: number }>
 ): string {
-  const lines: string[] = []
-
-  const primaryFrame = getPrimaryFrame(locator)
-  const componentLabel = primaryFrame?.name ? primaryFrame.name : locator.tagName
-  const formattedSource = locator.domSource?.file
-    ? formatSourceLocation(locator.domSource.file, locator.domSource.line, locator.domSource.column)
-    : primaryFrame?.file
-      ? formatSourceLocation(primaryFrame.file, primaryFrame.line, primaryFrame.column)
-      : null
-
-  lines.push(`@<${componentLabel}>`)
-  lines.push('')
-  lines.push(locator.targetHtml || locator.domContextHtml || '')
-  lines.push(`in ${formattedSource ?? '(file not available)'}`)
-
-  if (!formattedSource) {
-    const selector = locator.domSelector?.trim()
-    const text = locator.textPreview?.trim()
-    if (selector) {
-      lines.push(`selector: ${selector}`)
-    }
-    if (text) {
-      lines.push(`text: ${text}`)
-    }
-  }
-
+  const lines = buildLocatorContextLines(locator)
   lines.push('')
   lines.push(`comment: ${commentText}`)
   if (replies && replies.length > 0) {
@@ -2432,19 +2469,57 @@ function formatPosition(
   return '(only child)'
 }
 
+function formatMoveSummary(move: NonNullable<SessionEdit['move']>): string {
+  const fromPosition = formatPosition(move.fromSiblingBefore, move.fromSiblingAfter)
+  const toPosition = formatPosition(move.toSiblingBefore, move.toSiblingAfter)
+  if (move.fromParentName === move.toParentName) {
+    return `in <${move.toParentName}>, from ${fromPosition} to ${toPosition}`
+  }
+  return `from <${move.fromParentName}> ${fromPosition} to <${move.toParentName}> ${toPosition}`
+}
+
+function formatMoveSelector(
+  selector: string | null | undefined,
+  fallback: '(none)' | '(unknown)'
+): string {
+  const normalized = selector?.trim()
+  return normalized ? normalized : fallback
+}
+
+function formatMoveSource(
+  source: DomSourceLocation | null | undefined,
+  fallback: '(none)' | '(unknown)'
+): string {
+  if (!source?.file) return fallback
+  return formatSourceLocation(source.file, source.line, source.column)
+}
+
+function buildMoveExportLines(move: NonNullable<SessionEdit['move']>): string[] {
+  return [
+    'moved:',
+    `summary: ${formatMoveSummary(move)}`,
+    `from_parent_selector: ${formatMoveSelector(move.fromParentSelector, '(unknown)')}`,
+    `from_before_selector: ${formatMoveSelector(move.fromSiblingBeforeSelector, '(none)')}`,
+    `from_after_selector: ${formatMoveSelector(move.fromSiblingAfterSelector, '(none)')}`,
+    `from_parent_source: ${formatMoveSource(move.fromParentSource, '(unknown)')}`,
+    `from_before_source: ${formatMoveSource(move.fromSiblingBeforeSource, '(none)')}`,
+    `from_after_source: ${formatMoveSource(move.fromSiblingAfterSource, '(none)')}`,
+    `to_parent_selector: ${formatMoveSelector(move.toParentSelector, '(unknown)')}`,
+    `to_before_selector: ${formatMoveSelector(move.toSiblingBeforeSelector, '(none)')}`,
+    `to_after_selector: ${formatMoveSelector(move.toSiblingAfterSelector, '(none)')}`,
+    `to_parent_source: ${formatMoveSource(move.toParentSource, '(unknown)')}`,
+    `to_before_source: ${formatMoveSource(move.toSiblingBeforeSource, '(none)')}`,
+    `to_after_source: ${formatMoveSource(move.toSiblingAfterSource, '(none)')}`,
+  ]
+}
+
 export function buildSessionExport(edits: SessionEdit[], comments: Comment[] = []): string {
   const blocks: string[] = []
 
   for (const edit of edits) {
     let block = buildEditExport(edit.locator, edit.pendingStyles, edit.textEdit)
     if (edit.move) {
-      const fromPosition = formatPosition(edit.move.fromSiblingBefore, edit.move.fromSiblingAfter)
-      const toPosition = formatPosition(edit.move.toSiblingBefore, edit.move.toSiblingAfter)
-      if (edit.move.fromParentName === edit.move.toParentName) {
-        block += `\nmoved: in <${edit.move.toParentName}>, from ${fromPosition} to ${toPosition}`
-      } else {
-        block += `\nmoved: from <${edit.move.fromParentName}> ${fromPosition} to <${edit.move.toParentName}> ${toPosition}`
-      }
+      block += `\n${buildMoveExportLines(edit.move).join('\n')}`
     }
     blocks.push(block)
   }
