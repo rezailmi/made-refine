@@ -9,30 +9,19 @@ const RULER_SIZE = 20
 const GUIDELINE_COLOR = '#FF6B6B'
 const HIT_ZONE = 9
 
-function useRulerColors() {
-  const [dark, setDark] = React.useState(false)
+function subscribeColorScheme(cb: () => void) {
+  const mq = window.matchMedia('(prefers-color-scheme: dark)')
+  mq.addEventListener('change', cb)
+  return () => mq.removeEventListener('change', cb)
+}
 
-  React.useEffect(() => {
-    const mq = window.matchMedia('(prefers-color-scheme: dark)')
-    setDark(mq.matches)
-    const handler = (e: MediaQueryListEvent) => setDark(e.matches)
-    mq.addEventListener('change', handler)
-    return () => mq.removeEventListener('change', handler)
-  }, [])
+function getColorScheme() {
+  return window.matchMedia('(prefers-color-scheme: dark)').matches
+}
 
-  return dark
-    ? {
-        bg: 'rgba(23, 23, 23, 0.95)',
-        border: 'rgba(255, 255, 255, 0.1)',
-        tick: 'rgba(255, 255, 255, 0.3)',
-        label: 'rgba(255, 255, 255, 0.5)',
-      }
-    : {
-        bg: 'rgba(245, 245, 245, 0.95)',
-        border: 'rgba(0, 0, 0, 0.1)',
-        tick: 'rgba(0, 0, 0, 0.3)',
-        label: 'rgba(0, 0, 0, 0.5)',
-      }
+/** Triggers canvas redraws when system color scheme changes (theme = 'system'). */
+function useSystemDark() {
+  return React.useSyncExternalStore(subscribeColorScheme, getColorScheme, () => false)
 }
 
 const rulerFont: React.CSSProperties = {
@@ -52,7 +41,8 @@ function HorizontalRuler({
 }) {
   const canvasRef = React.useRef<HTMLCanvasElement>(null)
   const viewportWidth = useViewportWidth()
-  const colors = useRulerColors()
+  const { theme } = useDirectEditState()
+  const systemDark = useSystemDark()
 
   React.useEffect(() => {
     const canvas = canvasRef.current
@@ -73,6 +63,10 @@ function HorizontalRuler({
     ctx.scale(dpr, dpr)
     ctx.clearRect(0, 0, width, height)
 
+    const computed = getComputedStyle(canvas)
+    const tick = computed.getPropertyValue('color')
+    const label = tick
+
     const startPx = Math.floor(scrollOffset.x / 10) * 10
     const endPx = scrollOffset.x + width
 
@@ -84,18 +78,20 @@ function HorizontalRuler({
       ctx.beginPath()
       ctx.moveTo(x, height)
       ctx.lineTo(x, height - (isMajor ? 10 : isMid ? 7 : 4))
-      ctx.strokeStyle = colors.tick
+      ctx.strokeStyle = tick
+      ctx.globalAlpha = 0.6
       ctx.lineWidth = 1
       ctx.stroke()
 
       if (isMajor && px !== 0) {
-        ctx.fillStyle = colors.label
+        ctx.globalAlpha = 1
+        ctx.fillStyle = label
         ctx.font = '9px system-ui, -apple-system, sans-serif'
         ctx.textAlign = 'center'
         ctx.fillText(String(px), x, 9)
       }
     }
-  }, [scrollOffset.x, viewportWidth, colors])
+  }, [scrollOffset.x, viewportWidth, theme, systemDark])
 
   return (
     <div
@@ -106,8 +102,9 @@ function HorizontalRuler({
         left: RULER_SIZE,
         right: 0,
         height: RULER_SIZE,
-        background: colors.bg,
-        borderBottom: `1px solid ${colors.border}`,
+        background: 'var(--color-background)',
+        borderBottom: '1px solid var(--color-border)',
+        color: 'var(--color-muted-foreground)',
         zIndex: 99994,
         cursor: 's-resize',
         pointerEvents: 'auto',
@@ -131,7 +128,8 @@ function VerticalRuler({
 }) {
   const canvasRef = React.useRef<HTMLCanvasElement>(null)
   const viewportHeight = useViewportHeight()
-  const colors = useRulerColors()
+  const { theme } = useDirectEditState()
+  const systemDark = useSystemDark()
 
   React.useEffect(() => {
     const canvas = canvasRef.current
@@ -152,6 +150,10 @@ function VerticalRuler({
     ctx.scale(dpr, dpr)
     ctx.clearRect(0, 0, width, height)
 
+    const computed = getComputedStyle(canvas)
+    const tick = computed.getPropertyValue('color')
+    const label = tick
+
     const startPx = Math.floor(scrollOffset.y / 10) * 10
     const endPx = scrollOffset.y + height
 
@@ -163,13 +165,15 @@ function VerticalRuler({
       ctx.beginPath()
       ctx.moveTo(width, y)
       ctx.lineTo(width - (isMajor ? 10 : isMid ? 7 : 4), y)
-      ctx.strokeStyle = colors.tick
+      ctx.strokeStyle = tick
+      ctx.globalAlpha = 0.6
       ctx.lineWidth = 1
       ctx.stroke()
 
       if (isMajor && px !== 0) {
         ctx.save()
-        ctx.fillStyle = colors.label
+        ctx.globalAlpha = 1
+        ctx.fillStyle = label
         ctx.font = '9px system-ui, -apple-system, sans-serif'
         ctx.textAlign = 'center'
         ctx.translate(9, y)
@@ -178,7 +182,7 @@ function VerticalRuler({
         ctx.restore()
       }
     }
-  }, [scrollOffset.y, viewportHeight, colors])
+  }, [scrollOffset.y, viewportHeight, theme, systemDark])
 
   return (
     <div
@@ -189,8 +193,9 @@ function VerticalRuler({
         left: 0,
         bottom: 0,
         width: RULER_SIZE,
-        background: colors.bg,
-        borderRight: `1px solid ${colors.border}`,
+        background: 'var(--color-background)',
+        borderRight: '1px solid var(--color-border)',
+        color: 'var(--color-muted-foreground)',
         zIndex: 99994,
         cursor: 'e-resize',
         pointerEvents: 'auto',
@@ -206,7 +211,6 @@ function VerticalRuler({
 // --- CornerSquare ---
 
 function CornerSquare() {
-  const colors = useRulerColors()
   return (
     <div
       data-direct-edit="ruler-corner"
@@ -216,9 +220,9 @@ function CornerSquare() {
         left: 0,
         width: RULER_SIZE,
         height: RULER_SIZE,
-        background: colors.bg,
-        borderRight: `1px solid ${colors.border}`,
-        borderBottom: `1px solid ${colors.border}`,
+        background: 'var(--color-background)',
+        borderRight: '1px solid var(--color-border)',
+        borderBottom: '1px solid var(--color-border)',
         zIndex: 99994,
         pointerEvents: 'auto',
       }}
