@@ -279,10 +279,6 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
       textEditingElement: null,
     }))
 
-    // Auto-copy element context to clipboard on selection
-    const locator = getElementLocator(element)
-    const context = buildElementContext(locator)
-    navigator.clipboard.writeText(`implement the visual edits\n\n${context}`).catch(() => {})
   }, [pushUndo, saveCurrentToSession])
 
   const finalizeTextEditing = React.useCallback((editingElement: HTMLElement) => {
