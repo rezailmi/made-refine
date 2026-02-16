@@ -2118,7 +2118,7 @@ function isWordLikeChar(char: string): boolean {
 function getFallbackTextPreview(element: HTMLElement): string {
   const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT)
   const tokens: string[] = []
-  let previousToken = ''
+  let previousRaw = ''
   let previousParent: HTMLElement | null = null
 
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {
@@ -2128,8 +2128,8 @@ function getFallbackTextPreview(element: HTMLElement): string {
     if (!normalized) continue
 
     if (tokens.length > 0) {
-      const hasExplicitWhitespace = /^\s/.test(raw) || /\s$/.test(previousToken)
-      const prevLast = previousToken.slice(-1)
+      const hasExplicitWhitespace = /^\s/.test(raw) || /\s$/.test(previousRaw)
+      const prevLast = previousRaw.slice(-1)
       const nextFirst = normalized[0]
       const shouldInsertHeuristicSpace =
         previousParent !== textNode.parentElement &&
@@ -2142,7 +2142,7 @@ function getFallbackTextPreview(element: HTMLElement): string {
     }
 
     tokens.push(normalized)
-    previousToken = raw
+    previousRaw = raw
     previousParent = textNode.parentElement
   }
 
@@ -2150,7 +2150,7 @@ function getFallbackTextPreview(element: HTMLElement): string {
 }
 
 function getTextPreview(element: HTMLElement): string {
-  const innerTextCandidate = normalizePreviewWhitespace((element as HTMLElement & { innerText?: string }).innerText ?? '')
+  const innerTextCandidate = normalizePreviewWhitespace(element.innerText ?? '')
   const text = innerTextCandidate || getFallbackTextPreview(element)
   if (text.length <= 120) {
     return text
@@ -2316,21 +2316,17 @@ function collapseFourSideShorthand(
   result: Record<string, string>,
   sides: { top: string; right: string; bottom: string; left: string; all: string }
 ): void {
-  const hasTop = sides.top in result
-  const hasRight = sides.right in result
-  const hasBottom = sides.bottom in result
-  const hasLeft = sides.left in result
-  if (!hasTop || !hasRight || !hasBottom || !hasLeft) return
+  if (!(sides.top in result && sides.right in result && sides.bottom in result && sides.left in result)) return
 
-  // Side-specific values should be the source of truth when all four are present.
+  // Side-specific values are the source of truth when all four are present.
   delete result[sides.all]
 
   const top = result[sides.top]
   const right = result[sides.right]
   const bottom = result[sides.bottom]
   const left = result[sides.left]
-
-  if (top !== right || top !== bottom || top !== left) return
+  const allEqual = top === right && top === bottom && top === left
+  if (!allEqual) return
 
   delete result[sides.top]
   delete result[sides.right]
