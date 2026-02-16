@@ -2107,13 +2107,55 @@ function buildDomContextHtml(
   return parentClone.outerHTML
 }
 
-function getTextPreview(element: HTMLElement): string {
-  const text = element.textContent ?? ''
-  const cleaned = text.replace(/\s+/g, ' ').trim()
-  if (cleaned.length <= 120) {
-    return cleaned
+function normalizePreviewWhitespace(value: string): string {
+  return value.replace(/\s+/g, ' ').trim()
+}
+
+function isWordLikeChar(char: string): boolean {
+  return /[A-Za-z0-9]/.test(char)
+}
+
+function getFallbackTextPreview(element: HTMLElement): string {
+  const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT)
+  const tokens: string[] = []
+  let previousToken = ''
+  let previousParent: HTMLElement | null = null
+
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    const textNode = node as Text
+    const raw = textNode.textContent ?? ''
+    const normalized = normalizePreviewWhitespace(raw)
+    if (!normalized) continue
+
+    if (tokens.length > 0) {
+      const hasExplicitWhitespace = /^\s/.test(raw) || /\s$/.test(previousToken)
+      const prevLast = previousToken.slice(-1)
+      const nextFirst = normalized[0]
+      const shouldInsertHeuristicSpace =
+        previousParent !== textNode.parentElement &&
+        isWordLikeChar(prevLast) &&
+        isWordLikeChar(nextFirst)
+
+      if (hasExplicitWhitespace || shouldInsertHeuristicSpace) {
+        tokens.push(' ')
+      }
+    }
+
+    tokens.push(normalized)
+    previousToken = raw
+    previousParent = textNode.parentElement
   }
-  return `${cleaned.slice(0, 117)}...`
+
+  return tokens.join('')
+}
+
+function getTextPreview(element: HTMLElement): string {
+  const innerTextCandidate = normalizePreviewWhitespace((element as HTMLElement & { innerText?: string }).innerText ?? '')
+  const text = innerTextCandidate || getFallbackTextPreview(element)
+  if (text.length <= 120) {
+    return text
+  }
+  return `${text.slice(0, 117)}...`
 }
 
 function parseDomSource(element: HTMLElement): DomSourceLocation | null {
@@ -2270,6 +2312,63 @@ export function collapseSpacingShorthands(styles: Record<string, string>): Recor
   return result
 }
 
+function collapseFourSideShorthand(
+  result: Record<string, string>,
+  sides: { top: string; right: string; bottom: string; left: string; all: string }
+): void {
+  const hasTop = sides.top in result
+  const hasRight = sides.right in result
+  const hasBottom = sides.bottom in result
+  const hasLeft = sides.left in result
+  if (!hasTop || !hasRight || !hasBottom || !hasLeft) return
+
+  // Side-specific values should be the source of truth when all four are present.
+  delete result[sides.all]
+
+  const top = result[sides.top]
+  const right = result[sides.right]
+  const bottom = result[sides.bottom]
+  const left = result[sides.left]
+
+  if (top !== right || top !== bottom || top !== left) return
+
+  delete result[sides.top]
+  delete result[sides.right]
+  delete result[sides.bottom]
+  delete result[sides.left]
+  result[sides.all] = top
+}
+
+export function collapseExportShorthands(styles: Record<string, string>): Record<string, string> {
+  const result = collapseSpacingShorthands(styles)
+
+  collapseFourSideShorthand(result, {
+    top: 'border-top-style',
+    right: 'border-right-style',
+    bottom: 'border-bottom-style',
+    left: 'border-left-style',
+    all: 'border-style',
+  })
+
+  collapseFourSideShorthand(result, {
+    top: 'border-top-width',
+    right: 'border-right-width',
+    bottom: 'border-bottom-width',
+    left: 'border-left-width',
+    all: 'border-width',
+  })
+
+  collapseFourSideShorthand(result, {
+    top: 'border-top-left-radius',
+    right: 'border-top-right-radius',
+    bottom: 'border-bottom-right-radius',
+    left: 'border-bottom-left-radius',
+    all: 'border-radius',
+  })
+
+  return result
+}
+
 export function buildEditExport(
   locator: ElementLocator,
   pendingStyles: Record<string, string>,
@@ -2326,7 +2425,7 @@ export function buildEditExport(
 
   const changes: ExportChange[] = []
 
-  const collapsedStyles = collapseSpacingShorthands(pendingStyles)
+  const collapsedStyles = collapseExportShorthands(pendingStyles)
   for (const [property, value] of Object.entries(collapsedStyles)) {
     const tailwindClass = stylesToTailwind({ [property]: value })
     changes.push({

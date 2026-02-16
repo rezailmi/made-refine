@@ -12,6 +12,8 @@ import {
   typographyPropertyToCSSMap,
   stylesToTailwind,
   collapseSpacingShorthands,
+  collapseExportShorthands,
+  getElementLocator,
 } from './utils'
 
 describe('getComputedColorStyles', () => {
@@ -330,6 +332,99 @@ describe('collapseSpacingShorthands', () => {
       'padding-left': '16px',
     })
     expect(result).toEqual({ 'padding-top': '16px', 'padding-left': '16px' })
+  })
+})
+
+describe('collapseExportShorthands', () => {
+  it('collapses equal border style and radius side properties into shorthands', () => {
+    const result = collapseExportShorthands({
+      'border-top-left-radius': '0px',
+      'border-top-right-radius': '0px',
+      'border-bottom-right-radius': '0px',
+      'border-bottom-left-radius': '0px',
+      'border-top-style': 'solid',
+      'border-right-style': 'solid',
+      'border-bottom-style': 'solid',
+      'border-left-style': 'solid',
+      'border-top-width': '0px',
+      'border-right-width': '0px',
+      'border-bottom-width': '1px',
+      'border-left-width': '0px',
+      'padding-inline': '0px',
+      'margin-inline': '-12px',
+    })
+
+    expect(result).toEqual({
+      'border-radius': '0px',
+      'border-style': 'solid',
+      'border-top-width': '0px',
+      'border-right-width': '0px',
+      'border-bottom-width': '1px',
+      'border-left-width': '0px',
+      'padding-inline': '0px',
+      'margin-inline': '-12px',
+    })
+  })
+
+  it('keeps mixed side border styles expanded', () => {
+    const result = collapseExportShorthands({
+      'border-top-style': 'solid',
+      'border-right-style': 'dashed',
+      'border-bottom-style': 'solid',
+      'border-left-style': 'solid',
+    })
+
+    expect(result).toEqual({
+      'border-top-style': 'solid',
+      'border-right-style': 'dashed',
+      'border-bottom-style': 'solid',
+      'border-left-style': 'solid',
+    })
+  })
+
+  it('collapses equal side border widths into border-width', () => {
+    const result = collapseExportShorthands({
+      'border-top-width': '2px',
+      'border-right-width': '2px',
+      'border-bottom-width': '2px',
+      'border-left-width': '2px',
+    })
+
+    expect(result).toEqual({
+      'border-width': '2px',
+    })
+  })
+
+  it('drops conflicting border shorthand when mixed side styles are present', () => {
+    const result = collapseExportShorthands({
+      'border-style': 'solid',
+      'border-top-style': 'solid',
+      'border-right-style': 'dashed',
+      'border-bottom-style': 'solid',
+      'border-left-style': 'solid',
+    })
+
+    expect(result).toEqual({
+      'border-top-style': 'solid',
+      'border-right-style': 'dashed',
+      'border-bottom-style': 'solid',
+      'border-left-style': 'solid',
+    })
+  })
+})
+
+describe('locator text preview', () => {
+  it('keeps a readable gap between sibling text fragments', () => {
+    const target = document.createElement('div')
+    target.innerHTML = '<div>Sara mentioned you</div><div>in Design Review #14</div>'
+    document.body.appendChild(target)
+
+    const locator = getElementLocator(target)
+
+    expect(locator.textPreview).toBe('Sara mentioned you in Design Review #14')
+    expect(locator.targetHtml).toContain('Sara mentioned you in Design Review #14')
+
+    target.remove()
   })
 })
 
