@@ -48,6 +48,7 @@ import {
   getElementDisplayName,
   getElementLocator,
   stylesToTailwind,
+  collapseSpacingShorthands,
   isTextElement,
 } from './utils'
 import { formatColorValue } from './ui/color-utils'
@@ -1316,7 +1317,8 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
 
     const locator = getElementLocator(current.selectedElement)
     const exportMarkdown = buildEditExport(locator, current.pendingStyles, sessionEdit?.textEdit)
-    const changes = Object.entries(current.pendingStyles).map(([cssProperty, cssValue]) => ({
+    const collapsedStyles = collapseSpacingShorthands(current.pendingStyles)
+    const changes = Object.entries(collapsedStyles).map(([cssProperty, cssValue]) => ({
       cssProperty,
       cssValue,
       tailwindClass: stylesToTailwind({ [cssProperty]: cssValue }),

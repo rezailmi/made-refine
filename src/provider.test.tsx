@@ -297,6 +297,50 @@ describe('DirectEditProvider', () => {
     )
   })
 
+  it('sends collapsed spacing shorthand changes to agent', async () => {
+    mockClipboard()
+    const target = createTarget('spacing-shorthand-target')
+    const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+    act(() => {
+      result.current.selectElement(target)
+    })
+
+    await waitFor(() => {
+      expect(result.current.selectedElement).toBe(target)
+    })
+
+    act(() => {
+      result.current.updateSpacingProperty('paddingTop', cssValue(16))
+      result.current.updateSpacingProperty('paddingRight', cssValue(16))
+      result.current.updateSpacingProperty('paddingBottom', cssValue(16))
+      result.current.updateSpacingProperty('paddingLeft', cssValue(16))
+    })
+
+    const sent = await result.current.sendEditToAgent()
+    expect(sent).toBe(true)
+    expect(sendEditToAgentMock).toHaveBeenCalledTimes(1)
+
+    const payload = sendEditToAgentMock.mock.calls[0][0] as {
+      changes: Array<{ cssProperty: string; cssValue: string; tailwindClass: string }>
+    }
+    const cssProperties = payload.changes.map((change) => change.cssProperty)
+
+    expect(payload.changes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          cssProperty: 'padding',
+          cssValue: '16px',
+          tailwindClass: 'p-4',
+        }),
+      ]),
+    )
+    expect(cssProperties).not.toContain('padding-top')
+    expect(cssProperties).not.toContain('padding-right')
+    expect(cssProperties).not.toContain('padding-bottom')
+    expect(cssProperties).not.toContain('padding-left')
+  })
+
   it('supports comments lifecycle, clipboard export, and agent send', async () => {
     const clipboardWrite = mockClipboard()
     const target = createTarget('comment-target', 'padding-top: 8px;')
