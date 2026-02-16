@@ -164,6 +164,18 @@ export function getOriginalInlineStyles(element: HTMLElement): Record<string, st
 }
 
 const tailwindClassMap: Record<string, { prefix: string; scale: Record<number, string> }> = {
+  padding: {
+    prefix: 'p',
+    scale: { 0: '0', 1: 'px', 2: '0.5', 4: '1', 8: '2', 12: '3', 16: '4', 20: '5', 24: '6', 32: '8' },
+  },
+  'padding-inline': {
+    prefix: 'px',
+    scale: { 0: '0', 1: 'px', 2: '0.5', 4: '1', 8: '2', 12: '3', 16: '4', 20: '5', 24: '6', 32: '8' },
+  },
+  'padding-block': {
+    prefix: 'py',
+    scale: { 0: '0', 1: 'px', 2: '0.5', 4: '1', 8: '2', 12: '3', 16: '4', 20: '5', 24: '6', 32: '8' },
+  },
   'padding-top': {
     prefix: 'pt',
     scale: { 0: '0', 1: 'px', 2: '0.5', 4: '1', 8: '2', 12: '3', 16: '4', 20: '5', 24: '6', 32: '8' },
@@ -178,6 +190,18 @@ const tailwindClassMap: Record<string, { prefix: string; scale: Record<number, s
   },
   'padding-left': {
     prefix: 'pl',
+    scale: { 0: '0', 1: 'px', 2: '0.5', 4: '1', 8: '2', 12: '3', 16: '4', 20: '5', 24: '6', 32: '8' },
+  },
+  margin: {
+    prefix: 'm',
+    scale: { 0: '0', 1: 'px', 2: '0.5', 4: '1', 8: '2', 12: '3', 16: '4', 20: '5', 24: '6', 32: '8' },
+  },
+  'margin-inline': {
+    prefix: 'mx',
+    scale: { 0: '0', 1: 'px', 2: '0.5', 4: '1', 8: '2', 12: '3', 16: '4', 20: '5', 24: '6', 32: '8' },
+  },
+  'margin-block': {
+    prefix: 'my',
     scale: { 0: '0', 1: 'px', 2: '0.5', 4: '1', 8: '2', 12: '3', 16: '4', 20: '5', 24: '6', 32: '8' },
   },
   'margin-top': {
@@ -2233,6 +2257,59 @@ export function buildElementContext(locator: ElementLocator): string {
   return lines.join('\n')
 }
 
+const spacingGroups = [
+  { top: 'padding-top', right: 'padding-right', bottom: 'padding-bottom', left: 'padding-left', all: 'padding', inline: 'padding-inline', block: 'padding-block' },
+  { top: 'margin-top', right: 'margin-right', bottom: 'margin-bottom', left: 'margin-left', all: 'margin', inline: 'margin-inline', block: 'margin-block' },
+] as const
+
+export function collapseSpacingShorthands(styles: Record<string, string>): Record<string, string> {
+  const result = { ...styles }
+
+  for (const group of spacingGroups) {
+    const top = result[group.top]
+    const right = result[group.right]
+    const bottom = result[group.bottom]
+    const left = result[group.left]
+
+    const hasTop = group.top in result
+    const hasRight = group.right in result
+    const hasBottom = group.bottom in result
+    const hasLeft = group.left in result
+
+    const horizontalMatch = hasLeft && hasRight && left === right
+    const verticalMatch = hasTop && hasBottom && top === bottom
+
+    if (horizontalMatch && verticalMatch && top === left) {
+      // All 4 equal
+      delete result[group.top]
+      delete result[group.right]
+      delete result[group.bottom]
+      delete result[group.left]
+      result[group.all] = top
+    } else if (horizontalMatch && verticalMatch) {
+      // Horizontal pair + vertical pair (different from each other)
+      delete result[group.top]
+      delete result[group.right]
+      delete result[group.bottom]
+      delete result[group.left]
+      result[group.inline] = left
+      result[group.block] = top
+    } else if (horizontalMatch) {
+      // Only horizontal pair matches
+      delete result[group.left]
+      delete result[group.right]
+      result[group.inline] = left
+    } else if (verticalMatch) {
+      // Only vertical pair matches
+      delete result[group.top]
+      delete result[group.bottom]
+      result[group.block] = top
+    }
+  }
+
+  return result
+}
+
 export function buildEditExport(
   locator: ElementLocator,
   pendingStyles: Record<string, string>,
@@ -2289,7 +2366,8 @@ export function buildEditExport(
 
   const changes: ExportChange[] = []
 
-  for (const [property, value] of Object.entries(pendingStyles)) {
+  const collapsedStyles = collapseSpacingShorthands(pendingStyles)
+  for (const [property, value] of Object.entries(collapsedStyles)) {
     const tailwindClass = stylesToTailwind({ [property]: value })
     changes.push({
       property,
