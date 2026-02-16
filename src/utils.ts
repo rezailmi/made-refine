@@ -163,67 +163,24 @@ export function getOriginalInlineStyles(element: HTMLElement): Record<string, st
   return styles
 }
 
+const spacingScale: Record<number, string> = { 0: '0', 1: 'px', 2: '0.5', 4: '1', 8: '2', 12: '3', 16: '4', 20: '5', 24: '6', 32: '8' }
+
 const tailwindClassMap: Record<string, { prefix: string; scale: Record<number, string> }> = {
-  padding: {
-    prefix: 'p',
-    scale: { 0: '0', 1: 'px', 2: '0.5', 4: '1', 8: '2', 12: '3', 16: '4', 20: '5', 24: '6', 32: '8' },
-  },
-  'padding-inline': {
-    prefix: 'px',
-    scale: { 0: '0', 1: 'px', 2: '0.5', 4: '1', 8: '2', 12: '3', 16: '4', 20: '5', 24: '6', 32: '8' },
-  },
-  'padding-block': {
-    prefix: 'py',
-    scale: { 0: '0', 1: 'px', 2: '0.5', 4: '1', 8: '2', 12: '3', 16: '4', 20: '5', 24: '6', 32: '8' },
-  },
-  'padding-top': {
-    prefix: 'pt',
-    scale: { 0: '0', 1: 'px', 2: '0.5', 4: '1', 8: '2', 12: '3', 16: '4', 20: '5', 24: '6', 32: '8' },
-  },
-  'padding-right': {
-    prefix: 'pr',
-    scale: { 0: '0', 1: 'px', 2: '0.5', 4: '1', 8: '2', 12: '3', 16: '4', 20: '5', 24: '6', 32: '8' },
-  },
-  'padding-bottom': {
-    prefix: 'pb',
-    scale: { 0: '0', 1: 'px', 2: '0.5', 4: '1', 8: '2', 12: '3', 16: '4', 20: '5', 24: '6', 32: '8' },
-  },
-  'padding-left': {
-    prefix: 'pl',
-    scale: { 0: '0', 1: 'px', 2: '0.5', 4: '1', 8: '2', 12: '3', 16: '4', 20: '5', 24: '6', 32: '8' },
-  },
-  margin: {
-    prefix: 'm',
-    scale: { 0: '0', 1: 'px', 2: '0.5', 4: '1', 8: '2', 12: '3', 16: '4', 20: '5', 24: '6', 32: '8' },
-  },
-  'margin-inline': {
-    prefix: 'mx',
-    scale: { 0: '0', 1: 'px', 2: '0.5', 4: '1', 8: '2', 12: '3', 16: '4', 20: '5', 24: '6', 32: '8' },
-  },
-  'margin-block': {
-    prefix: 'my',
-    scale: { 0: '0', 1: 'px', 2: '0.5', 4: '1', 8: '2', 12: '3', 16: '4', 20: '5', 24: '6', 32: '8' },
-  },
-  'margin-top': {
-    prefix: 'mt',
-    scale: { 0: '0', 1: 'px', 2: '0.5', 4: '1', 8: '2', 12: '3', 16: '4', 20: '5', 24: '6', 32: '8' },
-  },
-  'margin-right': {
-    prefix: 'mr',
-    scale: { 0: '0', 1: 'px', 2: '0.5', 4: '1', 8: '2', 12: '3', 16: '4', 20: '5', 24: '6', 32: '8' },
-  },
-  'margin-bottom': {
-    prefix: 'mb',
-    scale: { 0: '0', 1: 'px', 2: '0.5', 4: '1', 8: '2', 12: '3', 16: '4', 20: '5', 24: '6', 32: '8' },
-  },
-  'margin-left': {
-    prefix: 'ml',
-    scale: { 0: '0', 1: 'px', 2: '0.5', 4: '1', 8: '2', 12: '3', 16: '4', 20: '5', 24: '6', 32: '8' },
-  },
-  gap: {
-    prefix: 'gap',
-    scale: { 0: '0', 1: 'px', 2: '0.5', 4: '1', 8: '2', 12: '3', 16: '4', 20: '5', 24: '6', 32: '8' },
-  },
+  padding: { prefix: 'p', scale: spacingScale },
+  'padding-inline': { prefix: 'px', scale: spacingScale },
+  'padding-block': { prefix: 'py', scale: spacingScale },
+  'padding-top': { prefix: 'pt', scale: spacingScale },
+  'padding-right': { prefix: 'pr', scale: spacingScale },
+  'padding-bottom': { prefix: 'pb', scale: spacingScale },
+  'padding-left': { prefix: 'pl', scale: spacingScale },
+  margin: { prefix: 'm', scale: spacingScale },
+  'margin-inline': { prefix: 'mx', scale: spacingScale },
+  'margin-block': { prefix: 'my', scale: spacingScale },
+  'margin-top': { prefix: 'mt', scale: spacingScale },
+  'margin-right': { prefix: 'mr', scale: spacingScale },
+  'margin-bottom': { prefix: 'mb', scale: spacingScale },
+  'margin-left': { prefix: 'ml', scale: spacingScale },
+  gap: { prefix: 'gap', scale: spacingScale },
   'border-width': {
     prefix: 'border',
     scale: { 0: '0', 1: '', 2: '2', 4: '4', 8: '8' },
@@ -2279,21 +2236,17 @@ export function collapseSpacingShorthands(styles: Record<string, string>): Recor
     const horizontalMatch = hasLeft && hasRight && left === right
     const verticalMatch = hasTop && hasBottom && top === bottom
 
-    if (horizontalMatch && verticalMatch && top === left) {
-      // All 4 equal
+    if (horizontalMatch && verticalMatch) {
       delete result[group.top]
       delete result[group.right]
       delete result[group.bottom]
       delete result[group.left]
-      result[group.all] = top
-    } else if (horizontalMatch && verticalMatch) {
-      // Horizontal pair + vertical pair (different from each other)
-      delete result[group.top]
-      delete result[group.right]
-      delete result[group.bottom]
-      delete result[group.left]
-      result[group.inline] = left
-      result[group.block] = top
+      if (top === left) {
+        result[group.all] = top
+      } else {
+        result[group.inline] = left
+        result[group.block] = top
+      }
     } else if (horizontalMatch) {
       // Only horizontal pair matches
       delete result[group.left]
