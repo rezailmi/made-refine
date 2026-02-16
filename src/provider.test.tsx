@@ -2,6 +2,9 @@ import * as React from 'react'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DirectEditProvider, useDirectEdit, useDirectEditActions, useDirectEditState } from './provider'
+import { DirectEditPanel } from './panel'
+import { DirectEditToolbar } from './toolbar'
+import { Rulers } from './rulers-overlay'
 
 const { sendEditToAgentMock, sendCommentToAgentMock } = vi.hoisted(() => ({
   sendEditToAgentMock: vi.fn<(...args: unknown[]) => Promise<{ ok: boolean; id: string }>>().mockResolvedValue({ ok: true, id: 'edit-1' }),
@@ -15,6 +18,15 @@ vi.mock('./mcp-client', () => ({
 
 const wrapper = ({ children }: { children: React.ReactNode }) => (
   <DirectEditProvider>{children}</DirectEditProvider>
+)
+
+const fullUiWrapper = ({ children }: { children: React.ReactNode }) => (
+  <DirectEditProvider>
+    <DirectEditPanel />
+    <DirectEditToolbar />
+    <Rulers />
+    {children}
+  </DirectEditProvider>
 )
 
 function cssValue(numericValue: number) {
@@ -71,6 +83,7 @@ describe('DirectEditProvider', () => {
     sendEditToAgentMock.mockClear()
     sendCommentToAgentMock.mockClear()
     vi.restoreAllMocks()
+    vi.unstubAllGlobals()
     document.documentElement.removeAttribute('data-direct-edit-disable-styles')
     document.body.innerHTML = ''
     resetStorage()
@@ -223,6 +236,100 @@ describe('DirectEditProvider', () => {
     await waitFor(() => {
       expect(host.getAttribute('data-theme')).toBe('dark')
       expect(localStorage.getItem('direct-edit-theme')).toBe('dark')
+    })
+  })
+
+  it('applies dark and light themes across toolbar, panel, and rulers', async () => {
+    class ResizeObserverMock {
+      observe() {}
+      disconnect() {}
+      unobserve() {}
+    }
+    vi.stubGlobal('ResizeObserver', ResizeObserverMock)
+    vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+      dispatchEvent: () => false,
+    })))
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
+
+    mockClipboard()
+    const target = createTarget('theme-target', 'padding-top: 8px;')
+    const { result } = renderHook(() => useDirectEdit(), { wrapper: fullUiWrapper })
+
+    act(() => {
+      result.current.toggleEditMode()
+      result.current.selectElement(target)
+    })
+
+    const host = await waitFor(() => {
+      const node = document.querySelector('[data-direct-edit-host]') as HTMLElement | null
+      expect(node).not.toBeNull()
+      return node as HTMLElement
+    })
+
+    const shadowRoot = host.shadowRoot
+    expect(shadowRoot).not.toBeNull()
+
+    const toolbar = await waitFor(() => {
+      const node = shadowRoot?.querySelector('[data-direct-edit="toolbar"]') as HTMLElement | null
+      expect(node).not.toBeNull()
+      return node as HTMLElement
+    })
+    const panel = await waitFor(() => {
+      const node = shadowRoot?.querySelector('[data-direct-edit="panel"]') as HTMLElement | null
+      expect(node).not.toBeNull()
+      return node as HTMLElement
+    })
+    const rulerHorizontal = await waitFor(() => {
+      const node = shadowRoot?.querySelector('[data-direct-edit="ruler-horizontal"]') as HTMLElement | null
+      expect(node).not.toBeNull()
+      return node as HTMLElement
+    })
+    const rulerVertical = await waitFor(() => {
+      const node = shadowRoot?.querySelector('[data-direct-edit="ruler-vertical"]') as HTMLElement | null
+      expect(node).not.toBeNull()
+      return node as HTMLElement
+    })
+    const rulerCorner = await waitFor(() => {
+      const node = shadowRoot?.querySelector('[data-direct-edit="ruler-corner"]') as HTMLElement | null
+      expect(node).not.toBeNull()
+      return node as HTMLElement
+    })
+
+    expect(toolbar.className).toContain('bg-background')
+    expect(panel.className).toContain('outline-foreground/10')
+    expect(panel.className).toContain('shadow-lg')
+    expect(rulerHorizontal.style.background).toBe('var(--color-background)')
+    expect(rulerVertical.style.background).toBe('var(--color-background)')
+    expect(rulerCorner.style.background).toBe('var(--color-background)')
+    expect(rulerHorizontal.style.color).toBe('var(--color-muted-foreground)')
+    expect(rulerVertical.style.color).toBe('var(--color-muted-foreground)')
+
+    const panelHeader = panel.firstElementChild as HTMLElement | null
+    expect(panelHeader).not.toBeNull()
+    expect((panelHeader as HTMLElement).className).toContain('bg-background')
+    expect((panelHeader as HTMLElement).className).toContain('border-border/50')
+
+    act(() => {
+      result.current.setTheme('dark')
+    })
+    await waitFor(() => {
+      expect(host.getAttribute('data-theme')).toBe('dark')
+      expect(localStorage.getItem('direct-edit-theme')).toBe('dark')
+    })
+
+    act(() => {
+      result.current.setTheme('light')
+    })
+    await waitFor(() => {
+      expect(host.getAttribute('data-theme')).toBe('light')
+      expect(localStorage.getItem('direct-edit-theme')).toBe('light')
     })
   })
 
