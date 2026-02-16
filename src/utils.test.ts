@@ -300,6 +300,19 @@ describe('collapseSpacingShorthands', () => {
     expect(result).toEqual({ 'margin-inline': '8px', 'margin-block': '4px' })
   })
 
+  it('overrides existing shorthand values when all sides are present', () => {
+    const result = collapseSpacingShorthands({
+      padding: '2px',
+      'padding-inline': '6px',
+      'padding-block': '10px',
+      'padding-top': '8px',
+      'padding-right': '16px',
+      'padding-bottom': '8px',
+      'padding-left': '16px',
+    })
+    expect(result).toEqual({ 'padding-inline': '16px', 'padding-block': '8px' })
+  })
+
   it('passes through non-spacing properties unchanged', () => {
     const result = collapseSpacingShorthands({
       'padding-top': '16px',

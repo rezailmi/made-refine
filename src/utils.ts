@@ -2223,15 +2223,22 @@ export function collapseSpacingShorthands(styles: Record<string, string>): Recor
   const result = { ...styles }
 
   for (const group of spacingGroups) {
-    const top = result[group.top]
-    const right = result[group.right]
-    const bottom = result[group.bottom]
-    const left = result[group.left]
-
     const hasTop = group.top in result
     const hasRight = group.right in result
     const hasBottom = group.bottom in result
     const hasLeft = group.left in result
+    const hasAllSides = hasTop && hasRight && hasBottom && hasLeft
+
+    if (hasAllSides) {
+      delete result[group.all]
+      delete result[group.inline]
+      delete result[group.block]
+    }
+
+    const top = result[group.top]
+    const right = result[group.right]
+    const bottom = result[group.bottom]
+    const left = result[group.left]
 
     const horizontalMatch = hasLeft && hasRight && left === right
     const verticalMatch = hasTop && hasBottom && top === bottom
