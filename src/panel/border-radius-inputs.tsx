@@ -81,7 +81,7 @@ export function BorderRadiusInputs({ values, onChange }: BorderRadiusInputsProps
     values.topLeft.numericValue === values.topRight.numericValue &&
     values.topRight.numericValue === values.bottomRight.numericValue &&
     values.bottomRight.numericValue === values.bottomLeft.numericValue
-  const uniformValue = allSame ? values.topLeft.numericValue : values.topLeft.numericValue
+  const combinedValue = values.topLeft.numericValue
 
   if (individual) {
     return (
@@ -145,9 +145,10 @@ export function BorderRadiusInputs({ values, onChange }: BorderRadiusInputsProps
     )
   }
 
-  const isFull = uniformValue >= BORDER_RADIUS_FULL
-  const displayValue = isFull ? 'Full' : String(uniformValue)
-  const sliderValue = valueToSlider(uniformValue)
+  const isMixed = !allSame
+  const isFull = !isMixed && combinedValue >= BORDER_RADIUS_FULL
+  const displayValue = isMixed ? 'mixed' : (isFull ? 'Full' : String(combinedValue))
+  const sliderValue = valueToSlider(combinedValue)
 
   return (
     <div className="flex items-center gap-1.5">

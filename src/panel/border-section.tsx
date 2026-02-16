@@ -166,7 +166,8 @@ export function BorderInputs({ border, borderColor, outlineColor, onChange, onBa
     }
 
     // Specific side: set that side to currentWidth, zero out the rest
-    const width = currentWidth ?? 1
+    const sideWidth = (border[`border${newSide}Width` as keyof BorderProperties] as CSSPropertyValue).numericValue
+    const width = currentWidth ?? sideWidth ?? 1
     const changes: Array<[BorderPropertyKey, BorderProperties[BorderPropertyKey]]> = []
     for (const s of BORDER_SIDES) {
       const value: CSSPropertyValue = s === newSide
@@ -206,8 +207,8 @@ export function BorderInputs({ border, borderColor, outlineColor, onChange, onBa
             <NumberInput
               min={0}
               step={0.5}
-              value={typeof currentWidth === 'number' ? Math.round(currentWidth * 100) / 100 : 0}
-              placeholder={currentWidth === null ? '–' : undefined}
+              value={typeof currentWidth === 'number' ? Math.round(currentWidth * 100) / 100 : null}
+              placeholder={currentWidth === null ? 'mixed' : undefined}
               onValueChange={handleAllWidthChange}
               className={cn(
                 'h-7 px-2 text-center text-xs tabular-nums',
