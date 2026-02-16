@@ -98,7 +98,7 @@ function mockElementFromPoint(returnElement: HTMLElement) {
     if (originalDescriptor) {
       Object.defineProperty(document, 'elementFromPoint', originalDescriptor)
     } else {
-      delete (document as Document & { elementFromPoint?: unknown }).elementFromPoint
+      delete (document as unknown as Record<string, unknown>).elementFromPoint
     }
   })
   return elementFromPoint
