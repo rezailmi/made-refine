@@ -193,8 +193,8 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
 
   const pushUndo = React.useCallback((entry: UndoEntry) => {
     undoStackRef.current.push(entry)
-    if (undoStackRef.current.length > 50) {
-      undoStackRef.current = undoStackRef.current.slice(-50)
+    if (undoStackRef.current.length > 500) {
+      undoStackRef.current = undoStackRef.current.slice(-500)
     }
     if (entry.type === 'edit' || entry.type === 'move' || entry.type === 'textEdit') {
       removedSessionEditsRef.current.delete(entry.element)

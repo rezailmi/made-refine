@@ -210,6 +210,45 @@ describe('DirectEditProvider', () => {
     expect(target.style.getPropertyValue('box-shadow')).toBe('')
   })
 
+  it('retains only the latest 500 undo entries', async () => {
+    const target = createTarget('undo-limit-target', 'padding-top: 0px;')
+    const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+    act(() => {
+      result.current.selectElement(target)
+    })
+
+    await waitFor(() => {
+      expect(result.current.selectedElement).toBe(target)
+    })
+
+    act(() => {
+      for (let i = 1; i <= 501; i += 1) {
+        result.current.updateSpacingProperty('paddingTop', cssValue(i))
+      }
+    })
+
+    expect(target.style.getPropertyValue('padding-top')).toBe('501px')
+
+    act(() => {
+      for (let i = 0; i < 500; i += 1) {
+        result.current.undo()
+      }
+    })
+
+    // The oldest entry (0px -> 1px) is dropped once the cap is exceeded.
+    expect(target.style.getPropertyValue('padding-top')).toBe('1px')
+    expect(result.current.pendingStyles['padding-top']).toBe('1px')
+
+    act(() => {
+      result.current.undo()
+    })
+
+    // No-op because there is no remaining undo entry.
+    expect(target.style.getPropertyValue('padding-top')).toBe('1px')
+    expect(result.current.pendingStyles['padding-top']).toBe('1px')
+  })
+
   it('handles keyboard toggles and applies persisted theme to the shadow host', async () => {
     const { result } = renderHook(() => useDirectEdit(), { wrapper })
 
