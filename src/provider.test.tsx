@@ -29,6 +29,15 @@ const fullUiWrapper = ({ children }: { children: React.ReactNode }) => (
   </DirectEditProvider>
 )
 
+const panelWrapper = ({ children }: { children: React.ReactNode }) => (
+  <DirectEditProvider>
+    <DirectEditPanel />
+    {children}
+  </DirectEditProvider>
+)
+
+const documentPropertyRestores: Array<() => void> = []
+
 function cssValue(numericValue: number) {
   return {
     numericValue,
@@ -73,6 +82,42 @@ function resetStorage() {
   }
 }
 
+function clickOverlay(overlay: HTMLElement, clientX: number, clientY: number) {
+  overlay.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, composed: true, clientX, clientY }))
+}
+
+function mockElementFromPoint(returnElement: HTMLElement) {
+  const originalDescriptor = Object.getOwnPropertyDescriptor(document, 'elementFromPoint')
+  const elementFromPoint = vi.fn<(...args: unknown[]) => HTMLElement | null>().mockReturnValue(returnElement)
+  Object.defineProperty(document, 'elementFromPoint', {
+    configurable: true,
+    writable: true,
+    value: elementFromPoint,
+  })
+  documentPropertyRestores.push(() => {
+    if (originalDescriptor) {
+      Object.defineProperty(document, 'elementFromPoint', originalDescriptor)
+    } else {
+      delete (document as unknown as Record<string, unknown>).elementFromPoint
+    }
+  })
+  return elementFromPoint
+}
+
+async function findOverlayElement(): Promise<HTMLElement> {
+  const host = await waitFor(() => {
+    const node = document.querySelector('[data-direct-edit-host]') as HTMLElement | null
+    expect(node).not.toBeNull()
+    return node as HTMLElement
+  })
+
+  return waitFor(() => {
+    const overlay = host.shadowRoot?.querySelector('[data-direct-edit="overlay"]') as HTMLElement | null
+    expect(overlay).not.toBeNull()
+    return overlay as HTMLElement
+  })
+}
+
 describe('DirectEditProvider', () => {
   beforeEach(() => {
     resetStorage()
@@ -80,6 +125,10 @@ describe('DirectEditProvider', () => {
   })
 
   afterEach(() => {
+    while (documentPropertyRestores.length > 0) {
+      const restore = documentPropertyRestores.pop()
+      restore?.()
+    }
     sendEditToAgentMock.mockClear()
     sendCommentToAgentMock.mockClear()
     vi.restoreAllMocks()
@@ -517,6 +566,177 @@ describe('DirectEditProvider', () => {
     const sent = await result.current.sendCommentToAgent(commentId)
     expect(sent).toBe(true)
     expect(sendCommentToAgentMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('exports move-only changes with structured move context', async () => {
+    const clipboardWrite = mockClipboard()
+    const originalParent = createTarget('move-parent')
+    const originalBefore = createTarget('move-before')
+    const moved = createTarget('move-target')
+    const originalAfter = createTarget('move-after')
+    const nextParent = createTarget('move-parent-next')
+    const nextSibling = createTarget('move-next-sibling')
+
+    originalParent.replaceChildren(originalBefore, moved, originalAfter)
+    nextParent.replaceChildren(nextSibling)
+
+    originalParent.setAttribute('data-direct-edit-source', 'src/App.tsx:90:5')
+    originalBefore.setAttribute('data-direct-edit-source', 'src/App.tsx:91:7')
+    originalAfter.setAttribute('data-direct-edit-source', 'src/App.tsx:92:7')
+    nextParent.setAttribute('data-direct-edit-source', 'src/App.tsx:100:5')
+    nextSibling.setAttribute('data-direct-edit-source', 'src/App.tsx:101:7')
+    moved.setAttribute('data-direct-edit-source', 'src/App.tsx:96:19')
+
+    const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+    act(() => {
+      result.current.selectElement(moved)
+    })
+
+    await waitFor(() => {
+      expect(result.current.selectedElement).toBe(moved)
+    })
+
+    clipboardWrite.mockClear()
+
+    act(() => {
+      nextParent.appendChild(moved)
+      result.current.handleMoveComplete(moved, {
+        originalParent,
+        originalPreviousSibling: originalBefore,
+        originalNextSibling: originalAfter,
+      })
+    })
+
+    const copied = await result.current.exportEdits()
+    expect(copied).toBe(true)
+    expect(clipboardWrite).toHaveBeenCalledTimes(1)
+
+    const exported = String(clipboardWrite.mock.calls[0][0])
+    expect(exported).toContain('moved:')
+    expect(exported).toContain('summary:')
+    expect(exported).toContain('from_parent_selector:')
+    expect(exported).toContain('to_parent_selector:')
+    expect(exported).toContain('#move-parent')
+    expect(exported).toContain('#move-parent-next')
+    expect(exported).toContain('from_parent_source: src/App.tsx:90:5')
+    expect(exported).toContain('from_before_source: src/App.tsx:91:7')
+    expect(exported).toContain('from_after_source: src/App.tsx:92:7')
+    expect(exported).toContain('to_parent_source: src/App.tsx:100:5')
+    expect(exported).toContain('to_before_source: src/App.tsx:101:7')
+    expect(exported).toContain('to_after_source: (none)')
+  })
+
+  it('sends move-only changes to agent', async () => {
+    mockClipboard()
+    const originalParent = createTarget('move-send-parent')
+    const originalBefore = createTarget('move-send-before')
+    const moved = createTarget('move-send-target')
+    const originalAfter = createTarget('move-send-after')
+    const nextParent = createTarget('move-send-parent-next')
+    const nextSibling = createTarget('move-send-next-sibling')
+
+    originalParent.replaceChildren(originalBefore, moved, originalAfter)
+    nextParent.replaceChildren(nextSibling)
+
+    const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+    act(() => {
+      result.current.selectElement(moved)
+    })
+
+    await waitFor(() => {
+      expect(result.current.selectedElement).toBe(moved)
+    })
+
+    act(() => {
+      nextParent.appendChild(moved)
+      result.current.handleMoveComplete(moved, {
+        originalParent,
+        originalPreviousSibling: originalBefore,
+        originalNextSibling: originalAfter,
+      })
+    })
+
+    const sent = await result.current.sendEditToAgent()
+    expect(sent).toBe(true)
+    expect(sendEditToAgentMock).toHaveBeenCalledTimes(1)
+
+    const payload = sendEditToAgentMock.mock.calls[0][0] as {
+      changes: Array<{ cssProperty: string; cssValue: string; tailwindClass: string }>
+      exportMarkdown: string
+    }
+    expect(payload.changes).toEqual([])
+    expect(payload.exportMarkdown).toContain('moved:')
+    expect(payload.exportMarkdown).toContain('summary:')
+  })
+
+  it('starts a new comment in one click when the current comment is already submitted', async () => {
+    const targetA = createTarget('comment-first', 'padding-top: 8px;')
+    const targetB = createTarget('comment-second', 'padding-top: 8px;')
+    mockElementFromPoint(targetB)
+
+    const { result } = renderHook(() => useDirectEdit(), { wrapper: panelWrapper })
+
+    act(() => {
+      result.current.toggleEditMode()
+      result.current.setActiveTool('comment')
+      result.current.addComment(targetA, { x: 16, y: 24 })
+    })
+
+    const firstCommentId = result.current.activeCommentId
+    expect(firstCommentId).not.toBeNull()
+
+    act(() => {
+      result.current.updateCommentText(firstCommentId!, 'Keep this comment')
+    })
+
+    const overlay = await findOverlayElement()
+    act(() => {
+      clickOverlay(overlay, 48, 56)
+    })
+
+    await waitFor(() => {
+      expect(result.current.comments).toHaveLength(2)
+      expect(result.current.activeCommentId).not.toBe(firstCommentId)
+    })
+
+    const firstComment = result.current.comments.find((comment) => comment.id === firstCommentId)
+    expect(firstComment?.text).toBe('Keep this comment')
+    const activeComment = result.current.comments.find((comment) => comment.id === result.current.activeCommentId)
+    expect(activeComment?.text).toBe('')
+  })
+
+  it('blocks new comment creation for unsent drafts and marks the input as invalid', async () => {
+    const targetA = createTarget('comment-draft', 'padding-top: 8px;')
+    const targetB = createTarget('comment-draft-next', 'padding-top: 8px;')
+    mockElementFromPoint(targetB)
+
+    const { result } = renderHook(() => useDirectEdit(), { wrapper: panelWrapper })
+
+    act(() => {
+      result.current.toggleEditMode()
+      result.current.setActiveTool('comment')
+      result.current.addComment(targetA, { x: 20, y: 28 })
+    })
+
+    const draftCommentId = result.current.activeCommentId
+    expect(draftCommentId).not.toBeNull()
+
+    const overlay = await findOverlayElement()
+    act(() => {
+      clickOverlay(overlay, 60, 68)
+    })
+
+    expect(result.current.comments).toHaveLength(1)
+    expect(result.current.activeCommentId).toBe(draftCommentId)
+
+    const host = document.querySelector('[data-direct-edit-host]') as HTMLElement
+    await waitFor(() => {
+      const input = host.shadowRoot?.querySelector('input[placeholder="Add a comment..."]') as HTMLInputElement | null
+      expect(input).not.toBeNull()
+      expect(input?.getAttribute('aria-invalid')).toBe('true')
+    })
   })
 
   it('tracks session edits, exports all edits, and can clear them', async () => {

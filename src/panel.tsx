@@ -164,6 +164,7 @@ export interface DirectEditPanelInnerProps {
   onReset: () => void
   onExportEdits: () => Promise<boolean>
   onSendToAgent: () => Promise<boolean>
+  canSendToAgent?: boolean
   className?: string
   style?: React.CSSProperties
   panelRef?: React.RefObject<HTMLDivElement>
@@ -201,6 +202,7 @@ export function DirectEditPanelInner({
   onReset,
   onExportEdits,
   onSendToAgent,
+  canSendToAgent = false,
   className,
   style,
   panelRef,
@@ -247,6 +249,7 @@ export function DirectEditPanelInner({
   }
 
   const hasPendingChanges = Object.keys(pendingStyles).length > 0
+  const canTriggerSend = canSendToAgent || hasPendingChanges
   const isDraggable = onHeaderPointerDown !== undefined
   const panelBarBaseClass = 'flex h-11 shrink-0 items-center border-border/50 bg-background pl-3 pr-2'
 
@@ -584,7 +587,7 @@ export function DirectEditPanelInner({
             variant="outline"
             size="icon"
             onClick={handleSendToAgent}
-            disabled={!hasPendingChanges || sendStatus === 'sending'}
+            disabled={!canTriggerSend || sendStatus === 'sending'}
             className="size-7"
           >
             {sendStatus === 'offline' ? (
@@ -625,6 +628,7 @@ function DirectEditPanelContent() {
     addComment, updateCommentText, addCommentReply, deleteComment,
     sendCommentToAgent, setActiveCommentId,
     startTextEditing, commitTextEditing,
+    canSendEditToAgent,
   } = useDirectEditActions()
 
   const [position, setPosition] = React.useState<Position>(getInitialPosition)
@@ -634,6 +638,7 @@ function DirectEditPanelContent() {
     flexContainer: HTMLElement
     children: HTMLElement[]
   } | null>(null)
+  const [commentInputAttention, setCommentInputAttention] = React.useState<{ commentId: string; nonce: number } | null>(null)
   const panelRef = React.useRef<HTMLDivElement>(null)
 
   const handlePointerDown = (e: React.PointerEvent) => {
@@ -690,6 +695,28 @@ function DirectEditPanelContent() {
     onMoveComplete: handleMoveComplete,
   })
 
+  const triggerCommentInputAttention = React.useCallback((commentId: string) => {
+    setCommentInputAttention((prev) => (
+      prev?.commentId === commentId
+        ? { commentId, nonce: prev.nonce + 1 }
+        : { commentId, nonce: 1 }
+    ))
+  }, [])
+
+  const hasPendingCommentDraft = React.useCallback((nextCommentId: string | null = null) => {
+    if (!activeCommentId) return false
+    if (nextCommentId && nextCommentId === activeCommentId) return false
+    const active = comments.find((comment) => comment.id === activeCommentId)
+    if (!active || active.text.trim().length > 0) return false
+    triggerCommentInputAttention(active.id)
+    return true
+  }, [activeCommentId, comments, triggerCommentInputAttention])
+
+  const handleSetActiveComment = React.useCallback((id: string | null) => {
+    if (id && hasPendingCommentDraft(id)) return
+    setActiveCommentId(id)
+  }, [hasPendingCommentDraft, setActiveCommentId])
+
   const overlay = editModeActive && container ? createPortal(
     <>
       <div
@@ -716,12 +743,20 @@ function DirectEditPanelContent() {
         onClick={(e) => {
           e.preventDefault()
           setHoverHighlight(null)
+          if (activeTool === 'comment') {
+            if (hasPendingCommentDraft()) return
+            const elementUnder = elementFromPointWithoutOverlays(e.clientX, e.clientY)
+            if (elementUnder && elementUnder !== document.body && elementUnder !== document.documentElement) {
+              const resolved = resolveElementTarget(elementUnder, selectedElement)
+              addComment(resolved, { x: e.clientX, y: e.clientY })
+            }
+            return
+          }
           if (activeCommentId) { setActiveCommentId(null); return }
           const elementUnder = elementFromPointWithoutOverlays(e.clientX, e.clientY)
           if (elementUnder && elementUnder !== document.body && elementUnder !== document.documentElement) {
             const resolved = resolveElementTarget(elementUnder, selectedElement)
-            if (activeTool === 'comment') addComment(resolved, { x: e.clientX, y: e.clientY })
-            else selectElement(resolved)
+            selectElement(resolved)
           }
         }}
       />
@@ -771,11 +806,12 @@ function DirectEditPanelContent() {
     <CommentOverlay
       comments={comments}
       activeCommentId={activeCommentId}
-      onSetActiveComment={setActiveCommentId}
+      onSetActiveComment={handleSetActiveComment}
       onUpdateText={updateCommentText}
       onAddReply={addCommentReply}
       onDelete={deleteComment}
       onSendToAgent={sendCommentToAgent}
+      attentionRequest={commentInputAttention}
     />,
     container
   ) : null
@@ -878,6 +914,7 @@ function DirectEditPanelContent() {
         onReset={resetToOriginal}
         onExportEdits={exportEdits}
         onSendToAgent={sendEditToAgent}
+        canSendToAgent={canSendEditToAgent()}
         className="fixed z-[99999]"
         style={{
           left: position.x,

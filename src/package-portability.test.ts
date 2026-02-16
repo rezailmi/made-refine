@@ -5,9 +5,25 @@ import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
-import { describe, expect, it } from 'vitest'
+import { beforeAll, describe, expect, it } from 'vitest'
 
 const root = process.cwd()
+const requiredDistArtifacts = [
+  'dist/index.js',
+  'dist/index.mjs',
+  'dist/styles.css',
+  'dist/preload/preload.js',
+  'dist/vite.mjs',
+  'dist/vite.d.ts',
+  'dist/babel.cjs',
+  'dist/mcp.cjs',
+] as const
+
+function ensureDistArtifacts() {
+  const missing = requiredDistArtifacts.some((relativePath) => !existsSync(path.join(root, relativePath)))
+  if (!missing) return
+  execSync('bun run build', { cwd: root, stdio: 'pipe' })
+}
 
 function getPackedFiles(): string[] {
   const output = execSync('bun pm pack --dry-run', {
@@ -21,6 +37,10 @@ function getPackedFiles(): string[] {
 }
 
 describe('package portability', () => {
+  beforeAll(() => {
+    ensureDistArtifacts()
+  })
+
   it('ships required runtime artifacts in bun pack output', () => {
     const files = getPackedFiles()
     expect(files).toEqual(

@@ -13,8 +13,13 @@ import {
   stylesToTailwind,
   collapseSpacingShorthands,
   collapseExportShorthands,
+  buildElementContext,
+  buildEditExport,
+  buildCommentExport,
+  buildSessionExport,
   getElementLocator,
 } from './utils'
+import type { ElementLocator, SessionEdit } from './types'
 
 describe('getComputedColorStyles', () => {
   it('uses the first visible side when top border is not visible', () => {
@@ -497,5 +502,199 @@ describe('ensureDirectTextSpanAtPoint', () => {
 
     spy.mockRestore()
     parent.remove()
+  })
+})
+
+function makeLocator(partial?: Partial<ElementLocator>): ElementLocator {
+  return {
+    reactStack: [{ name: 'Button', file: 'src/components.tsx', line: 52, column: 5 }],
+    domSelector: 'main > section:nth-of-type(1) > button:nth-of-type(2)',
+    domContextHtml: '<section><button>Get started</button><button data-direct-edit-target="true">Blue surface</button></section>',
+    targetHtml: '<button>Blue surface</button>',
+    textPreview: 'Blue surface',
+    tagName: 'button',
+    id: null,
+    classList: ['btn', 'btn-primary'],
+    domSource: { file: 'src/components.tsx', line: 52, column: 5 },
+    ...partial,
+  }
+}
+
+describe('export context quality', () => {
+  it('includes target, context, selector, and text in element context even when source is present', () => {
+    const locator = makeLocator()
+    const output = buildElementContext(locator)
+
+    expect(output).toContain('@<Button>')
+    expect(output).toContain('target:')
+    expect(output).toContain('<button>Blue surface</button>')
+    expect(output).toContain('context:')
+    expect(output).toContain('data-direct-edit-target="true"')
+    expect(output).toContain('in src/components.tsx:52:5')
+    expect(output).toContain('selector: main > section:nth-of-type(1) > button:nth-of-type(2)')
+    expect(output).toContain('text: Blue surface')
+  })
+
+  it('uses the same richer context block for edit exports', () => {
+    const locator = makeLocator()
+    const output = buildEditExport(locator, { 'padding-top': '12px' })
+
+    expect(output).toContain('target:')
+    expect(output).toContain('context:')
+    expect(output).toContain('selector: main > section:nth-of-type(1) > button:nth-of-type(2)')
+    expect(output).toContain('edits:')
+    expect(output).toContain('padding-top: 12px')
+  })
+
+  it('uses the same richer context block for comment exports', () => {
+    const locator = makeLocator()
+    const output = buildCommentExport(locator, 'Increase contrast')
+
+    expect(output).toContain('target:')
+    expect(output).toContain('context:')
+    expect(output).toContain('selector: main > section:nth-of-type(1) > button:nth-of-type(2)')
+    expect(output).toContain('comment: Increase contrast')
+  })
+
+  it('includes structured move selectors in session exports', () => {
+    const element = document.createElement('div')
+    const edit: SessionEdit = {
+      element,
+      locator: makeLocator(),
+      originalStyles: {},
+      pendingStyles: {},
+      textEdit: null,
+      move: {
+        fromParentName: 'div',
+        toParentName: 'div',
+        fromSiblingBefore: null,
+        fromSiblingAfter: 'div',
+        toSiblingBefore: 'div',
+        toSiblingAfter: null,
+        fromParentSelector: 'main > div:nth-of-type(1)',
+        toParentSelector: 'main > div:nth-of-type(1)',
+        fromSiblingBeforeSelector: null,
+        fromSiblingAfterSelector: 'main > div:nth-of-type(1) > div:nth-of-type(1)',
+        toSiblingBeforeSelector: 'main > div:nth-of-type(1) > div:nth-of-type(3)',
+        toSiblingAfterSelector: null,
+        fromParentSource: { file: 'src/App.tsx', line: 40, column: 3 },
+        fromSiblingBeforeSource: null,
+        fromSiblingAfterSource: { file: 'src/App.tsx', line: 42, column: 9 },
+        toParentSource: { file: 'src/App.tsx', line: 40, column: 3 },
+        toSiblingBeforeSource: { file: 'src/App.tsx', line: 47, column: 9 },
+        toSiblingAfterSource: null,
+      },
+    }
+
+    const output = buildSessionExport([edit], [])
+    expect(output).toContain('moved:')
+    expect(output).toContain('summary: in <div>, from before <div> (first) to after <div> (last)')
+    expect(output).toContain('from_parent_selector: main > div:nth-of-type(1)')
+    expect(output).toContain('from_before_selector: (none)')
+    expect(output).toContain('from_after_selector: main > div:nth-of-type(1) > div:nth-of-type(1)')
+    expect(output).toContain('to_parent_selector: main > div:nth-of-type(1)')
+    expect(output).toContain('to_before_selector: main > div:nth-of-type(1) > div:nth-of-type(3)')
+    expect(output).toContain('to_after_selector: (none)')
+    expect(output).toContain('from_parent_source: src/App.tsx:40:3')
+    expect(output).toContain('from_before_source: (none)')
+    expect(output).toContain('from_after_source: src/App.tsx:42:9')
+    expect(output).toContain('to_parent_source: src/App.tsx:40:3')
+    expect(output).toContain('to_before_source: src/App.tsx:47:9')
+    expect(output).toContain('to_after_source: (none)')
+  })
+
+  it('anchors deep selectors to a stable root', () => {
+    const root = document.createElement('div')
+    root.id = 'selector-anchor-root'
+    const level1 = document.createElement('div')
+    const level2 = document.createElement('div')
+    const level3 = document.createElement('div')
+    const level4 = document.createElement('div')
+    const target = document.createElement('span')
+    target.textContent = 'Deep target'
+    level4.appendChild(target)
+    level3.appendChild(level4)
+    level2.appendChild(level3)
+    level1.appendChild(level2)
+    root.appendChild(level1)
+    document.body.appendChild(root)
+
+    const locator = getElementLocator(target)
+    expect(locator.domSelector.startsWith('#selector-anchor-root >')).toBe(true)
+    root.remove()
+  })
+
+  it('sanitizes context and keeps a small sibling window', () => {
+    const root = document.createElement('div')
+    root.id = 'context-window-root'
+    const parent = document.createElement('div')
+    root.appendChild(parent)
+
+    const farPrev = document.createElement('div')
+    farPrev.textContent = 'far-prev'
+    farPrev.setAttribute('style', 'color:red')
+    farPrev.setAttribute('data-direct-edit-source', 'src/App.tsx:1:1')
+
+    const prev = document.createElement('div')
+    prev.textContent = 'prev'
+    prev.setAttribute('style', 'color:blue')
+
+    const target = document.createElement('div')
+    target.textContent = 'target'
+    target.setAttribute('style', 'color:green')
+    target.setAttribute('data-direct-edit-source', 'src/App.tsx:10:3')
+
+    const next = document.createElement('div')
+    next.textContent = 'next'
+    next.setAttribute('style', 'color:purple')
+
+    const farNext = document.createElement('div')
+    farNext.textContent = 'far-next'
+    farNext.setAttribute('style', 'color:orange')
+
+    parent.append(farPrev, prev, target, next, farNext)
+    document.body.appendChild(root)
+
+    const locator = getElementLocator(target)
+    expect(locator.domContextHtml).toContain('prev')
+    expect(locator.domContextHtml).toContain('target')
+    expect(locator.domContextHtml).toContain('next')
+    expect(locator.domContextHtml).not.toContain('far-prev')
+    expect(locator.domContextHtml).not.toContain('far-next')
+    expect(locator.domContextHtml).not.toContain('style=')
+    expect(locator.domContextHtml).not.toContain('data-direct-edit-source')
+    root.remove()
+  })
+
+  it('builds text previews with spacing across nested text nodes', () => {
+    const wrapper = document.createElement('div')
+    const a = document.createElement('span')
+    a.textContent = 'SM'
+    const b = document.createElement('span')
+    b.textContent = 'Sara mentioned you'
+    const c = document.createElement('span')
+    c.textContent = 'in Design Review #14'
+    const d = document.createElement('span')
+    d.textContent = '2m'
+    wrapper.append(a, b, c, d)
+    document.body.appendChild(wrapper)
+
+    const locator = getElementLocator(wrapper)
+    expect(locator.textPreview).toBe('SM Sara mentioned you in Design Review #14 2m')
+    wrapper.remove()
+  })
+
+  it('keeps punctuation attached when text is split across nodes', () => {
+    const wrapper = document.createElement('div')
+    const a = document.createElement('span')
+    a.textContent = 'Hello'
+    const b = document.createElement('span')
+    b.textContent = ', world'
+    wrapper.append(a, b)
+    document.body.appendChild(wrapper)
+
+    const locator = getElementLocator(wrapper)
+    expect(locator.textPreview).toBe('Hello, world')
+    wrapper.remove()
   })
 })
