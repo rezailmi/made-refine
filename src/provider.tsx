@@ -940,6 +940,26 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
 
   const handleMoveComplete = React.useCallback(
     (element: HTMLElement, moveInfo: MoveInfo | null) => {
+      const current = stateRef.current
+      const getStyleStateForElement = (sessionEdit?: SessionEdit) => {
+        if (sessionEdit) {
+          return {
+            originalStyles: { ...sessionEdit.originalStyles },
+            pendingStyles: { ...sessionEdit.pendingStyles },
+          }
+        }
+        if (current.selectedElement === element) {
+          return {
+            originalStyles: { ...current.originalStyles },
+            pendingStyles: { ...current.pendingStyles },
+          }
+        }
+        return {
+          originalStyles: getOriginalInlineStyles(element),
+          pendingStyles: {},
+        }
+      }
+
       if (moveInfo) {
         const getAnchor = (node: HTMLElement | null): {
           selector: string | null
@@ -957,6 +977,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
         }
 
         const existing = sessionEditsRef.current.get(element)
+        const styleState = getStyleStateForElement(existing)
         pushUndo({
           type: 'move',
           element,
@@ -1007,8 +1028,8 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
         sessionEditsRef.current.set(element, {
           element,
           locator,
-          originalStyles: existing?.originalStyles ?? { ...stateRef.current.originalStyles },
-          pendingStyles: existing?.pendingStyles ?? { ...stateRef.current.pendingStyles },
+          originalStyles: styleState.originalStyles,
+          pendingStyles: styleState.pendingStyles,
           textEdit: existing?.textEdit ?? null,
           move: newParent
             ? {
@@ -1035,6 +1056,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
       // which would push an extra selection undo entry.
       const computed = getAllComputedStyles(element)
       const elementInfo = getElementInfo(element)
+      const styleState = getStyleStateForElement(sessionEditsRef.current.get(element))
 
       setState((prev) => ({
         isOpen: true,
@@ -1048,8 +1070,8 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
         computedColor: computed.color,
         computedBoxShadow: computed.boxShadow,
         computedTypography: computed.typography,
-        originalStyles: prev.originalStyles,
-        pendingStyles: prev.pendingStyles,
+        originalStyles: styleState.originalStyles,
+        pendingStyles: styleState.pendingStyles,
         editModeActive: prev.editModeActive,
         activeTool: prev.activeTool,
         theme: prev.theme,

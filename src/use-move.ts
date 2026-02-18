@@ -22,11 +22,15 @@ export interface UseMoveDropTarget {
   flexDirection: 'row' | 'row-reverse' | 'column' | 'column-reverse'
 }
 
+export interface StartDragOptions {
+  constrainToOriginalParent?: boolean
+}
+
 export interface UseMoveResult {
   dragState: DragState
   dropTarget: UseMoveDropTarget | null
   dropIndicator: DropIndicator | null
-  startDrag: (e: React.PointerEvent, element: HTMLElement) => void
+  startDrag: (e: React.PointerEvent, element: HTMLElement, options?: StartDragOptions) => void
 }
 
 const INITIAL_DRAG_STATE: DragState = {
@@ -47,6 +51,7 @@ export function useMove({ onMoveComplete }: UseMoveOptions): UseMoveResult {
   const dragStateRef = React.useRef(dragState)
   const dropTargetRef = React.useRef(dropTarget)
   const onMoveCompleteRef = React.useRef(onMoveComplete)
+  const dragOptionsRef = React.useRef<StartDragOptions>({})
 
   React.useEffect(() => {
     dragStateRef.current = dragState
@@ -59,6 +64,7 @@ export function useMove({ onMoveComplete }: UseMoveOptions): UseMoveResult {
     if (current.draggedElement) {
       current.draggedElement.style.opacity = ''
     }
+    dragOptionsRef.current = {}
     setDragState(INITIAL_DRAG_STATE)
     setDropTarget(null)
     setDropIndicator(null)
@@ -75,6 +81,7 @@ export function useMove({ onMoveComplete }: UseMoveOptions): UseMoveResult {
     }
 
     draggedElement.style.opacity = ''
+    dragOptionsRef.current = {}
 
     let didMove = false
     if (target) {
@@ -113,11 +120,12 @@ export function useMove({ onMoveComplete }: UseMoveOptions): UseMoveResult {
   }, [cancelDrag])
 
   const startDrag = React.useCallback(
-    (e: React.PointerEvent, element: HTMLElement) => {
+    (e: React.PointerEvent, element: HTMLElement, options?: StartDragOptions) => {
       const rect = element.getBoundingClientRect()
       const parent = element.parentElement
       const previousSibling = element.previousElementSibling as HTMLElement | null
       const nextSibling = element.nextElementSibling as HTMLElement | null
+      dragOptionsRef.current = options ?? {}
 
       setDragState({
         isDragging: true,
@@ -149,12 +157,14 @@ export function useMove({ onMoveComplete }: UseMoveOptions): UseMoveResult {
         },
       }))
 
-      const container = findContainerAtPoint(
-        e.clientX,
-        e.clientY,
-        draggedElement,
-        originalParent
-      )
+      const container = dragOptionsRef.current.constrainToOriginalParent
+        ? originalParent
+        : findContainerAtPoint(
+            e.clientX,
+            e.clientY,
+            draggedElement,
+            originalParent
+          )
 
       if (container && draggedElement) {
         const dropPos = calculateDropPosition(

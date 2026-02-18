@@ -141,4 +141,60 @@ describe('useMove', () => {
       originalNextSibling: originalSibling,
     })
   })
+
+  it('keeps handle-initiated drag target inside the original parent', () => {
+    const onMoveComplete = vi.fn()
+    const originalParent = document.createElement('div')
+    const dragged = document.createElement('div')
+    const siblingA = document.createElement('div')
+    const siblingB = document.createElement('div')
+    originalParent.appendChild(dragged)
+    originalParent.appendChild(siblingA)
+    originalParent.appendChild(siblingB)
+
+    const otherContainer = document.createElement('div')
+    document.body.appendChild(originalParent)
+    document.body.appendChild(otherContainer)
+
+    dragged.getBoundingClientRect = () => ({
+      left: 20,
+      top: 20,
+      width: 80,
+      height: 30,
+      right: 100,
+      bottom: 50,
+      x: 20,
+      y: 20,
+      toJSON: () => ({}),
+    }) as DOMRect
+
+    findContainerAtPointMock.mockReturnValue(otherContainer)
+    calculateDropPositionMock.mockReturnValue({
+      insertBefore: siblingB,
+      indicator: { x: 0, y: 0, width: 2, height: 100 },
+    })
+
+    const { result } = renderHook(() => useMove({ onMoveComplete }))
+
+    act(() => {
+      result.current.startDrag(pointerEvent(30, 30), dragged, { constrainToOriginalParent: true })
+    })
+
+    act(() => {
+      dispatchPointer('pointermove', 60, 65)
+    })
+
+    expect(findContainerAtPointMock).not.toHaveBeenCalled()
+    expect(calculateDropPositionMock).toHaveBeenCalledWith(originalParent, 60, 65, dragged)
+    expect(result.current.dropTarget?.container).toBe(originalParent)
+    expect(result.current.dropTarget?.insertBefore).toBe(siblingB)
+
+    act(() => {
+      dispatchPointer('pointerup', 60, 65)
+    })
+
+    expect(Array.from(originalParent.children)).toEqual([siblingA, dragged, siblingB])
+    expect(dragged.parentElement).toBe(originalParent)
+    expect(onMoveComplete).toHaveBeenCalledTimes(1)
+  })
 })

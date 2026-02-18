@@ -23,7 +23,7 @@ import { MeasurementOverlay } from './measurement-overlay'
 import { useMove } from './use-move'
 import { getStoredGuidelines } from './use-guidelines'
 import {
-  calculateGuidelineMeasurements, isTextElement,
+  calculateGuidelineMeasurements, isFlexContainer, isTextElement,
   resolveElementTarget, computeHoverHighlight,
   elementFromPointWithoutOverlays, findChildAtPoint,
 } from './utils'
@@ -625,7 +625,7 @@ function DirectEditPanelContent() {
     updateSizingProperty, updateColorProperty, updateTypographyProperty,
     resetToOriginal, exportEdits, sendEditToAgent,
     handleMoveComplete, setActiveTool,
-    addComment, updateCommentText, addCommentReply, deleteComment,
+    addComment, updateCommentText, addCommentReply, deleteComment, exportComment,
     sendCommentToAgent, setActiveCommentId,
     startTextEditing, commitTextEditing,
     canSendEditToAgent,
@@ -810,6 +810,7 @@ function DirectEditPanelContent() {
       onUpdateText={updateCommentText}
       onAddReply={addCommentReply}
       onDelete={deleteComment}
+      onExport={exportComment}
       onSendToAgent={sendCommentToAgent}
       attentionRequest={commentInputAttention}
     />,
@@ -818,11 +819,38 @@ function DirectEditPanelContent() {
 
   if (!isOpen || !computedSpacing || !elementInfo || !computedBorderRadius || !computedBorder || !computedFlex || !computedSizing || !computedColor || computedBoxShadow === null || !computedTypography || !container) return <>{overlay}{commentOverlay}</>
 
-  const handleMoveStart = (e: React.PointerEvent) => {
-    if (selectedElement) {
-      startDrag(e, selectedElement)
+  const handleMoveStart = (
+    e: React.PointerEvent,
+    targetElement?: HTMLElement,
+    options?: { constrainToOriginalParent?: boolean }
+  ) => {
+    const elementToDrag = targetElement ?? selectedElement
+    if (elementToDrag) {
+      startDrag(e, elementToDrag, options)
     }
   }
+
+  const hasMultiItemFlexAncestor = (() => {
+    if (!selectedElement) return false
+
+    let current: HTMLElement | null = selectedElement.parentElement
+    while (current) {
+      if (isFlexContainer(current) && current.children.length > 1) {
+        return true
+      }
+      current = current.parentElement
+    }
+
+    return false
+  })()
+
+  const showMoveHandle = Boolean(
+    selectedElement
+    && (
+      (isFlexContainer(selectedElement) && selectedElement.children.length > 1)
+      || hasMultiItemFlexAncestor
+    )
+  )
 
   return createPortal(
     <>
@@ -832,9 +860,11 @@ function DirectEditPanelContent() {
       {selectedElement && (
         <SelectionOverlay
           selectedElement={selectedElement}
+          draggedElement={dragState.draggedElement}
           isDragging={dragState.isDragging}
           ghostPosition={dragState.ghostPosition}
           onMoveStart={handleMoveStart}
+          showMoveHandle={showMoveHandle}
           isTextEditing={Boolean(textEditingElement)}
           onDoubleClick={(clientX, clientY) => {
             if (!selectedElement) return
