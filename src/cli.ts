@@ -4,6 +4,7 @@ import pc from 'picocolors'
 import fs from 'fs'
 import path from 'path'
 import { execSync } from 'child_process'
+import { detectPackageManager, getInstallCommand } from './cli-package-manager'
 
 type Framework = 'next' | 'vite' | 'tanstack'
 
@@ -117,21 +118,6 @@ async function transformFile(
 
   console.log(pc.dim('  Skipped'))
   return false
-}
-
-function detectPackageManager(cwd: string): 'bun' | 'pnpm' | 'yarn' {
-  if (fs.existsSync(path.join(cwd, 'bun.lockb')) || fs.existsSync(path.join(cwd, 'bun.lock'))) return 'bun'
-  if (fs.existsSync(path.join(cwd, 'pnpm-lock.yaml'))) return 'pnpm'
-  if (fs.existsSync(path.join(cwd, 'yarn.lock'))) return 'yarn'
-  return 'bun'
-}
-
-function getInstallCommand(pm: 'bun' | 'pnpm' | 'yarn'): string {
-  switch (pm) {
-    case 'bun': return 'bun add -d made-refine@latest'
-    case 'pnpm': return 'pnpm add -D made-refine@latest'
-    case 'yarn': return 'yarn add -D made-refine@latest'
-  }
 }
 
 function installPackage(cwd: string) {
