@@ -1815,9 +1815,9 @@ function parseV8StackLine(line: string): ParsedStackFrame | null {
     .replace(/\(eval code/g, '(')
     .replace(/^.*?\s+/, '')
   const locationMatch = sanitizedLine.match(/ (\(.+\)$)/)
-  sanitizedLine = locationMatch
-    ? sanitizedLine.replace(locationMatch[0], '')
-    : sanitizedLine
+  if (locationMatch) {
+    sanitizedLine = sanitizedLine.replace(locationMatch[0], '')
+  }
 
   const [fileName, lineNumber, columnNumber] = extractStackLocation(
     locationMatch ? locationMatch[1] : sanitizedLine
@@ -1896,7 +1896,7 @@ function parseInStackLine(line: string): ParsedStackFrame | null {
 function parseDebugStack(stack: string): ParsedStackFrame[] {
   const frames: ParsedStackFrame[] = []
   for (const rawLine of stack.split('\n')) {
-    if (rawLine.match(FIREFOX_SAFARI_STACK_REGEXP)) {
+    if (FIREFOX_SAFARI_STACK_REGEXP.test(rawLine)) {
       const parsed = parseFFOrSafariStackLine(rawLine)
       if (parsed) frames.push(parsed)
       continue
@@ -2022,7 +2022,7 @@ function enrichServerFrame(
   if (!frame.functionName) return frame
 
   const available = functionNameToRscFrames.get(frame.functionName)
-  if (!available || available.length === 0) return frame
+  if (!available) return frame
 
   const usageIndex = functionNameToUsageIndex.get(frame.functionName) ?? 0
   const resolved = available[usageIndex % available.length]
@@ -2050,7 +2050,9 @@ function getSourceFromDebugStack(fiber: any):
   }
 
   const formattedStack = formatOwnerDebugStack(rawStack)
-  const stackFrames = parseDebugStack(formattedStack || rawStack)
+  if (!formattedStack) return null
+
+  const stackFrames = parseDebugStack(formattedStack)
   const functionNameToRscFrames = buildFunctionNameToRscFramesMap(fiber)
   const functionNameToUsageIndex = new Map<string, number>()
 
@@ -2063,7 +2065,7 @@ function getSourceFromDebugStack(fiber: any):
     const normalizedFileName = normalizeStackFileName(maybeEnriched.fileName)
     if (!normalizedFileName) continue
 
-    if (isSourceStackFile(maybeEnriched.fileName) || isSourceStackFile(normalizedFileName)) {
+    if (isSourceStackFile(normalizedFileName)) {
       return {
         fileName: normalizedFileName,
         lineNumber: maybeEnriched.lineNumber,
