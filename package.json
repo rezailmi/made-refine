@@ -1,6 +1,6 @@
 {
   "name": "made-refine",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "packageManager": "bun@1.3.8",
   "description": "Visual CSS editor for React",
   "main": "./dist/index.js",
