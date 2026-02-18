@@ -743,4 +743,236 @@ describe('export context quality', () => {
       target.remove()
     }
   })
+
+  it('uses React debug owner stack when babel source metadata is unavailable', () => {
+    const target = document.createElement('button')
+    document.body.appendChild(target)
+
+    const Button = () => null
+    ;(Button as { displayName?: string }).displayName = 'Button'
+
+    const previousDevtools = window.__DIRECT_EDIT_DEVTOOLS__
+    window.__DIRECT_EDIT_DEVTOOLS__ = {
+      getFiberForElement: () => ({
+        type: 'button',
+        _debugOwner: {
+          type: Button,
+          _debugStack: {
+            stack: `Error: react-stack-top-frame
+    at fakeJSXCallSite (http://localhost:3000/_next/static/chunks/main.js:1:1)
+    at Button (webpack-internal:///(app-pages-browser)/./src/components/Button.tsx:33:11)
+    at react-stack-bottom-frame (http://localhost:3000/_next/static/chunks/main.js:2:2)`,
+          },
+          _debugOwner: null,
+          return: null,
+        },
+        return: null,
+      }),
+    }
+
+    try {
+      const locator = getElementLocator(target)
+      const frame = locator.reactStack[0]
+      expect(frame?.name).toBe('Button')
+      expect(frame?.file).toBe('/src/components/Button.tsx')
+      expect(frame?.line).toBe(33)
+      expect(frame?.column).toBe(11)
+
+      expect(locator.domSource?.file).toBe('/src/components/Button.tsx')
+      expect(locator.domSource?.line).toBe(33)
+      expect(locator.domSource?.column).toBe(11)
+    } finally {
+      window.__DIRECT_EDIT_DEVTOOLS__ = previousDevtools
+      target.remove()
+    }
+  })
+
+  it('formats owner-stack source paths from Next.js debug stacks in context output', () => {
+    const target = document.createElement('button')
+    target.textContent = 'Click me'
+    document.body.appendChild(target)
+
+    const Button = () => null
+    ;(Button as { displayName?: string }).displayName = 'Button'
+
+    const previousDevtools = window.__DIRECT_EDIT_DEVTOOLS__
+    window.__DIRECT_EDIT_DEVTOOLS__ = {
+      getFiberForElement: () => ({
+        type: Button,
+        _debugStack: {
+          stack: `Error: react-stack-top-frame
+    at fakeJSXCallSite (http://localhost:3000/_next/static/chunks/main.js:1:1)
+    at Button (webpack-internal:///(app-pages-browser)/./src/components/Button.tsx:44:7)
+    at react-stack-bottom-frame (http://localhost:3000/_next/static/chunks/main.js:2:2)`,
+        },
+        _debugOwner: null,
+        return: null,
+      }),
+    }
+
+    try {
+      const locator = getElementLocator(target)
+      const output = buildElementContext(locator)
+      expect(output).toContain('in /[project]/src/components/Button.tsx:44:7')
+    } finally {
+      window.__DIRECT_EDIT_DEVTOOLS__ = previousDevtools
+      target.remove()
+    }
+  })
+
+  it('parses Firefox/Safari style owner stacks', () => {
+    const target = document.createElement('button')
+    document.body.appendChild(target)
+
+    const Button = () => null
+    ;(Button as { displayName?: string }).displayName = 'Button'
+
+    const previousDevtools = window.__DIRECT_EDIT_DEVTOOLS__
+    window.__DIRECT_EDIT_DEVTOOLS__ = {
+      getFiberForElement: () => ({
+        type: Button,
+        _debugStack: {
+          stack: `Button@webpack-internal:///(app-pages-browser)/./src/components/Button.tsx:28:9
+react-stack-bottom-frame@http://localhost:3000/_next/static/chunks/main.js:2:2`,
+        },
+        _debugOwner: null,
+        return: null,
+      }),
+    }
+
+    try {
+      const locator = getElementLocator(target)
+      const frame = locator.reactStack[0]
+      expect(frame?.name).toBe('Button')
+      expect(frame?.file).toBe('/src/components/Button.tsx')
+      expect(frame?.line).toBe(28)
+      expect(frame?.column).toBe(9)
+    } finally {
+      window.__DIRECT_EDIT_DEVTOOLS__ = previousDevtools
+      target.remove()
+    }
+  })
+
+  it('does not lock on bundle-only frames and falls back to owner fiber source', () => {
+    const target = document.createElement('button')
+    document.body.appendChild(target)
+
+    const Button = () => null
+    ;(Button as { displayName?: string }).displayName = 'Button'
+
+    const previousDevtools = window.__DIRECT_EDIT_DEVTOOLS__
+    window.__DIRECT_EDIT_DEVTOOLS__ = {
+      getFiberForElement: () => ({
+        type: 'button',
+        _debugStack: {
+          stack: `Error: react-stack-top-frame
+    at fakeJSXCallSite (http://localhost:3000/_next/static/chunks/main.js:1:1)
+    at button (http://localhost:3000/_next/static/chunks/main.js:100:1)
+    at react-stack-bottom-frame (http://localhost:3000/_next/static/chunks/main.js:2:2)`,
+        },
+        _debugOwner: {
+          type: Button,
+          _debugStack: {
+            stack: `Error: react-stack-top-frame
+    at fakeJSXCallSite (http://localhost:3000/_next/static/chunks/main.js:1:1)
+    at Button (webpack-internal:///(app-pages-browser)/./src/components/Button.tsx:61:13)
+    at react-stack-bottom-frame (http://localhost:3000/_next/static/chunks/main.js:2:2)`,
+          },
+          _debugOwner: null,
+          return: null,
+        },
+        return: null,
+      }),
+    }
+
+    try {
+      const locator = getElementLocator(target)
+      expect(locator.domSource?.file).toBe('/src/components/Button.tsx')
+      expect(locator.domSource?.line).toBe(61)
+      expect(locator.domSource?.column).toBe(13)
+    } finally {
+      window.__DIRECT_EDIT_DEVTOOLS__ = previousDevtools
+      target.remove()
+    }
+  })
+
+  it('enriches "(at Server)" owner stack frames using RSC frame matches', () => {
+    const target = document.createElement('button')
+    document.body.appendChild(target)
+
+    const TodoItem = () => null
+    ;(TodoItem as { displayName?: string }).displayName = 'TodoItem'
+
+    const previousDevtools = window.__DIRECT_EDIT_DEVTOOLS__
+    window.__DIRECT_EDIT_DEVTOOLS__ = {
+      getFiberForElement: () => ({
+        type: TodoItem,
+        _debugStack: {
+          stack: `Error: react-stack-top-frame
+    at fakeJSXCallSite (http://localhost:3000/_next/static/chunks/main.js:1:1)
+    in TodoItem (at Server)
+    at react-stack-bottom-frame (http://localhost:3000/_next/static/chunks/main.js:2:2)`,
+        },
+        _debugOwner: {
+          type: TodoItem,
+          _debugStack: {
+            stack: `Error: react-stack-top-frame
+    at fakeJSXCallSite (http://localhost:3000/_next/static/chunks/main.js:1:1)
+    at TodoItem (rsc://React/Server/file:///Users/rezailmi/project/app/todo-item.tsx:14:6)
+    at react-stack-bottom-frame (http://localhost:3000/_next/static/chunks/main.js:2:2)`,
+          },
+          _debugOwner: null,
+          return: null,
+        },
+        return: null,
+      }),
+    }
+
+    try {
+      const locator = getElementLocator(target)
+      expect(locator.domSource?.file).toBe('/Users/rezailmi/project/app/todo-item.tsx')
+      expect(locator.domSource?.line).toBe(14)
+      expect(locator.domSource?.column).toBe(6)
+
+      const output = buildElementContext(locator)
+      expect(output).toContain('in /[project]/app/todo-item.tsx:14:6')
+    } finally {
+      window.__DIRECT_EDIT_DEVTOOLS__ = previousDevtools
+      target.remove()
+    }
+  })
+
+  it('normalizes anonymous RSC debug stack file paths', () => {
+    const target = document.createElement('button')
+    target.textContent = 'Click me'
+    document.body.appendChild(target)
+
+    const previousDevtools = window.__DIRECT_EDIT_DEVTOOLS__
+    window.__DIRECT_EDIT_DEVTOOLS__ = {
+      getFiberForElement: () => ({
+        type: 'button',
+        _debugStack: {
+          stack: `Error: react-stack-top-frame
+    at fakeJSXCallSite (http://localhost:3000/_next/static/chunks/main.js:1:1)
+    at rsc://React/Server/file:///Users/rezailmi/project/app/todo-item.tsx:14:6
+    at react-stack-bottom-frame (http://localhost:3000/_next/static/chunks/main.js:2:2)`,
+        },
+        _debugOwner: null,
+        return: null,
+      }),
+    }
+
+    try {
+      const locator = getElementLocator(target)
+      expect(locator.domSource?.file).toBe('/Users/rezailmi/project/app/todo-item.tsx')
+      expect(locator.domSource?.line).toBe(14)
+      expect(locator.domSource?.column).toBe(6)
+
+      const output = buildElementContext(locator)
+      expect(output).toContain('in /[project]/app/todo-item.tsx:14:6')
+    } finally {
+      window.__DIRECT_EDIT_DEVTOOLS__ = previousDevtools
+      target.remove()
+    }
+  })
 })
