@@ -626,6 +626,51 @@ describe('DirectEditProvider', () => {
     expect(exported).toContain('to_after_source: (none)')
   })
 
+  it('refreshes state from moved target styles when move target differs from prior selection', async () => {
+    mockClipboard()
+    const originalParent = createTarget('move-state-parent')
+    const moved = createTarget('move-state-target', 'margin-left: 7px;')
+    const originalAfter = createTarget('move-state-after')
+    const destinationParent = createTarget('move-state-parent-next')
+    const selectedChild = createTarget('move-state-selected', 'padding-top: 12px;')
+
+    originalParent.replaceChildren(moved, originalAfter)
+    moved.appendChild(selectedChild)
+
+    const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+    act(() => {
+      result.current.selectElement(selectedChild)
+    })
+
+    await waitFor(() => {
+      expect(result.current.selectedElement).toBe(selectedChild)
+    })
+
+    act(() => {
+      result.current.updateSpacingProperty('paddingTop', cssValue(33))
+    })
+
+    expect(result.current.pendingStyles['padding-top']).toBe('33px')
+
+    act(() => {
+      destinationParent.appendChild(moved)
+      result.current.handleMoveComplete(moved, {
+        originalParent,
+        originalPreviousSibling: null,
+        originalNextSibling: originalAfter,
+      })
+    })
+
+    await waitFor(() => {
+      expect(result.current.selectedElement).toBe(moved)
+    })
+
+    expect(result.current.originalStyles['margin-left']).toBe('7px')
+    expect(result.current.originalStyles['padding-top']).toBeUndefined()
+    expect(result.current.pendingStyles).toEqual({})
+  })
+
   it('sends move-only changes to agent', async () => {
     mockClipboard()
     const originalParent = createTarget('move-send-parent')

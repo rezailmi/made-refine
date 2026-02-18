@@ -479,6 +479,480 @@ describe('SelectionOverlay', () => {
     expect(handle).toBeNull()
   })
 
+  it('uses dragged element dimensions while dragging', () => {
+    const draggedElement = document.createElement('div')
+    draggedElement.getBoundingClientRect = () => ({
+      left: 20,
+      top: 10,
+      width: 80,
+      height: 40,
+      right: 100,
+      bottom: 50,
+      x: 20,
+      y: 10,
+      toJSON: () => ({}),
+    }) as DOMRect
+    document.body.appendChild(draggedElement)
+
+    const { container } = render(
+      <SelectionOverlay
+        selectedElement={selectedElement}
+        draggedElement={draggedElement}
+        isDragging={true}
+        ghostPosition={{ x: 310, y: 190 }}
+        onMoveStart={vi.fn()}
+      />
+    )
+
+    const rect = container.querySelector('[data-direct-edit="selection-overlay"] rect') as SVGRectElement
+    expect(rect).not.toBeNull()
+    expect(rect.getAttribute('x')).toBe('310')
+    expect(rect.getAttribute('y')).toBe('190')
+    expect(rect.getAttribute('width')).toBe('80')
+    expect(rect.getAttribute('height')).toBe('40')
+  })
+
+  it('does not render move handle by default', () => {
+    const { container } = render(
+      <SelectionOverlay
+        selectedElement={selectedElement}
+        isDragging={false}
+        onMoveStart={vi.fn()}
+      />
+    )
+
+    expect(container.querySelector('[data-direct-edit="move-handle"]')).toBeNull()
+  })
+
+  it('renders move handle when enabled and starts drag immediately', () => {
+    const onMoveStart = vi.fn()
+    const onClickThrough = vi.fn()
+    selectedElement.style.display = 'flex'
+
+    const children = [0, 1, 2].map((idx) => {
+      const child = document.createElement('div')
+      child.getBoundingClientRect = () => ({
+        left: 100 + idx * 70,
+        top: 50,
+        width: 60,
+        height: 100,
+        right: 160 + idx * 70,
+        bottom: 150,
+        x: 100 + idx * 70,
+        y: 50,
+        toJSON: () => ({}),
+      }) as DOMRect
+      selectedElement.appendChild(child)
+      return child
+    })
+
+    const { container } = render(
+      <SelectionOverlay
+        selectedElement={selectedElement}
+        isDragging={false}
+        onMoveStart={onMoveStart}
+        onClickThrough={onClickThrough}
+        showMoveHandle={true}
+      />
+    )
+
+    const moveHandles = container.querySelectorAll('[data-direct-edit="move-handle"]')
+    expect(moveHandles.length).toBe(3)
+    const moveHandle = moveHandles[1] as HTMLElement
+    expect(moveHandle).not.toBeNull()
+    expect(moveHandle.style.background).toBe('transparent')
+    expect(moveHandle.style.border).toContain('1px solid')
+    expect(moveHandle.style.boxShadow).toBe('none')
+
+    act(() => {
+      moveHandle.dispatchEvent(new PointerEvent('pointerdown', {
+        clientX: 120,
+        clientY: 70,
+        bubbles: true,
+      }))
+    })
+
+    act(() => {
+      dispatchPointer('pointerup', 120, 70)
+    })
+
+    expect(onMoveStart).toHaveBeenCalledTimes(1)
+    expect(onMoveStart.mock.calls[0]?.[1]).toBe(children[1])
+    expect(onMoveStart.mock.calls[0]?.[2]).toEqual({ constrainToOriginalParent: true })
+    expect(onClickThrough).not.toHaveBeenCalled()
+  })
+
+  it('does not re-measure move handle targets on unrelated rerenders', () => {
+    selectedElement.style.display = 'flex'
+    const onMoveStart = vi.fn()
+
+    const childRect = vi.fn(() => ({
+      left: 120,
+      top: 60,
+      width: 60,
+      height: 80,
+      right: 180,
+      bottom: 140,
+      x: 120,
+      y: 60,
+      toJSON: () => ({}),
+    }) as DOMRect)
+
+    const child = document.createElement('div')
+    child.getBoundingClientRect = childRect
+    selectedElement.appendChild(child)
+
+    const { container, rerender } = render(
+      <SelectionOverlay
+        selectedElement={selectedElement}
+        isDragging={false}
+        onMoveStart={onMoveStart}
+        showMoveHandle={true}
+      />
+    )
+
+    expect(container.querySelectorAll('[data-direct-edit="move-handle"]').length).toBe(1)
+    const measureCallsBefore = childRect.mock.calls.length
+
+    rerender(
+      <SelectionOverlay
+        selectedElement={selectedElement}
+        isDragging={false}
+        onMoveStart={vi.fn()}
+        showMoveHandle={true}
+      />
+    )
+
+    expect(container.querySelectorAll('[data-direct-edit="move-handle"]').length).toBe(1)
+    expect(childRect.mock.calls.length).toBe(measureCallsBefore)
+  })
+
+  it('renders a single move handle when a child item is selected', () => {
+    const onMoveStart = vi.fn()
+    const parent = document.createElement('div')
+    parent.style.display = 'flex'
+    parent.appendChild(selectedElement)
+    document.body.appendChild(parent)
+
+    selectedElement.getBoundingClientRect = () => ({
+      left: 120,
+      top: 70,
+      width: 80,
+      height: 80,
+      right: 200,
+      bottom: 150,
+      x: 120,
+      y: 70,
+      toJSON: () => ({}),
+    }) as DOMRect
+
+    const sibling = document.createElement('div')
+    sibling.getBoundingClientRect = () => ({
+      left: 210,
+      top: 70,
+      width: 80,
+      height: 80,
+      right: 290,
+      bottom: 150,
+      x: 210,
+      y: 70,
+      toJSON: () => ({}),
+    }) as DOMRect
+    parent.appendChild(sibling)
+
+    const { container } = render(
+      <SelectionOverlay
+        selectedElement={selectedElement}
+        isDragging={false}
+        onMoveStart={onMoveStart}
+        showMoveHandle={true}
+      />
+    )
+
+    const moveHandles = container.querySelectorAll('[data-direct-edit="move-handle"]')
+    expect(moveHandles.length).toBe(1)
+
+    const moveHandle = moveHandles[0] as HTMLElement
+    act(() => {
+      moveHandle.dispatchEvent(new PointerEvent('pointerdown', {
+        clientX: 145,
+        clientY: 95,
+        bubbles: true,
+      }))
+    })
+
+    expect(onMoveStart).toHaveBeenCalledTimes(1)
+    expect(onMoveStart.mock.calls[0]?.[1]).toBe(selectedElement)
+    expect(onMoveStart.mock.calls[0]?.[2]).toEqual({ constrainToOriginalParent: true })
+  })
+
+  it('renders a single move handle for nested selection inside a flex item', () => {
+    const onMoveStart = vi.fn()
+    const flexParent = document.createElement('div')
+    flexParent.style.display = 'flex'
+    document.body.appendChild(flexParent)
+
+    const flexItemA = document.createElement('div')
+    flexItemA.getBoundingClientRect = () => ({
+      left: 100,
+      top: 60,
+      width: 120,
+      height: 80,
+      right: 220,
+      bottom: 140,
+      x: 100,
+      y: 60,
+      toJSON: () => ({}),
+    }) as DOMRect
+    const nestedSelected = document.createElement('span')
+    nestedSelected.getBoundingClientRect = () => ({
+      left: 130,
+      top: 80,
+      width: 40,
+      height: 20,
+      right: 170,
+      bottom: 100,
+      x: 130,
+      y: 80,
+      toJSON: () => ({}),
+    }) as DOMRect
+    flexItemA.appendChild(nestedSelected)
+
+    const flexItemB = document.createElement('div')
+    flexItemB.getBoundingClientRect = () => ({
+      left: 240,
+      top: 60,
+      width: 120,
+      height: 80,
+      right: 360,
+      bottom: 140,
+      x: 240,
+      y: 60,
+      toJSON: () => ({}),
+    }) as DOMRect
+
+    flexParent.appendChild(flexItemA)
+    flexParent.appendChild(flexItemB)
+
+    const { container } = render(
+      <SelectionOverlay
+        selectedElement={nestedSelected}
+        isDragging={false}
+        onMoveStart={onMoveStart}
+        showMoveHandle={true}
+      />
+    )
+
+    const moveHandles = container.querySelectorAll('[data-direct-edit="move-handle"]')
+    expect(moveHandles.length).toBe(1)
+
+    const moveHandle = moveHandles[0] as HTMLElement
+    act(() => {
+      moveHandle.dispatchEvent(new PointerEvent('pointerdown', {
+        clientX: 140,
+        clientY: 90,
+        bubbles: true,
+      }))
+    })
+
+    expect(onMoveStart).toHaveBeenCalledTimes(1)
+    expect(onMoveStart.mock.calls[0]?.[1]).toBe(flexItemA)
+    expect(onMoveStart.mock.calls[0]?.[2]).toEqual({ constrainToOriginalParent: true })
+  })
+
+  it('targets the selected flex item when it has only one child', () => {
+    const onMoveStart = vi.fn()
+    const flexParent = document.createElement('div')
+    flexParent.style.display = 'flex'
+    document.body.appendChild(flexParent)
+
+    selectedElement.style.display = 'flex'
+    selectedElement.getBoundingClientRect = () => ({
+      left: 120,
+      top: 70,
+      width: 120,
+      height: 80,
+      right: 240,
+      bottom: 150,
+      x: 120,
+      y: 70,
+      toJSON: () => ({}),
+    }) as DOMRect
+
+    const onlyChild = document.createElement('div')
+    onlyChild.getBoundingClientRect = () => ({
+      left: 135,
+      top: 85,
+      width: 50,
+      height: 30,
+      right: 185,
+      bottom: 115,
+      x: 135,
+      y: 85,
+      toJSON: () => ({}),
+    }) as DOMRect
+    selectedElement.appendChild(onlyChild)
+
+    const sibling = document.createElement('div')
+    sibling.getBoundingClientRect = () => ({
+      left: 260,
+      top: 70,
+      width: 120,
+      height: 80,
+      right: 380,
+      bottom: 150,
+      x: 260,
+      y: 70,
+      toJSON: () => ({}),
+    }) as DOMRect
+
+    flexParent.appendChild(selectedElement)
+    flexParent.appendChild(sibling)
+
+    const { container } = render(
+      <SelectionOverlay
+        selectedElement={selectedElement}
+        isDragging={false}
+        onMoveStart={onMoveStart}
+        showMoveHandle={true}
+      />
+    )
+
+    const moveHandles = container.querySelectorAll('[data-direct-edit="move-handle"]')
+    expect(moveHandles.length).toBe(1)
+
+    const moveHandle = moveHandles[0] as HTMLElement
+    act(() => {
+      moveHandle.dispatchEvent(new PointerEvent('pointerdown', {
+        clientX: 140,
+        clientY: 95,
+        bubbles: true,
+      }))
+    })
+
+    expect(onMoveStart).toHaveBeenCalledTimes(1)
+    expect(onMoveStart.mock.calls[0]?.[1]).toBe(selectedElement)
+    expect(onMoveStart.mock.calls[0]?.[2]).toEqual({ constrainToOriginalParent: true })
+  })
+
+  it('recomputes move handle target when selected element is reparented', () => {
+    const onMoveStart = vi.fn()
+
+    const flexParentA = document.createElement('div')
+    flexParentA.style.display = 'flex'
+    document.body.appendChild(flexParentA)
+
+    const flexItemA = document.createElement('div')
+    flexItemA.getBoundingClientRect = () => ({
+      left: 100,
+      top: 60,
+      width: 120,
+      height: 80,
+      right: 220,
+      bottom: 140,
+      x: 100,
+      y: 60,
+      toJSON: () => ({}),
+    }) as DOMRect
+    const flexSiblingA = document.createElement('div')
+    flexSiblingA.getBoundingClientRect = () => ({
+      left: 240,
+      top: 60,
+      width: 120,
+      height: 80,
+      right: 360,
+      bottom: 140,
+      x: 240,
+      y: 60,
+      toJSON: () => ({}),
+    }) as DOMRect
+    flexParentA.appendChild(flexItemA)
+    flexParentA.appendChild(flexSiblingA)
+    flexItemA.appendChild(selectedElement)
+
+    const flexParentB = document.createElement('div')
+    flexParentB.style.display = 'flex'
+    document.body.appendChild(flexParentB)
+
+    const flexItemB = document.createElement('div')
+    flexItemB.getBoundingClientRect = () => ({
+      left: 380,
+      top: 60,
+      width: 120,
+      height: 80,
+      right: 500,
+      bottom: 140,
+      x: 380,
+      y: 60,
+      toJSON: () => ({}),
+    }) as DOMRect
+    const flexSiblingB = document.createElement('div')
+    flexSiblingB.getBoundingClientRect = () => ({
+      left: 520,
+      top: 60,
+      width: 120,
+      height: 80,
+      right: 640,
+      bottom: 140,
+      x: 520,
+      y: 60,
+      toJSON: () => ({}),
+    }) as DOMRect
+    flexParentB.appendChild(flexItemB)
+    flexParentB.appendChild(flexSiblingB)
+
+    const { container, rerender } = render(
+      <SelectionOverlay
+        selectedElement={selectedElement}
+        isDragging={false}
+        onMoveStart={onMoveStart}
+        showMoveHandle={true}
+      />
+    )
+
+    let moveHandle = container.querySelector('[data-direct-edit="move-handle"]') as HTMLElement
+    expect(moveHandle).not.toBeNull()
+
+    act(() => {
+      moveHandle.dispatchEvent(new PointerEvent('pointerdown', {
+        clientX: 140,
+        clientY: 90,
+        bubbles: true,
+      }))
+    })
+
+    expect(onMoveStart).toHaveBeenCalledTimes(1)
+    expect(onMoveStart.mock.calls[0]?.[1]).toBe(flexItemA)
+    expect(onMoveStart.mock.calls[0]?.[2]).toEqual({ constrainToOriginalParent: true })
+
+    onMoveStart.mockClear()
+    flexItemB.appendChild(selectedElement)
+
+    rerender(
+      <SelectionOverlay
+        selectedElement={selectedElement}
+        isDragging={false}
+        onMoveStart={onMoveStart}
+        showMoveHandle={true}
+      />
+    )
+
+    moveHandle = container.querySelector('[data-direct-edit="move-handle"]') as HTMLElement
+    expect(moveHandle).not.toBeNull()
+
+    act(() => {
+      moveHandle.dispatchEvent(new PointerEvent('pointerdown', {
+        clientX: 420,
+        clientY: 90,
+        bubbles: true,
+      }))
+    })
+
+    expect(onMoveStart).toHaveBeenCalledTimes(1)
+    expect(onMoveStart.mock.calls[0]?.[1]).toBe(flexItemB)
+    expect(onMoveStart.mock.calls[0]?.[2]).toEqual({ constrainToOriginalParent: true })
+  })
+
   it('hides handle div when isTextEditing is true', () => {
     const { container } = render(
       <SelectionOverlay

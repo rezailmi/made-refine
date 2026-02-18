@@ -535,6 +535,13 @@ describe('export context quality', () => {
     expect(output).toContain('text: Blue surface')
   })
 
+  it('does not include component props in element context', () => {
+    const locator = makeLocator()
+    const output = buildElementContext(locator)
+
+    expect(output).not.toContain('component_props:')
+  })
+
   it('uses the same richer context block for edit exports', () => {
     const locator = makeLocator()
     const output = buildEditExport(locator, { 'padding-top': '12px' })
@@ -696,5 +703,44 @@ describe('export context quality', () => {
     const locator = getElementLocator(wrapper)
     expect(locator.textPreview).toBe('Hello, world')
     wrapper.remove()
+  })
+
+  it('captures component frame metadata from React fiber', () => {
+    const target = document.createElement('button')
+    document.body.appendChild(target)
+
+    const Button = () => null
+    ;(Button as { displayName?: string }).displayName = 'Button'
+
+    const previousDevtools = window.__DIRECT_EDIT_DEVTOOLS__
+    window.__DIRECT_EDIT_DEVTOOLS__ = {
+      getFiberForElement: () => ({
+        type: Button,
+        memoizedProps: {
+          variant: 'primary',
+          size: 'lg',
+        },
+        _debugSource: {
+          fileName: 'src/components/Button.tsx',
+          lineNumber: 12,
+          columnNumber: 3,
+        },
+        _debugOwner: null,
+        return: null,
+      }),
+    }
+
+    try {
+      const locator = getElementLocator(target)
+      const frame = locator.reactStack[0]
+      expect(frame?.name).toBe('Button')
+      expect(frame?.file).toBe('src/components/Button.tsx')
+      expect(frame?.line).toBe(12)
+      expect(frame?.column).toBe(3)
+      expect('props' in ((frame as unknown) as Record<string, unknown>)).toBe(false)
+    } finally {
+      window.__DIRECT_EDIT_DEVTOOLS__ = previousDevtools
+      target.remove()
+    }
   })
 })

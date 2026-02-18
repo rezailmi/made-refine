@@ -2,14 +2,26 @@ import * as React from 'react'
 import { elementFromPointWithoutOverlays } from './utils'
 
 const BLUE = '#0D99FF'
+const MAGENTA = '#E11BB6'
 const DRAG_THRESHOLD = 4
 const DBLCLICK_DELAY = 300
+const HANDLE_SIZE = 12
+
+interface MoveStartOptions {
+  constrainToOriginalParent?: boolean
+}
 
 export interface SelectionOverlayProps {
   selectedElement: HTMLElement
+  draggedElement?: HTMLElement | null
   isDragging: boolean
   ghostPosition?: { x: number; y: number }
-  onMoveStart: (e: React.PointerEvent) => void
+  onMoveStart: (
+    e: React.PointerEvent,
+    targetElement?: HTMLElement,
+    options?: MoveStartOptions
+  ) => void
+  showMoveHandle?: boolean
   isTextEditing?: boolean
   onDoubleClick?: (clientX: number, clientY: number) => void
   onHoverElement?: (element: HTMLElement | null) => void
@@ -18,21 +30,31 @@ export interface SelectionOverlayProps {
 
 export function SelectionOverlay({
   selectedElement,
+  draggedElement,
   isDragging,
   ghostPosition,
   onMoveStart,
+  showMoveHandle = false,
   isTextEditing,
   onDoubleClick,
   onHoverElement,
   onClickThrough,
 }: SelectionOverlayProps) {
-  const [rect, setRect] = React.useState(() => selectedElement.getBoundingClientRect())
+  const rectElement = isDragging && draggedElement ? draggedElement : selectedElement
+  const [rect, setRect] = React.useState(() => rectElement.getBoundingClientRect())
+  const [moveHandleRects, setMoveHandleRects] = React.useState<Array<{
+    target: HTMLElement
+    left: number
+    top: number
+    width: number
+    height: number
+  }>>([])
   const cleanupRef = React.useRef<(() => void) | null>(null)
   const clickThroughTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
 
   React.useEffect(() => {
     function updateRect() {
-      setRect(selectedElement.getBoundingClientRect())
+      setRect(rectElement.getBoundingClientRect())
     }
 
     updateRect()
@@ -41,7 +63,7 @@ export function SelectionOverlay({
     window.addEventListener('resize', updateRect)
 
     const observer = new MutationObserver(updateRect)
-    observer.observe(selectedElement, {
+    observer.observe(rectElement, {
       attributes: true,
       childList: true,
       subtree: true,
@@ -52,7 +74,7 @@ export function SelectionOverlay({
       window.removeEventListener('resize', updateRect)
       observer.disconnect()
     }
-  }, [selectedElement])
+  }, [rectElement])
 
   React.useEffect(() => {
     return () => {
@@ -127,6 +149,77 @@ export function SelectionOverlay({
     onHoverElement?.(null)
   }
 
+  const getMoveHandleTargets = React.useCallback(() => {
+    if (!showMoveHandle) return []
+    const selectedDisplay = window.getComputedStyle(selectedElement).display
+    const selectedIsFlexContainer = selectedDisplay === 'flex' || selectedDisplay === 'inline-flex'
+
+    if (selectedIsFlexContainer && selectedElement.children.length > 1) {
+      return Array.from(selectedElement.children).filter((child): child is HTMLElement => child instanceof HTMLElement)
+    }
+
+    let flexParent: HTMLElement | null = selectedElement.parentElement
+    while (flexParent) {
+      const display = window.getComputedStyle(flexParent).display
+      const isFlex = display === 'flex' || display === 'inline-flex'
+      if (isFlex && flexParent.children.length > 1) {
+        break
+      }
+      flexParent = flexParent.parentElement
+    }
+
+    if (!flexParent) {
+      return [selectedElement]
+    }
+
+    let target: HTMLElement = selectedElement
+    while (target.parentElement && target.parentElement !== flexParent) {
+      target = target.parentElement
+    }
+
+    return [target]
+  }, [selectedElement, showMoveHandle])
+
+  React.useEffect(() => {
+    if (!showMoveHandle || isDragging || isTextEditing) {
+      setMoveHandleRects([])
+      return
+    }
+
+    const targets = getMoveHandleTargets()
+    setMoveHandleRects(targets.map((target) => {
+      const targetRect = target.getBoundingClientRect()
+      return {
+        target,
+        left: targetRect.left,
+        top: targetRect.top,
+        width: targetRect.width,
+        height: targetRect.height,
+      }
+    }))
+  }, [
+    rect,
+    selectedElement,
+    selectedElement.parentElement,
+    selectedElement.childElementCount,
+    showMoveHandle,
+    isDragging,
+    isTextEditing,
+    getMoveHandleTargets,
+  ])
+
+  const handleMoveHandlePointerDown = (target: HTMLElement) => (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (e.button !== 0) return
+    e.preventDefault()
+    e.stopPropagation()
+    cleanupRef.current?.()
+    if (clickThroughTimerRef.current) {
+      clearTimeout(clickThroughTimerRef.current)
+      clickThroughTimerRef.current = null
+    }
+    onMoveStart(e, target, { constrainToOriginalParent: true })
+  }
+
   const displayX = isDragging && ghostPosition ? ghostPosition.x : rect.left
   const displayY = isDragging && ghostPosition ? ghostPosition.y : rect.top
 
@@ -173,7 +266,37 @@ export function SelectionOverlay({
           onDoubleClick={handleDoubleClick}
           onMouseMove={handleMouseMove}
           onMouseLeave={handleMouseLeave}
-        />
+        >
+          {moveHandleRects.map((targetRect, idx) => {
+            return (
+              <button
+                key={`${idx}-${targetRect.left}-${targetRect.top}`}
+                type="button"
+                data-direct-edit="move-handle"
+                aria-label="Move element"
+                title="Drag to reorder"
+                style={{
+                  position: 'absolute',
+                  left: targetRect.left - rect.left + targetRect.width / 2 - HANDLE_SIZE / 2,
+                  top: targetRect.top - rect.top + targetRect.height / 2 - HANDLE_SIZE / 2,
+                  width: HANDLE_SIZE,
+                  height: HANDLE_SIZE,
+                  borderRadius: 9999,
+                  border: `1px solid ${MAGENTA}`,
+                  background: 'transparent',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: 'none',
+                  cursor: 'grab',
+                  pointerEvents: 'auto',
+                  padding: 0,
+                }}
+                onPointerDown={handleMoveHandlePointerDown(targetRect.target)}
+              />
+            )
+          })}
+        </div>
       )}
     </>
   )

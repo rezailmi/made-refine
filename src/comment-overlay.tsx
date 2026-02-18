@@ -1,7 +1,7 @@
 import * as React from 'react'
 import type { Comment, ElementLocator } from './types'
 import { cn } from './cn'
-import { ChevronLeft, Check, Trash2, ArrowUp, Send, X } from 'lucide-react'
+import { ChevronLeft, Check, Copy, Trash2, ArrowUp, Send, X } from 'lucide-react'
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from './ui/tooltip'
 
 function formatRelativeTime(timestamp: number): string {
@@ -34,6 +34,7 @@ export interface CommentOverlayProps {
   onUpdateText: (id: string, text: string) => void
   onAddReply: (id: string, text: string) => void
   onDelete: (id: string) => void
+  onExport?: (id: string) => Promise<boolean>
   onSendToAgent: (id: string) => Promise<boolean>
   attentionRequest?: { commentId: string; nonce: number } | null
 }
@@ -45,6 +46,7 @@ export function CommentOverlay({
   onUpdateText,
   onAddReply,
   onDelete,
+  onExport,
   onSendToAgent,
   attentionRequest = null,
 }: CommentOverlayProps) {
@@ -63,6 +65,7 @@ export function CommentOverlay({
           onUpdateText={(text) => onUpdateText(comment.id, text)}
           onAddReply={(text) => onAddReply(comment.id, text)}
           onDelete={() => onDelete(comment.id)}
+          onExport={onExport ? () => onExport(comment.id) : undefined}
           onSendToAgent={() => onSendToAgent(comment.id)}
           attentionNonce={attentionRequest?.commentId === comment.id ? attentionRequest.nonce : 0}
         />
@@ -80,6 +83,7 @@ interface CommentPinProps {
   onUpdateText: (text: string) => void
   onAddReply: (text: string) => void
   onDelete: () => void
+  onExport?: () => Promise<boolean>
   onSendToAgent: () => Promise<boolean>
   attentionNonce: number
 }
@@ -93,6 +97,7 @@ function CommentPin({
   onUpdateText,
   onAddReply,
   onDelete,
+  onExport,
   onSendToAgent,
   attentionNonce,
 }: CommentPinProps) {
@@ -200,6 +205,7 @@ function CommentPin({
               onAddReply(text)
             }}
             onDelete={onDelete}
+            onExport={onExport}
             onSendToAgent={onSendToAgent}
           />
         )
@@ -316,6 +322,7 @@ interface CommentThreadProps {
   onClose: () => void
   onAddReply: (text: string) => void
   onDelete: () => void
+  onExport?: () => Promise<boolean>
   onSendToAgent: () => Promise<boolean>
 }
 
@@ -328,15 +335,41 @@ function CommentThread({
   onClose,
   onAddReply,
   onDelete,
+  onExport,
   onSendToAgent,
 }: CommentThreadProps) {
   const [replyText, setReplyText] = React.useState('')
+  const [copied, setCopied] = React.useState(false)
   const [sendStatus, setSendStatus] = React.useState<'idle' | 'sending' | 'sent' | 'offline'>('idle')
   const inputRef = React.useRef<HTMLInputElement>(null)
+  const copyTimerRef = React.useRef<number | null>(null)
 
   React.useEffect(() => {
     inputRef.current?.focus()
   }, [])
+
+  React.useEffect(() => {
+    return () => {
+      if (copyTimerRef.current) {
+        window.clearTimeout(copyTimerRef.current)
+      }
+    }
+  }, [])
+
+  const handleCopy = async () => {
+    if (!onExport) return
+    const success = await onExport()
+    if (success) {
+      if (copyTimerRef.current) {
+        window.clearTimeout(copyTimerRef.current)
+      }
+      setCopied(true)
+      copyTimerRef.current = window.setTimeout(() => {
+        copyTimerRef.current = null
+        setCopied(false)
+      }, 2000)
+    }
+  }
 
   const handleSendToAgent = async () => {
     if (sendStatus === 'sending') return
@@ -390,6 +423,27 @@ function CommentThread({
             <ElementLabel locator={comment.locator} />
           </div>
           <div className="flex shrink-0 items-center gap-0.5">
+            {onExport && (
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <button
+                      type="button"
+                      aria-label={copied ? 'Copied' : 'Copy comment export'}
+                      className="flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                      onClick={handleCopy}
+                    />
+                  }
+                >
+                  {copied ? (
+                    <Check className="size-3.5 text-green-500" />
+                  ) : (
+                    <Copy className="size-3.5" />
+                  )}
+                </TooltipTrigger>
+                <TooltipContent side="bottom">{copied ? 'Copied' : 'Copy'}</TooltipContent>
+              </Tooltip>
+            )}
             <Tooltip>
               <TooltipTrigger
                 render={
