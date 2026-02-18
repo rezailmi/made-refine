@@ -720,6 +720,7 @@ function DirectEditPanelContent() {
   const overlay = editModeActive && container ? createPortal(
     <>
       <div
+        role="presentation"
         data-direct-edit="overlay"
         className={cn('fixed inset-0 z-[99990] cursor-default')}
         style={{ pointerEvents: textEditingElement ? 'none' : 'auto' }}
@@ -783,7 +784,7 @@ function DirectEditPanelContent() {
               const r = child.getBoundingClientRect()
               return (
                 <rect
-                  key={i}
+                  key={`${r.left}-${r.top}-${r.width}-${r.height}`}
                   x={r.left}
                   y={r.top}
                   width={r.width}

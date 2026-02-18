@@ -267,10 +267,10 @@ export function SelectionOverlay({
           onMouseMove={handleMouseMove}
           onMouseLeave={handleMouseLeave}
         >
-          {moveHandleRects.map((targetRect, idx) => {
+          {moveHandleRects.map((targetRect) => {
             return (
               <button
-                key={`${idx}-${targetRect.left}-${targetRect.top}`}
+                key={`${targetRect.left}-${targetRect.top}-${targetRect.width}-${targetRect.height}`}
                 type="button"
                 data-direct-edit="move-handle"
                 aria-label="Move element"

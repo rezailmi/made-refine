@@ -163,9 +163,11 @@ function CommentPin({
         </svg>
       )}
 
-      <div
+      <button
+        type="button"
         data-direct-edit="comment-pin"
-        className="group/pin fixed z-[99998] flex size-3 cursor-pointer items-center justify-center rounded-full bg-blue-500 shadow-md ring-2 ring-white transition-transform hover:scale-[1.67] hover:shadow-lg"
+        aria-label={`Comment ${index}`}
+        className="group/pin fixed z-[99998] flex size-3 cursor-pointer items-center justify-center rounded-full border-none bg-blue-500 p-0 shadow-md ring-2 ring-white transition-transform hover:scale-[1.67] hover:shadow-lg"
         style={{
           left: position.x - 6,
           top: position.y - 6,
@@ -179,7 +181,7 @@ function CommentPin({
         <span className="hidden text-[7px] font-medium leading-none text-white group-hover/pin:inline">
           {index}
         </span>
-      </div>
+      </button>
 
       {isActive && (
         comment.text === '' ? (
@@ -261,6 +263,7 @@ function NewCommentInput({
   return (
     <div
       ref={cardRef}
+      role="presentation"
       data-direct-edit="comment-card"
       className={cn(
         'fixed z-[99999] flex items-center gap-1.5 rounded-xl outline outline-1 outline-foreground/10 bg-background p-1.5 shadow-lg',
@@ -393,6 +396,7 @@ function CommentThread({
 
   return (
     <div
+      role="presentation"
       data-direct-edit="comment-card"
       className="fixed z-[99999] w-[280px] overflow-hidden rounded-xl outline outline-1 outline-foreground/10 bg-background shadow-lg"
       style={{
@@ -499,8 +503,8 @@ function CommentThread({
         </div>
 
         {/* Replies */}
-        {comment.replies.map((reply, i) => (
-          <div key={i} className="border-t border-border/30 px-3 py-2.5">
+        {comment.replies.map((reply) => (
+          <div key={reply.createdAt} className="border-t border-border/30 px-3 py-2.5">
             <div className="mb-1 flex items-center gap-2">
               <div className="flex size-5 shrink-0 items-center justify-center rounded-full bg-blue-500 text-[10px] font-bold text-white">
                 {index}

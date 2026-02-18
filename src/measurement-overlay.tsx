@@ -129,8 +129,8 @@ export function MeasurementOverlay({
       {hoveredElement && (
         <ElementHighlight element={hoveredElement} color={TOMATO} isDashed />
       )}
-      {measurements.map((line, i) => (
-        <MeasurementLineComponent key={i} line={line} />
+      {measurements.map((line) => (
+        <MeasurementLineComponent key={`${line.direction}-${line.x1}-${line.y1}-${line.x2}-${line.y2}`} line={line} />
       ))}
     </svg>
   )
