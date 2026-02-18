@@ -461,10 +461,19 @@ export function DirectEditToolbarInner({
                             }
                             return (
                               <div
-                                key={i}
+                                key={item.type === 'comment' ? item.comment.id : `edit-${i}`}
+                                role="button"
+                                tabIndex={0}
                                 className="group flex cursor-pointer items-start justify-between rounded-md px-1.5 py-1.5 text-xs transition-colors hover:bg-muted/50"
                                 onClick={() => {
                                   void handleCopyItem(item)
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.target !== e.currentTarget) return
+                                  if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault()
+                                    void handleCopyItem(item)
+                                  }
                                 }}
                               >
                                 <div className="min-w-0 flex flex-1 flex-col items-start gap-[4px]">
@@ -591,7 +600,7 @@ export function DirectEditToolbarInner({
                             <span>{label}</span>
                             <span className="flex items-center gap-0.5">
                               {keys.map((k, i) => (
-                                <kbd key={i} className={popupKbdClass}>{k}</kbd>
+                                <kbd key={typeof k === 'string' ? k : i} className={popupKbdClass}>{k}</kbd>
                               ))}
                             </span>
                           </div>

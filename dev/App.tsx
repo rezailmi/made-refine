@@ -123,7 +123,7 @@ export default function App() {
               { initials: 'SM', title: 'Sara mentioned you', desc: 'in Design Review #14', time: '2m' },
               { initials: 'TR', title: 'Tom requested review', desc: 'on Homepage redesign', time: '1h' },
             ].map((n, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 0', borderTop: i > 0 ? `1px solid ${gray[100]}` : 'none' }}>
+              <div key={n.title} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 0', borderTop: i > 0 ? `1px solid ${gray[100]}` : 'none' }}>
                 <Avatar initials={n.initials} bg={gray[100]} color={gray[600]} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 13, fontWeight: 500, lineHeight: 1.3 }}>{n.title}</div>
