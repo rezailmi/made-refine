@@ -139,26 +139,45 @@ describe('useGuidelines', () => {
 
   it('does not write an empty snapshot before hydration completes', async () => {
     const stored = [{ id: 'gl-hydrate', orientation: 'vertical', position: 42 }]
-    localStorage.setItem('direct-edit-guidelines', JSON.stringify(stored))
-    const setItemSpy = vi.spyOn(window.localStorage, 'setItem')
+    const store = new Map<string, string>()
+    const writes: Array<[string, string]> = []
+    const storageMock: Storage = {
+      getItem: (key) => store.get(key) ?? null,
+      setItem: (key, value) => {
+        const serialized = String(value)
+        writes.push([key, serialized])
+        store.set(key, serialized)
+      },
+      removeItem: (key) => {
+        store.delete(key)
+      },
+      clear: () => {
+        store.clear()
+      },
+      key: (index) => Array.from(store.keys())[index] ?? null,
+      get length() {
+        return store.size
+      },
+    }
 
-    window.localStorage.setItem('probe', '1')
-    expect(setItemSpy).toHaveBeenCalledWith('probe', '1')
-    window.localStorage.removeItem('probe')
-    setItemSpy.mockClear()
+    vi.stubGlobal('localStorage', storageMock)
+    try {
+      localStorage.setItem('direct-edit-guidelines', JSON.stringify(stored))
+      writes.length = 0
 
-    renderHook(() => useGuidelines(true))
+      renderHook(() => useGuidelines(true))
 
-    await waitFor(() => {
-      expect(setItemSpy).toHaveBeenCalledWith('direct-edit-guidelines', JSON.stringify(stored))
-    })
+      await waitFor(() => {
+        const guidelineWrites = writes.filter(([key]) => key === 'direct-edit-guidelines')
+        expect(guidelineWrites.length).toBeGreaterThan(0)
+      })
 
-    const guidelineWrites = setItemSpy.mock.calls.filter(
-      ([key]) => key === 'direct-edit-guidelines',
-    )
-
-    expect(guidelineWrites[0]?.[1]).toBe(JSON.stringify(stored))
-    expect(guidelineWrites.some(([, value]) => value === '[]')).toBe(false)
+      const guidelineWrites = writes.filter(([key]) => key === 'direct-edit-guidelines')
+      expect(guidelineWrites[0]?.[1]).toBe(JSON.stringify(stored))
+      expect(guidelineWrites.some(([, value]) => value === '[]')).toBe(false)
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 })
 
