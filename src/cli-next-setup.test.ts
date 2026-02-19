@@ -73,131 +73,35 @@ function runInit(projectDir: string) {
   })
 }
 
-describe('cli init next babel setup integration', () => {
+describe('cli init next setup integration', () => {
   beforeAll(() => {
     ensureDistCli()
   })
 
-  it('does not create .babelrc when no Babel config exists', () => {
+  it('does not touch or mention .babelrc', () => {
+    withTempDir((cwd) => {
+      writeNextPackageJson(cwd)
+      writeFileSync(path.join(cwd, '.babelrc'), JSON.stringify({ presets: ['next/babel'] }, null, 2), 'utf-8')
+
+      const result = runInit(cwd)
+      expect(result.status).toBe(0)
+      expect(result.stdout).not.toContain('babel')
+      expect(result.stdout).not.toContain('Babel')
+      // .babelrc should be left untouched
+      const babelConfig = JSON.parse(readFileSync(path.join(cwd, '.babelrc'), 'utf-8'))
+      expect(babelConfig).toEqual({ presets: ['next/babel'] })
+    })
+  })
+
+  it('detects Next.js and runs setup', () => {
     withTempDir((cwd) => {
       writeNextPackageJson(cwd)
 
       const result = runInit(cwd)
       expect(result.status).toBe(0)
+      expect(result.stdout).toContain('Detected: Next.js')
+      expect(result.stdout).toContain('Configuring for Next.js')
       expect(existsSync(path.join(cwd, '.babelrc'))).toBe(false)
-      expect(result.stdout).toContain('No existing Babel config found')
-    })
-  })
-
-  it('updates existing JSON .babelrc with made-refine/babel in development env', () => {
-    withTempDir((cwd) => {
-      writeNextPackageJson(cwd)
-      writeFileSync(
-        path.join(cwd, '.babelrc'),
-        JSON.stringify(
-          {
-            presets: ['next/babel'],
-          },
-          null,
-          2,
-        ),
-        'utf-8',
-      )
-
-      const result = runInit(cwd)
-      expect(result.status).toBe(0)
-
-      const babelConfig = JSON.parse(readFileSync(path.join(cwd, '.babelrc'), 'utf-8')) as {
-        env?: { development?: { plugins?: Array<string | [string, unknown]> } }
-      }
-
-      expect(babelConfig.env?.development?.plugins).toBeDefined()
-      expect(
-        babelConfig.env?.development?.plugins?.some((plugin) =>
-          typeof plugin === 'string' ? plugin === 'made-refine/babel' : plugin[0] === 'made-refine/babel'
-        ),
-      ).toBe(true)
-    })
-  })
-
-  it('does not duplicate plugin when .babelrc already includes made-refine/babel', () => {
-    withTempDir((cwd) => {
-      writeNextPackageJson(cwd)
-      writeFileSync(
-        path.join(cwd, '.babelrc'),
-        JSON.stringify(
-          {
-            presets: ['next/babel'],
-            env: {
-              development: {
-                plugins: ['made-refine/babel'],
-              },
-            },
-          },
-          null,
-          2,
-        ),
-        'utf-8',
-      )
-
-      const result = runInit(cwd)
-      expect(result.status).toBe(0)
-
-      const babelConfig = JSON.parse(readFileSync(path.join(cwd, '.babelrc'), 'utf-8')) as {
-        env?: { development?: { plugins?: Array<string | [string, unknown]> } }
-      }
-      const count =
-        babelConfig.env?.development?.plugins?.filter((plugin) =>
-          typeof plugin === 'string' ? plugin === 'made-refine/babel' : plugin[0] === 'made-refine/babel'
-        ).length ?? 0
-
-      expect(count).toBe(1)
-      expect(result.stdout).toContain('.babelrc — already configured')
-    })
-  })
-
-  it('updates package.json#babel when project Babel config is stored there', () => {
-    withTempDir((cwd) => {
-      writeNextPackageJson(cwd, {
-        babel: {
-          presets: ['next/babel'],
-        },
-      })
-
-      const result = runInit(cwd)
-      expect(result.status).toBe(0)
-      expect(result.stdout).toContain('Updated package.json#babel')
-
-      const packageJson = JSON.parse(readFileSync(path.join(cwd, 'package.json'), 'utf-8')) as {
-        babel?: { env?: { development?: { plugins?: Array<string | [string, unknown]> } } }
-      }
-
-      expect(packageJson.babel?.env?.development?.plugins).toBeDefined()
-      expect(
-        packageJson.babel?.env?.development?.plugins?.some((plugin) =>
-          typeof plugin === 'string' ? plugin === 'made-refine/babel' : plugin[0] === 'made-refine/babel'
-        ),
-      ).toBe(true)
-      expect(existsSync(path.join(cwd, '.babelrc'))).toBe(false)
-    })
-  })
-
-  it('does not trust string matching for JS Babel config and asks for manual verification', () => {
-    withTempDir((cwd) => {
-      writeNextPackageJson(cwd)
-      writeFileSync(
-        path.join(cwd, '.babelrc.js'),
-        `module.exports = {
-  comments: ['made-refine/babel'],
-}
-`,
-        'utf-8',
-      )
-
-      const result = runInit(cwd)
-      expect(result.status).toBe(0)
-      expect(result.stdout).toContain('.babelrc.js (JS Babel config) — verify/add plugin manually')
-      expect(result.stdout).not.toContain('.babelrc.js — already configured')
     })
   })
 })
