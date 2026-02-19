@@ -107,6 +107,7 @@ export function useToolbarDock(toolbarRef: React.RefObject<HTMLDivElement | null
     if (!el) return
 
     function recalc() {
+      if (!el) return
       const rect = el.getBoundingClientRect()
       setDockedPos(getDockedPosition(dockedEdge, rect.width, rect.height))
     }
