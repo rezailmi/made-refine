@@ -73,18 +73,4 @@ export default defineConfig([
     banner: { js: '#!/usr/bin/env node' },
     noExternal: ['commander', 'prompts', 'picocolors'],
   },
-  {
-    entry: { mcp: 'src/mcp/index.ts' },
-    format: ['cjs'],
-    outDir: 'dist',
-    outExtension: () => ({ js: '.cjs' }),
-    dts: false,
-    splitting: false,
-    sourcemap: false,
-    clean: false,
-    platform: 'node',
-    target: 'node18',
-    banner: { js: '#!/usr/bin/env node' },
-    noExternal: ['@modelcontextprotocol/sdk', 'zod'],
-  },
 ])
