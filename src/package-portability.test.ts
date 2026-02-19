@@ -16,7 +16,6 @@ const requiredDistArtifacts = [
   'dist/vite.mjs',
   'dist/vite.d.ts',
   'dist/babel.cjs',
-  'dist/mcp.cjs',
 ] as const
 
 function ensureDistArtifacts() {
@@ -55,7 +54,6 @@ describe('package portability', () => {
         'dist/vite.mjs',
         'dist/vite.d.ts',
         'dist/babel.cjs',
-        'dist/mcp.cjs',
         'README.md',
         'LICENSE',
       ]),
@@ -87,12 +85,6 @@ describe('package portability', () => {
     expect(bundle).toContain('data-direct-edit-host')
     expect(bundle).not.toContain('?raw')
     expect(bundle).not.toContain('../dist/styles.css')
-  })
-
-  it('keeps MCP runtime deps bundled in the distributed mcp binary', () => {
-    const mcpBundle = readFileSync(path.join(root, 'dist/mcp.cjs'), 'utf8')
-    expect(mcpBundle).not.toMatch(/\brequire\((['"])zod\1\)/)
-    expect(mcpBundle).not.toMatch(/\brequire\((['"])@modelcontextprotocol\/sdk(?:\/[^'"]*)?\1\)/)
   })
 
   it('injects preload script and source markers through the Vite plugin in dev mode', async () => {

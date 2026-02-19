@@ -31,7 +31,7 @@ This detects your framework, installs the package, previews file changes, and ap
 - Renders inside Shadow DOM for full CSS isolation from your app
 - Babel/Vite plugin adds source location metadata to every JSX element
 - Hooks into React DevTools fiber tree for component name resolution
-- Built-in MCP server enables hands-free agent workflows
+- Integrates with the desktop app MCP broker for hands-free agent workflows
 
 ## Supported frameworks
 
