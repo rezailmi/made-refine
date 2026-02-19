@@ -105,6 +105,27 @@ describe('mcp-client', () => {
     expect(editHeaders['Content-Type']).toBe('application/json')
   })
 
+  it('prefers runtime bootstrap global over env fallback', async () => {
+    const fetchMock = vi.mocked(fetch)
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(200, {
+        protocolVersion: 1,
+        ingestBaseUrl: 'http://127.0.0.1:9052',
+        accessToken: 'token-global',
+      })
+    )
+
+    window.__MADE_REFINE_MCP_BOOTSTRAP_URL__ = 'http://127.0.0.1:9051'
+    process.env.MADE_REFINE_MCP_BOOTSTRAP_URL = 'http://127.0.0.1:9059'
+
+    const { checkAgentConnection } = await import('./mcp-client')
+    const connected = await checkAgentConnection()
+
+    expect(connected).toBe(true)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('http://127.0.0.1:9051/v1/bootstrap')
+  })
+
   it('refreshes token on auth failure and retries once with same idempotency key', async () => {
     const fetchMock = vi.mocked(fetch)
     fetchMock
@@ -151,7 +172,7 @@ describe('mcp-client', () => {
     expect(retryHeaders['X-Idempotency-Key']).toBe(firstSendHeaders['X-Idempotency-Key'])
   })
 
-  it('uses env override when runtime config is not injected', async () => {
+  it('uses env fallback when runtime config is not injected', async () => {
     const fetchMock = vi.mocked(fetch)
     fetchMock.mockResolvedValueOnce(
       jsonResponse(200, {
@@ -161,7 +182,7 @@ describe('mcp-client', () => {
       })
     )
 
-    process.env.MADE_REFINE_MCP_BOOTSTRAP_URL = 'http://127.0.0.1:9201'
+    process.env.VITE_MADE_REFINE_MCP_BOOTSTRAP_URL = 'http://127.0.0.1:9201'
 
     const { checkAgentConnection } = await import('./mcp-client')
     const connected = await checkAgentConnection()
@@ -169,6 +190,17 @@ describe('mcp-client', () => {
     expect(connected).toBe(true)
     expect(fetchMock).toHaveBeenCalledTimes(1)
     expect(fetchMock.mock.calls[0]?.[0]).toBe('http://127.0.0.1:9201/v1/bootstrap')
+  })
+
+  it('rejects non-loopback bootstrap URLs before fetching', async () => {
+    const fetchMock = vi.mocked(fetch)
+    window.__MADE_REFINE_MCP_BOOTSTRAP_URL__ = 'https://example.com/bootstrap'
+
+    const { checkAgentConnection } = await import('./mcp-client')
+    const connected = await checkAgentConnection()
+
+    expect(connected).toBe(false)
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 
   it('reports offline when no bootstrap endpoint is available', async () => {

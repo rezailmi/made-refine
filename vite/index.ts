@@ -4,6 +4,12 @@ import { createRequire } from 'module'
 
 type Range = [start: number, end: number]
 
+const BOOTSTRAP_ENV_KEYS = [
+  'MADE_REFINE_MCP_BOOTSTRAP_URL',
+  'VITE_MADE_REFINE_MCP_BOOTSTRAP_URL',
+  'NEXT_PUBLIC_MADE_REFINE_MCP_BOOTSTRAP_URL',
+] as const
+
 /** Build a sorted list of character ranges that should be skipped (strings, template literals, comments). */
 function buildSkipRanges(code: string): Range[] {
   const ranges: Range[] = []
@@ -101,6 +107,17 @@ interface MadeRefineOptions {
   // Future options
 }
 
+function readBootstrapEnvValue(): string | null {
+  for (const key of BOOTSTRAP_ENV_KEYS) {
+    const value = process.env[key]
+    if (typeof value === 'string' && value.trim().length > 0) {
+      return value.trim()
+    }
+  }
+
+  return null
+}
+
 export function madeRefine(_options?: MadeRefineOptions): Plugin {
   let config: ResolvedConfig
 
@@ -119,7 +136,13 @@ export function madeRefine(_options?: MadeRefineOptions): Plugin {
         const require = createRequire(import.meta.url)
         const distDir = path.dirname(require.resolve('made-refine'))
         const preloadScript = `<script src="/@fs/${distDir}/preload/preload.js"></script>`
-        return html.replace('<head>', `<head>\n    ${preloadScript}`)
+        const bootstrapEnvValue = readBootstrapEnvValue()
+        const bootstrapConfigScript = bootstrapEnvValue
+          ? `<script>window.__MADE_REFINE_MCP_BOOTSTRAP_URL__ = ${JSON.stringify(bootstrapEnvValue)};</script>`
+          : null
+        const headScripts = [bootstrapConfigScript, preloadScript].filter((script): script is string => Boolean(script))
+
+        return html.replace('<head>', `<head>\n    ${headScripts.join('\n    ')}`)
       },
     },
     transform(code, id) {

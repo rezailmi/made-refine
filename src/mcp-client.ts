@@ -17,7 +17,23 @@ const CLIENT_VERSION_ENV_KEYS = [
   'NEXT_PUBLIC_MADE_REFINE_VERSION',
 ] as const
 
+type BootstrapEnvKey = (typeof BOOTSTRAP_ENV_KEYS)[number]
+type ClientVersionEnvKey = (typeof CLIENT_VERSION_ENV_KEYS)[number]
+type EnvKey = BootstrapEnvKey | ClientVersionEnvKey
+
 type AnnotationPath = '/v1/annotations/edit' | '/v1/annotations/comment'
+
+interface KnownProcessEnv {
+  MADE_REFINE_MCP_BOOTSTRAP_URL?: string
+  VITE_MADE_REFINE_MCP_BOOTSTRAP_URL?: string
+  NEXT_PUBLIC_MADE_REFINE_MCP_BOOTSTRAP_URL?: string
+  MADE_REFINE_VERSION?: string
+  VITE_MADE_REFINE_VERSION?: string
+  NEXT_PUBLIC_MADE_REFINE_VERSION?: string
+  [key: string]: string | undefined
+}
+
+declare const process: { env?: KnownProcessEnv } | undefined
 
 interface RuntimeMcpConfig {
   bootstrapUrl?: string
@@ -87,19 +103,51 @@ function getRuntimeMcpConfig(): RuntimeMcpConfig | null {
   }
 }
 
-function getProcessEnvValue(keys: readonly string[]): string | null {
+function toNonEmptyString(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed : null
+}
+
+function getStaticProcessEnvValue(key: EnvKey): string | null {
+  switch (key) {
+    case 'MADE_REFINE_MCP_BOOTSTRAP_URL':
+      return toNonEmptyString(typeof process !== 'undefined' ? process.env?.MADE_REFINE_MCP_BOOTSTRAP_URL : undefined)
+    case 'VITE_MADE_REFINE_MCP_BOOTSTRAP_URL':
+      return toNonEmptyString(typeof process !== 'undefined' ? process.env?.VITE_MADE_REFINE_MCP_BOOTSTRAP_URL : undefined)
+    case 'NEXT_PUBLIC_MADE_REFINE_MCP_BOOTSTRAP_URL':
+      return toNonEmptyString(typeof process !== 'undefined' ? process.env?.NEXT_PUBLIC_MADE_REFINE_MCP_BOOTSTRAP_URL : undefined)
+    case 'MADE_REFINE_VERSION':
+      return toNonEmptyString(typeof process !== 'undefined' ? process.env?.MADE_REFINE_VERSION : undefined)
+    case 'VITE_MADE_REFINE_VERSION':
+      return toNonEmptyString(typeof process !== 'undefined' ? process.env?.VITE_MADE_REFINE_VERSION : undefined)
+    case 'NEXT_PUBLIC_MADE_REFINE_VERSION':
+      return toNonEmptyString(typeof process !== 'undefined' ? process.env?.NEXT_PUBLIC_MADE_REFINE_VERSION : undefined)
+    default:
+      return null
+  }
+}
+
+function getDynamicProcessEnvValue(keys: readonly EnvKey[]): string | null {
   const processLike = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process
   const env = processLike?.env
   if (!env) return null
 
   for (const key of keys) {
-    const value = env[key]
-    if (typeof value === 'string' && value.trim().length > 0) {
-      return value.trim()
-    }
+    const value = toNonEmptyString(env[key])
+    if (value) return value
   }
 
   return null
+}
+
+function getEnvValue(keys: readonly EnvKey[]): string | null {
+  for (const key of keys) {
+    const processValue = getStaticProcessEnvValue(key)
+    if (processValue) return processValue
+  }
+
+  return getDynamicProcessEnvValue(keys)
 }
 
 function normalizeUrl(value: string | null | undefined): string | null {
@@ -133,6 +181,12 @@ function normalizeBootstrapUrl(value: string | null | undefined): string | null 
   } catch {
     return normalized.endsWith('/v1/bootstrap') ? normalized : `${normalized}/v1/bootstrap`
   }
+}
+
+function toSafeBootstrapUrl(value: string | null | undefined): string | null {
+  const normalized = normalizeBootstrapUrl(value)
+  if (!normalized) return null
+  return isLoopbackHttpUrl(normalized) ? normalized : null
 }
 
 function joinUrl(base: string, path: string): string {
@@ -201,7 +255,7 @@ function buildBootstrapRequestBody(runtimeConfig: RuntimeMcpConfig | null): Boot
     client: {
       name: CLIENT_NAME,
       version: runtimeConfig?.clientVersion
-        ?? getProcessEnvValue(CLIENT_VERSION_ENV_KEYS)
+        ?? getEnvValue(CLIENT_VERSION_ENV_KEYS)
         ?? DEFAULT_CLIENT_VERSION,
       origin: locationOrigin,
     },
@@ -210,10 +264,10 @@ function buildBootstrapRequestBody(runtimeConfig: RuntimeMcpConfig | null): Boot
 
 function resolveBootstrapUrl(): string | null {
   const runtimeConfig = getRuntimeMcpConfig()
-  const runtimeUrl = normalizeBootstrapUrl(runtimeConfig?.bootstrapUrl)
+  const runtimeUrl = toSafeBootstrapUrl(runtimeConfig?.bootstrapUrl)
   if (runtimeUrl) return runtimeUrl
 
-  const envUrl = normalizeBootstrapUrl(getProcessEnvValue(BOOTSTRAP_ENV_KEYS))
+  const envUrl = toSafeBootstrapUrl(getEnvValue(BOOTSTRAP_ENV_KEYS))
   if (envUrl) return envUrl
 
   return null
