@@ -51,6 +51,9 @@ on:
         default: ""
         type: string
 
+permissions:
+  contents: read
+
 concurrency:
   group: publish-${{ github.event_name }}-${{ github.ref }}-${{ github.event.inputs.task || 'ci' }}
   cancel-in-progress: false
@@ -76,11 +79,15 @@ jobs:
       - name: Typecheck
         run: bunx tsc --noEmit
 
+      - name: Test
+        run: bunx vitest run
+
   release:
     if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.task == 'release' && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      id-token: write
 
     steps:
       - uses: actions/checkout@v4
@@ -114,6 +121,9 @@ jobs:
 
       - name: Typecheck
         run: bunx tsc --noEmit
+
+      - name: Test
+        run: bunx vitest run
 
       - name: Validate release inputs
         run: |
@@ -151,12 +161,12 @@ jobs:
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
       - name: Publish to npm
-        run: npm publish --tag "${{ steps.publish_tag.outputs.tag }}"
+        run: npm publish --provenance --tag "${{ steps.publish_tag.outputs.tag }}"
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      - name: Push version commit and tag
-        run: git push origin HEAD:main --follow-tags
+      - name: Push version commit
+        run: git push origin HEAD:main
 
   unpublish:
     if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.task == 'unpublish' && github.ref == 'refs/heads/main' }}
