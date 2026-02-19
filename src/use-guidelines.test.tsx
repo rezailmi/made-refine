@@ -179,6 +179,35 @@ describe('useGuidelines', () => {
       vi.unstubAllGlobals()
     }
   })
+
+  it('ignores malformed persisted guidelines and hydrates only valid entries', async () => {
+    localStorage.setItem(
+      'direct-edit-guidelines',
+      JSON.stringify([
+        { id: 'valid', orientation: 'horizontal', position: 64 },
+        { id: '', orientation: 'vertical', position: 12 },
+        { id: 'bad-orientation', orientation: 'diagonal', position: 18 },
+        { id: 'bad-position', orientation: 'vertical', position: Number.NaN },
+        { id: 42, orientation: 'vertical', position: 20 },
+      ]),
+    )
+
+    expect(getStoredGuidelines()).toEqual([
+      { id: 'valid', orientation: 'horizontal', position: 64 },
+    ])
+
+    const { result } = renderHook(() => useGuidelines(true))
+    await waitFor(() => {
+      expect(result.current.guidelines).toEqual([
+        { id: 'valid', orientation: 'horizontal', position: 64 },
+      ])
+    })
+  })
+
+  it('returns an empty list when persisted guidelines are not an array', () => {
+    localStorage.setItem('direct-edit-guidelines', JSON.stringify({ id: 'single' }))
+    expect(getStoredGuidelines()).toEqual([])
+  })
 })
 
 describe('useRulersVisible', () => {

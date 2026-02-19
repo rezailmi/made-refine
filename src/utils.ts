@@ -32,6 +32,12 @@ import type {
 export { parsePropertyValue, formatPropertyValue } from './utils/css-value'
 import { parsePropertyValue } from './utils/css-value'
 
+export function clamp(value: number, min: number, max: number): number {
+  if (!Number.isFinite(value)) return min
+  if (max < min) return min
+  return Math.max(min, Math.min(max, value))
+}
+
 declare global {
   interface Window {
     __DIRECT_EDIT_DEVTOOLS__?: {

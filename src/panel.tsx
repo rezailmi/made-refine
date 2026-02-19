@@ -26,6 +26,7 @@ import {
   calculateGuidelineMeasurements, isFlexContainer, isTextElement,
   resolveElementTarget, computeHoverHighlight,
   elementFromPointWithoutOverlays, findChildAtPoint,
+  clamp,
 } from './utils'
 import { MoveOverlay } from './move-overlay'
 import { SelectionOverlay } from './selection-overlay'
@@ -74,10 +75,45 @@ export { AlignmentGrid } from './panel/alignment-grid'
 const STORAGE_KEY = 'direct-edit-panel-position'
 const PANEL_WIDTH = 300
 const PANEL_HEIGHT = 420
+const PANEL_MARGIN = 20
 
 interface Position {
   x: number
   y: number
+}
+
+function getPanelBounds() {
+  const availableX = window.innerWidth - PANEL_WIDTH
+  const availableY = window.innerHeight - PANEL_HEIGHT
+  const minX = availableX <= 0 ? 0 : Math.min(PANEL_MARGIN, availableX)
+  const minY = availableY <= 0 ? 0 : Math.min(PANEL_MARGIN, availableY)
+  const maxX = availableX <= 0 ? 0 : Math.max(minX, availableX - PANEL_MARGIN)
+  const maxY = availableY <= 0 ? 0 : Math.max(minY, availableY - PANEL_MARGIN)
+
+  return {
+    minX,
+    maxX,
+    minY,
+    maxY,
+  }
+}
+
+function normalizePosition(position: Position): Position {
+  const { minX, maxX, minY, maxY } = getPanelBounds()
+  return {
+    x: clamp(position.x, minX, maxX),
+    y: clamp(position.y, minY, maxY),
+  }
+}
+
+function parseStoredPosition(raw: string): Position | null {
+  const parsed: unknown = JSON.parse(raw)
+  if (!parsed || typeof parsed !== 'object') return null
+
+  const candidate = parsed as { x?: unknown; y?: unknown }
+  if (typeof candidate.x !== 'number' || !Number.isFinite(candidate.x)) return null
+  if (typeof candidate.y !== 'number' || !Number.isFinite(candidate.y)) return null
+  return { x: candidate.x, y: candidate.y }
 }
 
 function getInitialPosition(): Position {
@@ -88,16 +124,19 @@ function getInitialPosition(): Position {
   try {
     const stored = localStorage.getItem(STORAGE_KEY)
     if (stored) {
-      return JSON.parse(stored)
+      const parsed = parseStoredPosition(stored)
+      if (parsed) {
+        return normalizePosition(parsed)
+      }
     }
   } catch {
     // Fall through to default
   }
 
-  return {
-    x: window.innerWidth - PANEL_WIDTH - 20,
-    y: window.innerHeight - PANEL_HEIGHT - 20,
-  }
+  return normalizePosition({
+    x: window.innerWidth - PANEL_WIDTH - PANEL_MARGIN,
+    y: window.innerHeight - PANEL_HEIGHT - PANEL_MARGIN,
+  })
 }
 
 export interface DirectEditPanelInnerProps {
@@ -172,6 +211,7 @@ export interface DirectEditPanelInnerProps {
   onHeaderPointerDown?: (e: React.PointerEvent) => void
   onHeaderPointerMove?: (e: React.PointerEvent) => void
   onHeaderPointerUp?: (e: React.PointerEvent) => void
+  onHeaderPointerCancel?: (e: React.PointerEvent) => void
 }
 
 export function DirectEditPanelInner({
@@ -210,6 +250,7 @@ export function DirectEditPanelInner({
   onHeaderPointerDown,
   onHeaderPointerMove,
   onHeaderPointerUp,
+  onHeaderPointerCancel,
 }: DirectEditPanelInnerProps) {
   const [copied, setCopied] = React.useState(false)
   const [copyError, setCopyError] = React.useState(false)
@@ -284,6 +325,7 @@ export function DirectEditPanelInner({
         onPointerDown={onHeaderPointerDown}
         onPointerMove={onHeaderPointerMove}
         onPointerUp={onHeaderPointerUp}
+        onPointerCancel={onHeaderPointerCancel}
       >
         <div className="min-w-0 flex-1">
           <code className="text-xs font-medium text-foreground">
@@ -564,6 +606,7 @@ export function DirectEditPanelInner({
         onPointerDown={onHeaderPointerDown}
         onPointerMove={onHeaderPointerMove}
         onPointerUp={onHeaderPointerUp}
+        onPointerCancel={onHeaderPointerCancel}
       >
         <div className="flex-1" />
         <Tip label="Copy edits">
@@ -640,6 +683,11 @@ function DirectEditPanelContent() {
   } | null>(null)
   const [commentInputAttention, setCommentInputAttention] = React.useState<{ commentId: string; nonce: number } | null>(null)
   const panelRef = React.useRef<HTMLDivElement>(null)
+  const positionRef = React.useRef(position)
+
+  React.useEffect(() => {
+    positionRef.current = position
+  }, [position])
 
   const handlePointerDown = (e: React.PointerEvent) => {
     if (!panelRef.current) return
@@ -650,33 +698,54 @@ function DirectEditPanelContent() {
       y: e.clientY - rect.top,
     })
     setIsDragging(true)
-    ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId)
+    } catch {
+      // Ignore unsupported pointer capture environments.
+    }
   }
 
   const handlePointerMove = (e: React.PointerEvent) => {
     if (!isDragging) return
 
-    const newX = Math.max(0, Math.min(window.innerWidth - PANEL_WIDTH, e.clientX - dragOffset.x))
-    const newY = Math.max(0, Math.min(window.innerHeight - PANEL_HEIGHT, e.clientY - dragOffset.y))
-
-    setPosition({ x: newX, y: newY })
+    const next = normalizePosition({
+      x: e.clientX - dragOffset.x,
+      y: e.clientY - dragOffset.y,
+    })
+    positionRef.current = next
+    setPosition(next)
   }
 
   const handlePointerUp = (e: React.PointerEvent) => {
     if (!isDragging) return
 
     setIsDragging(false)
-    ;(e.target as HTMLElement).releasePointerCapture(e.pointerId)
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId)
+    } catch {
+      // Ignore unsupported pointer capture environments.
+    }
 
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(position)) } catch {}
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(positionRef.current)) } catch {}
+  }
+
+  const handlePointerCancel = (e: React.PointerEvent) => {
+    if (!isDragging) return
+    setIsDragging(false)
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId)
+    } catch {
+      // Ignore unsupported pointer capture environments.
+    }
   }
 
   React.useEffect(() => {
     function handleResize() {
-      setPosition((prev) => ({
-        x: Math.min(prev.x, window.innerWidth - PANEL_WIDTH - 20),
-        y: Math.min(prev.y, window.innerHeight - PANEL_HEIGHT - 20),
-      }))
+      setPosition((prev) => {
+        const next = normalizePosition(prev)
+        positionRef.current = next
+        return next
+      })
     }
 
     window.addEventListener('resize', handleResize)
@@ -945,7 +1014,11 @@ function DirectEditPanelContent() {
         onReset={resetToOriginal}
         onExportEdits={exportEdits}
         onSendToAgent={sendEditToAgent}
-        canSendToAgent={canSendEditToAgent()}
+        canSendToAgent={canSendEditToAgent({
+          selectedElement,
+          elementInfo,
+          pendingStyles,
+        })}
         className="fixed z-[99999]"
         style={{
           left: position.x,
@@ -958,6 +1031,7 @@ function DirectEditPanelContent() {
         onHeaderPointerDown={handlePointerDown}
         onHeaderPointerMove={handlePointerMove}
         onHeaderPointerUp={handlePointerUp}
+        onHeaderPointerCancel={handlePointerCancel}
       />
     </>,
     container

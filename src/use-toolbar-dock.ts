@@ -1,4 +1,5 @@
 import * as React from 'react'
+import { clamp } from './utils'
 
 export type DockedEdge = 'top' | 'bottom' | 'left' | 'right'
 
@@ -20,16 +21,24 @@ function getInitialEdge(): DockedEdge {
 function getDockedPosition(edge: DockedEdge, width: number, height: number) {
   const vw = window.innerWidth
   const vh = window.innerHeight
+  const maxX = Math.max(0, vw - width)
+  const maxY = Math.max(0, vh - height)
+  const centeredX = clamp((vw - width) / 2, 0, maxX)
+  const centeredY = clamp((vh - height) / 2, 0, maxY)
+  const topY = clamp(EDGE_MARGIN, 0, maxY)
+  const bottomY = clamp(vh - height - EDGE_MARGIN, 0, maxY)
+  const leftX = clamp(EDGE_MARGIN, 0, maxX)
+  const rightX = clamp(vw - width - EDGE_MARGIN, 0, maxX)
 
   switch (edge) {
     case 'bottom':
-      return { x: (vw - width) / 2, y: vh - height - EDGE_MARGIN }
+      return { x: centeredX, y: bottomY }
     case 'top':
-      return { x: (vw - width) / 2, y: EDGE_MARGIN }
+      return { x: centeredX, y: topY }
     case 'left':
-      return { x: EDGE_MARGIN, y: (vh - height) / 2 }
+      return { x: leftX, y: centeredY }
     case 'right':
-      return { x: vw - width - EDGE_MARGIN, y: (vh - height) / 2 }
+      return { x: rightX, y: centeredY }
   }
 }
 
@@ -98,7 +107,7 @@ export function useToolbarDock(toolbarRef: React.RefObject<HTMLDivElement | null
     if (!el) return
 
     function recalc() {
-      const rect = el!.getBoundingClientRect()
+      const rect = el.getBoundingClientRect()
       setDockedPos(getDockedPosition(dockedEdge, rect.width, rect.height))
     }
 
@@ -121,7 +130,9 @@ export function useToolbarDock(toolbarRef: React.RefObject<HTMLDivElement | null
     pointerStartRef.current = { x: e.clientX, y: e.clientY }
     pendingDragRef.current = true
     capturedElementRef.current = e.currentTarget as HTMLElement
-    capturedElementRef.current.setPointerCapture(e.pointerId)
+    try {
+      capturedElementRef.current.setPointerCapture(e.pointerId)
+    } catch {}
   }, [toolbarRef])
 
   const handlePointerMove = React.useCallback((e: React.PointerEvent) => {
@@ -148,7 +159,9 @@ export function useToolbarDock(toolbarRef: React.RefObject<HTMLDivElement | null
 
   const handlePointerUp = React.useCallback((e: React.PointerEvent) => {
     if (capturedElementRef.current) {
-      capturedElementRef.current.releasePointerCapture(e.pointerId)
+      try {
+        capturedElementRef.current.releasePointerCapture(e.pointerId)
+      } catch {}
       capturedElementRef.current = null
     }
 

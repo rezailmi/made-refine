@@ -135,4 +135,59 @@ describe('DirectEditToolbarInner', () => {
       expect(writeText).toHaveBeenCalledTimes(1)
     })
   })
+
+  it('sends all items to agents from the copy popover', async () => {
+    const onSendAllToAgents = vi.fn<(...args: unknown[]) => Promise<boolean>>().mockResolvedValue(true)
+    const commentItem: SessionItem = {
+      type: 'comment',
+      comment: {
+        id: 'comment-send-all',
+        element: document.createElement('div'),
+        locator: {
+          reactStack: [],
+          domSelector: '#comment-send-all',
+          domContextHtml: '<div></div>',
+          targetHtml: '<div id="comment-send-all"></div>',
+          textPreview: 'Align this section with header',
+          tagName: 'div',
+          id: 'comment-send-all',
+          classList: [],
+        },
+        clickPosition: { x: 8, y: 16 },
+        relativePosition: { x: 0, y: 0 },
+        text: 'Align this section with header',
+        createdAt: Date.now(),
+        replies: [],
+      },
+    }
+
+    const { container } = render(
+      <DirectEditToolbarInner
+        editModeActive={true}
+        onToggleEditMode={() => {}}
+        rulersVisible={false}
+        onToggleRulers={() => {}}
+        sessionEditCount={1}
+        onGetSessionItems={() => [commentItem]}
+        onSendAllToAgents={onSendAllToAgents}
+      />,
+    )
+
+    const editsTrigger = container.querySelector('svg.lucide-copy')?.closest('button')
+    expect(editsTrigger).not.toBeNull()
+    fireEvent.click(editsTrigger as HTMLButtonElement)
+
+    const sendAllButton = await waitFor(() => {
+      const found = Array.from(document.body.querySelectorAll('button')).find((button) => (
+        button.textContent?.trim().toLowerCase().startsWith('send all')
+      ))
+      expect(found).not.toBeNull()
+      return found as HTMLButtonElement
+    })
+
+    fireEvent.click(sendAllButton)
+    await waitFor(() => {
+      expect(onSendAllToAgents).toHaveBeenCalledTimes(1)
+    })
+  })
 })

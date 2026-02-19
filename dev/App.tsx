@@ -1,5 +1,5 @@
 import React from 'react'
-import { DirectEdit } from '../src/index'
+import { DirectEdit } from '../src/direct-edit'
 import { Avatar, Button } from './components'
 
 const gray = {

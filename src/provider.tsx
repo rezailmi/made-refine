@@ -82,8 +82,13 @@ export interface DirectEditActionsContextValue {
   addCommentReply: (id: string, text: string) => void
   deleteComment: (id: string) => void
   exportComment: (id: string) => Promise<boolean>
-  canSendEditToAgent: () => boolean
+  canSendEditToAgent: (snapshot?: {
+    selectedElement: HTMLElement | null
+    elementInfo: DirectEditState['elementInfo']
+    pendingStyles: Record<string, string>
+  }) => boolean
   sendEditToAgent: () => Promise<boolean>
+  sendAllSessionItemsToAgent: () => Promise<boolean>
   sendCommentToAgent: (id: string) => Promise<boolean>
   setActiveCommentId: (id: string | null) => void
   getSessionEdits: () => SessionEdit[]
@@ -1220,9 +1225,12 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
   React.useEffect(() => {
     const editingElement = state.textEditingElement
     if (!editingElement) return
+    const activeEditingElement = editingElement
 
     function handleMouseDown(e: MouseEvent) {
-      if (!editingElement!.contains(e.target as Node)) {
+      const target = e.target
+      if (!(target instanceof Node)) return
+      if (!activeEditingElement.contains(target)) {
         commitTextEditing()
       }
     }
@@ -1375,32 +1383,35 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     }
   }, [])
 
-  const canSendEditToAgent = React.useCallback(() => {
+  const canSendEditToAgent = React.useCallback((snapshot?: {
+    selectedElement: HTMLElement | null
+    elementInfo: DirectEditState['elementInfo']
+    pendingStyles: Record<string, string>
+  }) => {
     const current = stateRef.current
-    if (!current.selectedElement || !current.elementInfo) return false
-    const sessionEdit = sessionEditsRef.current.get(current.selectedElement)
-    const hasPendingStyles = Object.keys(current.pendingStyles).length > 0
+    const selectedElement = snapshot?.selectedElement ?? current.selectedElement
+    const elementInfo = snapshot?.elementInfo ?? current.elementInfo
+    const pendingStyles = snapshot?.pendingStyles ?? current.pendingStyles
+    if (!selectedElement || !elementInfo) return false
+    const sessionEdit = sessionEditsRef.current.get(selectedElement)
+    const hasPendingStyles = Object.keys(pendingStyles).length > 0
     const hasTextEdit = Boolean(sessionEdit?.textEdit)
     const hasMove = Boolean(sessionEdit?.move)
     return hasPendingStyles || hasTextEdit || hasMove
   }, [])
 
-  const sendEditToAgent = React.useCallback(async () => {
-    const current = stateRef.current
-    if (!current.selectedElement || !current.elementInfo) return false
-    const sessionEdit = sessionEditsRef.current.get(current.selectedElement)
-    if (!canSendEditToAgent()) return false
-
-    const locator = getElementLocator(current.selectedElement)
-    const exportMarkdown = sessionEdit?.move
+  const sendSessionEditToAgent = React.useCallback(async (sessionEdit: SessionEdit) => {
+    const locator = sessionEdit.locator
+    const pendingStyles = { ...sessionEdit.pendingStyles }
+    const exportMarkdown = sessionEdit.move
       ? buildSessionExport([{
           ...sessionEdit,
           locator,
-          pendingStyles: { ...current.pendingStyles },
+          pendingStyles,
           textEdit: sessionEdit.textEdit,
         }], [])
-      : buildEditExport(locator, current.pendingStyles, sessionEdit?.textEdit)
-    const collapsedStyles = collapseExportShorthands(current.pendingStyles)
+      : buildEditExport(locator, pendingStyles, sessionEdit.textEdit)
+    const collapsedStyles = collapseExportShorthands(pendingStyles)
     const changes = Object.entries(collapsedStyles).map(([cssProperty, cssValue]) => ({
       cssProperty,
       cssValue,
@@ -1420,19 +1431,17 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
         source: locator.domSource || null,
         reactStack: locator.reactStack,
         changes,
-        textChange: sessionEdit?.textEdit ?? null,
+        textChange: sessionEdit.textEdit ?? null,
+        moveChange: sessionEdit.move ?? null,
         exportMarkdown,
       })
       return result.ok
     } catch {
       return false
     }
-  }, [canSendEditToAgent])
+  }, [])
 
-  const sendCommentToAgent = React.useCallback(async (id: string) => {
-    const comment = stateRef.current.comments.find((c) => c.id === id)
-    if (!comment) return false
-
+  const sendSessionCommentToAgent = React.useCallback(async (comment: Comment) => {
     const exportMarkdown = buildCommentExport(comment.locator, comment.text, comment.replies)
 
     try {
@@ -1456,6 +1465,51 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
       return false
     }
   }, [])
+
+  const sendEditToAgent = React.useCallback(async () => {
+    const current = stateRef.current
+    if (!current.selectedElement || !current.elementInfo) return false
+    const sessionEdit = sessionEditsRef.current.get(current.selectedElement)
+    if (!canSendEditToAgent({
+      selectedElement: current.selectedElement,
+      elementInfo: current.elementInfo,
+      pendingStyles: current.pendingStyles,
+    })) return false
+
+    const locator = getElementLocator(current.selectedElement)
+    const editToSend: SessionEdit = {
+      element: current.selectedElement,
+      locator,
+      originalStyles: sessionEdit?.originalStyles ?? { ...current.originalStyles },
+      pendingStyles: { ...current.pendingStyles },
+      move: sessionEdit?.move ?? null,
+      textEdit: sessionEdit?.textEdit ?? null,
+    }
+    return sendSessionEditToAgent(editToSend)
+  }, [canSendEditToAgent, sendSessionEditToAgent])
+
+  const sendCommentToAgent = React.useCallback(async (id: string) => {
+    const comment = stateRef.current.comments.find((c) => c.id === id)
+    if (!comment) return false
+    return sendSessionCommentToAgent(comment)
+  }, [sendSessionCommentToAgent])
+
+  const sendAllSessionItemsToAgent = React.useCallback(async () => {
+    const items = getSessionItems()
+    if (items.length === 0) return false
+
+    let allSucceeded = true
+    for (const item of items) {
+      const succeeded = item.type === 'edit'
+        ? await sendSessionEditToAgent(item.edit)
+        : await sendSessionCommentToAgent(item.comment)
+      if (!succeeded) {
+        allSucceeded = false
+      }
+    }
+
+    return allSucceeded
+  }, [getSessionItems, sendSessionCommentToAgent, sendSessionEditToAgent])
 
   // Toggle edit mode: plain Cmd/Ctrl + Period
   // Uses capture phase so it fires before any stopPropagation() in the host app (e.g. Tauri webview)
@@ -1578,6 +1632,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     exportEdits,
     canSendEditToAgent,
     sendEditToAgent,
+    sendAllSessionItemsToAgent,
     sendCommentToAgent,
     toggleEditMode,
     undo,
@@ -1617,6 +1672,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     exportEdits,
     canSendEditToAgent,
     sendEditToAgent,
+    sendAllSessionItemsToAgent,
     sendCommentToAgent,
     toggleEditMode,
     undo,
