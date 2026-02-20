@@ -64,6 +64,19 @@ function mockClipboard() {
   return writeText
 }
 
+function stubMatchMedia() {
+  vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    addListener: () => {},
+    removeListener: () => {},
+    dispatchEvent: () => false,
+  })))
+}
+
 function resetStorage() {
   const keys = [
     'direct-edit-theme',
@@ -334,16 +347,7 @@ describe('DirectEditProvider', () => {
       unobserve() {}
     }
     vi.stubGlobal('ResizeObserver', ResizeObserverMock)
-    vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({
-      matches: false,
-      media: query,
-      onchange: null,
-      addEventListener: () => {},
-      removeEventListener: () => {},
-      addListener: () => {},
-      removeListener: () => {},
-      dispatchEvent: () => false,
-    })))
+    stubMatchMedia()
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
 
     mockClipboard()
@@ -419,6 +423,97 @@ describe('DirectEditProvider', () => {
       expect(host.getAttribute('data-theme')).toBe('light')
       expect(localStorage.getItem('direct-edit-theme')).toBe('light')
     })
+  })
+
+  it('clamps persisted panel position to the viewport', async () => {
+    stubMatchMedia()
+    localStorage.setItem('direct-edit-panel-position', JSON.stringify({ x: -320, y: -180 }))
+    const target = createTarget('panel-clamp-target', 'padding-top: 8px;')
+    const { result } = renderHook(() => useDirectEdit(), { wrapper: panelWrapper })
+
+    act(() => {
+      result.current.selectElement(target)
+    })
+
+    const host = await waitFor(() => {
+      const node = document.querySelector('[data-direct-edit-host]') as HTMLElement | null
+      expect(node).not.toBeNull()
+      return node as HTMLElement
+    })
+
+    const panel = await waitFor(() => {
+      const node = host.shadowRoot?.querySelector('[data-direct-edit="panel"]') as HTMLElement | null
+      expect(node).not.toBeNull()
+      return node as HTMLElement
+    })
+
+    expect(panel.style.left).toBe('8px')
+    expect(panel.style.top).toBe('8px')
+  })
+
+  it('re-clamps panel position when viewport shrinks below panel size', async () => {
+    stubMatchMedia()
+    localStorage.setItem('direct-edit-panel-position', JSON.stringify({ x: 500, y: 300 }))
+    const target = createTarget('panel-resize-target', 'padding-top: 8px;')
+    const { result } = renderHook(() => useDirectEdit(), { wrapper: panelWrapper })
+
+    act(() => {
+      result.current.selectElement(target)
+    })
+
+    const host = await waitFor(() => {
+      const node = document.querySelector('[data-direct-edit-host]') as HTMLElement | null
+      expect(node).not.toBeNull()
+      return node as HTMLElement
+    })
+
+    const panel = await waitFor(() => {
+      const node = host.shadowRoot?.querySelector('[data-direct-edit="panel"]') as HTMLElement | null
+      expect(node).not.toBeNull()
+      return node as HTMLElement
+    })
+
+    expect(panel.style.left).toBe('500px')
+    expect(panel.style.top).toBe('340px')
+
+    const originalWidth = window.innerWidth
+    const originalHeight = window.innerHeight
+
+    try {
+      Object.defineProperty(window, 'innerWidth', {
+        configurable: true,
+        value: 180,
+        writable: true,
+      })
+      Object.defineProperty(window, 'innerHeight', {
+        configurable: true,
+        value: 160,
+        writable: true,
+      })
+
+      act(() => {
+        window.dispatchEvent(new Event('resize'))
+      })
+
+      await waitFor(() => {
+        expect(panel.style.left).toBe('0px')
+        expect(panel.style.top).toBe('0px')
+      })
+    } finally {
+      Object.defineProperty(window, 'innerWidth', {
+        configurable: true,
+        value: originalWidth,
+        writable: true,
+      })
+      Object.defineProperty(window, 'innerHeight', {
+        configurable: true,
+        value: originalHeight,
+        writable: true,
+      })
+      act(() => {
+        window.dispatchEvent(new Event('resize'))
+      })
+    }
   })
 
   it('supports code-based period toggle and ignores shift/alt variants', () => {
@@ -533,6 +628,41 @@ describe('DirectEditProvider', () => {
     expect(cssProperties).not.toContain('padding-right')
     expect(cssProperties).not.toContain('padding-bottom')
     expect(cssProperties).not.toContain('padding-left')
+  })
+
+  it('sends all session items to agents', async () => {
+    mockClipboard()
+    const editTarget = createTarget('bulk-send-edit-target')
+    const commentTarget = createTarget('bulk-send-comment-target', 'padding-top: 8px;')
+    const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+    act(() => {
+      result.current.selectElement(editTarget)
+    })
+
+    await waitFor(() => {
+      expect(result.current.selectedElement).toBe(editTarget)
+    })
+
+    act(() => {
+      result.current.updateSpacingProperty('paddingTop', cssValue(18))
+      result.current.addComment(commentTarget, { x: 18, y: 28 })
+    })
+
+    const commentId = result.current.comments[0]?.id
+    expect(commentId).toBeDefined()
+
+    act(() => {
+      result.current.updateCommentText(commentId!, 'Move this block below the hero')
+    })
+
+    sendEditToAgentMock.mockClear()
+    sendCommentToAgentMock.mockClear()
+
+    const sent = await result.current.sendAllSessionItemsToAgent()
+    expect(sent).toBe(true)
+    expect(sendEditToAgentMock).toHaveBeenCalledTimes(1)
+    expect(sendCommentToAgentMock).toHaveBeenCalledTimes(1)
   })
 
   it('supports comments lifecycle, clipboard export, and agent send', async () => {
@@ -708,9 +838,16 @@ describe('DirectEditProvider', () => {
 
     const payload = sendEditToAgentMock.mock.calls[0][0] as {
       changes: Array<{ cssProperty: string; cssValue: string; tailwindClass: string }>
+      moveChange: Record<string, unknown> | null
       exportMarkdown: string
     }
     expect(payload.changes).toEqual([])
+    expect(payload.moveChange).toEqual(
+      expect.objectContaining({
+        fromParentName: expect.any(String),
+        toParentName: expect.any(String),
+      }),
+    )
     expect(payload.exportMarkdown).toContain('moved:')
     expect(payload.exportMarkdown).toContain('summary:')
   })

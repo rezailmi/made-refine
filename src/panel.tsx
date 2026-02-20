@@ -26,6 +26,7 @@ import {
   calculateGuidelineMeasurements, isFlexContainer, isTextElement,
   resolveElementTarget, computeHoverHighlight,
   elementFromPointWithoutOverlays, findChildAtPoint,
+  clamp,
 } from './utils'
 import { MoveOverlay } from './move-overlay'
 import { SelectionOverlay } from './selection-overlay'
@@ -74,10 +75,83 @@ export { AlignmentGrid } from './panel/alignment-grid'
 const STORAGE_KEY = 'direct-edit-panel-position'
 const PANEL_WIDTH = 300
 const PANEL_HEIGHT = 420
+const PANEL_MARGIN = 8
 
 interface Position {
   x: number
   y: number
+}
+
+function getPanelBounds() {
+  const availableX = window.innerWidth - PANEL_WIDTH
+  const availableY = window.innerHeight - PANEL_HEIGHT
+  const minX = availableX <= 0 ? 0 : Math.min(PANEL_MARGIN, availableX)
+  const minY = availableY <= 0 ? 0 : Math.min(PANEL_MARGIN, availableY)
+  const maxX = availableX <= 0 ? 0 : Math.max(minX, availableX - PANEL_MARGIN)
+  const maxY = availableY <= 0 ? 0 : Math.max(minY, availableY - PANEL_MARGIN)
+
+  return {
+    minX,
+    maxX,
+    minY,
+    maxY,
+  }
+}
+
+function normalizePosition(position: Position): Position {
+  const { minX, maxX, minY, maxY } = getPanelBounds()
+  return {
+    x: clamp(position.x, minX, maxX),
+    y: clamp(position.y, minY, maxY),
+  }
+}
+
+function snapToEdge(position: Position): Position {
+  const { minX, maxX, minY, maxY } = getPanelBounds()
+  const centerX = position.x + PANEL_WIDTH / 2
+  const centerY = position.y + PANEL_HEIGHT / 2
+  const vw = window.innerWidth
+  const vh = window.innerHeight
+
+  const distances = {
+    top: centerY,
+    bottom: vh - centerY,
+    left: centerX,
+    right: vw - centerX,
+  }
+
+  let nearest: 'top' | 'bottom' | 'left' | 'right' = 'right'
+  let min = Infinity
+  for (const [edge, dist] of Object.entries(distances) as ['top' | 'bottom' | 'left' | 'right', number][]) {
+    if (dist < min) {
+      min = dist
+      nearest = edge
+    }
+  }
+
+  const freeX = clamp(position.x, minX, maxX)
+  const freeY = clamp(position.y, minY, maxY)
+
+  switch (nearest) {
+    case 'top':
+      return { x: freeX, y: minY }
+    case 'bottom':
+      return { x: freeX, y: maxY }
+    case 'left':
+      return { x: minX, y: freeY }
+    case 'right':
+      return { x: maxX, y: freeY }
+  }
+}
+
+function parseStoredPosition(raw: string): Position | null {
+  const parsed: unknown = JSON.parse(raw)
+  if (!parsed || typeof parsed !== 'object') return null
+
+  const candidate = parsed as { x?: unknown; y?: unknown }
+  if (typeof candidate.x !== 'number' || !Number.isFinite(candidate.x)) return null
+  if (typeof candidate.y !== 'number' || !Number.isFinite(candidate.y)) return null
+  return { x: candidate.x, y: candidate.y }
 }
 
 function getInitialPosition(): Position {
@@ -88,16 +162,19 @@ function getInitialPosition(): Position {
   try {
     const stored = localStorage.getItem(STORAGE_KEY)
     if (stored) {
-      return JSON.parse(stored)
+      const parsed = parseStoredPosition(stored)
+      if (parsed) {
+        return snapToEdge(parsed)
+      }
     }
   } catch {
     // Fall through to default
   }
 
-  return {
-    x: window.innerWidth - PANEL_WIDTH - 20,
-    y: window.innerHeight - PANEL_HEIGHT - 20,
-  }
+  return snapToEdge({
+    x: window.innerWidth - PANEL_WIDTH - PANEL_MARGIN,
+    y: window.innerHeight - PANEL_HEIGHT - PANEL_MARGIN,
+  })
 }
 
 export interface DirectEditPanelInnerProps {
@@ -172,6 +249,7 @@ export interface DirectEditPanelInnerProps {
   onHeaderPointerDown?: (e: React.PointerEvent) => void
   onHeaderPointerMove?: (e: React.PointerEvent) => void
   onHeaderPointerUp?: (e: React.PointerEvent) => void
+  onHeaderPointerCancel?: (e: React.PointerEvent) => void
 }
 
 export function DirectEditPanelInner({
@@ -210,6 +288,7 @@ export function DirectEditPanelInner({
   onHeaderPointerDown,
   onHeaderPointerMove,
   onHeaderPointerUp,
+  onHeaderPointerCancel,
 }: DirectEditPanelInnerProps) {
   const [copied, setCopied] = React.useState(false)
   const [copyError, setCopyError] = React.useState(false)
@@ -269,11 +348,15 @@ export function DirectEditPanelInner({
       ref={panelRef}
       data-direct-edit="panel"
       className={cn(
-        'flex flex-col overflow-hidden rounded-xl outline outline-1 outline-foreground/10 shadow-lg',
-        isDragging && 'cursor-grabbing select-none',
+        'flex flex-col overflow-hidden rounded-xl outline outline-1 outline-foreground/10 shadow-lg transition-shadow duration-200',
+        isDragging && 'cursor-grabbing select-none shadow-2xl',
         className
       )}
-      style={{ width: PANEL_WIDTH, ...style }}
+      style={{
+        width: PANEL_WIDTH,
+        ...(isDragging && { transform: 'rotate(0.5deg) scale(1.01)', transition: 'transform 150ms ease-out, box-shadow 150ms ease-out' }),
+        ...style,
+      }}
     >
       <div
         className={cn(
@@ -284,6 +367,7 @@ export function DirectEditPanelInner({
         onPointerDown={onHeaderPointerDown}
         onPointerMove={onHeaderPointerMove}
         onPointerUp={onHeaderPointerUp}
+        onPointerCancel={onHeaderPointerCancel}
       >
         <div className="min-w-0 flex-1">
           <code className="text-xs font-medium text-foreground">
@@ -564,6 +648,7 @@ export function DirectEditPanelInner({
         onPointerDown={onHeaderPointerDown}
         onPointerMove={onHeaderPointerMove}
         onPointerUp={onHeaderPointerUp}
+        onPointerCancel={onHeaderPointerCancel}
       >
         <div className="flex-1" />
         <Tip label="Copy edits">
@@ -633,13 +718,20 @@ function DirectEditPanelContent() {
 
   const [position, setPosition] = React.useState<Position>(getInitialPosition)
   const [isDragging, setIsDragging] = React.useState(false)
+  const [isSnapping, setIsSnapping] = React.useState(false)
   const [dragOffset, setDragOffset] = React.useState<Position>({ x: 0, y: 0 })
+  const snapTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
   const [hoverHighlight, setHoverHighlight] = React.useState<{
     flexContainer: HTMLElement
     children: HTMLElement[]
   } | null>(null)
   const [commentInputAttention, setCommentInputAttention] = React.useState<{ commentId: string; nonce: number } | null>(null)
   const panelRef = React.useRef<HTMLDivElement>(null)
+  const positionRef = React.useRef(position)
+
+  React.useEffect(() => {
+    positionRef.current = position
+  }, [position])
 
   const handlePointerDown = (e: React.PointerEvent) => {
     if (!panelRef.current) return
@@ -650,37 +742,75 @@ function DirectEditPanelContent() {
       y: e.clientY - rect.top,
     })
     setIsDragging(true)
-    ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId)
+    } catch {
+      // Ignore unsupported pointer capture environments.
+    }
   }
 
   const handlePointerMove = (e: React.PointerEvent) => {
     if (!isDragging) return
 
-    const newX = Math.max(0, Math.min(window.innerWidth - PANEL_WIDTH, e.clientX - dragOffset.x))
-    const newY = Math.max(0, Math.min(window.innerHeight - PANEL_HEIGHT, e.clientY - dragOffset.y))
-
-    setPosition({ x: newX, y: newY })
+    const next = normalizePosition({
+      x: e.clientX - dragOffset.x,
+      y: e.clientY - dragOffset.y,
+    })
+    positionRef.current = next
+    setPosition(next)
   }
 
   const handlePointerUp = (e: React.PointerEvent) => {
     if (!isDragging) return
 
     setIsDragging(false)
-    ;(e.target as HTMLElement).releasePointerCapture(e.pointerId)
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId)
+    } catch {
+      // Ignore unsupported pointer capture environments.
+    }
 
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(position)) } catch {}
+    const snapped = snapToEdge(positionRef.current)
+    positionRef.current = snapped
+    setPosition(snapped)
+    setIsSnapping(true)
+
+    if (snapTimerRef.current) clearTimeout(snapTimerRef.current)
+    snapTimerRef.current = setTimeout(() => {
+      snapTimerRef.current = null
+      setIsSnapping(false)
+    }, 350)
+
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(snapped)) } catch {}
+  }
+
+  const handlePointerCancel = (e: React.PointerEvent) => {
+    if (!isDragging) return
+    setIsDragging(false)
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId)
+    } catch {
+      // Ignore unsupported pointer capture environments.
+    }
   }
 
   React.useEffect(() => {
     function handleResize() {
-      setPosition((prev) => ({
-        x: Math.min(prev.x, window.innerWidth - PANEL_WIDTH - 20),
-        y: Math.min(prev.y, window.innerHeight - PANEL_HEIGHT - 20),
-      }))
+      setPosition((prev) => {
+        const next = snapToEdge(prev)
+        positionRef.current = next
+        return next
+      })
     }
 
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
+  React.useEffect(() => {
+    return () => {
+      if (snapTimerRef.current) clearTimeout(snapTimerRef.current)
+    }
   }, [])
 
   const { isActive: measurementActive, hoveredElement, measurements, mousePosition } = useMeasurement(
@@ -945,19 +1075,27 @@ function DirectEditPanelContent() {
         onReset={resetToOriginal}
         onExportEdits={exportEdits}
         onSendToAgent={sendEditToAgent}
-        canSendToAgent={canSendEditToAgent()}
+        canSendToAgent={canSendEditToAgent({
+          selectedElement,
+          elementInfo,
+          pendingStyles,
+        })}
         className="fixed z-[99999]"
         style={{
           left: position.x,
           top: position.y,
           maxHeight: PANEL_HEIGHT,
           pointerEvents: 'auto',
+          ...(isSnapping && {
+            transition: 'left 300ms cubic-bezier(0.34, 1.56, 0.64, 1), top 300ms cubic-bezier(0.34, 1.56, 0.64, 1)',
+          }),
         }}
         panelRef={panelRef}
         isDragging={isDragging}
         onHeaderPointerDown={handlePointerDown}
         onHeaderPointerMove={handlePointerMove}
         onHeaderPointerUp={handlePointerUp}
+        onHeaderPointerCancel={handlePointerCancel}
       />
     </>,
     container

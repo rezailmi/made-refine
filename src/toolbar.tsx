@@ -7,7 +7,7 @@ import { useRulersVisible } from './rulers-overlay'
 import { cn } from './cn'
 import { useToolbarDock } from './use-toolbar-dock'
 import { Popover } from '@base-ui/react/popover'
-import { MousePointer2, Ruler, Command, ArrowBigUp, MessageSquare, EllipsisVertical, Sun, Moon, Monitor, Option, X, Check, Copy, Trash2 } from 'lucide-react'
+import { MousePointer2, Ruler, Command, ArrowBigUp, MessageSquare, EllipsisVertical, Sun, Moon, Monitor, Option, X, Check, Copy, Send, Trash2 } from 'lucide-react'
 import type { ActiveTool, Theme, SessionItem } from './types'
 import { Badge } from './ui/badge'
 import { buildSessionExport } from './utils'
@@ -30,6 +30,7 @@ export interface DirectEditToolbarInnerProps {
   sessionEditCount?: number
   onGetSessionItems?: () => SessionItem[]
   onExportAllEdits?: () => Promise<boolean>
+  onSendAllToAgents?: () => Promise<boolean>
   onClearSessionEdits?: () => void
   onRemoveSessionEdit?: (element: HTMLElement) => void
   onDeleteComment?: (id: string) => void
@@ -71,6 +72,7 @@ export function DirectEditToolbarInner({
   sessionEditCount = 0,
   onGetSessionItems,
   onExportAllEdits,
+  onSendAllToAgents,
   onClearSessionEdits,
   onRemoveSessionEdit,
   onDeleteComment,
@@ -87,6 +89,7 @@ export function DirectEditToolbarInner({
   const [settingsOpen, setSettingsOpen] = React.useState(false)
   const [editsOpen, setEditsOpen] = React.useState(false)
   const [copied, setCopied] = React.useState(false)
+  const [sendStatus, setSendStatus] = React.useState<'idle' | 'sending' | 'sent' | 'offline'>('idle')
   const settingsPopupRef = React.useRef<HTMLDivElement>(null)
   const settingsTriggerRef = React.useRef<HTMLButtonElement>(null)
   const settingsCloseTimerRef = React.useRef<number | null>(null)
@@ -195,6 +198,26 @@ export function DirectEditToolbarInner({
     setCopied(true)
     window.setTimeout(() => setCopied(false), 2000)
   }, [onExportAllEdits])
+
+  const handleSendAll = React.useCallback(async () => {
+    if (!onSendAllToAgents || sendStatus === 'sending') return
+
+    setSendStatus('sending')
+    let success = false
+    try {
+      success = await onSendAllToAgents()
+    } catch {
+      success = false
+    }
+    if (success) {
+      setSendStatus('sent')
+      window.setTimeout(() => setSendStatus('idle'), 2000)
+      return
+    }
+
+    setSendStatus('offline')
+    window.setTimeout(() => setSendStatus('idle'), 2000)
+  }, [onSendAllToAgents, sendStatus])
 
   const handleCopyItem = React.useCallback(async (item: SessionItem) => {
     const text = item.type === 'edit'
@@ -407,6 +430,30 @@ export function DirectEditToolbarInner({
                               )}
                               {copied ? 'Copied' : 'Copy all'}
                             </BaseButton>
+                            {onSendAllToAgents && (
+                              <BaseButton
+                                className="inline-flex h-6 items-center gap-1 rounded-md px-2 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+                                onClick={() => {
+                                  void handleSendAll()
+                                }}
+                                disabled={sendStatus === 'sending'}
+                              >
+                                {sendStatus === 'offline' ? (
+                                  <X className="size-3 text-red-500" />
+                                ) : sendStatus === 'sent' ? (
+                                  <Check className="size-3 text-green-400" />
+                                ) : (
+                                  <Send className={cn('size-3', sendStatus === 'sending' && 'animate-pulse')} />
+                                )}
+                                {sendStatus === 'sending'
+                                  ? 'Sending'
+                                  : sendStatus === 'sent'
+                                    ? 'Sent'
+                                    : sendStatus === 'offline'
+                                      ? 'Offline'
+                                      : 'Send all'}
+                              </BaseButton>
+                            )}
                             <Tooltip>
                               <TooltipTrigger render={
                                 <BaseButton
@@ -628,7 +675,7 @@ function DirectEditToolbarContent() {
   const { editModeActive, activeTool, theme, sessionEditCount } = useDirectEditState()
   const {
     toggleEditMode, setActiveTool, setTheme,
-    getSessionItems, exportAllEdits, clearSessionEdits, removeSessionEdit, deleteComment,
+    getSessionItems, exportAllEdits, sendAllSessionItemsToAgent, clearSessionEdits, removeSessionEdit, deleteComment,
   } = useDirectEditActions()
   const [rulersVisible, toggleRulers] = useRulersVisible()
 
@@ -645,6 +692,7 @@ function DirectEditToolbarContent() {
       sessionEditCount={sessionEditCount}
       onGetSessionItems={getSessionItems}
       onExportAllEdits={exportAllEdits}
+      onSendAllToAgents={sendAllSessionItemsToAgent}
       onClearSessionEdits={clearSessionEdits}
       onRemoveSessionEdit={removeSessionEdit}
       onDeleteComment={deleteComment}

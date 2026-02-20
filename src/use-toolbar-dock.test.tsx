@@ -168,4 +168,77 @@ describe('useToolbarDock', () => {
     expect(result.current.isDragging).toBe(true)
     expect(result.current.isSnapping).toBe(false)
   })
+
+  it('keeps docked position in viewport when toolbar is larger than viewport', () => {
+    Object.defineProperty(window, 'innerWidth', {
+      configurable: true,
+      value: 120,
+      writable: true,
+    })
+    Object.defineProperty(window, 'innerHeight', {
+      configurable: true,
+      value: 90,
+      writable: true,
+    })
+
+    const rect: RectState = { left: 0, top: 0, width: 180, height: 120 }
+    const toolbarEl = createToolbarElement(rect)
+    const ref: React.RefObject<HTMLDivElement | null> = { current: toolbarEl }
+
+    const { result } = renderHook(() => useToolbarDock(ref))
+
+    act(() => {
+      vi.runOnlyPendingTimers()
+    })
+
+    expect(result.current.style.left).toBe(0)
+    expect(result.current.style.top).toBe(0)
+  })
+
+  it('does not throw when pointer capture is unavailable on pointer down', () => {
+    const rect: RectState = { left: 560, top: 720, width: 160, height: 40 }
+    const toolbarEl = createToolbarElement(rect)
+    toolbarEl.setPointerCapture = vi.fn(() => {
+      throw new Error('Pointer capture unavailable')
+    })
+    const ref: React.RefObject<HTMLDivElement | null> = { current: toolbarEl }
+
+    const { result } = renderHook(() => useToolbarDock(ref))
+
+    act(() => {
+      vi.runOnlyPendingTimers()
+    })
+
+    expect(() => {
+      act(() => {
+        result.current.handlePointerDown(createPointerEvent(toolbarEl, 580, 730))
+      })
+    }).not.toThrow()
+  })
+
+  it('does not throw when releasing pointer capture fails on pointer up', () => {
+    const rect: RectState = { left: 560, top: 720, width: 160, height: 40 }
+    const toolbarEl = createToolbarElement(rect)
+    toolbarEl.releasePointerCapture = vi.fn(() => {
+      throw new Error('Pointer capture not set')
+    })
+    const ref: React.RefObject<HTMLDivElement | null> = { current: toolbarEl }
+
+    const { result } = renderHook(() => useToolbarDock(ref))
+
+    act(() => {
+      vi.runOnlyPendingTimers()
+    })
+
+    act(() => {
+      result.current.handlePointerDown(createPointerEvent(toolbarEl, 580, 730))
+      result.current.handlePointerMove(createPointerEvent(toolbarEl, 590, 730))
+    })
+
+    expect(() => {
+      act(() => {
+        result.current.handlePointerUp(createPointerEvent(toolbarEl, 590, 730))
+      })
+    }).not.toThrow()
+  })
 })

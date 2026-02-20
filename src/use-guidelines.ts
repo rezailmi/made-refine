@@ -3,6 +3,23 @@ import type { Guideline } from './types'
 
 const STORAGE_KEY = 'direct-edit-guidelines'
 
+function isGuidelineOrientation(value: unknown): value is Guideline['orientation'] {
+  return value === 'horizontal' || value === 'vertical'
+}
+
+function isValidGuideline(value: unknown): value is Guideline {
+  if (!value || typeof value !== 'object') return false
+
+  const candidate = value as Partial<Guideline>
+  return (
+    typeof candidate.id === 'string'
+    && candidate.id.length > 0
+    && isGuidelineOrientation(candidate.orientation)
+    && typeof candidate.position === 'number'
+    && Number.isFinite(candidate.position)
+  )
+}
+
 export interface UseGuidelinesResult {
   guidelines: Guideline[]
   activeGuideline: Guideline | null
@@ -19,7 +36,11 @@ function loadGuidelines(): Guideline[] {
   if (typeof window === 'undefined') return []
   try {
     const stored = localStorage.getItem(STORAGE_KEY)
-    return stored ? JSON.parse(stored) : []
+    if (!stored) return []
+
+    const parsed: unknown = JSON.parse(stored)
+    if (!Array.isArray(parsed)) return []
+    return parsed.filter(isValidGuideline)
   } catch {
     return []
   }
