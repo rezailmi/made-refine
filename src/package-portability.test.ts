@@ -55,7 +55,7 @@ describe('package portability', () => {
         'dist/vite.d.ts',
         'dist/babel.cjs',
         'README.md',
-        'LICENSE',
+        'LICENSE.md',
       ]),
     )
   })
