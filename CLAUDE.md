@@ -19,3 +19,7 @@ Visual CSS editor for React apps, rendered inside Shadow DOM for CSS isolation.
 - [Shadow DOM + Tailwind v4 workaround](docs/shadow-dom-tailwind.md) — why some Tailwind classes fail in Shadow DOM and how we fix it
 - [CLI](docs/cli.md) — `npx made-refine init`, framework detection, and project setup
 - [MCP client](docs/mcp-client.md) — browser-to-agent communication protocol for sending edits and comments
+- [MCP server](docs/mcp-server.md) — tools agents use to read annotations, annotation lifecycle, project/session scoping
+- [Mac app integration](docs/mac-app-integration.md) — HTTP contract between the overlay and the local Mac app broker
+- [Runner workflow](docs/runner-workflow.md) — end-to-end: element selection → CSS edit → send → agent applies code
+- [Preload](docs/preload.md) — React fiber DevTools hook, why it loads before React, framework wiring
