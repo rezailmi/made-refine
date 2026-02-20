@@ -14,7 +14,7 @@ Visual CSS editor for React. Edit styles in the browser, then copy agent-ready e
 npx made-refine@latest init
 ```
 
-Run this in your project folder. It detects your framework, installs everything, and applies the necessary config changes after your confirmation.
+Run this in your project folder. It detects your framework and applies the necessary config changes after your confirmation.
 
 ## How it works
 
