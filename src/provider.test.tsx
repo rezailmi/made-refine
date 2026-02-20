@@ -447,8 +447,8 @@ describe('DirectEditProvider', () => {
       return node as HTMLElement
     })
 
-    expect(panel.style.left).toBe('20px')
-    expect(panel.style.top).toBe('20px')
+    expect(panel.style.left).toBe('8px')
+    expect(panel.style.top).toBe('8px')
   })
 
   it('re-clamps panel position when viewport shrinks below panel size', async () => {
@@ -474,7 +474,7 @@ describe('DirectEditProvider', () => {
     })
 
     expect(panel.style.left).toBe('500px')
-    expect(panel.style.top).toBe('300px')
+    expect(panel.style.top).toBe('340px')
 
     const originalWidth = window.innerWidth
     const originalHeight = window.innerHeight

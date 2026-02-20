@@ -4,7 +4,7 @@ import { clamp } from './utils'
 export type DockedEdge = 'top' | 'bottom' | 'left' | 'right'
 
 const STORAGE_KEY = 'direct-edit-toolbar-dock'
-const EDGE_MARGIN = 16
+const EDGE_MARGIN = 8
 const DRAG_THRESHOLD = 3
 
 function getInitialEdge(): DockedEdge {
@@ -18,27 +18,30 @@ function getInitialEdge(): DockedEdge {
   return 'bottom'
 }
 
-function getDockedPosition(edge: DockedEdge, width: number, height: number) {
-  const vw = window.innerWidth
-  const vh = window.innerHeight
-  const maxX = Math.max(0, vw - width)
-  const maxY = Math.max(0, vh - height)
-  const centeredX = clamp((vw - width) / 2, 0, maxX)
-  const centeredY = clamp((vh - height) / 2, 0, maxY)
-  const topY = clamp(EDGE_MARGIN, 0, maxY)
-  const bottomY = clamp(vh - height - EDGE_MARGIN, 0, maxY)
-  const leftX = clamp(EDGE_MARGIN, 0, maxX)
-  const rightX = clamp(vw - width - EDGE_MARGIN, 0, maxX)
+function getToolbarBounds(width: number, height: number) {
+  const availableX = window.innerWidth - width
+  const availableY = window.innerHeight - height
+  const minX = availableX <= 0 ? 0 : Math.min(EDGE_MARGIN, availableX)
+  const maxX = availableX <= 0 ? 0 : Math.max(minX, availableX - EDGE_MARGIN)
+  const minY = availableY <= 0 ? 0 : Math.min(EDGE_MARGIN, availableY)
+  const maxY = availableY <= 0 ? 0 : Math.max(minY, availableY - EDGE_MARGIN)
+  return { minX, maxX, minY, maxY }
+}
+
+function getDockedPosition(edge: DockedEdge, width: number, height: number, currentX?: number, currentY?: number) {
+  const { minX, maxX, minY, maxY } = getToolbarBounds(width, height)
+  const freeX = currentX !== undefined ? clamp(currentX, minX, maxX) : clamp((window.innerWidth - width) / 2, minX, maxX)
+  const freeY = currentY !== undefined ? clamp(currentY, minY, maxY) : clamp((window.innerHeight - height) / 2, minY, maxY)
 
   switch (edge) {
     case 'bottom':
-      return { x: centeredX, y: bottomY }
+      return { x: freeX, y: maxY }
     case 'top':
-      return { x: centeredX, y: topY }
+      return { x: freeX, y: minY }
     case 'left':
-      return { x: leftX, y: centeredY }
+      return { x: minX, y: freeY }
     case 'right':
-      return { x: rightX, y: centeredY }
+      return { x: maxX, y: freeY }
   }
 }
 
@@ -72,6 +75,7 @@ export function useToolbarDock(toolbarRef: React.RefObject<HTMLDivElement | null
   const [dragPosition, setDragPosition] = React.useState<{ x: number; y: number } | null>(null)
 
   const dragOffsetRef = React.useRef({ x: 0, y: 0 })
+  const dockedPosRef = React.useRef({ x: 0, y: 0 })
   const pointerStartRef = React.useRef({ x: 0, y: 0 })
   const pendingDragRef = React.useRef(false)
   const capturedElementRef = React.useRef<HTMLElement | null>(null)
@@ -95,7 +99,9 @@ export function useToolbarDock(toolbarRef: React.RefObject<HTMLDivElement | null
     if (!el) return
     // Wait one frame so the element has layout
     const raf = requestAnimationFrame(() => {
-      setDockedPos(getDockedPos())
+      const pos = getDockedPos()
+      dockedPosRef.current = pos
+      setDockedPos(pos)
       setReady(true)
     })
     return () => cancelAnimationFrame(raf)
@@ -109,7 +115,9 @@ export function useToolbarDock(toolbarRef: React.RefObject<HTMLDivElement | null
     function recalc() {
       if (!el) return
       const rect = el.getBoundingClientRect()
-      setDockedPos(getDockedPosition(dockedEdge, rect.width, rect.height))
+      const pos = getDockedPosition(dockedEdge, rect.width, rect.height, dockedPosRef.current.x, dockedPosRef.current.y)
+      dockedPosRef.current = pos
+      setDockedPos(pos)
     }
 
     const ro = new ResizeObserver(recalc)
@@ -182,6 +190,8 @@ export function useToolbarDock(toolbarRef: React.RefObject<HTMLDivElement | null
     }
 
     const rect = el.getBoundingClientRect()
+    const width = el.offsetWidth
+    const height = el.offsetHeight
     const centerX = rect.left + rect.width / 2
     const centerY = rect.top + rect.height / 2
     const newEdge = getNearestEdge(centerX, centerY)
@@ -191,8 +201,9 @@ export function useToolbarDock(toolbarRef: React.RefObject<HTMLDivElement | null
       localStorage.setItem(STORAGE_KEY, newEdge)
     } catch {}
 
-    // Compute new docked position using the new edge
-    const newPos = getDockedPosition(newEdge, rect.width, rect.height)
+    // Use offsetWidth/Height (unaffected by CSS transforms) for accurate snap positioning
+    const newPos = getDockedPosition(newEdge, width, height, rect.left, rect.top)
+    dockedPosRef.current = newPos
     setDockedPos(newPos)
     setPhase('snapping')
     setDragPosition(null)

@@ -75,7 +75,7 @@ export { AlignmentGrid } from './panel/alignment-grid'
 const STORAGE_KEY = 'direct-edit-panel-position'
 const PANEL_WIDTH = 300
 const PANEL_HEIGHT = 420
-const PANEL_MARGIN = 20
+const PANEL_MARGIN = 8
 
 interface Position {
   x: number
@@ -106,6 +106,44 @@ function normalizePosition(position: Position): Position {
   }
 }
 
+function snapToEdge(position: Position): Position {
+  const { minX, maxX, minY, maxY } = getPanelBounds()
+  const centerX = position.x + PANEL_WIDTH / 2
+  const centerY = position.y + PANEL_HEIGHT / 2
+  const vw = window.innerWidth
+  const vh = window.innerHeight
+
+  const distances = {
+    top: centerY,
+    bottom: vh - centerY,
+    left: centerX,
+    right: vw - centerX,
+  }
+
+  let nearest: 'top' | 'bottom' | 'left' | 'right' = 'right'
+  let min = Infinity
+  for (const [edge, dist] of Object.entries(distances) as ['top' | 'bottom' | 'left' | 'right', number][]) {
+    if (dist < min) {
+      min = dist
+      nearest = edge
+    }
+  }
+
+  const freeX = clamp(position.x, minX, maxX)
+  const freeY = clamp(position.y, minY, maxY)
+
+  switch (nearest) {
+    case 'top':
+      return { x: freeX, y: minY }
+    case 'bottom':
+      return { x: freeX, y: maxY }
+    case 'left':
+      return { x: minX, y: freeY }
+    case 'right':
+      return { x: maxX, y: freeY }
+  }
+}
+
 function parseStoredPosition(raw: string): Position | null {
   const parsed: unknown = JSON.parse(raw)
   if (!parsed || typeof parsed !== 'object') return null
@@ -126,14 +164,14 @@ function getInitialPosition(): Position {
     if (stored) {
       const parsed = parseStoredPosition(stored)
       if (parsed) {
-        return normalizePosition(parsed)
+        return snapToEdge(parsed)
       }
     }
   } catch {
     // Fall through to default
   }
 
-  return normalizePosition({
+  return snapToEdge({
     x: window.innerWidth - PANEL_WIDTH - PANEL_MARGIN,
     y: window.innerHeight - PANEL_HEIGHT - PANEL_MARGIN,
   })
@@ -310,11 +348,15 @@ export function DirectEditPanelInner({
       ref={panelRef}
       data-direct-edit="panel"
       className={cn(
-        'flex flex-col overflow-hidden rounded-xl outline outline-1 outline-foreground/10 shadow-lg',
-        isDragging && 'cursor-grabbing select-none',
+        'flex flex-col overflow-hidden rounded-xl outline outline-1 outline-foreground/10 shadow-lg transition-shadow duration-200',
+        isDragging && 'cursor-grabbing select-none shadow-2xl',
         className
       )}
-      style={{ width: PANEL_WIDTH, ...style }}
+      style={{
+        width: PANEL_WIDTH,
+        ...(isDragging && { transform: 'rotate(0.5deg) scale(1.01)', transition: 'transform 150ms ease-out, box-shadow 150ms ease-out' }),
+        ...style,
+      }}
     >
       <div
         className={cn(
@@ -676,7 +718,9 @@ function DirectEditPanelContent() {
 
   const [position, setPosition] = React.useState<Position>(getInitialPosition)
   const [isDragging, setIsDragging] = React.useState(false)
+  const [isSnapping, setIsSnapping] = React.useState(false)
   const [dragOffset, setDragOffset] = React.useState<Position>({ x: 0, y: 0 })
+  const snapTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
   const [hoverHighlight, setHoverHighlight] = React.useState<{
     flexContainer: HTMLElement
     children: HTMLElement[]
@@ -726,7 +770,18 @@ function DirectEditPanelContent() {
       // Ignore unsupported pointer capture environments.
     }
 
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(positionRef.current)) } catch {}
+    const snapped = snapToEdge(positionRef.current)
+    positionRef.current = snapped
+    setPosition(snapped)
+    setIsSnapping(true)
+
+    if (snapTimerRef.current) clearTimeout(snapTimerRef.current)
+    snapTimerRef.current = setTimeout(() => {
+      snapTimerRef.current = null
+      setIsSnapping(false)
+    }, 350)
+
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(snapped)) } catch {}
   }
 
   const handlePointerCancel = (e: React.PointerEvent) => {
@@ -742,7 +797,7 @@ function DirectEditPanelContent() {
   React.useEffect(() => {
     function handleResize() {
       setPosition((prev) => {
-        const next = normalizePosition(prev)
+        const next = snapToEdge(prev)
         positionRef.current = next
         return next
       })
@@ -750,6 +805,12 @@ function DirectEditPanelContent() {
 
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
+  React.useEffect(() => {
+    return () => {
+      if (snapTimerRef.current) clearTimeout(snapTimerRef.current)
+    }
   }, [])
 
   const { isActive: measurementActive, hoveredElement, measurements, mousePosition } = useMeasurement(
@@ -1025,6 +1086,9 @@ function DirectEditPanelContent() {
           top: position.y,
           maxHeight: PANEL_HEIGHT,
           pointerEvents: 'auto',
+          ...(isSnapping && {
+            transition: 'left 300ms cubic-bezier(0.34, 1.56, 0.64, 1), top 300ms cubic-bezier(0.34, 1.56, 0.64, 1)',
+          }),
         }}
         panelRef={panelRef}
         isDragging={isDragging}
