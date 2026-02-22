@@ -7,6 +7,7 @@ import type { Guideline } from './types'
 
 const RULER_SIZE = 20
 const GUIDELINE_COLOR = '#FF6B6B'
+const SNAPPED_COLOR = '#0D99FF'
 const HIT_ZONE = 9
 
 /**
@@ -274,6 +275,7 @@ function GuidelineLine({
   scrollOffset,
   zoom = 1,
   isActive,
+  isSnapped,
   dragPosition,
   onStartDrag,
   onDelete,
@@ -282,6 +284,7 @@ function GuidelineLine({
   scrollOffset: { x: number; y: number }
   zoom?: number
   isActive: boolean
+  isSnapped?: boolean
   dragPosition: number | null
   onStartDrag: (id: string) => void
   onDelete: (id: string) => void
@@ -289,6 +292,7 @@ function GuidelineLine({
   const isHorizontal = guideline.orientation === 'horizontal'
   const scrollPos = isHorizontal ? scrollOffset.y : scrollOffset.x
   const viewportPos = (guideline.position - scrollPos) * zoom
+  const lineColor = isActive && isSnapped ? SNAPPED_COLOR : GUIDELINE_COLOR
 
   const handlePointerDown = (e: React.PointerEvent) => {
     e.preventDefault()
@@ -316,7 +320,7 @@ function GuidelineLine({
             left: 0,
             right: 0,
             height: 1,
-            background: GUIDELINE_COLOR,
+            background: lineColor,
             zIndex: 99993,
             pointerEvents: 'none',
           }}
@@ -343,7 +347,7 @@ function GuidelineLine({
               position: 'fixed',
               top: displayPos + 4,
               left: RULER_SIZE + 4,
-              background: GUIDELINE_COLOR,
+              background: lineColor,
               color: '#fff',
               padding: '1px 4px',
               borderRadius: 2,
@@ -370,7 +374,7 @@ function GuidelineLine({
           top: 0,
           bottom: 0,
           width: 1,
-          background: GUIDELINE_COLOR,
+          background: lineColor,
           zIndex: 99993,
           pointerEvents: 'none',
         }}
@@ -395,7 +399,7 @@ function GuidelineLine({
             position: 'fixed',
             left: displayPos + 4,
             top: RULER_SIZE + 4,
-            background: GUIDELINE_COLOR,
+            background: lineColor,
             color: '#fff',
             padding: '1px 4px',
             borderRadius: 2,
@@ -452,6 +456,7 @@ export function RulersOverlay({ enabled }: { enabled: boolean }) {
     guidelines,
     activeGuideline,
     dragPosition,
+    isSnapped,
     scrollOffset,
     startCreate,
     startDrag,
@@ -488,6 +493,7 @@ export function RulersOverlay({ enabled }: { enabled: boolean }) {
           scrollOffset={effectiveScrollOffset}
           zoom={zoom}
           isActive={activeGuideline?.id === g.id}
+          isSnapped={activeGuideline?.id === g.id ? isSnapped : false}
           dragPosition={activeGuideline?.id === g.id ? dragPosition : null}
           onStartDrag={startDrag}
           onDelete={deleteGuideline}

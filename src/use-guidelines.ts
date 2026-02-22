@@ -1,5 +1,6 @@
 import * as React from 'react'
 import type { Guideline } from './types'
+import { collectSnapTargets, findSnap, SNAP_THRESHOLD_PX } from './utils/snap-targets'
 
 const STORAGE_KEY = 'direct-edit-guidelines'
 
@@ -25,6 +26,7 @@ export interface UseGuidelinesResult {
   activeGuideline: Guideline | null
   dragPosition: number | null
   isCreating: boolean
+  isSnapped: boolean
   scrollOffset: { x: number; y: number }
   startCreate: (orientation: 'horizontal' | 'vertical', viewportPosition: number) => void
   startDrag: (guidelineId: string) => void
@@ -65,6 +67,7 @@ function generateId(): string {
 }
 
 const RULER_SIZE = 20
+const SNAP_VELOCITY_THRESHOLD = 3 // px/ms — snap only when dragging slower than this
 
 function viewportToCssCoord(
   hostElement: HTMLElement | null,
@@ -102,6 +105,10 @@ export function useGuidelines(enabled: boolean, hostElement?: HTMLElement | null
     isCreating: boolean
   } | null>(null)
 
+  const snapTargetsRef = React.useRef<number[]>([])
+  const isSnappedRef = React.useRef(false)
+  const [isSnapped, setIsSnapped] = React.useState(false)
+
   // Hydrate from localStorage after mount (SSR-safe)
   React.useEffect(() => {
     setGuidelines(loadGuidelines())
@@ -136,6 +143,9 @@ export function useGuidelines(enabled: boolean, hostElement?: HTMLElement | null
   const endDrag = React.useCallback(() => {
     const wasCreating = dragInfoRef.current?.isCreating ?? false
     dragInfoRef.current = null
+    snapTargetsRef.current = []
+    isSnappedRef.current = false
+    setIsSnapped(false)
     setDragging(false)
     setActiveGuidelineId(null)
     setDragPosition(null)
@@ -152,13 +162,34 @@ export function useGuidelines(enabled: boolean, hostElement?: HTMLElement | null
     const { guidelineId, orientation } = info
     const axis = orientation === 'horizontal' ? 'y' as const : 'x' as const
 
-    function pointerToPos(e: PointerEvent): number {
-      const raw = orientation === 'horizontal' ? e.clientY : e.clientX
-      return viewportToCssCoord(hostRef.current, raw, axis)
-    }
+    let lastPos = NaN
+    let lastTime = 0
 
     function onPointerMove(e: PointerEvent) {
-      const pos = pointerToPos(e)
+      const rawViewportPos = orientation === 'horizontal' ? e.clientY : e.clientX
+
+      // Compute velocity to gate snapping — only snap when dragging slowly
+      const now = performance.now()
+      const dt = now - lastTime
+      const velocity = dt > 0 && !Number.isNaN(lastPos)
+        ? Math.abs(rawViewportPos - lastPos) / dt
+        : 0
+      lastPos = rawViewportPos
+      lastTime = now
+
+      let effectiveViewportPos = rawViewportPos
+      let snapped = false
+      if (velocity < SNAP_VELOCITY_THRESHOLD) {
+        const snapResult = findSnap(rawViewportPos, snapTargetsRef.current, SNAP_THRESHOLD_PX)
+        if (snapResult !== null) {
+          effectiveViewportPos = snapResult
+          snapped = true
+        }
+      }
+
+      isSnappedRef.current = snapped
+      setIsSnapped(snapped)
+      const pos = viewportToCssCoord(hostRef.current, effectiveViewportPos, axis)
       setDragPosition(pos)
       const currentScroll = orientation === 'horizontal' ? window.scrollY : window.scrollX
       setGuidelines((prev) =>
@@ -167,7 +198,9 @@ export function useGuidelines(enabled: boolean, hostElement?: HTMLElement | null
     }
 
     function onPointerUp(e: PointerEvent) {
-      const pos = pointerToPos(e)
+      const rawViewportPos = orientation === 'horizontal' ? e.clientY : e.clientX
+      const snapResult = findSnap(rawViewportPos, snapTargetsRef.current, SNAP_THRESHOLD_PX)
+      const pos = viewportToCssCoord(hostRef.current, snapResult ?? rawViewportPos, axis)
       if (pos <= RULER_SIZE) {
         setGuidelines((prev) => prev.filter((g) => g.id !== guidelineId))
       }
@@ -203,6 +236,7 @@ export function useGuidelines(enabled: boolean, hostElement?: HTMLElement | null
       const id = generateId()
       const newGuideline: Guideline = { id, orientation, position: pos + scrollPos }
 
+      snapTargetsRef.current = collectSnapTargets(orientation)
       setGuidelines((prev) => [...prev, newGuideline])
       setActiveGuidelineId(id)
       setDragPosition(pos)
@@ -217,6 +251,7 @@ export function useGuidelines(enabled: boolean, hostElement?: HTMLElement | null
     const guideline = guidelinesRef.current.find((g) => g.id === guidelineId)
     if (!guideline) return
 
+    snapTargetsRef.current = collectSnapTargets(guideline.orientation)
     const scrollPos = guideline.orientation === 'horizontal' ? window.scrollY : window.scrollX
     setActiveGuidelineId(guidelineId)
     setDragPosition(guideline.position - scrollPos)
@@ -237,6 +272,7 @@ export function useGuidelines(enabled: boolean, hostElement?: HTMLElement | null
     activeGuideline,
     dragPosition,
     isCreating,
+    isSnapped,
     scrollOffset,
     startCreate,
     startDrag,

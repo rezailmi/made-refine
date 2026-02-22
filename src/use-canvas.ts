@@ -11,6 +11,7 @@ export interface UseCanvasOptions {
 
 export interface UseCanvasReturn {
   toggleCanvas: () => void
+  enterCanvas: () => void
   exitCanvas: () => void
   setCanvasZoom: (zoom: number) => void
   fitCanvasToViewport: () => void
@@ -251,5 +252,5 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
     }
   }, [exitCanvas])
 
-  return { toggleCanvas, exitCanvas, setCanvasZoom, fitCanvasToViewport, zoomCanvasTo100 }
+  return { toggleCanvas, enterCanvas, exitCanvas, setCanvasZoom, fitCanvasToViewport, zoomCanvasTo100 }
 }

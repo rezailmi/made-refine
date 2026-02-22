@@ -293,19 +293,14 @@ describe('provider integration and keyboard shortcuts', () => {
     expect(result.current.canvas.active).toBe(true)
   })
 
-  it('toggleEditMode exits canvas when turning off', () => {
+  it('toggleEditMode enters canvas automatically and exits canvas when turning off', () => {
     const { result } = renderHook(() => useDirectEdit(), { wrapper })
 
-    // Activate edit mode
+    // Activate edit mode — canvas should auto-activate
     act(() => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: '.', code: 'Period', ctrlKey: true }))
     })
     expect(result.current.editModeActive).toBe(true)
-
-    // Enter canvas
-    act(() => {
-      result.current.toggleCanvas()
-    })
     expect(result.current.canvas.active).toBe(true)
 
     // Turn off edit mode — should also exit canvas
@@ -320,16 +315,11 @@ describe('provider integration and keyboard shortcuts', () => {
   it('Shift+Z toggles canvas when edit mode is active', () => {
     const { result } = renderHook(() => useDirectEdit(), { wrapper })
 
-    // Activate edit mode first
+    // Activate edit mode — canvas auto-activates
     act(() => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: '.', code: 'Period', ctrlKey: true }))
     })
     expect(result.current.editModeActive).toBe(true)
-
-    // Shift+Z → canvas on
-    act(() => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Z', shiftKey: true }))
-    })
     expect(result.current.canvas.active).toBe(true)
 
     // Shift+Z → canvas off
@@ -337,16 +327,20 @@ describe('provider integration and keyboard shortcuts', () => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Z', shiftKey: true }))
     })
     expect(result.current.canvas.active).toBe(false)
+
+    // Shift+Z → canvas on
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Z', shiftKey: true }))
+    })
+    expect(result.current.canvas.active).toBe(true)
   })
 
   it('Ctrl+1 resets to 100% when canvas is active', () => {
     const { result } = renderHook(() => useDirectEdit(), { wrapper })
 
+    // Activate edit mode — canvas auto-activates
     act(() => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: '.', code: 'Period', ctrlKey: true }))
-    })
-    act(() => {
-      result.current.toggleCanvas()
     })
     act(() => {
       result.current.setCanvasZoom(2)
@@ -364,11 +358,9 @@ describe('provider integration and keyboard shortcuts', () => {
   it('Ctrl+= zooms in and Ctrl+- zooms out', () => {
     const { result } = renderHook(() => useDirectEdit(), { wrapper })
 
+    // Activate edit mode — canvas auto-activates
     act(() => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: '.', code: 'Period', ctrlKey: true }))
-    })
-    act(() => {
-      result.current.toggleCanvas()
     })
     expect(result.current.canvas.zoom).toBe(1)
 

@@ -207,18 +207,20 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     pushUndo, syncSessionItemCount, setState,
   })
 
-  const { toggleCanvas, exitCanvas, setCanvasZoom, fitCanvasToViewport, zoomCanvasTo100 } = useCanvas({
+  const { toggleCanvas, enterCanvas, exitCanvas, setCanvasZoom, fitCanvasToViewport, zoomCanvasTo100 } = useCanvas({
     stateRef, setState,
   })
 
-  // Wrap toggleEditMode to exit canvas when edit mode is turned off
+  // Wrap toggleEditMode to enter canvas when edit mode turns on, exit when it turns off
   const toggleEditMode = React.useCallback(() => {
     const wasActive = stateRef.current.editModeActive
     toggleEditModeBase()
     if (wasActive && stateRef.current.canvas?.active) {
       exitCanvas()
+    } else if (!wasActive) {
+      enterCanvas()
     }
-  }, [toggleEditModeBase, stateRef, exitCanvas])
+  }, [toggleEditModeBase, stateRef, exitCanvas, enterCanvas])
 
   // Sync session item count when comments change
   React.useEffect(() => {
