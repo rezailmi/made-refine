@@ -461,7 +461,7 @@ export function RulersOverlay({ enabled }: { enabled: boolean }) {
     startCreate,
     startDrag,
     deleteGuideline,
-  } = useGuidelines(enabled, hostElement)
+  } = useGuidelines(enabled, hostElement, canvas)
 
   if (!enabled || !container) return null
 

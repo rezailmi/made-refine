@@ -83,7 +83,11 @@ function viewportToCssCoord(
   return (value - origin) * (cssSize / size)
 }
 
-export function useGuidelines(enabled: boolean, hostElement?: HTMLElement | null): UseGuidelinesResult {
+export function useGuidelines(
+  enabled: boolean,
+  hostElement?: HTMLElement | null,
+  canvas?: { active: boolean; zoom: number; panX: number; panY: number } | null,
+): UseGuidelinesResult {
   const [guidelines, setGuidelines] = React.useState<Guideline[]>([])
   const [hydrated, setHydrated] = React.useState(false)
   const [activeGuidelineId, setActiveGuidelineId] = React.useState<string | null>(null)
@@ -93,6 +97,9 @@ export function useGuidelines(enabled: boolean, hostElement?: HTMLElement | null
 
   const hostRef = React.useRef<HTMLElement | null>(hostElement ?? null)
   hostRef.current = hostElement ?? null
+
+  const canvasRef = React.useRef(canvas)
+  canvasRef.current = canvas
 
   const [dragging, setDragging] = React.useState(false)
 
@@ -191,9 +198,17 @@ export function useGuidelines(enabled: boolean, hostElement?: HTMLElement | null
       setIsSnapped(snapped)
       const pos = viewportToCssCoord(hostRef.current, effectiveViewportPos, axis)
       setDragPosition(pos)
-      const currentScroll = orientation === 'horizontal' ? window.scrollY : window.scrollX
+      const c = canvasRef.current
+      let storedPosition: number
+      if (c?.active) {
+        const pan = orientation === 'horizontal' ? (c.panY || 0) : (c.panX || 0)
+        storedPosition = pos / (c.zoom || 1) - pan
+      } else {
+        const currentScroll = orientation === 'horizontal' ? window.scrollY : window.scrollX
+        storedPosition = pos + currentScroll
+      }
       setGuidelines((prev) =>
-        prev.map((g) => (g.id === guidelineId ? { ...g, position: pos + currentScroll } : g)),
+        prev.map((g) => (g.id === guidelineId ? { ...g, position: storedPosition } : g)),
       )
     }
 
@@ -232,9 +247,17 @@ export function useGuidelines(enabled: boolean, hostElement?: HTMLElement | null
     (orientation: 'horizontal' | 'vertical', viewportPosition: number) => {
       const axis = orientation === 'horizontal' ? 'y' as const : 'x' as const
       const pos = viewportToCssCoord(hostRef.current, viewportPosition, axis)
-      const scrollPos = orientation === 'horizontal' ? window.scrollY : window.scrollX
       const id = generateId()
-      const newGuideline: Guideline = { id, orientation, position: pos + scrollPos }
+      const c = canvasRef.current
+      let storedPosition: number
+      if (c?.active) {
+        const pan = orientation === 'horizontal' ? (c.panY || 0) : (c.panX || 0)
+        storedPosition = pos / (c.zoom || 1) - pan
+      } else {
+        const scrollPos = orientation === 'horizontal' ? window.scrollY : window.scrollX
+        storedPosition = pos + scrollPos
+      }
+      const newGuideline: Guideline = { id, orientation, position: storedPosition }
 
       snapTargetsRef.current = collectSnapTargets(orientation)
       setGuidelines((prev) => [...prev, newGuideline])
@@ -252,9 +275,17 @@ export function useGuidelines(enabled: boolean, hostElement?: HTMLElement | null
     if (!guideline) return
 
     snapTargetsRef.current = collectSnapTargets(guideline.orientation)
-    const scrollPos = guideline.orientation === 'horizontal' ? window.scrollY : window.scrollX
+    const c = canvasRef.current
+    let viewportPos: number
+    if (c?.active) {
+      const pan = guideline.orientation === 'horizontal' ? (c.panY || 0) : (c.panX || 0)
+      viewportPos = (guideline.position + pan) * (c.zoom || 1)
+    } else {
+      const scrollPos = guideline.orientation === 'horizontal' ? window.scrollY : window.scrollX
+      viewportPos = guideline.position - scrollPos
+    }
     setActiveGuidelineId(guidelineId)
-    setDragPosition(guideline.position - scrollPos)
+    setDragPosition(viewportPos)
     dragInfoRef.current = { guidelineId, orientation: guideline.orientation, isCreating: false }
     setDragging(true)
   }, [])
