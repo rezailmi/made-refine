@@ -106,10 +106,12 @@ export function MeasurementOverlay({
 
     window.addEventListener('scroll', handleUpdate, true)
     window.addEventListener('resize', handleUpdate)
+    window.addEventListener('direct-edit-canvas-change', handleUpdate)
 
     return () => {
       window.removeEventListener('scroll', handleUpdate, true)
       window.removeEventListener('resize', handleUpdate)
+      window.removeEventListener('direct-edit-canvas-change', handleUpdate)
     }
   }, [selectedElement])
 

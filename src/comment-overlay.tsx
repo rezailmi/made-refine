@@ -120,9 +120,11 @@ function CommentPin({
     updatePosition()
     window.addEventListener('scroll', updatePosition, true)
     window.addEventListener('resize', updatePosition)
+    window.addEventListener('direct-edit-canvas-change', updatePosition)
     return () => {
       window.removeEventListener('scroll', updatePosition, true)
       window.removeEventListener('resize', updatePosition)
+      window.removeEventListener('direct-edit-canvas-change', updatePosition)
     }
   }, [comment.element, comment.relativePosition])
 

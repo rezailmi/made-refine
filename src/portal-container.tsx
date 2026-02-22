@@ -33,7 +33,7 @@ export function PortalContainerProvider({ children }: { children: React.ReactNod
     root.setAttribute('data-direct-edit-root', '')
     shadow.appendChild(root)
 
-    document.body.appendChild(host)
+    document.documentElement.appendChild(host)
     setContainer(root)
 
     return () => { host.remove() }

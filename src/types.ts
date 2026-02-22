@@ -156,6 +156,7 @@ export interface DirectEditState {
   comments: Comment[]
   activeCommentId: string | null
   textEditingElement: HTMLElement | null
+  canvas: { active: boolean; zoom: number; panX: number; panY: number }
 }
 
 export type SizingMode = 'fixed' | 'fill' | 'fit'

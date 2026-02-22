@@ -148,6 +148,8 @@ describe('DirectEditProvider', () => {
     vi.unstubAllGlobals()
     document.documentElement.removeAttribute('data-direct-edit-disable-styles')
     document.body.innerHTML = ''
+    // Clean up hosts appended to documentElement (outside body)
+    document.querySelectorAll('[data-direct-edit-host]').forEach(el => el.remove())
     resetStorage()
   })
 

@@ -125,9 +125,11 @@ export function useGuidelines(enabled: boolean, hostElement?: HTMLElement | null
     update()
     window.addEventListener('scroll', update, true)
     window.addEventListener('resize', update)
+    window.addEventListener('direct-edit-canvas-change', update)
     return () => {
       window.removeEventListener('scroll', update, true)
       window.removeEventListener('resize', update)
+      window.removeEventListener('direct-edit-canvas-change', update)
     }
   }, [enabled])
 

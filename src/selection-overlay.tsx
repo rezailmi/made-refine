@@ -61,6 +61,7 @@ export function SelectionOverlay({
 
     window.addEventListener('scroll', updateRect, true)
     window.addEventListener('resize', updateRect)
+    window.addEventListener('direct-edit-canvas-change', updateRect)
 
     const observer = new MutationObserver(updateRect)
     observer.observe(rectElement, {
@@ -72,6 +73,7 @@ export function SelectionOverlay({
     return () => {
       window.removeEventListener('scroll', updateRect, true)
       window.removeEventListener('resize', updateRect)
+      window.removeEventListener('direct-edit-canvas-change', updateRect)
       observer.disconnect()
     }
   }, [rectElement])

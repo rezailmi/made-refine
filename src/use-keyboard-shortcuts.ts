@@ -11,6 +11,10 @@ export interface KeyboardShortcutsOptions {
   startTextEditing: (element: HTMLElement) => void
   closePanel: () => void
   setState: React.Dispatch<React.SetStateAction<DirectEditState>>
+  toggleCanvas: () => void
+  setCanvasZoom: (zoom: number) => void
+  fitCanvasToViewport: () => void
+  zoomCanvasTo100: () => void
 }
 
 export function useKeyboardShortcuts({
@@ -22,6 +26,10 @@ export function useKeyboardShortcuts({
   startTextEditing,
   closePanel,
   setState,
+  toggleCanvas,
+  setCanvasZoom,
+  fitCanvasToViewport,
+  zoomCanvasTo100,
 }: KeyboardShortcutsOptions) {
 
   // Toggle edit mode: plain Cmd/Ctrl + Period
@@ -73,6 +81,39 @@ export function useKeyboardShortcuts({
         }
       }
 
+      if (e.key === 'Z' && e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey && s.editModeActive) {
+        const active = document.activeElement
+        const isInput = active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement || (active instanceof HTMLElement && active.isContentEditable)
+        if (!isInput) {
+          e.preventDefault()
+          toggleCanvas()
+          return
+        }
+      }
+
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && s.canvas?.active) {
+        if (e.code === 'Digit0' || e.key === '0') {
+          e.preventDefault()
+          fitCanvasToViewport()
+          return
+        }
+        if (e.code === 'Digit1' || e.key === '1') {
+          e.preventDefault()
+          zoomCanvasTo100()
+          return
+        }
+        if (e.code === 'Equal' || e.key === '=') {
+          e.preventDefault()
+          setCanvasZoom(Math.min(5.0, (s.canvas?.zoom ?? 1) * 1.1))
+          return
+        }
+        if (e.code === 'Minus' || e.key === '-') {
+          e.preventDefault()
+          setCanvasZoom(Math.max(0.1, (s.canvas?.zoom ?? 1) / 1.1))
+          return
+        }
+      }
+
       if (e.key === 'A' && e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey && s.editModeActive && s.selectedElement) {
         const active = document.activeElement
         const isInput = active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement || (active instanceof HTMLElement && active.isContentEditable)
@@ -119,5 +160,5 @@ export function useKeyboardShortcuts({
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [closePanel, toggleEditMode, toggleFlexLayout, undo, commitTextEditing, startTextEditing])
+  }, [closePanel, toggleEditMode, toggleFlexLayout, undo, commitTextEditing, startTextEditing, toggleCanvas, setCanvasZoom, fitCanvasToViewport, zoomCanvasTo100])
 }
