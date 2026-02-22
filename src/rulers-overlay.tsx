@@ -9,6 +9,31 @@ const RULER_SIZE = 20
 const GUIDELINE_COLOR = '#FF6B6B'
 const HIT_ZONE = 9
 
+/**
+ * Compute adaptive tick intervals so major labels stay ~80px apart on screen.
+ * Returns the major (labeled) interval, minor (small tick) interval, and steps per major.
+ */
+function computeTickIntervals(zoom: number) {
+  const MIN_LABEL_SPACING_PX = 80
+  const rawInterval = MIN_LABEL_SPACING_PX / zoom
+
+  const magnitude = Math.pow(10, Math.floor(Math.log10(rawInterval)))
+  const residual = rawInterval / magnitude
+
+  let nice: number
+  if (residual <= 1) nice = 1
+  else if (residual <= 2) nice = 2
+  else if (residual <= 2.5) nice = 2.5
+  else if (residual <= 5) nice = 5
+  else nice = 10
+
+  const major = nice * magnitude
+  const stepsPerMajor = 10
+  const minor = major / stepsPerMajor
+
+  return { major, minor, stepsPerMajor }
+}
+
 function subscribeColorScheme(cb: () => void) {
   const mq = window.matchMedia('(prefers-color-scheme: dark)')
   mq.addEventListener('change', cb)
@@ -69,14 +94,17 @@ function HorizontalRuler({
     const tick = computed.getPropertyValue('color')
     const label = tick
 
+    const { minor, stepsPerMajor } = computeTickIntervals(zoom)
+    const midIdx = stepsPerMajor / 2
     const visibleContentWidth = width / zoom
-    const startPx = Math.floor(scrollOffset.x / 10) * 10
-    const endPx = scrollOffset.x + visibleContentWidth
+    const startIdx = Math.floor(scrollOffset.x / minor)
+    const endIdx = Math.ceil((scrollOffset.x + visibleContentWidth) / minor)
 
-    for (let px = startPx; px <= endPx; px += 10) {
+    for (let i = startIdx; i <= endIdx; i++) {
+      const px = i * minor
       const x = (px - scrollOffset.x) * zoom
-      const isMajor = px % 100 === 0
-      const isMid = px % 50 === 0
+      const isMajor = i % stepsPerMajor === 0
+      const isMid = !isMajor && i % midIdx === 0
 
       ctx.beginPath()
       ctx.moveTo(x, height)
@@ -86,12 +114,12 @@ function HorizontalRuler({
       ctx.lineWidth = 1
       ctx.stroke()
 
-      if (isMajor && px !== 0) {
+      if (isMajor) {
         ctx.globalAlpha = 1
         ctx.fillStyle = label
         ctx.font = '9px system-ui, -apple-system, sans-serif'
         ctx.textAlign = 'center'
-        ctx.fillText(String(px), x, 9)
+        ctx.fillText(String(Math.round(px)), x, 9)
       }
     }
   }, [scrollOffset.x, viewportWidth, zoom, theme, systemDark])
@@ -159,14 +187,17 @@ function VerticalRuler({
     const tick = computed.getPropertyValue('color')
     const label = tick
 
+    const { minor, stepsPerMajor } = computeTickIntervals(zoom)
+    const midIdx = stepsPerMajor / 2
     const visibleContentHeight = height / zoom
-    const startPx = Math.floor(scrollOffset.y / 10) * 10
-    const endPx = scrollOffset.y + visibleContentHeight
+    const startIdx = Math.floor(scrollOffset.y / minor)
+    const endIdx = Math.ceil((scrollOffset.y + visibleContentHeight) / minor)
 
-    for (let px = startPx; px <= endPx; px += 10) {
+    for (let i = startIdx; i <= endIdx; i++) {
+      const px = i * minor
       const y = (px - scrollOffset.y) * zoom
-      const isMajor = px % 100 === 0
-      const isMid = px % 50 === 0
+      const isMajor = i % stepsPerMajor === 0
+      const isMid = !isMajor && i % midIdx === 0
 
       ctx.beginPath()
       ctx.moveTo(width, y)
@@ -176,7 +207,7 @@ function VerticalRuler({
       ctx.lineWidth = 1
       ctx.stroke()
 
-      if (isMajor && px !== 0) {
+      if (isMajor) {
         ctx.save()
         ctx.globalAlpha = 1
         ctx.fillStyle = label
@@ -184,7 +215,7 @@ function VerticalRuler({
         ctx.textAlign = 'center'
         ctx.translate(9, y)
         ctx.rotate(-Math.PI / 2)
-        ctx.fillText(String(px), 0, 0)
+        ctx.fillText(String(Math.round(px)), 0, 0)
         ctx.restore()
       }
     }
