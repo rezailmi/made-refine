@@ -71,6 +71,7 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
     window.scrollTo(0, 0)
     document.body.style.overflow = 'hidden'
     document.documentElement.style.overflow = 'hidden'
+    document.documentElement.style.backgroundColor = '#F5F5F5'
 
     // Initial pan compensates for saved scroll position
     const initialPanX = -scrollX
@@ -91,6 +92,7 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
     document.body.style.overflow = savedBodyOverflowRef.current
     document.documentElement.style.overflow = savedHtmlOverflowRef.current
     document.body.style.cursor = ''
+    document.documentElement.style.backgroundColor = ''
 
     window.scrollTo(savedScrollRef.current.x, savedScrollRef.current.y)
 
@@ -146,7 +148,7 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
       e.preventDefault()
 
       if (e.ctrlKey || e.metaKey) {
-        const zoomFactor = Math.exp(-e.deltaY * 0.005)
+        const zoomFactor = Math.exp(-e.deltaY * 0.01)
         const oldZoom = c.zoom
         const newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, oldZoom * zoomFactor))
         const cx = e.clientX
