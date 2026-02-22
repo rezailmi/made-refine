@@ -72,12 +72,6 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
     document.body.style.overflow = 'hidden'
     document.documentElement.style.overflow = 'hidden'
 
-    // Dot grid background
-    const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-    const dotColor = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.12)'
-    document.documentElement.style.background =
-      `radial-gradient(circle, ${dotColor} 1px, transparent 1px) 0 0 / 20px 20px`
-
     // Initial pan compensates for saved scroll position
     const initialPanX = -scrollX
     const initialPanY = -scrollY
@@ -96,7 +90,6 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
     document.body.style.transformOrigin = ''
     document.body.style.overflow = savedBodyOverflowRef.current
     document.documentElement.style.overflow = savedHtmlOverflowRef.current
-    document.documentElement.style.background = ''
     document.body.style.cursor = ''
 
     window.scrollTo(savedScrollRef.current.x, savedScrollRef.current.y)
@@ -153,7 +146,7 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
       e.preventDefault()
 
       if (e.ctrlKey || e.metaKey) {
-        const zoomFactor = Math.exp(-e.deltaY * 0.002)
+        const zoomFactor = Math.exp(-e.deltaY * 0.005)
         const oldZoom = c.zoom
         const newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, oldZoom * zoomFactor))
         const cx = e.clientX

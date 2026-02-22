@@ -153,7 +153,6 @@ describe('useCanvas hook lifecycle', () => {
     expect(document.body.style.overflow).toBe('hidden')
     expect(document.body.style.transform).toBe('scale(1) translate(-100px, -200px)')
     expect(document.body.style.transformOrigin).toBe('0 0')
-    expect(document.documentElement.style.background).toContain('radial-gradient')
   })
 
   it('toggleCanvas exits and restores DOM state', () => {
@@ -179,7 +178,6 @@ describe('useCanvas hook lifecycle', () => {
     expect(document.body.style.transform).toBe('')
     expect(document.body.style.transformOrigin).toBe('')
     expect(document.body.style.cursor).toBe('')
-    expect(document.documentElement.style.background).toBe('')
     expect(window.scrollTo).toHaveBeenCalledWith(50, 75)
   })
 
