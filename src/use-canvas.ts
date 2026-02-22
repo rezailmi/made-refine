@@ -4,6 +4,57 @@ import type { DirectEditState } from './types'
 const MIN_ZOOM = 0.1
 const MAX_ZOOM = 5.0
 
+// Zoom sensitivity applied to normalized pixel delta.
+// macOS trackpad pinch: deltaY ≈ 1–2px/event → ~0.3–0.6% per event (smooth).
+// Windows mouse Ctrl+scroll: deltaY ≈ 100px/notch → ~26% per notch.
+const ZOOM_SENSITIVITY = 0.0145
+
+// Wheel delta normalization constants (Facebook normalizeWheel convention).
+// Required because Firefox can report DOM_DELTA_LINE and some Windows configs
+// use DOM_DELTA_PAGE, giving very different deltaY magnitudes than pixel mode.
+const LINE_HEIGHT_PX = 40
+const PAGE_HEIGHT_PX = 800
+
+function normalizeWheelDelta(e: WheelEvent): { deltaX: number; deltaY: number } {
+  let { deltaX, deltaY } = e
+  if (e.deltaMode === 1) {        // DOM_DELTA_LINE
+    deltaX *= LINE_HEIGHT_PX
+    deltaY *= LINE_HEIGHT_PX
+  } else if (e.deltaMode === 2) { // DOM_DELTA_PAGE
+    deltaX *= PAGE_HEIGHT_PX
+    deltaY *= PAGE_HEIGHT_PX
+  }
+  return { deltaX, deltaY }
+}
+
+// Clamp pan so at least PAN_MARGIN of the viewport always shows content,
+// preventing the user from panning content entirely off-screen.
+// fitCanvasToViewport centering values always satisfy this constraint.
+const PAN_MARGIN = 0.1
+
+function clampPan(
+  zoom: number,
+  panX: number,
+  panY: number,
+  bodyW: number,
+  bodyH: number,
+): { panX: number; panY: number } {
+  const vw = window.innerWidth
+  const vh = window.innerHeight
+  // Content right edge must remain >= MARGIN * vw in viewport space:
+  //   (bodyW + panX) * zoom >= MARGIN * vw  →  panX >= MARGIN*vw/zoom - bodyW
+  const minPanX = PAN_MARGIN * vw / zoom - bodyW
+  // Content left edge must remain <= (1-MARGIN) * vw:
+  //   panX * zoom <= (1-MARGIN)*vw  →  panX <= (1-MARGIN)*vw/zoom
+  const maxPanX = (1 - PAN_MARGIN) * vw / zoom
+  const minPanY = PAN_MARGIN * vh / zoom - bodyH
+  const maxPanY = (1 - PAN_MARGIN) * vh / zoom
+  return {
+    panX: Math.max(minPanX, Math.min(maxPanX, panX)),
+    panY: Math.max(minPanY, Math.min(maxPanY, panY)),
+  }
+}
+
 export interface UseCanvasOptions {
   stateRef: React.MutableRefObject<DirectEditState>
   setState: React.Dispatch<React.SetStateAction<DirectEditState>>
@@ -26,7 +77,15 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
   const savedScrollRef = React.useRef({ x: 0, y: 0 })
   const savedBodyOverflowRef = React.useRef('')
   const savedHtmlOverflowRef = React.useRef('')
+  const savedHtmlBgColorRef = React.useRef('')
   const savedBodyDimensionsRef = React.useRef({ width: 0, height: 0 })
+
+  // rAF batching for setState: DOM transform is applied immediately for visual
+  // smoothness; React state is deferred to avoid 60fps re-renders across all consumers.
+  // Note: RulersOverlay reads canvas state from React context and will lag by
+  // one frame during rapid interaction — this is an accepted visual tradeoff.
+  const rafIdRef = React.useRef<number | null>(null)
+  const rafPendingRef = React.useRef(false)
 
   // Space key and drag state
   const spaceHeldRef = React.useRef(false)
@@ -42,14 +101,38 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
     window.dispatchEvent(new Event('direct-edit-canvas-change'))
   }, [])
 
+  const cancelPendingRaf = React.useCallback(() => {
+    if (rafIdRef.current !== null) {
+      cancelAnimationFrame(rafIdRef.current)
+      rafIdRef.current = null
+      rafPendingRef.current = false
+    }
+  }, [])
+
   const updateCanvas = React.useCallback((zoom: number, panX: number, panY: number) => {
-    canvasRef.current = { ...canvasRef.current, zoom, panX, panY }
-    applyTransform(zoom, panX, panY)
-    setState((prev) => ({
-      ...prev,
-      canvas: { ...prev.canvas, zoom, panX, panY },
-    }))
+    const dims = savedBodyDimensionsRef.current
+    const bodyW = dims.width || window.innerWidth
+    const bodyH = dims.height || window.innerHeight
+    const clamped = clampPan(zoom, panX, panY, bodyW, bodyH)
+
+    canvasRef.current = { ...canvasRef.current, zoom, panX: clamped.panX, panY: clamped.panY }
+    applyTransform(zoom, clamped.panX, clamped.panY)
     dispatchCanvasChange()
+
+    // Batch React state update via rAF. The snapshot is read at fire time so
+    // rapid events (e.g. 60fps wheel) collapse into a single setState per frame.
+    if (!rafPendingRef.current) {
+      rafPendingRef.current = true
+      rafIdRef.current = requestAnimationFrame(() => {
+        rafPendingRef.current = false
+        rafIdRef.current = null
+        const s = canvasRef.current
+        setState((prev) => ({
+          ...prev,
+          canvas: { active: s.active, zoom: s.zoom, panX: s.panX, panY: s.panY },
+        }))
+      })
+    }
   }, [applyTransform, dispatchCanvasChange, setState])
 
   const enterCanvas = React.useCallback(() => {
@@ -58,6 +141,7 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
     savedScrollRef.current = { x: scrollX, y: scrollY }
     savedBodyOverflowRef.current = document.body.style.overflow
     savedHtmlOverflowRef.current = document.documentElement.style.overflow
+    savedHtmlBgColorRef.current = document.documentElement.style.backgroundColor
     savedBodyDimensionsRef.current = {
       width: document.body.scrollWidth,
       height: document.body.scrollHeight,
@@ -88,12 +172,16 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
   }, [applyTransform, dispatchCanvasChange, setState])
 
   const exitCanvas = React.useCallback(() => {
+    // Cancel any pending rAF first to prevent stale setState firing after exit
+    // has already reset canvas state to { active: false, zoom: 1, panX: 0, panY: 0 }.
+    cancelPendingRaf()
+
     document.body.style.transform = ''
     document.body.style.transformOrigin = ''
     document.body.style.overflow = savedBodyOverflowRef.current
     document.documentElement.style.overflow = savedHtmlOverflowRef.current
+    document.documentElement.style.backgroundColor = savedHtmlBgColorRef.current
     document.body.style.cursor = ''
-    document.documentElement.style.backgroundColor = ''
 
     window.scrollTo(savedScrollRef.current.x, savedScrollRef.current.y)
 
@@ -103,7 +191,7 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
       canvas: { active: false, zoom: 1, panX: 0, panY: 0 },
     }))
     dispatchCanvasChange()
-  }, [dispatchCanvasChange, setState])
+  }, [cancelPendingRaf, dispatchCanvasChange, setState])
 
   const toggleCanvas = React.useCallback(() => {
     if (canvasRef.current.active) {
@@ -128,8 +216,8 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
     const scaleX = window.innerWidth / bodyWidth
     const scaleY = window.innerHeight / bodyHeight
     const zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, Math.min(scaleX, scaleY) * 0.9))
-    // Center content: at this zoom, the content width in viewport = zoom * bodyWidth
-    // We want it centered, so panX = (viewportWidth/zoom - bodyWidth) / 2
+    // Center content: panX = (viewportWidth/zoom - bodyWidth) / 2
+    // These centering values always satisfy the pan clamp bounds.
     const panX = (window.innerWidth / zoom - bodyWidth) / 2
     const panY = (window.innerHeight / zoom - bodyHeight) / 2
     updateCanvas(zoom, panX, panY)
@@ -141,15 +229,17 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
     updateCanvas(1, 0, 0)
   }, [updateCanvas])
 
-  // Wheel handler: Ctrl/Cmd+scroll = zoom, plain scroll = pan
+  // Wheel handler: Ctrl/Cmd+scroll = zoom-to-cursor, plain scroll = pan
   React.useEffect(() => {
     function handleWheel(e: WheelEvent) {
       const c = canvasRef.current
       if (!c.active) return
       e.preventDefault()
 
+      const { deltaX, deltaY } = normalizeWheelDelta(e)
+
       if (e.ctrlKey || e.metaKey) {
-        const zoomFactor = Math.exp(-e.deltaY * 0.01)
+        const zoomFactor = Math.exp(-deltaY * ZOOM_SENSITIVITY)
         const oldZoom = c.zoom
         const newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, oldZoom * zoomFactor))
         const cx = e.clientX
@@ -160,8 +250,8 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
         updateCanvas(newZoom, newPanX, newPanY)
       } else {
         // Pan: divide by zoom to convert viewport delta to content-space delta
-        const newPanX = c.panX - e.deltaX / c.zoom
-        const newPanY = c.panY - e.deltaY / c.zoom
+        const newPanX = c.panX - deltaX / c.zoom
+        const newPanY = c.panY - deltaY / c.zoom
         updateCanvas(c.zoom, newPanX, newPanY)
       }
     }
@@ -170,7 +260,7 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
     return () => window.removeEventListener('wheel', handleWheel)
   }, [updateCanvas])
 
-  // Space key tracking
+  // Space key tracking for grab cursor
   React.useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.code !== 'Space' || e.repeat) return
@@ -190,6 +280,7 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
 
     function handleKeyUp(e: KeyboardEvent) {
       if (e.code !== 'Space') return
+      if (!canvasRef.current.active) return
       spaceHeldRef.current = false
       if (!isDraggingRef.current) {
         document.body.style.cursor = ''
@@ -204,7 +295,9 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
     }
   }, [])
 
-  // Pointer drag for pan (Space+drag or middle mouse button)
+  // Pointer drag for pan (Space+drag or middle mouse button).
+  // Uses AbortController so all nested listeners are always removed together.
+  // Also handles pointercancel and window blur to prevent stuck drag state.
   React.useEffect(() => {
     function handlePointerDown(e: PointerEvent) {
       const c = canvasRef.current
@@ -218,39 +311,42 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
       dragStartRef.current = { x: e.clientX, y: e.clientY, panX: c.panX, panY: c.panY }
       document.body.style.cursor = 'grabbing'
 
-      function handlePointerMove(moveE: PointerEvent) {
-        const current = canvasRef.current
-        // Mouse delta in viewport pixels → convert to content-space delta
-        const dx = (moveE.clientX - dragStartRef.current.x) / current.zoom
-        const dy = (moveE.clientY - dragStartRef.current.y) / current.zoom
-        const newPanX = dragStartRef.current.panX + dx
-        const newPanY = dragStartRef.current.panY + dy
-        updateCanvas(current.zoom, newPanX, newPanY)
-      }
+      const dragAbort = new AbortController()
+      const opts = { signal: dragAbort.signal }
 
-      function handlePointerUp() {
+      function endDrag() {
         isDraggingRef.current = false
         document.body.style.cursor = spaceHeldRef.current ? 'grab' : ''
-        window.removeEventListener('pointermove', handlePointerMove)
-        window.removeEventListener('pointerup', handlePointerUp)
+        dragAbort.abort()
       }
 
-      window.addEventListener('pointermove', handlePointerMove)
-      window.addEventListener('pointerup', handlePointerUp)
+      window.addEventListener('pointermove', (moveE: PointerEvent) => {
+        const current = canvasRef.current
+        const dx = (moveE.clientX - dragStartRef.current.x) / current.zoom
+        const dy = (moveE.clientY - dragStartRef.current.y) / current.zoom
+        updateCanvas(current.zoom, dragStartRef.current.panX + dx, dragStartRef.current.panY + dy)
+      }, opts)
+
+      // pointercancel: pointer cancelled by system gesture or browser intervention
+      // blur: tab switch or window focus loss mid-drag
+      window.addEventListener('pointerup', endDrag, opts)
+      window.addEventListener('pointercancel', endDrag, opts)
+      window.addEventListener('blur', endDrag, opts)
     }
 
     window.addEventListener('pointerdown', handlePointerDown, true)
     return () => window.removeEventListener('pointerdown', handlePointerDown, true)
   }, [updateCanvas])
 
-  // Cleanup on unmount
+  // Cleanup on unmount: cancel pending rAF then restore DOM state
   React.useEffect(() => {
     return () => {
+      cancelPendingRaf()
       if (canvasRef.current.active) {
         exitCanvas()
       }
     }
-  }, [exitCanvas])
+  }, [cancelPendingRaf, exitCanvas])
 
   return { toggleCanvas, enterCanvas, exitCanvas, setCanvasZoom, fitCanvasToViewport, zoomCanvasTo100 }
 }
