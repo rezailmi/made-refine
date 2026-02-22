@@ -7,7 +7,33 @@ import type { Guideline } from './types'
 
 const RULER_SIZE = 20
 const GUIDELINE_COLOR = '#FF6B6B'
+const SNAPPED_COLOR = '#0D99FF'
 const HIT_ZONE = 9
+
+/**
+ * Compute adaptive tick intervals so major labels stay ~80px apart on screen.
+ * Returns the major (labeled) interval, minor (small tick) interval, and steps per major.
+ */
+function computeTickIntervals(zoom: number) {
+  const MIN_LABEL_SPACING_PX = 80
+  const rawInterval = MIN_LABEL_SPACING_PX / zoom
+
+  const magnitude = Math.pow(10, Math.floor(Math.log10(rawInterval)))
+  const residual = rawInterval / magnitude
+
+  let nice: number
+  if (residual <= 1) nice = 1
+  else if (residual <= 2) nice = 2
+  else if (residual <= 2.5) nice = 2.5
+  else if (residual <= 5) nice = 5
+  else nice = 10
+
+  const major = nice * magnitude
+  const stepsPerMajor = 10
+  const minor = major / stepsPerMajor
+
+  return { major, minor, stepsPerMajor }
+}
 
 function subscribeColorScheme(cb: () => void) {
   const mq = window.matchMedia('(prefers-color-scheme: dark)')
@@ -34,9 +60,11 @@ const rulerFont: React.CSSProperties = {
 
 function HorizontalRuler({
   scrollOffset,
+  zoom = 1,
   onPointerDown,
 }: {
   scrollOffset: { x: number; y: number }
+  zoom?: number
   onPointerDown: (e: React.PointerEvent) => void
 }) {
   const canvasRef = React.useRef<HTMLCanvasElement>(null)
@@ -67,13 +95,17 @@ function HorizontalRuler({
     const tick = computed.getPropertyValue('color')
     const label = tick
 
-    const startPx = Math.floor(scrollOffset.x / 10) * 10
-    const endPx = scrollOffset.x + width
+    const { minor, stepsPerMajor } = computeTickIntervals(zoom)
+    const midIdx = stepsPerMajor / 2
+    const visibleContentWidth = width / zoom
+    const startIdx = Math.floor(scrollOffset.x / minor)
+    const endIdx = Math.ceil((scrollOffset.x + visibleContentWidth) / minor)
 
-    for (let px = startPx; px <= endPx; px += 10) {
-      const x = px - scrollOffset.x
-      const isMajor = px % 100 === 0
-      const isMid = px % 50 === 0
+    for (let i = startIdx; i <= endIdx; i++) {
+      const px = i * minor
+      const x = (px - scrollOffset.x) * zoom
+      const isMajor = i % stepsPerMajor === 0
+      const isMid = !isMajor && i % midIdx === 0
 
       ctx.beginPath()
       ctx.moveTo(x, height)
@@ -83,15 +115,15 @@ function HorizontalRuler({
       ctx.lineWidth = 1
       ctx.stroke()
 
-      if (isMajor && px !== 0) {
+      if (isMajor) {
         ctx.globalAlpha = 1
         ctx.fillStyle = label
         ctx.font = '9px system-ui, -apple-system, sans-serif'
         ctx.textAlign = 'center'
-        ctx.fillText(String(px), x, 9)
+        ctx.fillText(String(Math.round(px)), x, 9)
       }
     }
-  }, [scrollOffset.x, viewportWidth, theme, systemDark])
+  }, [scrollOffset.x, viewportWidth, zoom, theme, systemDark])
 
   return (
     <div
@@ -121,9 +153,11 @@ function HorizontalRuler({
 
 function VerticalRuler({
   scrollOffset,
+  zoom = 1,
   onPointerDown,
 }: {
   scrollOffset: { x: number; y: number }
+  zoom?: number
   onPointerDown: (e: React.PointerEvent) => void
 }) {
   const canvasRef = React.useRef<HTMLCanvasElement>(null)
@@ -154,13 +188,17 @@ function VerticalRuler({
     const tick = computed.getPropertyValue('color')
     const label = tick
 
-    const startPx = Math.floor(scrollOffset.y / 10) * 10
-    const endPx = scrollOffset.y + height
+    const { minor, stepsPerMajor } = computeTickIntervals(zoom)
+    const midIdx = stepsPerMajor / 2
+    const visibleContentHeight = height / zoom
+    const startIdx = Math.floor(scrollOffset.y / minor)
+    const endIdx = Math.ceil((scrollOffset.y + visibleContentHeight) / minor)
 
-    for (let px = startPx; px <= endPx; px += 10) {
-      const y = px - scrollOffset.y
-      const isMajor = px % 100 === 0
-      const isMid = px % 50 === 0
+    for (let i = startIdx; i <= endIdx; i++) {
+      const px = i * minor
+      const y = (px - scrollOffset.y) * zoom
+      const isMajor = i % stepsPerMajor === 0
+      const isMid = !isMajor && i % midIdx === 0
 
       ctx.beginPath()
       ctx.moveTo(width, y)
@@ -170,7 +208,7 @@ function VerticalRuler({
       ctx.lineWidth = 1
       ctx.stroke()
 
-      if (isMajor && px !== 0) {
+      if (isMajor) {
         ctx.save()
         ctx.globalAlpha = 1
         ctx.fillStyle = label
@@ -178,11 +216,11 @@ function VerticalRuler({
         ctx.textAlign = 'center'
         ctx.translate(9, y)
         ctx.rotate(-Math.PI / 2)
-        ctx.fillText(String(px), 0, 0)
+        ctx.fillText(String(Math.round(px)), 0, 0)
         ctx.restore()
       }
     }
-  }, [scrollOffset.y, viewportHeight, theme, systemDark])
+  }, [scrollOffset.y, viewportHeight, zoom, theme, systemDark])
 
   return (
     <div
@@ -235,21 +273,26 @@ function CornerSquare() {
 function GuidelineLine({
   guideline,
   scrollOffset,
+  zoom = 1,
   isActive,
+  isSnapped,
   dragPosition,
   onStartDrag,
   onDelete,
 }: {
   guideline: Guideline
   scrollOffset: { x: number; y: number }
+  zoom?: number
   isActive: boolean
+  isSnapped?: boolean
   dragPosition: number | null
   onStartDrag: (id: string) => void
   onDelete: (id: string) => void
 }) {
   const isHorizontal = guideline.orientation === 'horizontal'
   const scrollPos = isHorizontal ? scrollOffset.y : scrollOffset.x
-  const viewportPos = guideline.position - scrollPos
+  const viewportPos = (guideline.position - scrollPos) * zoom
+  const lineColor = isActive && isSnapped ? SNAPPED_COLOR : GUIDELINE_COLOR
 
   const handlePointerDown = (e: React.PointerEvent) => {
     e.preventDefault()
@@ -277,7 +320,7 @@ function GuidelineLine({
             left: 0,
             right: 0,
             height: 1,
-            background: GUIDELINE_COLOR,
+            background: lineColor,
             zIndex: 99993,
             pointerEvents: 'none',
           }}
@@ -304,7 +347,7 @@ function GuidelineLine({
               position: 'fixed',
               top: displayPos + 4,
               left: RULER_SIZE + 4,
-              background: GUIDELINE_COLOR,
+              background: lineColor,
               color: '#fff',
               padding: '1px 4px',
               borderRadius: 2,
@@ -331,7 +374,7 @@ function GuidelineLine({
           top: 0,
           bottom: 0,
           width: 1,
-          background: GUIDELINE_COLOR,
+          background: lineColor,
           zIndex: 99993,
           pointerEvents: 'none',
         }}
@@ -356,7 +399,7 @@ function GuidelineLine({
             position: 'fixed',
             left: displayPos + 4,
             top: RULER_SIZE + 4,
-            background: GUIDELINE_COLOR,
+            background: lineColor,
             color: '#fff',
             padding: '1px 4px',
             borderRadius: 2,
@@ -400,6 +443,7 @@ function useViewportHeight() {
 
 export function RulersOverlay({ enabled }: { enabled: boolean }) {
   const container = usePortalContainer()
+  const { canvas } = useDirectEditState()
 
   const hostElement = React.useMemo(() => {
     if (!container) return null
@@ -412,13 +456,20 @@ export function RulersOverlay({ enabled }: { enabled: boolean }) {
     guidelines,
     activeGuideline,
     dragPosition,
+    isSnapped,
     scrollOffset,
     startCreate,
     startDrag,
     deleteGuideline,
-  } = useGuidelines(enabled, hostElement)
+  } = useGuidelines(enabled, hostElement, canvas)
 
   if (!enabled || !container) return null
+
+  // In canvas mode, pan replaces scroll and we need zoom for coordinate mapping
+  const zoom = canvas?.active ? (canvas.zoom || 1) : 1
+  const effectiveScrollOffset = canvas?.active
+    ? { x: -(canvas.panX || 0), y: -(canvas.panY || 0) }
+    : scrollOffset
 
   const handleHorizontalPointerDown = (e: React.PointerEvent) => {
     e.preventDefault()
@@ -433,14 +484,16 @@ export function RulersOverlay({ enabled }: { enabled: boolean }) {
   return createPortal(
     <>
       <CornerSquare />
-      <HorizontalRuler scrollOffset={scrollOffset} onPointerDown={handleHorizontalPointerDown} />
-      <VerticalRuler scrollOffset={scrollOffset} onPointerDown={handleVerticalPointerDown} />
+      <HorizontalRuler scrollOffset={effectiveScrollOffset} zoom={zoom} onPointerDown={handleHorizontalPointerDown} />
+      <VerticalRuler scrollOffset={effectiveScrollOffset} zoom={zoom} onPointerDown={handleVerticalPointerDown} />
       {guidelines.map((g) => (
         <GuidelineLine
           key={g.id}
           guideline={g}
-          scrollOffset={scrollOffset}
+          scrollOffset={effectiveScrollOffset}
+          zoom={zoom}
           isActive={activeGuideline?.id === g.id}
+          isSnapped={activeGuideline?.id === g.id ? isSnapped : false}
           dragPosition={activeGuideline?.id === g.id ? dragPosition : null}
           onStartDrag={startDrag}
           onDelete={deleteGuideline}

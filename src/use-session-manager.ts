@@ -123,6 +123,7 @@ export function useSessionManager({
       borderStyleControlPreference: prev.borderStyleControlPreference,
       comments: prev.comments,
       activeCommentId: prev.activeCommentId,
+      canvas: prev.canvas,
       textEditingElement: null,
     }))
 
@@ -269,6 +270,7 @@ export function useSessionManager({
             borderStyleControlPreference: prev.borderStyleControlPreference,
             comments: prev.comments,
             activeCommentId: prev.activeCommentId,
+            canvas: prev.canvas,
             textEditingElement: null,
           }))
         } else {
@@ -497,6 +499,7 @@ export function useSessionManager({
         borderStyleControlPreference: prev.borderStyleControlPreference,
         comments: prev.comments,
         activeCommentId: prev.activeCommentId,
+        canvas: prev.canvas,
         textEditingElement: null,
       }))
     },

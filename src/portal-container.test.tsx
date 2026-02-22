@@ -16,6 +16,7 @@ describe('PortalContainerProvider', () => {
   afterEach(() => {
     document.documentElement.removeAttribute('data-direct-edit-disable-styles')
     document.body.innerHTML = ''
+    document.querySelectorAll('[data-direct-edit-host]').forEach(el => el.remove())
   })
 
   it('creates a shadow host and container root', async () => {

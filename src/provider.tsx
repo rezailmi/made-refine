@@ -26,6 +26,7 @@ import { useSessionManager } from './use-session-manager'
 import { useTextAndComments } from './use-text-and-comments'
 import { useAgentComms } from './use-agent-comms'
 import { useKeyboardShortcuts } from './use-keyboard-shortcuts'
+import { useCanvas } from './use-canvas'
 
 export interface DirectEditActionsContextValue {
   selectElement: (element: HTMLElement) => void
@@ -71,6 +72,10 @@ export interface DirectEditActionsContextValue {
   removeSessionEdit: (element: HTMLElement) => void
   startTextEditing: (element: HTMLElement) => void
   commitTextEditing: () => void
+  toggleCanvas: () => void
+  setCanvasZoom: (zoom: number) => void
+  fitCanvasToViewport: () => void
+  zoomCanvasTo100: () => void
 }
 
 export interface DirectEditStateContextValue extends DirectEditState {
@@ -133,6 +138,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     comments: [],
     activeCommentId: null,
     textEditingElement: null,
+    canvas: { active: false, zoom: 1, panX: 0, panY: 0 },
   })
 
   // Read all persisted preferences on mount (SSR-safe, single setState)
@@ -194,12 +200,27 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
   }, [state.selectedElement, state.pendingStyles, saveCurrentToSession])
 
   const {
-    finalizeTextEditing, toggleEditMode, startTextEditing, commitTextEditing,
+    finalizeTextEditing, toggleEditMode: toggleEditModeBase, startTextEditing, commitTextEditing,
     addComment, updateCommentText, addCommentReply, deleteComment, exportComment, setActiveCommentId,
   } = useTextAndComments({
     stateRef, sessionEditsRef, removedSessionEditsRef,
     pushUndo, syncSessionItemCount, setState,
   })
+
+  const { toggleCanvas, enterCanvas, exitCanvas, setCanvasZoom, fitCanvasToViewport, zoomCanvasTo100 } = useCanvas({
+    stateRef, setState,
+  })
+
+  // Wrap toggleEditMode to enter canvas when edit mode turns on, exit when it turns off
+  const toggleEditMode = React.useCallback(() => {
+    const wasActive = stateRef.current.editModeActive
+    toggleEditModeBase()
+    if (wasActive && stateRef.current.canvas?.active) {
+      exitCanvas()
+    } else if (!wasActive) {
+      enterCanvas()
+    }
+  }, [toggleEditModeBase, stateRef, exitCanvas, enterCanvas])
 
   // Sync session item count when comments change
   React.useEffect(() => {
@@ -263,6 +284,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
   useKeyboardShortcuts({
     stateRef, toggleEditMode, toggleFlexLayout, undo,
     commitTextEditing, startTextEditing, closePanel, setState,
+    toggleCanvas, setCanvasZoom, fitCanvasToViewport, zoomCanvasTo100,
   })
 
   const stateContextValue = React.useMemo<DirectEditStateContextValue>(() => ({
@@ -281,6 +303,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     addComment, updateCommentText, addCommentReply, deleteComment, exportComment,
     setActiveCommentId, getSessionEdits, getSessionItems, exportAllEdits,
     clearSessionEdits, removeSessionEdit, startTextEditing, commitTextEditing,
+    toggleCanvas, setCanvasZoom, fitCanvasToViewport, zoomCanvasTo100,
   }), [
     selectElement, selectParent, selectChild, closePanel,
     updateSpacingProperty, updateBorderRadiusProperty, updateBorderProperty,
@@ -292,6 +315,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     addComment, updateCommentText, addCommentReply, deleteComment, exportComment,
     setActiveCommentId, getSessionEdits, getSessionItems, exportAllEdits,
     clearSessionEdits, removeSessionEdit, startTextEditing, commitTextEditing,
+    toggleCanvas, setCanvasZoom, fitCanvasToViewport, zoomCanvasTo100,
   ])
 
   return (

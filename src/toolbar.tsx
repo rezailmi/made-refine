@@ -5,7 +5,7 @@ import { useDirectEditState, useDirectEditActions } from './provider'
 import { useRulersVisible } from './rulers-overlay'
 import { cn } from './cn'
 import { useToolbarDock } from './use-toolbar-dock'
-import { MousePointer2, Ruler, Command, ArrowBigUp, MessageSquare } from 'lucide-react'
+import { MousePointer2, Ruler, Command, ArrowBigUp, MessageSquare, Maximize2 } from 'lucide-react'
 import type { ActiveTool, Theme, SessionItem } from './types'
 import {
   Tooltip,
@@ -33,6 +33,11 @@ export interface DirectEditToolbarInnerProps {
   onRemoveSessionEdit?: (element: HTMLElement) => void
   onDeleteComment?: (id: string) => void
   className?: string
+  canvasActive?: boolean
+  canvasZoom?: number
+  onToggleCanvas?: () => void
+  onZoomTo100?: () => void
+  onFitToViewport?: () => void
 }
 
 export function DirectEditToolbarInner({
@@ -52,6 +57,11 @@ export function DirectEditToolbarInner({
   onRemoveSessionEdit,
   onDeleteComment,
   className,
+  canvasActive = false,
+  canvasZoom = 1,
+  onToggleCanvas,
+  onZoomTo100,
+  onFitToViewport,
 }: DirectEditToolbarInnerProps) {
   const container = usePortalContainer()
   const toolbarRef = React.useRef<HTMLDivElement>(null)
@@ -186,6 +196,41 @@ export function DirectEditToolbarInner({
                 </TooltipContent>
               </Tooltip>
 
+              <Tooltip>
+                <TooltipTrigger
+                  className={cn(
+                    'flex cursor-pointer items-center justify-center rounded-[8px] p-2 transition-colors',
+                    canvasActive
+                      ? 'bg-muted text-foreground'
+                      : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                  )}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={onToggleCanvas}
+                >
+                  <Maximize2 className="size-4" />
+                </TooltipTrigger>
+                <TooltipContent side={tooltipSide} className="inline-flex items-center gap-1.5">
+                  <span>{canvasActive ? 'Exit canvas mode' : 'Canvas mode'}</span>
+                  <kbd className={kbdClass}><ArrowBigUp className="size-3" /></kbd>
+                  <kbd className={kbdClass}>Z</kbd>
+                </TooltipContent>
+              </Tooltip>
+
+              {canvasActive && (
+                <Tooltip>
+                  <TooltipTrigger
+                    className="flex cursor-pointer items-center justify-center rounded-[8px] px-1.5 py-1 text-xs font-medium tabular-nums text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onClick={onZoomTo100}
+                  >
+                    {Math.round(canvasZoom * 100)}%
+                  </TooltipTrigger>
+                  <TooltipContent side={tooltipSide} className="inline-flex items-center gap-1.5">
+                    <span>Reset to 100%</span>
+                  </TooltipContent>
+                </Tooltip>
+              )}
+
               <div className={cn(
                 'border-foreground/10',
                 isVertical ? 'my-0.5 w-5 border-t' : 'mx-0.5 h-5 border-l'
@@ -225,10 +270,11 @@ export function DirectEditToolbarInner({
 }
 
 function DirectEditToolbarContent() {
-  const { editModeActive, activeTool, theme, sessionEditCount } = useDirectEditState()
+  const { editModeActive, activeTool, theme, sessionEditCount, canvas } = useDirectEditState()
   const {
     toggleEditMode, setActiveTool, setTheme,
     getSessionItems, exportAllEdits, sendAllSessionItemsToAgent, clearSessionEdits, removeSessionEdit, deleteComment,
+    toggleCanvas, zoomCanvasTo100, fitCanvasToViewport,
   } = useDirectEditActions()
   const [rulersVisible, toggleRulers] = useRulersVisible()
 
@@ -249,6 +295,11 @@ function DirectEditToolbarContent() {
       onClearSessionEdits={clearSessionEdits}
       onRemoveSessionEdit={removeSessionEdit}
       onDeleteComment={deleteComment}
+      canvasActive={canvas?.active ?? false}
+      canvasZoom={canvas?.zoom ?? 1}
+      onToggleCanvas={toggleCanvas}
+      onZoomTo100={zoomCanvasTo100}
+      onFitToViewport={fitCanvasToViewport}
     />
   )
 }
