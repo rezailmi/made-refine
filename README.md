@@ -55,4 +55,4 @@ Your app keeps running normally. The editor floats on top and never touches your
 
 ## License
 
-[FSL-1.1-MIT](./LICENSE)
+[FSL-1.1-MIT](./LICENSE.md)
