@@ -14,6 +14,10 @@ export function collectSnapTargets(orientation: 'horizontal' | 'vertical'): numb
     const el = elements[i] as HTMLElement
     if (el === document.body || el === document.documentElement) continue
     if (el.closest('[data-direct-edit]') || el.closest('[data-direct-edit-host]')) continue
+    // Skip display:none subtrees without calling getBoundingClientRect.
+    // offsetParent is null for display:none elements (and position:fixed, which
+    // we intentionally exclude — snap targets should be page content, not UI overlays).
+    if (el.offsetParent === null && el !== document.body) continue
 
     const rect = el.getBoundingClientRect()
     if (rect.width < 4 || rect.height < 4) continue

@@ -211,7 +211,11 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     stateRef, setState,
   })
 
-  // Wrap toggleEditMode to enter canvas when edit mode turns on, exit when it turns off
+  // Wrap toggleEditMode to enter canvas when edit mode turns on, exit when it turns off.
+  // Timing note: toggleEditModeBase() only calls setState (async). stateRef is synced
+  // from React state in a post-render useEffect, so stateRef.current still holds the
+  // pre-toggle values immediately after the call. wasActive and canvas?.active both
+  // read the old state intentionally — that's what the branching logic requires.
   const toggleEditMode = React.useCallback(() => {
     const wasActive = stateRef.current.editModeActive
     toggleEditModeBase()
@@ -324,6 +328,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
         <DirectEditActionsContext.Provider value={actionsContextValue}>
           <ThemeApplier />
           {children}
+
         </DirectEditActionsContext.Provider>
       </DirectEditStateContext.Provider>
     </PortalContainerProvider>

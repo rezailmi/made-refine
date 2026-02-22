@@ -108,6 +108,10 @@ const wrapper = ({ children }: { children: React.ReactNode }) => (
 beforeEach(() => {
   stubMatchMedia()
   vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
+  // Make requestAnimationFrame synchronous so rAF-batched setState calls
+  // resolve immediately within act(), keeping test assertions predictable.
+  vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => { cb(performance.now()); return 0 })
+  vi.stubGlobal('cancelAnimationFrame', () => {})
 })
 
 afterEach(() => {
@@ -409,7 +413,7 @@ describe('wheel event handling', () => {
       dispatchWheel({ deltaY: -100, ctrlKey: true, clientX: 400, clientY: 300 })
     })
 
-    // negative deltaY with Math.exp(-deltaY * 0.002) → zoomFactor > 1 → zoom in
+    // negative deltaY with Math.exp(-deltaY * ZOOM_SENSITIVITY=0.0145) → zoomFactor > 1 → zoom in
     expect(opts.stateRef.current.canvas.zoom).toBeGreaterThan(1)
     expect(document.body.style.transform).toContain('scale(')
   })
