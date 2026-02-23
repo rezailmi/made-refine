@@ -504,12 +504,12 @@ describe('SelectionOverlay', () => {
       />
     )
 
-    const rect = container.querySelector('[data-direct-edit="selection-overlay"] rect') as SVGRectElement
-    expect(rect).not.toBeNull()
-    expect(rect.getAttribute('x')).toBe('310')
-    expect(rect.getAttribute('y')).toBe('190')
-    expect(rect.getAttribute('width')).toBe('80')
-    expect(rect.getAttribute('height')).toBe('40')
+    const overlay = container.querySelector('[data-direct-edit="selection-overlay"]') as HTMLElement
+    expect(overlay).not.toBeNull()
+    expect(overlay.style.left).toBe('310px')
+    expect(overlay.style.top).toBe('190px')
+    expect(overlay.style.width).toBe('80px')
+    expect(overlay.style.height).toBe('40px')
   })
 
   it('does not render move handle by default', () => {
