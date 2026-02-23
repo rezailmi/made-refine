@@ -198,7 +198,7 @@ export function EditsPopover({
                     </BaseButton>
                   )}
                   <Tooltip>
-                    <TooltipTrigger nativeButton={false} render={
+                    <TooltipTrigger render={
                       <BaseButton
                         className="inline-flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                         onClick={() => {

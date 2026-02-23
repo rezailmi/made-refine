@@ -20,7 +20,7 @@ vi.mock('./use-toolbar-dock', () => ({
 vi.mock('@base-ui/react/popover', () => ({
   Popover: {
     Root: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-    Trigger: React.forwardRef<HTMLElement, { render?: React.ReactElement; children?: React.ReactNode; nativeButton?: boolean }>(
+    Trigger: React.forwardRef<HTMLButtonElement, { render?: React.ReactElement; children?: React.ReactNode; nativeButton?: boolean }>(
       ({ render, children, nativeButton: _nativeButton }, ref) => {
         if (render) {
           return React.cloneElement(render, { ref }, children)
