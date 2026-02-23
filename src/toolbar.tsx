@@ -42,79 +42,6 @@ export interface DirectEditToolbarInnerProps {
   onFitToViewport?: () => void
 }
 
-const DEFAULT_ANIM = {
-  expandDuration: 200,
-  blurDuration: 250,
-  opacityDuration: 100,
-  staggerDelay: 80,
-  blurAmount: 5,
-}
-
-function AnimationTuner({
-  config,
-  onChange,
-  container,
-}: {
-  config: typeof DEFAULT_ANIM
-  onChange: (key: string, value: number) => void
-  container: HTMLElement | null
-}) {
-  const [open, setOpen] = React.useState(true)
-
-  const sliders: { key: string; label: string; min: number; max: number; step: number; unit: string }[] = [
-    { key: 'expandDuration', label: 'Expand duration', min: 100, max: 800, step: 10, unit: 'ms' },
-    { key: 'blurDuration', label: 'Blur duration', min: 100, max: 800, step: 10, unit: 'ms' },
-    { key: 'opacityDuration', label: 'Opacity duration', min: 50, max: 500, step: 10, unit: 'ms' },
-    { key: 'staggerDelay', label: 'Stagger delay', min: 0, max: 300, step: 10, unit: 'ms' },
-    { key: 'blurAmount', label: 'Blur amount', min: 0, max: 20, step: 1, unit: 'px' },
-  ]
-
-  const panel = (
-    <div
-      data-direct-edit="animation-tuner"
-      style={{ pointerEvents: 'auto', position: 'fixed', top: 16, right: 16, zIndex: 100000 }}
-    >
-      {!open ? (
-        <button
-          onClick={() => setOpen(true)}
-          className="rounded-lg bg-background px-3 py-1.5 text-xs font-medium text-foreground shadow-lg outline outline-1 outline-foreground/10"
-        >
-          Tune
-        </button>
-      ) : (
-        <div className="flex w-[260px] flex-col gap-3 rounded-xl bg-background p-4 shadow-lg outline outline-1 outline-foreground/10">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-foreground">Animation Tuner</span>
-            <button onClick={() => setOpen(false)} className="text-muted-foreground hover:text-foreground">
-              <X className="size-3.5" />
-            </button>
-          </div>
-          {sliders.map(({ key, label, min, max, step, unit }) => (
-            <label key={key} className="flex flex-col gap-1">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] text-muted-foreground">{label}</span>
-                <span className="text-[11px] font-mono text-foreground">{config[key as keyof typeof config]}{unit}</span>
-              </div>
-              <input
-                type="range"
-                min={min}
-                max={max}
-                step={step}
-                value={config[key as keyof typeof config]}
-                onChange={(e) => onChange(key, Number(e.target.value))}
-                className="h-1 w-full cursor-pointer appearance-none rounded-full bg-foreground/15 accent-foreground"
-              />
-            </label>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-
-  if (container) return createPortal(panel, container)
-  return panel
-}
-
 export function DirectEditToolbarInner({
   editModeActive,
   onToggleEditMode,
@@ -144,7 +71,6 @@ export function DirectEditToolbarInner({
   const { dockedEdge, isDragging, isSnapping, style: dockStyle, predictSize, handlePointerDown, handlePointerMove, handlePointerUp, handlePointerCancel } = useToolbarDock(toolbarRef)
   const isVertical = dockedEdge === 'left' || dockedEdge === 'right'
   const [activePopover, setActivePopover] = React.useState<'edits' | 'settings' | 'zoom' | null>(null)
-  const [animConfig, setAnimConfig] = React.useState(DEFAULT_ANIM)
 
   // Cache toolbar sizes for expanded/collapsed states so we can predict position on toggle
   const expandedSizeRef = React.useRef<{ w: number; h: number } | null>(null)
@@ -273,20 +199,20 @@ export function DirectEditToolbarInner({
             )}
             style={{
               transitionProperty: 'grid-template-columns, grid-template-rows, margin',
-              transitionDuration: `${animConfig.expandDuration}ms`,
+              transitionDuration: '200ms',
               transitionTimingFunction: 'cubic-bezier(0.25, 1, 0.5, 1)',
-              transitionDelay: editModeActive ? '0ms' : `${animConfig.staggerDelay}ms`,
+              transitionDelay: editModeActive ? '0ms' : '80ms',
             }}
           >
             <div
               className={cn('flex gap-1 overflow-hidden', isVertical ? 'min-h-0 flex-col items-center' : 'min-w-0 flex-row items-center')}
               style={{
-                filter: editModeActive ? 'blur(0px)' : `blur(${animConfig.blurAmount}px)`,
+                filter: editModeActive ? 'blur(0px)' : 'blur(5px)',
                 opacity: editModeActive ? 1 : 0,
                 transitionProperty: 'filter, opacity',
-                transitionDuration: `${animConfig.blurDuration}ms, ${animConfig.opacityDuration}ms`,
+                transitionDuration: '250ms, 100ms',
                 transitionTimingFunction: 'cubic-bezier(0.33, 1, 0.68, 1)',
-                transitionDelay: editModeActive ? `${animConfig.staggerDelay}ms` : '0ms',
+                transitionDelay: editModeActive ? '80ms' : '0ms',
               }}
             >
               <Tooltip>
@@ -393,19 +319,11 @@ export function DirectEditToolbarInner({
     </>
   )
 
-  const tuner = (
-    <AnimationTuner
-      config={animConfig}
-      onChange={(key, value) => setAnimConfig((prev) => ({ ...prev, [key]: value }))}
-      container={container}
-    />
-  )
-
   if (container) {
-    return <>{createPortal(toolbar, container)}{tuner}</>
+    return createPortal(toolbar, container)
   }
 
-  return <>{toolbar}{tuner}</>
+  return toolbar
 }
 
 function DirectEditToolbarContent() {
