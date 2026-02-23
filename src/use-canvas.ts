@@ -1,5 +1,6 @@
 import * as React from 'react'
 import type { DirectEditState } from './types'
+import { isInputFocused } from './utils'
 
 const MIN_ZOOM = 0.1
 const MAX_ZOOM = 5.0
@@ -265,12 +266,7 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
     function handleKeyDown(e: KeyboardEvent) {
       if (e.code !== 'Space' || e.repeat) return
       if (!canvasRef.current.active) return
-      const active = document.activeElement
-      const isInput =
-        active instanceof HTMLInputElement ||
-        active instanceof HTMLTextAreaElement ||
-        (active instanceof HTMLElement && active.isContentEditable)
-      if (isInput) return
+      if (isInputFocused()) return
       spaceHeldRef.current = true
       if (!isDraggingRef.current) {
         document.body.style.cursor = 'grab'

@@ -226,8 +226,8 @@ export function BorderInputs({ border, borderColor, outlineColor, onChange, onBa
         >
           {borderStyleControlPreference === 'icon' ? (
             <Tip label={`Border style: ${currentStyleLabel}`}>
-              <SelectTrigger className="flex h-7 w-auto shrink-0 items-center justify-center rounded-md border-0 bg-muted px-2 text-xs hover:bg-muted-foreground/10 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
-                <Settings2 className="size-3.5 text-muted-foreground" />
+              <SelectTrigger className="flex h-7 w-auto shrink-0 items-center justify-center rounded-md border-0 px-2 text-xs text-muted-foreground hover:bg-muted-foreground/10 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
+                <Settings2 className="size-3.5" />
               </SelectTrigger>
             </Tip>
           ) : (
@@ -251,7 +251,7 @@ export function BorderInputs({ border, borderColor, outlineColor, onChange, onBa
             popupMinWidth="90px"
           >
             <Tip label={`Sides: ${selectedSide}`}>
-              <SelectTrigger className="flex h-7 w-auto shrink-0 items-center justify-center rounded-md border-0 bg-muted px-2 text-xs hover:bg-muted-foreground/10 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
+              <SelectTrigger className="flex h-7 w-auto shrink-0 items-center justify-center rounded-md border-0 px-2 text-xs text-muted-foreground hover:bg-muted-foreground/10 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
                 {selectedSide === 'Custom' ? (
                   <Grid2x2 className="size-3.5 text-muted-foreground" strokeWidth={1} />
                 ) : selectedSide === 'All' ? (
@@ -289,13 +289,19 @@ export function BorderInputs({ border, borderColor, outlineColor, onChange, onBa
 
       {/* Row 2: Color */}
       {activeColor && activeColorChange && (
-        <ColorInput
-          id={isOutline ? 'outline-color' : 'border-color'}
-          label={isOutline ? 'Outline' : 'Border'}
-          icon={isOutline ? <Focus className="size-3.5" /> : <Square className="size-3.5" />}
-          value={activeColor}
-          onChange={activeColorChange}
-        />
+        <div className="flex items-center gap-1.5">
+          <div className="min-w-0 flex-1">
+            <ColorInput
+              id={isOutline ? 'outline-color' : 'border-color'}
+              label={isOutline ? 'Outline' : 'Border'}
+              icon={isOutline ? <Focus className="size-3.5" /> : <Square className="size-3.5" />}
+              value={activeColor}
+              onChange={activeColorChange}
+            />
+          </div>
+          {borderStyleControlPreference === 'icon' && <div className="w-[30px] shrink-0" />}
+          {!isOutline && <div className="w-[30px] shrink-0" />}
+        </div>
       )}
     </div>
   )

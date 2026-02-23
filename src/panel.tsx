@@ -210,7 +210,7 @@ export function DirectEditPanelInner({
         sectionRefs={sectionRefs}
       />
 
-      <div className="flex-1 overflow-y-auto backdrop-blur-xl bg-background/85" ref={scrollRef}>
+      <div className="flex-1 overflow-y-auto backdrop-blur-xl bg-background/85" ref={scrollRef} onWheelCapture={(e) => e.stopPropagation()}>
         <LayoutSection
           elementInfo={elementInfo}
           computedFlex={computedFlex}

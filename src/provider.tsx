@@ -211,6 +211,13 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     stateRef, setState,
   })
 
+  const closePanel = React.useCallback(() => {
+    setState((prev) => ({
+      ...prev,
+      isOpen: false,
+    }))
+  }, [])
+
   // Wrap toggleEditMode to enter canvas when edit mode turns on, exit when it turns off.
   // Timing note: toggleEditModeBase() only calls setState (async). stateRef is synced
   // from React state in a post-render useEffect, so stateRef.current still holds the
@@ -224,7 +231,10 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     } else if (!wasActive) {
       enterCanvas()
     }
-  }, [toggleEditModeBase, stateRef, exitCanvas, enterCanvas])
+    if (wasActive) {
+      closePanel()
+    }
+  }, [toggleEditModeBase, stateRef, exitCanvas, enterCanvas, closePanel])
 
   // Sync session item count when comments change
   React.useEffect(() => {
@@ -259,13 +269,6 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
   const {
     canSendEditToAgent, sendEditToAgent, sendCommentToAgent, sendAllSessionItemsToAgent,
   } = useAgentComms({ stateRef, sessionEditsRef, getSessionItems })
-
-  const closePanel = React.useCallback(() => {
-    setState((prev) => ({
-      ...prev,
-      isOpen: false,
-    }))
-  }, [])
 
   const setActiveTool = React.useCallback((tool: ActiveTool) => {
     setState((prev) => ({

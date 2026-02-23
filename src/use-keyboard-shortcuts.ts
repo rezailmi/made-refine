@@ -1,6 +1,6 @@
 import * as React from 'react'
 import type { DirectEditState, ActiveTool } from './types'
-import { isTextElement } from './utils'
+import { isTextElement, isInputFocused } from './utils'
 
 export interface KeyboardShortcutsOptions {
   stateRef: React.MutableRefObject<DirectEditState>
@@ -58,9 +58,7 @@ export function useKeyboardShortcuts({
       }
 
       if (e.key === 'C' && e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey && s.editModeActive) {
-        const active = document.activeElement
-        const isInput = active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement || (active instanceof HTMLElement && active.isContentEditable)
-        if (!isInput) {
+        if (!isInputFocused()) {
           e.preventDefault()
           setState((prev) => {
             let comments = prev.comments
@@ -82,9 +80,7 @@ export function useKeyboardShortcuts({
       }
 
       if (e.key === 'Z' && e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey && s.editModeActive) {
-        const active = document.activeElement
-        const isInput = active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement || (active instanceof HTMLElement && active.isContentEditable)
-        if (!isInput) {
+        if (!isInputFocused()) {
           e.preventDefault()
           toggleCanvas()
           return
@@ -115,9 +111,7 @@ export function useKeyboardShortcuts({
       }
 
       if (e.key === 'A' && e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey && s.editModeActive && s.selectedElement) {
-        const active = document.activeElement
-        const isInput = active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement || (active instanceof HTMLElement && active.isContentEditable)
-        if (!isInput) {
+        if (!isInputFocused()) {
           e.preventDefault()
           toggleFlexLayout()
           return
@@ -125,9 +119,7 @@ export function useKeyboardShortcuts({
       }
 
       if (e.key === 'Enter' && s.editModeActive && !s.textEditingElement && s.selectedElement) {
-        const active = document.activeElement
-        const isInput = active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement || (active instanceof HTMLElement && active.isContentEditable)
-        if (!isInput && isTextElement(s.selectedElement)) {
+        if (!isInputFocused() && isTextElement(s.selectedElement)) {
           e.preventDefault()
           startTextEditing(s.selectedElement)
           return

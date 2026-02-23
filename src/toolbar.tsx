@@ -5,7 +5,7 @@ import { useDirectEditState, useDirectEditActions } from './provider'
 import { useRulersVisible } from './rulers-overlay'
 import { cn } from './cn'
 import { useToolbarDock } from './use-toolbar-dock'
-import { MousePointer2, Ruler, Command, ArrowBigUp, MessageSquare, Maximize2 } from 'lucide-react'
+import { MousePointer2, Ruler, Command, ArrowBigUp, MessageSquare, Maximize2, X } from 'lucide-react'
 import type { ActiveTool, Theme, SessionItem } from './types'
 import {
   Tooltip,
@@ -36,6 +36,7 @@ export interface DirectEditToolbarInnerProps {
   canvasActive?: boolean
   canvasZoom?: number
   onToggleCanvas?: () => void
+  onSetCanvasZoom?: (zoom: number) => void
   onZoomTo100?: () => void
   onFitToViewport?: () => void
 }
@@ -60,6 +61,7 @@ export function DirectEditToolbarInner({
   canvasActive = false,
   canvasZoom = 1,
   onToggleCanvas,
+  onSetCanvasZoom,
   onZoomTo100,
   onFitToViewport,
 }: DirectEditToolbarInnerProps) {
@@ -67,6 +69,12 @@ export function DirectEditToolbarInner({
   const toolbarRef = React.useRef<HTMLDivElement>(null)
   const { dockedEdge, isDragging, isSnapping, style: dockStyle, handlePointerDown, handlePointerMove, handlePointerUp, handlePointerCancel } = useToolbarDock(toolbarRef)
   const isVertical = dockedEdge === 'left' || dockedEdge === 'right'
+  const [activePopover, setActivePopover] = React.useState<'edits' | 'settings' | 'zoom' | null>(null)
+
+  // Close active popover when toolbar starts dragging
+  React.useEffect(() => {
+    if (isDragging) setActivePopover(null)
+  }, [isDragging])
   const tooltipSide = dockedEdge === 'bottom' ? 'top'
     : dockedEdge === 'top' ? 'bottom'
     : dockedEdge === 'left' ? 'right' : 'left'
@@ -151,8 +159,8 @@ export function DirectEditToolbarInner({
             className={cn(
               'overflow-hidden transition-[max-width,max-height,margin,opacity] duration-300 ease-out',
               isVertical
-                ? (editModeActive ? 'mt-1 max-h-[220px] opacity-100' : 'mt-0 max-h-0 opacity-0')
-                : (editModeActive ? 'ml-1 max-w-[200px] opacity-100' : 'ml-0 max-w-0 opacity-0')
+                ? (editModeActive ? 'mt-1 max-h-[500px] opacity-100' : 'mt-0 max-h-0 opacity-0')
+                : (editModeActive ? 'ml-1 max-w-[500px] opacity-100' : 'ml-0 max-w-0 opacity-0')
             )}
           >
             <div className={cn('flex gap-1', isVertical ? 'flex-col items-center' : 'flex-row items-center')}>
@@ -210,26 +218,11 @@ export function DirectEditToolbarInner({
                   <Maximize2 className="size-4" />
                 </TooltipTrigger>
                 <TooltipContent side={tooltipSide} className="inline-flex items-center gap-1.5">
-                  <span>{canvasActive ? 'Exit canvas mode' : 'Canvas mode'}</span>
+                  <span>{canvasActive ? 'Disable canvas mode' : 'Enable canvas mode'}</span>
                   <kbd className={kbdClass}><ArrowBigUp className="size-3" /></kbd>
                   <kbd className={kbdClass}>Z</kbd>
                 </TooltipContent>
               </Tooltip>
-
-              {canvasActive && (
-                <Tooltip>
-                  <TooltipTrigger
-                    className="flex cursor-pointer items-center justify-center rounded-[8px] px-1.5 py-1 text-xs font-medium tabular-nums text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                    onPointerDown={(e) => e.stopPropagation()}
-                    onClick={onZoomTo100}
-                  >
-                    {Math.round(canvasZoom * 100)}%
-                  </TooltipTrigger>
-                  <TooltipContent side={tooltipSide} className="inline-flex items-center gap-1.5">
-                    <span>Reset to 100%</span>
-                  </TooltipContent>
-                </Tooltip>
-              )}
 
               <div className={cn(
                 'border-foreground/10',
@@ -239,7 +232,8 @@ export function DirectEditToolbarInner({
               <EditsPopover
                 tooltipSide={tooltipSide}
                 sessionEditCount={sessionEditCount}
-                isDragging={isDragging}
+                isOpen={activePopover === 'edits'}
+                onOpenChange={(open) => setActivePopover(open ? 'edits' : null)}
                 onGetSessionItems={onGetSessionItems}
                 onExportAllEdits={onExportAllEdits}
                 onSendAllToAgents={onSendAllToAgents}
@@ -252,9 +246,29 @@ export function DirectEditToolbarInner({
                 tooltipSide={tooltipSide}
                 theme={theme}
                 isMac={isMac}
-                isDragging={isDragging}
+                isOpen={activePopover === 'settings'}
+                onOpenChange={(open) => setActivePopover(open ? 'settings' : null)}
                 onSetTheme={onSetTheme}
               />
+
+              <div className={cn(
+                'border-foreground/10',
+                isVertical ? 'my-0.5 w-5 border-t' : 'mx-0.5 h-5 border-l'
+              )} />
+
+              <Tooltip>
+                <TooltipTrigger
+                  className="flex cursor-pointer items-center justify-center rounded-[8px] p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={onToggleEditMode}
+                >
+                  <X className="size-4" />
+                </TooltipTrigger>
+                <TooltipContent side={tooltipSide} className="inline-flex items-center gap-1.5">
+                  <span>Close</span>
+                  <kbd className={kbdClass}>Esc</kbd>
+                </TooltipContent>
+              </Tooltip>
             </div>
           </div>
         </TooltipProvider>
@@ -274,7 +288,7 @@ function DirectEditToolbarContent() {
   const {
     toggleEditMode, setActiveTool, setTheme,
     getSessionItems, exportAllEdits, sendAllSessionItemsToAgent, clearSessionEdits, removeSessionEdit, deleteComment,
-    toggleCanvas, zoomCanvasTo100, fitCanvasToViewport,
+    toggleCanvas, setCanvasZoom, zoomCanvasTo100, fitCanvasToViewport,
   } = useDirectEditActions()
   const [rulersVisible, toggleRulers] = useRulersVisible()
 
@@ -298,6 +312,7 @@ function DirectEditToolbarContent() {
       canvasActive={canvas?.active ?? false}
       canvasZoom={canvas?.zoom ?? 1}
       onToggleCanvas={toggleCanvas}
+      onSetCanvasZoom={setCanvasZoom}
       onZoomTo100={zoomCanvasTo100}
       onFitToViewport={fitCanvasToViewport}
     />

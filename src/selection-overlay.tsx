@@ -42,6 +42,7 @@ export function SelectionOverlay({
 }: SelectionOverlayProps) {
   const rectElement = isDragging && draggedElement ? draggedElement : selectedElement
   const [rect, setRect] = React.useState(() => rectElement.getBoundingClientRect())
+  const [borderRadius, setBorderRadius] = React.useState('')
   const [moveHandleRects, setMoveHandleRects] = React.useState<Array<{
     target: HTMLElement
     left: number
@@ -55,6 +56,7 @@ export function SelectionOverlay({
   React.useEffect(() => {
     function updateRect() {
       setRect(rectElement.getBoundingClientRect())
+      setBorderRadius(window.getComputedStyle(rectElement).borderRadius)
     }
 
     updateRect()
@@ -227,29 +229,23 @@ export function SelectionOverlay({
 
   return (
     <>
-      <svg
-        data-direct-edit="selection-overlay"
-        style={{
-          position: 'fixed',
-          inset: 0,
-          width: '100vw',
-          height: '100vh',
-          pointerEvents: 'none',
-          zIndex: 99996,
-        }}
-      >
-        {!isTextEditing && (
-          <rect
-            x={displayX}
-            y={displayY}
-            width={rect.width}
-            height={rect.height}
-            fill="transparent"
-            stroke={BLUE}
-            strokeWidth={1}
-          />
-        )}
-      </svg>
+      {!isTextEditing && (
+        <div
+          data-direct-edit="selection-overlay"
+          style={{
+            position: 'fixed',
+            left: displayX,
+            top: displayY,
+            width: rect.width,
+            height: rect.height,
+            pointerEvents: 'none',
+            zIndex: 99996,
+            border: `1px solid ${BLUE}`,
+            borderRadius,
+            boxSizing: 'border-box',
+          }}
+        />
+      )}
 
       {!isDragging && !isTextEditing && (
         <div
