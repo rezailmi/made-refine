@@ -7,6 +7,10 @@ const DEFAULT: CanvasSnapshot = { active: false, zoom: 1, panX: 0, panY: 0 }
 let snapshot: CanvasSnapshot = DEFAULT
 const listeners = new Set<() => void>()
 
+let bodyOffset = { x: 0, y: 0 }
+export function getBodyOffset() { return bodyOffset }
+export function setBodyOffset(o: { x: number; y: number }) { bodyOffset = o }
+
 export function getCanvasSnapshot(): CanvasSnapshot {
   return snapshot
 }

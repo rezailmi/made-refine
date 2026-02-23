@@ -1,8 +1,7 @@
 import * as React from 'react'
-import { flushSync } from 'react-dom'
 import type { DirectEditState } from './types'
 import { isInputFocused } from './utils'
-import { setCanvasSnapshot } from './canvas-store'
+import { setCanvasSnapshot, getBodyOffset, setBodyOffset } from './canvas-store'
 
 const MIN_ZOOM = 0.1
 const MAX_ZOOM = 5.0
@@ -119,11 +118,7 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
     const clamped = clampPan(zoom, panX, panY, bodyW, bodyH)
 
     canvasRef.current = { ...canvasRef.current, zoom, panX: clamped.panX, panY: clamped.panY }
-    // flushSync ensures RulersOverlay (guidelines + tick marks) commits synchronously
-    // before the browser can paint, so overlays never lag the body transform.
-    flushSync(() => {
-      setCanvasSnapshot(canvasRef.current)
-    })
+    setCanvasSnapshot(canvasRef.current)
     applyTransform(zoom, clamped.panX, clamped.panY)
     dispatchCanvasChange()
 
@@ -162,6 +157,14 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
 
     // Reset window scroll so transform does the positioning
     window.scrollTo(0, 0)
+
+    // Measure body margin before applying transform — needed for guideline math.
+    const bodyStyle = getComputedStyle(document.body)
+    setBodyOffset({
+      x: parseFloat(bodyStyle.marginLeft) || 0,
+      y: parseFloat(bodyStyle.marginTop) || 0,
+    })
+
     document.body.style.overflow = 'hidden'
     document.documentElement.style.overflow = 'hidden'
     document.documentElement.style.backgroundColor = '#F5F5F5'
@@ -194,6 +197,7 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
 
     window.scrollTo(savedScrollRef.current.x, savedScrollRef.current.y)
 
+    setBodyOffset({ x: 0, y: 0 })
     canvasRef.current = { active: false, zoom: 1, panX: 0, panY: 0 }
     setCanvasSnapshot(canvasRef.current)
     setState((prev) => ({
@@ -254,9 +258,10 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
         const newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, oldZoom * zoomFactor))
         const cx = e.clientX
         const cy = e.clientY
-        // Zoom-to-cursor: newPan = oldPan + cursor * (1/newZoom - 1/oldZoom)
-        const newPanX = c.panX + cx * (1 / newZoom - 1 / oldZoom)
-        const newPanY = c.panY + cy * (1 / newZoom - 1 / oldZoom)
+        // Zoom-to-cursor: account for body margin offset
+        const bo = getBodyOffset()
+        const newPanX = c.panX + (cx - bo.x) * (1 / newZoom - 1 / oldZoom)
+        const newPanY = c.panY + (cy - bo.y) * (1 / newZoom - 1 / oldZoom)
         updateCanvas(newZoom, newPanX, newPanY)
       } else {
         // Pan: divide by zoom to convert viewport delta to content-space delta

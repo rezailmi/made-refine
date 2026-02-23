@@ -1,5 +1,6 @@
 import * as React from 'react'
 import type { Guideline } from './types'
+import { getBodyOffset } from './canvas-store'
 import { collectSnapTargets, findSnap, SNAP_THRESHOLD_PX } from './utils/snap-targets'
 
 const STORAGE_KEY = 'direct-edit-guidelines'
@@ -206,7 +207,8 @@ export function useGuidelines(
       let storedPosition: number
       if (c?.active) {
         const pan = orientation === 'horizontal' ? (c.panY || 0) : (c.panX || 0)
-        storedPosition = pos / (c.zoom || 1) - pan
+        const bo = orientation === 'horizontal' ? getBodyOffset().y : getBodyOffset().x
+        storedPosition = bo + (pos - bo) / (c.zoom || 1) - pan
       } else {
         const currentScroll = orientation === 'horizontal' ? window.scrollY : window.scrollX
         storedPosition = pos + currentScroll
@@ -256,7 +258,8 @@ export function useGuidelines(
       let storedPosition: number
       if (c?.active) {
         const pan = orientation === 'horizontal' ? (c.panY || 0) : (c.panX || 0)
-        storedPosition = pos / (c.zoom || 1) - pan
+        const bo = orientation === 'horizontal' ? getBodyOffset().y : getBodyOffset().x
+        storedPosition = bo + (pos - bo) / (c.zoom || 1) - pan
       } else {
         const scrollPos = orientation === 'horizontal' ? window.scrollY : window.scrollX
         storedPosition = pos + scrollPos
@@ -283,7 +286,8 @@ export function useGuidelines(
     let viewportPos: number
     if (c?.active) {
       const pan = guideline.orientation === 'horizontal' ? (c.panY || 0) : (c.panX || 0)
-      viewportPos = (guideline.position + pan) * (c.zoom || 1)
+      const bo = guideline.orientation === 'horizontal' ? getBodyOffset().y : getBodyOffset().x
+      viewportPos = bo + (guideline.position - bo + pan) * (c.zoom || 1)
     } else {
       const scrollPos = guideline.orientation === 'horizontal' ? window.scrollY : window.scrollX
       viewportPos = guideline.position - scrollPos

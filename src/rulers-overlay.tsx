@@ -2,7 +2,7 @@ import * as React from 'react'
 import { createPortal } from 'react-dom'
 import { usePortalContainer } from './portal-container'
 import { useDirectEditState } from './hooks'
-import { useCanvasSnapshot } from './canvas-store'
+import { getCanvasSnapshot, useCanvasSnapshot, getBodyOffset } from './canvas-store'
 import { useGuidelines } from './use-guidelines'
 import type { Guideline } from './types'
 
@@ -269,12 +269,25 @@ function CornerSquare() {
   )
 }
 
+// --- Guideline viewport position ---
+
+function computeGuidelineViewportPos(position: number, orientation: 'horizontal' | 'vertical') {
+  const snap = getCanvasSnapshot()
+  const zoom = snap.active ? snap.zoom : 1
+  const pan = orientation === 'horizontal'
+    ? (snap.active ? snap.panY : -window.scrollY)
+    : (snap.active ? snap.panX : -window.scrollX)
+  if (snap.active) {
+    const bo = orientation === 'horizontal' ? getBodyOffset().y : getBodyOffset().x
+    return bo + (position - bo + pan) * zoom
+  }
+  return (position + pan) * zoom
+}
+
 // --- GuidelineLine ---
 
 function GuidelineLine({
   guideline,
-  scrollOffset,
-  zoom = 1,
   isActive,
   isSnapped,
   dragPosition,
@@ -282,8 +295,6 @@ function GuidelineLine({
   onDelete,
 }: {
   guideline: Guideline
-  scrollOffset: { x: number; y: number }
-  zoom?: number
   isActive: boolean
   isSnapped?: boolean
   dragPosition: number | null
@@ -291,8 +302,6 @@ function GuidelineLine({
   onDelete: (id: string) => void
 }) {
   const isHorizontal = guideline.orientation === 'horizontal'
-  const scrollPos = isHorizontal ? scrollOffset.y : scrollOffset.x
-  const viewportPos = (guideline.position - scrollPos) * zoom
   const lineColor = isActive && isSnapped ? SNAPPED_COLOR : GUIDELINE_COLOR
 
   const handlePointerDown = (e: React.PointerEvent) => {
@@ -307,34 +316,47 @@ function GuidelineLine({
     onDelete(guideline.id)
   }
 
-  const displayPos = isActive && dragPosition !== null ? dragPosition : viewportPos
+  const isDragging = isActive && dragPosition !== null
+  // Compute viewport position from the latest canvas snapshot. This provides a
+  // correct initial value; the imperative updateGuidelinePositions() callback
+  // keeps it frame-perfect during rapid zoom/pan without React re-renders.
+  const viewportPos = isDragging
+    ? dragPosition
+    : computeGuidelineViewportPos(guideline.position, guideline.orientation)
+  const translate = isHorizontal
+    ? `translateY(${viewportPos}px)`
+    : `translateX(${viewportPos}px)`
 
   if (isHorizontal) {
     return (
-      <>
+      <div
+        data-gl-pos={guideline.position}
+        data-gl-orient="h"
+        {...(isDragging ? { 'data-gl-dragging': '' } : {})}
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          height: 0,
+          transform: translate,
+          zIndex: 99993,
+          pointerEvents: 'none',
+        }}
+      >
         {/* Visible line */}
         <div
           data-direct-edit="guideline"
-          style={{
-            position: 'fixed',
-            top: displayPos,
-            left: 0,
-            right: 0,
-            height: 1,
-            background: lineColor,
-            zIndex: 99993,
-            pointerEvents: 'none',
-          }}
+          style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 1, background: lineColor }}
         />
         {/* Hit zone */}
         <div
           style={{
-            position: 'fixed',
-            top: displayPos - Math.floor(HIT_ZONE / 2),
+            position: 'absolute',
+            top: -Math.floor(HIT_ZONE / 2),
             left: RULER_SIZE,
             right: 0,
             height: HIT_ZONE,
-            zIndex: 99993,
             cursor: 'ns-resize',
             pointerEvents: 'auto',
           }}
@@ -345,8 +367,8 @@ function GuidelineLine({
         {isActive && (
           <div
             style={{
-              position: 'fixed',
-              top: displayPos + 4,
+              position: 'absolute',
+              top: 4,
               left: RULER_SIZE + 4,
               background: lineColor,
               color: '#fff',
@@ -360,34 +382,38 @@ function GuidelineLine({
             {Math.round(guideline.position)}
           </div>
         )}
-      </>
+      </div>
     )
   }
 
   // Vertical guideline
   return (
-    <>
+    <div
+      data-gl-pos={guideline.position}
+      data-gl-orient="v"
+      {...(isDragging ? { 'data-gl-dragging': '' } : {})}
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        bottom: 0,
+        width: 0,
+        transform: translate,
+        zIndex: 99993,
+        pointerEvents: 'none',
+      }}
+    >
       <div
         data-direct-edit="guideline"
-        style={{
-          position: 'fixed',
-          left: displayPos,
-          top: 0,
-          bottom: 0,
-          width: 1,
-          background: lineColor,
-          zIndex: 99993,
-          pointerEvents: 'none',
-        }}
+        style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 1, background: lineColor }}
       />
       <div
         style={{
-          position: 'fixed',
-          left: displayPos - Math.floor(HIT_ZONE / 2),
+          position: 'absolute',
+          left: -Math.floor(HIT_ZONE / 2),
           top: RULER_SIZE,
           bottom: 0,
           width: HIT_ZONE,
-          zIndex: 99993,
           cursor: 'ew-resize',
           pointerEvents: 'auto',
         }}
@@ -397,8 +423,8 @@ function GuidelineLine({
       {isActive && (
         <div
           style={{
-            position: 'fixed',
-            left: displayPos + 4,
+            position: 'absolute',
+            left: 4,
             top: RULER_SIZE + 4,
             background: lineColor,
             color: '#fff',
@@ -412,7 +438,7 @@ function GuidelineLine({
           {Math.round(guideline.position)}
         </div>
       )}
-    </>
+    </div>
   )
 }
 
@@ -464,6 +490,49 @@ export function RulersOverlay({ enabled }: { enabled: boolean }) {
     deleteGuideline,
   } = useGuidelines(enabled, hostElement, canvas)
 
+  // Imperatively update guideline wrapper transforms for frame-perfect positioning.
+  // Both this and applyTransform() run in the same macrotask (via
+  // `direct-edit-canvas-change` event), so the browser composites them in a
+  // single paint — no intermediate frame where body transform and guideline
+  // positions are out of sync.
+  React.useLayoutEffect(() => {
+    if (!container || !enabled) return
+    const el = container
+
+    function updateGuidelinePositions() {
+      const snap = getCanvasSnapshot()
+      const zoom = snap.active ? snap.zoom : 1
+      const panX = snap.active ? snap.panX : -window.scrollX
+      const panY = snap.active ? snap.panY : -window.scrollY
+      const bo = getBodyOffset()
+
+      el.querySelectorAll<HTMLElement>('[data-gl-pos]').forEach((node) => {
+        // Skip guidelines being dragged — React controls their transform
+        if (node.hasAttribute('data-gl-dragging')) return
+        const pos = Number(node.dataset.glPos)
+        const orient = node.dataset.glOrient
+        let vp: number
+        if (snap.active) {
+          vp = orient === 'h'
+            ? bo.y + (pos - bo.y + panY) * zoom
+            : bo.x + (pos - bo.x + panX) * zoom
+        } else {
+          vp = orient === 'h' ? (pos + panY) * zoom : (pos + panX) * zoom
+        }
+        node.style.transform = orient === 'h' ? `translateY(${vp}px)` : `translateX(${vp}px)`
+      })
+    }
+
+    updateGuidelinePositions()
+
+    window.addEventListener('direct-edit-canvas-change', updateGuidelinePositions)
+    window.addEventListener('scroll', updateGuidelinePositions, true)
+    return () => {
+      window.removeEventListener('direct-edit-canvas-change', updateGuidelinePositions)
+      window.removeEventListener('scroll', updateGuidelinePositions, true)
+    }
+  }, [container, enabled])
+
   if (!enabled || !container) return null
 
   // In canvas mode, pan replaces scroll and we need zoom for coordinate mapping
@@ -491,8 +560,6 @@ export function RulersOverlay({ enabled }: { enabled: boolean }) {
         <GuidelineLine
           key={g.id}
           guideline={g}
-          scrollOffset={effectiveScrollOffset}
-          zoom={zoom}
           isActive={activeGuideline?.id === g.id}
           isSnapped={activeGuideline?.id === g.id ? isSnapped : false}
           dragPosition={activeGuideline?.id === g.id ? dragPosition : null}
