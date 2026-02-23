@@ -128,7 +128,7 @@ export function ZoomPopover({
                   onOpenChange(false)
                 }}
               >
-                {canvasActive && <Check className="size-3.5" />}
+                <Check className={cn('size-3.5', canvasActive ? 'opacity-100' : 'opacity-0')} />
                 Canvas mode
               </BaseButton>
             </div>
