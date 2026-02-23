@@ -57,6 +57,36 @@ vi.mock('./ui/tooltip', () => ({
 }))
 
 describe('DirectEditToolbarInner', () => {
+  it('opens zoom popover without toggling canvas mode from toolbar icon', async () => {
+    const onToggleCanvas = vi.fn()
+    const { container } = render(
+      <DirectEditToolbarInner
+        editModeActive={true}
+        onToggleEditMode={() => {}}
+        rulersVisible={false}
+        onToggleRulers={() => {}}
+        canvasActive={false}
+        onToggleCanvas={onToggleCanvas}
+      />,
+    )
+
+    const canvasTrigger = container.querySelector('svg.lucide-maximize-2')?.closest('button')
+    expect(canvasTrigger).not.toBeNull()
+    fireEvent.click(canvasTrigger as HTMLButtonElement)
+
+    await waitFor(() => {
+      expect(canvasTrigger?.className).toContain('bg-muted')
+    })
+    expect(onToggleCanvas).not.toHaveBeenCalled()
+
+    const canvasModeButton = Array.from(container.querySelectorAll('button')).find((button) => (
+      button.textContent?.trim() === 'Canvas mode'
+    ))
+    expect(canvasModeButton).not.toBeNull()
+    fireEvent.click(canvasModeButton as HTMLButtonElement)
+    expect(onToggleCanvas).toHaveBeenCalledTimes(1)
+  })
+
   it('uses theme-token classes for keyboard shortcuts', () => {
     const { container } = render(
       <DirectEditToolbarInner

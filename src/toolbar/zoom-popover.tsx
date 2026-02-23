@@ -2,8 +2,9 @@ import * as React from 'react'
 import { Button as BaseButton } from '@base-ui/react/button'
 import { usePortalContainer } from '../portal-container'
 import { Popover } from '@base-ui/react/popover'
-import { ZoomIn, ZoomOut, Scan, Minimize2, Maximize2, Check } from 'lucide-react'
+import { Scan, Minimize2, Maximize2, Check, ArrowBigUp } from 'lucide-react'
 import { cn } from '../cn'
+import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 
 function ZoomPopoverPortal(props: React.ComponentPropsWithoutRef<typeof Popover.Portal>) {
   const container = usePortalContainer()
@@ -35,6 +36,7 @@ export function ZoomPopover({
 }: ZoomPopoverProps) {
   const popupRef = React.useRef<HTMLDivElement>(null)
   const triggerRef = React.useRef<HTMLButtonElement>(null)
+  const kbdClass = 'inline-flex items-center justify-center rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground min-w-[20px] min-h-[18px]'
 
   // Close on outside click (Shadow DOM breaks base-ui's dismiss)
   React.useEffect(() => {
@@ -57,36 +59,39 @@ export function ZoomPopover({
     }
   }, [isOpen, onOpenChange])
 
-  // Close popover when canvas is deactivated
-  React.useEffect(() => {
-    if (!canvasActive) onOpenChange(false)
-  }, [canvasActive, onOpenChange])
-
   return (
     <Popover.Root open={isOpen} onOpenChange={onOpenChange}>
-      <Popover.Trigger ref={triggerRef} render={
-        <button
-          type="button"
-          className={cn(
-            'flex cursor-pointer items-center justify-center rounded-[8px] p-2 transition-colors',
-            canvasActive
-              ? isOpen ? 'bg-muted text-foreground' : 'bg-muted text-foreground hover:bg-muted/80'
-              : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-          )}
-          onPointerDown={(e: React.PointerEvent) => e.stopPropagation()}
-          onClick={(e) => {
-            e.preventDefault()
-            e.stopPropagation()
-            if (!canvasActive) {
-              onToggleCanvas?.()
-            } else {
-              onOpenChange(!isOpen)
-            }
-          }}
-        />
-      }>
-        <Maximize2 className="size-4" />
-      </Popover.Trigger>
+      <Tooltip disabled={isOpen}>
+        <TooltipTrigger render={
+          <Popover.Trigger render={
+            <button
+              ref={triggerRef}
+              type="button"
+              className={cn(
+                'flex cursor-pointer items-center justify-center rounded-[8px] p-2 transition-colors',
+                isOpen
+                  ? 'bg-muted text-foreground'
+                  : canvasActive
+                    ? 'bg-muted text-foreground hover:bg-muted/80'
+                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+              )}
+              onPointerDown={(e: React.PointerEvent) => e.stopPropagation()}
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                onOpenChange(!isOpen)
+              }}
+            />
+          } />
+        }>
+          <Maximize2 className="size-4" />
+        </TooltipTrigger>
+        <TooltipContent side={tooltipSide} className="inline-flex items-center gap-1.5">
+          <span>Canvas mode</span>
+          <kbd className={kbdClass}><ArrowBigUp className="size-2.5" /></kbd>
+          <kbd className={kbdClass}>Z</kbd>
+        </TooltipContent>
+      </Tooltip>
       <ZoomPopoverPortal>
         <Popover.Positioner side={tooltipSide} sideOffset={12} className="fixed z-[99999]" style={{ pointerEvents: 'auto' }}>
           <Popover.Popup
@@ -98,30 +103,12 @@ export function ZoomPopover({
               <BaseButton
                 className="flex h-8 w-full items-center gap-2 rounded-md px-2 text-xs text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
                 onClick={() => {
-                  onSetCanvasZoom?.(canvasZoom * 1.25)
-                }}
-              >
-                <ZoomIn className="size-3.5" />
-                Zoom in
-              </BaseButton>
-              <BaseButton
-                className="flex h-8 w-full items-center gap-2 rounded-md px-2 text-xs text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
-                onClick={() => {
-                  onSetCanvasZoom?.(canvasZoom / 1.25)
-                }}
-              >
-                <ZoomOut className="size-3.5" />
-                Zoom out
-              </BaseButton>
-              <BaseButton
-                className="flex h-8 w-full items-center gap-2 rounded-md px-2 text-xs text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
-                onClick={() => {
                   onZoomTo100?.()
                   onOpenChange(false)
                 }}
               >
                 <Scan className="size-3.5" />
-                Zoom to 100%
+                Actual size (100%)
               </BaseButton>
               <BaseButton
                 className="flex h-8 w-full items-center gap-2 rounded-md px-2 text-xs text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
@@ -142,7 +129,7 @@ export function ZoomPopover({
                 }}
               >
                 {canvasActive && <Check className="size-3.5" />}
-                {canvasActive ? 'Disable canvas mode' : 'Enable canvas mode'}
+                Canvas mode
               </BaseButton>
             </div>
           </Popover.Popup>
