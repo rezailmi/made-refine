@@ -44,7 +44,7 @@ vi.mock('./ui/tooltip', () => ({
   TooltipProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   TooltipTrigger: React.forwardRef<HTMLButtonElement, React.ComponentPropsWithoutRef<'button'>>(
-    ({ children, ...props }, ref) => (
+    ({ children, nativeButton: _nativeButton, ...props }, ref) => (
       <button ref={ref} type="button" {...props}>{children}</button>
     ),
   ),

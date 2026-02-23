@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { act, renderHook, waitFor } from '@testing-library/react'
+import { act, fireEvent, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DirectEditProvider, useDirectEdit, useDirectEditActions, useDirectEditState } from './provider'
 import { DirectEditPanel } from './panel'
@@ -854,7 +854,7 @@ describe('DirectEditProvider', () => {
     expect(payload.exportMarkdown).toContain('summary:')
   })
 
-  it('blocks new comment creation when active comment has unsent text', async () => {
+  it('starts a new comment in one click when the current comment is already submitted', async () => {
     const targetA = createTarget('comment-first', 'padding-top: 8px;')
     const targetB = createTarget('comment-second', 'padding-top: 8px;')
     mockElementFromPoint(targetB)
@@ -879,12 +879,18 @@ describe('DirectEditProvider', () => {
       clickOverlay(overlay, 48, 56)
     })
 
-    // Comment with text blocks new creation — still 1 comment, same active
-    expect(result.current.comments).toHaveLength(1)
-    expect(result.current.activeCommentId).toBe(firstCommentId)
+    await waitFor(() => {
+      expect(result.current.comments).toHaveLength(2)
+      expect(result.current.activeCommentId).not.toBe(firstCommentId)
+    })
+
+    const firstComment = result.current.comments.find((comment) => comment.id === firstCommentId)
+    expect(firstComment?.text).toBe('Keep this comment')
+    const activeComment = result.current.comments.find((comment) => comment.id === result.current.activeCommentId)
+    expect(activeComment?.text).toBe('')
   })
 
-  it('replaces empty comment pin when clicking to create a new one', async () => {
+  it('blocks new comment creation for unsent drafts and marks the input as invalid', async () => {
     const targetA = createTarget('comment-draft', 'padding-top: 8px;')
     const targetB = createTarget('comment-draft-next', 'padding-top: 8px;')
     mockElementFromPoint(targetB)
@@ -900,15 +906,34 @@ describe('DirectEditProvider', () => {
     const draftCommentId = result.current.activeCommentId
     expect(draftCommentId).not.toBeNull()
 
+    const host = await waitFor(() => {
+      const node = document.querySelector('[data-direct-edit-host]') as HTMLElement | null
+      expect(node).not.toBeNull()
+      return node as HTMLElement
+    })
+
+    const draftInput = await waitFor(() => {
+      const input = host.shadowRoot?.querySelector('input[placeholder="Add a comment..."]') as HTMLInputElement | null
+      expect(input).not.toBeNull()
+      return input as HTMLInputElement
+    })
+
+    act(() => {
+      fireEvent.change(draftInput, { target: { value: 'Unsent draft' } })
+    })
+
     const overlay = await findOverlayElement()
     act(() => {
       clickOverlay(overlay, 60, 68)
     })
 
-    // Empty comment is replaced — still 1 comment but with a new ID
+    expect(result.current.comments).toHaveLength(1)
+    expect(result.current.activeCommentId).toBe(draftCommentId)
+
     await waitFor(() => {
-      expect(result.current.comments).toHaveLength(1)
-      expect(result.current.activeCommentId).not.toBe(draftCommentId)
+      const input = host.shadowRoot?.querySelector('input[placeholder="Add a comment..."]') as HTMLInputElement | null
+      expect(input).not.toBeNull()
+      expect(input?.getAttribute('aria-invalid')).toBe('true')
     })
   })
 

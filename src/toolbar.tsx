@@ -5,7 +5,7 @@ import { useDirectEditState, useDirectEditActions } from './provider'
 import { useRulersVisible } from './rulers-overlay'
 import { cn } from './cn'
 import { useToolbarDock } from './use-toolbar-dock'
-import { MousePointer2, Ruler, Command, ArrowBigUp, MessageSquare, Maximize2, X } from 'lucide-react'
+import { MousePointer2, Ruler, Command, ArrowBigUp, MessageSquare, X } from 'lucide-react'
 import type { ActiveTool, Theme, SessionItem } from './types'
 import {
   Tooltip,
@@ -15,6 +15,7 @@ import {
 } from './ui/tooltip'
 import { EditsPopover } from './toolbar/edits-popover'
 import { SettingsPopover } from './toolbar/settings-popover'
+import { ZoomPopover } from './toolbar/zoom-popover'
 
 export interface DirectEditToolbarInnerProps {
   editModeActive: boolean
@@ -204,25 +205,17 @@ export function DirectEditToolbarInner({
                 </TooltipContent>
               </Tooltip>
 
-              <Tooltip>
-                <TooltipTrigger
-                  className={cn(
-                    'flex cursor-pointer items-center justify-center rounded-[8px] p-2 transition-colors',
-                    canvasActive
-                      ? 'bg-muted text-foreground'
-                      : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                  )}
-                  onPointerDown={(e) => e.stopPropagation()}
-                  onClick={onToggleCanvas}
-                >
-                  <Maximize2 className="size-4" />
-                </TooltipTrigger>
-                <TooltipContent side={tooltipSide} className="inline-flex items-center gap-1.5">
-                  <span>{canvasActive ? 'Disable canvas mode' : 'Enable canvas mode'}</span>
-                  <kbd className={kbdClass}><ArrowBigUp className="size-3" /></kbd>
-                  <kbd className={kbdClass}>Z</kbd>
-                </TooltipContent>
-              </Tooltip>
+              <ZoomPopover
+                tooltipSide={tooltipSide}
+                canvasActive={canvasActive}
+                canvasZoom={canvasZoom}
+                isOpen={activePopover === 'zoom'}
+                onOpenChange={(open) => setActivePopover(open ? 'zoom' : null)}
+                onToggleCanvas={onToggleCanvas}
+                onSetCanvasZoom={onSetCanvasZoom}
+                onZoomTo100={onZoomTo100}
+                onFitToViewport={onFitToViewport}
+              />
 
               <div className={cn(
                 'border-foreground/10',

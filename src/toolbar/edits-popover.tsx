@@ -124,7 +124,8 @@ export function EditsPopover({
     <Popover.Root open={isOpen} onOpenChange={onOpenChange}>
       <Tooltip open={isOpen ? false : undefined}>
         <Popover.Trigger ref={editsTriggerRef} render={
-          <TooltipTrigger
+          <button
+            type="button"
             className={cn(
               'flex cursor-pointer items-center justify-center rounded-[8px] p-2 transition-colors',
               sessionEditCount > 0 || isOpen
@@ -194,7 +195,7 @@ export function EditsPopover({
                     </BaseButton>
                   )}
                   <Tooltip>
-                    <TooltipTrigger render={
+                    <TooltipTrigger nativeButton={false} render={
                       <BaseButton
                         className="inline-flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                         onClick={() => {

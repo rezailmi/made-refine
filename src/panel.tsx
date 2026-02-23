@@ -379,8 +379,9 @@ function DirectEditPanelContent() {
     if (nextCommentId && nextCommentId === activeCommentId) return false
     const active = comments.find((comment) => comment.id === activeCommentId)
     if (!active) return false
-    const hasText = active.text.trim().length > 0 || commentDraftRef.current.trim().length > 0
-    if (!hasText) return false
+    // Block only unsent drafts (typed input not yet submitted to comment.text).
+    const hasUnsentDraft = active.text.trim().length === 0 && commentDraftRef.current.trim().length > 0
+    if (!hasUnsentDraft) return false
     triggerCommentInputAttention(active.id)
     return true
   }, [activeCommentId, comments, triggerCommentInputAttention])

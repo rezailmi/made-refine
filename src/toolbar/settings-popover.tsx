@@ -7,7 +7,6 @@ import type { Theme } from '../types'
 import { cn } from '../cn'
 import {
   Tooltip,
-  TooltipTrigger,
   TooltipContent,
 } from '../ui/tooltip'
 
@@ -93,7 +92,8 @@ export function SettingsPopover({
       <Popover.Root open={isOpen && !shortcutsOpen} onOpenChange={(open) => { if (!open) onOpenChange(false) }}>
         <Tooltip open={isOpen || shortcutsOpen ? false : undefined}>
           <Popover.Trigger ref={settingsTriggerRef} render={
-            <TooltipTrigger
+            <button
+              type="button"
               className={cn(
                 'flex cursor-pointer items-center justify-center rounded-[8px] p-2 transition-colors',
                 isOpen || shortcutsOpen
@@ -169,7 +169,7 @@ export function SettingsPopover({
       </Popover.Root>
 
       <Popover.Root open={shortcutsOpen} onOpenChange={setShortcutsOpen}>
-        <Popover.Trigger render={<span />} />
+        <Popover.Trigger nativeButton={false} render={<span />} />
         <SettingsPopoverPortal>
           <Popover.Positioner
             side={tooltipSide}
