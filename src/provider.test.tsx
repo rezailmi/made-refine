@@ -854,7 +854,7 @@ describe('DirectEditProvider', () => {
     expect(payload.exportMarkdown).toContain('summary:')
   })
 
-  it('starts a new comment in one click when the current comment is already submitted', async () => {
+  it('blocks new comment creation when active comment has unsent text', async () => {
     const targetA = createTarget('comment-first', 'padding-top: 8px;')
     const targetB = createTarget('comment-second', 'padding-top: 8px;')
     mockElementFromPoint(targetB)
@@ -879,18 +879,12 @@ describe('DirectEditProvider', () => {
       clickOverlay(overlay, 48, 56)
     })
 
-    await waitFor(() => {
-      expect(result.current.comments).toHaveLength(2)
-      expect(result.current.activeCommentId).not.toBe(firstCommentId)
-    })
-
-    const firstComment = result.current.comments.find((comment) => comment.id === firstCommentId)
-    expect(firstComment?.text).toBe('Keep this comment')
-    const activeComment = result.current.comments.find((comment) => comment.id === result.current.activeCommentId)
-    expect(activeComment?.text).toBe('')
+    // Comment with text blocks new creation — still 1 comment, same active
+    expect(result.current.comments).toHaveLength(1)
+    expect(result.current.activeCommentId).toBe(firstCommentId)
   })
 
-  it('blocks new comment creation for unsent drafts and marks the input as invalid', async () => {
+  it('replaces empty comment pin when clicking to create a new one', async () => {
     const targetA = createTarget('comment-draft', 'padding-top: 8px;')
     const targetB = createTarget('comment-draft-next', 'padding-top: 8px;')
     mockElementFromPoint(targetB)
@@ -911,14 +905,10 @@ describe('DirectEditProvider', () => {
       clickOverlay(overlay, 60, 68)
     })
 
-    expect(result.current.comments).toHaveLength(1)
-    expect(result.current.activeCommentId).toBe(draftCommentId)
-
-    const host = document.querySelector('[data-direct-edit-host]') as HTMLElement
+    // Empty comment is replaced — still 1 comment but with a new ID
     await waitFor(() => {
-      const input = host.shadowRoot?.querySelector('input[placeholder="Add a comment..."]') as HTMLInputElement | null
-      expect(input).not.toBeNull()
-      expect(input?.getAttribute('aria-invalid')).toBe('true')
+      expect(result.current.comments).toHaveLength(1)
+      expect(result.current.activeCommentId).not.toBe(draftCommentId)
     })
   })
 

@@ -380,7 +380,7 @@ function DirectEditPanelContent() {
     const active = comments.find((comment) => comment.id === activeCommentId)
     if (!active) return false
     const hasText = active.text.trim().length > 0 || commentDraftRef.current.trim().length > 0
-    if (hasText) return false
+    if (!hasText) return false
     triggerCommentInputAttention(active.id)
     return true
   }, [activeCommentId, comments, triggerCommentInputAttention])
