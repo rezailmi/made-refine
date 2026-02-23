@@ -28,20 +28,20 @@ function getToolbarBounds(width: number, height: number) {
   return { minX, maxX, minY, maxY }
 }
 
-function getDockedPosition(edge: DockedEdge, width: number, height: number, currentX?: number, currentY?: number) {
+function getDockedPosition(edge: DockedEdge, width: number, height: number) {
   const { minX, maxX, minY, maxY } = getToolbarBounds(width, height)
-  const freeX = currentX !== undefined ? clamp(currentX, minX, maxX) : clamp((window.innerWidth - width) / 2, minX, maxX)
-  const freeY = currentY !== undefined ? clamp(currentY, minY, maxY) : clamp((window.innerHeight - height) / 2, minY, maxY)
+  const centerX = clamp((window.innerWidth - width) / 2, minX, maxX)
+  const centerY = clamp((window.innerHeight - height) / 2, minY, maxY)
 
   switch (edge) {
     case 'bottom':
-      return { x: freeX, y: maxY }
+      return { x: centerX, y: maxY }
     case 'top':
-      return { x: freeX, y: minY }
+      return { x: centerX, y: minY }
     case 'left':
-      return { x: minX, y: freeY }
+      return { x: minX, y: centerY }
     case 'right':
-      return { x: maxX, y: freeY }
+      return { x: maxX, y: centerY }
   }
 }
 
@@ -75,11 +75,12 @@ export function useToolbarDock(toolbarRef: React.RefObject<HTMLDivElement | null
   const [dragPosition, setDragPosition] = React.useState<{ x: number; y: number } | null>(null)
 
   const dragOffsetRef = React.useRef({ x: 0, y: 0 })
-  const dockedPosRef = React.useRef({ x: 0, y: 0 })
   const pointerStartRef = React.useRef({ x: 0, y: 0 })
   const pendingDragRef = React.useRef(false)
   const capturedElementRef = React.useRef<HTMLElement | null>(null)
   const snapTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+  const transitionTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+  const transitioningRef = React.useRef(false)
 
   // Compute docked position based on current edge and toolbar size
   const getDockedPos = React.useCallback(() => {
@@ -99,25 +100,34 @@ export function useToolbarDock(toolbarRef: React.RefObject<HTMLDivElement | null
     if (!el) return
     // Wait one frame so the element has layout
     const raf = requestAnimationFrame(() => {
-      const pos = getDockedPos()
-      dockedPosRef.current = pos
-      setDockedPos(pos)
+      setDockedPos(getDockedPos())
       setReady(true)
     })
     return () => cancelAnimationFrame(raf)
   }, [getDockedPos, toolbarRef])
 
-  // Resize observer + window resize to recalculate docked position
+  // Predict the final size before an expand/collapse transition starts.
+  // Sets the target position immediately so it transitions in parallel with the resize.
+  const predictSize = React.useCallback((width: number, height: number) => {
+    transitioningRef.current = true
+    setDockedPos(getDockedPosition(dockedEdge, width, height))
+    if (transitionTimerRef.current) clearTimeout(transitionTimerRef.current)
+    transitionTimerRef.current = setTimeout(() => {
+      transitioningRef.current = false
+      transitionTimerRef.current = null
+    }, 350)
+  }, [dockedEdge])
+
+  // Resize observer + window resize to recalculate docked position.
+  // Suppressed during predicted transitions to avoid cascading updates.
   React.useEffect(() => {
     const el = toolbarRef.current
     if (!el) return
 
     function recalc() {
-      if (!el) return
+      if (!el || transitioningRef.current) return
       const rect = el.getBoundingClientRect()
-      const pos = getDockedPosition(dockedEdge, rect.width, rect.height, dockedPosRef.current.x, dockedPosRef.current.y)
-      dockedPosRef.current = pos
-      setDockedPos(pos)
+      setDockedPos(getDockedPosition(dockedEdge, rect.width, rect.height))
     }
 
     const ro = new ResizeObserver(recalc)
@@ -190,8 +200,6 @@ export function useToolbarDock(toolbarRef: React.RefObject<HTMLDivElement | null
     }
 
     const rect = el.getBoundingClientRect()
-    const width = el.offsetWidth
-    const height = el.offsetHeight
     const centerX = rect.left + rect.width / 2
     const centerY = rect.top + rect.height / 2
     const newEdge = getNearestEdge(centerX, centerY)
@@ -201,10 +209,7 @@ export function useToolbarDock(toolbarRef: React.RefObject<HTMLDivElement | null
       localStorage.setItem(STORAGE_KEY, newEdge)
     } catch {}
 
-    // Use offsetWidth/Height (unaffected by CSS transforms) for accurate snap positioning
-    const newPos = getDockedPosition(newEdge, width, height, rect.left, rect.top)
-    dockedPosRef.current = newPos
-    setDockedPos(newPos)
+    setDockedPos(getDockedPosition(newEdge, el.offsetWidth, el.offsetHeight))
     setPhase('snapping')
     setDragPosition(null)
 
@@ -230,10 +235,11 @@ export function useToolbarDock(toolbarRef: React.RefObject<HTMLDivElement | null
     }
   }, [phase])
 
-  // Clean up snap timer on unmount
+  // Clean up timers on unmount
   React.useEffect(() => {
     return () => {
       if (snapTimerRef.current) clearTimeout(snapTimerRef.current)
+      if (transitionTimerRef.current) clearTimeout(transitionTimerRef.current)
     }
   }, [])
 
@@ -267,11 +273,12 @@ export function useToolbarDock(toolbarRef: React.RefObject<HTMLDivElement | null
       }
     }
 
-    // docked
+    // docked — smooth re-centering when toolbar resizes (e.g. design mode toggle)
     return {
       ...base,
       left: dockedPos.x,
       top: dockedPos.y,
+      transition: 'left 300ms cubic-bezier(0.25, 1, 0.5, 1), top 300ms cubic-bezier(0.25, 1, 0.5, 1), box-shadow 150ms ease-out',
     }
   }, [phase, dragPosition, dockedPos, ready])
 
@@ -280,6 +287,7 @@ export function useToolbarDock(toolbarRef: React.RefObject<HTMLDivElement | null
     isDragging,
     isSnapping,
     style,
+    predictSize,
     handlePointerDown,
     handlePointerMove,
     handlePointerUp,

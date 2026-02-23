@@ -68,9 +68,39 @@ export function DirectEditToolbarInner({
 }: DirectEditToolbarInnerProps) {
   const container = usePortalContainer()
   const toolbarRef = React.useRef<HTMLDivElement>(null)
-  const { dockedEdge, isDragging, isSnapping, style: dockStyle, handlePointerDown, handlePointerMove, handlePointerUp, handlePointerCancel } = useToolbarDock(toolbarRef)
+  const { dockedEdge, isDragging, isSnapping, style: dockStyle, predictSize, handlePointerDown, handlePointerMove, handlePointerUp, handlePointerCancel } = useToolbarDock(toolbarRef)
   const isVertical = dockedEdge === 'left' || dockedEdge === 'right'
   const [activePopover, setActivePopover] = React.useState<'edits' | 'settings' | 'zoom' | null>(null)
+
+  // Cache toolbar sizes for expanded/collapsed states so we can predict position on toggle
+  const expandedSizeRef = React.useRef<{ w: number; h: number } | null>(null)
+  const collapsedSizeRef = React.useRef<{ w: number; h: number } | null>(null)
+
+  React.useEffect(() => {
+    const el = toolbarRef.current
+    if (!el) return
+    // Cache size after transition settles
+    const timer = setTimeout(() => {
+      const rect = el.getBoundingClientRect()
+      if (editModeActive) {
+        expandedSizeRef.current = { w: rect.width, h: rect.height }
+      } else {
+        collapsedSizeRef.current = { w: rect.width, h: rect.height }
+      }
+    }, 350)
+    return () => clearTimeout(timer)
+  }, [editModeActive])
+
+  // On toggle, immediately predict the final position so expand + move run in parallel
+  const prevEditModeRef = React.useRef(editModeActive)
+  React.useEffect(() => {
+    if (prevEditModeRef.current === editModeActive) return
+    prevEditModeRef.current = editModeActive
+    const target = editModeActive ? expandedSizeRef.current : collapsedSizeRef.current
+    if (target) {
+      predictSize(target.w, target.h)
+    }
+  }, [editModeActive, predictSize])
 
   // Close active popover when toolbar starts dragging
   React.useEffect(() => {
@@ -112,7 +142,7 @@ export function DirectEditToolbarInner({
         data-direct-edit="toolbar"
         style={{ pointerEvents: 'auto', touchAction: 'none', ...dockStyle }}
         className={cn(
-          'group z-[99999] flex rounded-xl outline outline-1 outline-foreground/10 bg-background p-1.5 shadow-lg transition-shadow duration-200',
+          'group z-[99999] flex rounded-xl outline outline-1 outline-foreground/10 bg-background p-1.5 shadow-lg',
           isVertical ? 'flex-col items-center' : 'flex-row items-center',
           isDragging && 'cursor-grabbing select-none shadow-2xl',
           className
@@ -138,12 +168,10 @@ export function DirectEditToolbarInner({
           <Tooltip>
             <TooltipTrigger
               className={cn(
-                'flex cursor-pointer items-center justify-center rounded-[8px] p-2 transition-colors',
+                'flex cursor-pointer items-center justify-center rounded-[8px] p-2 transition-[color,background-color] duration-150 ease-out',
                 editModeActive && activeTool !== 'comment'
                   ? 'bg-foreground text-background hover:bg-foreground/80'
-                  : editModeActive && activeTool === 'comment'
-                    ? 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
               )}
               onPointerDown={(e: React.PointerEvent) => e.stopPropagation()}
               onClick={() => {
@@ -164,13 +192,27 @@ export function DirectEditToolbarInner({
 
           <div
             className={cn(
-              'overflow-hidden transition-[max-width,max-height,margin,opacity] duration-300 ease-out',
+              'grid place-items-center overflow-hidden',
               isVertical
-                ? (editModeActive ? 'mt-1 max-h-[500px] opacity-100' : 'mt-0 max-h-0 opacity-0')
-                : (editModeActive ? 'ml-1 max-w-[500px] opacity-100' : 'ml-0 max-w-0 opacity-0')
+                ? (editModeActive ? 'mt-1 grid-rows-[1fr]' : 'mt-0 grid-rows-[0fr]')
+                : (editModeActive ? 'ml-1 grid-cols-[1fr]' : 'ml-0 grid-cols-[0fr]')
             )}
+            style={{
+              transitionProperty: 'grid-template-columns, grid-template-rows, margin',
+              transitionDuration: '300ms',
+              transitionTimingFunction: 'cubic-bezier(0.25, 1, 0.5, 1)',
+              transitionDelay: editModeActive ? '0ms' : '75ms',
+            }}
           >
-            <div className={cn('flex gap-1', isVertical ? 'flex-col items-center' : 'flex-row items-center')}>
+            <div
+              className={cn('flex gap-1 overflow-hidden', isVertical ? 'min-h-0 flex-col items-center' : 'min-w-0 flex-row items-center', editModeActive ? 'blur-0 opacity-100' : 'blur-[5px] opacity-0')}
+              style={{
+                transitionProperty: 'filter, opacity',
+                transitionDuration: '300ms',
+                transitionTimingFunction: 'cubic-bezier(0.33, 1, 0.68, 1)',
+                transitionDelay: editModeActive ? '75ms' : '0ms',
+              }}
+            >
               <Tooltip>
                 <TooltipTrigger
                   className={cn(

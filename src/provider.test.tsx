@@ -482,7 +482,36 @@ describe('DirectEditProvider', () => {
     })
     await waitFor(() => {
       expect(root.textContent).toContain('Theme')
+      expect(root.textContent).toContain('Keyboard shortcuts')
       expect(root.textContent).not.toContain('Copy to AI agents')
+    })
+
+    const keyboardShortcutsTrigger = await waitFor(() => {
+      const items = Array.from(root.querySelectorAll('[role="menuitem"]')) as HTMLElement[]
+      const item = items.find((el) => el.textContent?.trim() === 'Keyboard shortcuts')
+      expect(item).not.toBeUndefined()
+      return item as HTMLElement
+    })
+    act(() => {
+      fireEvent.click(keyboardShortcutsTrigger)
+    })
+    await waitFor(() => {
+      expect(root.textContent).toContain('Toggle design mode')
+    })
+
+    const themeTrigger = await waitFor(() => {
+      const items = Array.from(root.querySelectorAll('[role="menuitem"]')) as HTMLElement[]
+      const item = items.find((el) => el.textContent?.trim() === 'Theme')
+      expect(item).not.toBeUndefined()
+      return item as HTMLElement
+    })
+    act(() => {
+      fireEvent.click(themeTrigger)
+    })
+    await waitFor(() => {
+      expect(root.textContent).toContain('Light')
+      expect(root.textContent).toContain('Dark')
+      expect(root.textContent).toContain('System')
     })
 
     await act(async () => {

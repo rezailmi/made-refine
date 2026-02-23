@@ -510,6 +510,7 @@ describe('SelectionOverlay', () => {
     expect(overlay.style.top).toBe('190px')
     expect(overlay.style.width).toBe('80px')
     expect(overlay.style.height).toBe('40px')
+    expect(overlay.style.borderRadius).toBe('0px')
   })
 
   it('does not render move handle by default', () => {

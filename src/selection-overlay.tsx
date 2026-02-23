@@ -45,7 +45,6 @@ export function SelectionOverlay({
 }: SelectionOverlayProps) {
   const rectElement = isDragging && draggedElement ? draggedElement : selectedElement
   const [rect, setRect] = React.useState(() => rectElement.getBoundingClientRect())
-  const [borderRadius, setBorderRadius] = React.useState('')
   const [moveHandleRects, setMoveHandleRects] = React.useState<Array<{
     target: HTMLElement
     left: number
@@ -59,7 +58,6 @@ export function SelectionOverlay({
   React.useEffect(() => {
     function updateRect() {
       setRect(rectElement.getBoundingClientRect())
-      setBorderRadius(window.getComputedStyle(rectElement).borderRadius)
     }
 
     updateRect()
@@ -244,7 +242,7 @@ export function SelectionOverlay({
             pointerEvents: 'none',
             zIndex: 99996,
             border: `1px solid ${BLUE}`,
-            borderRadius,
+            borderRadius: '0px',
             boxSizing: 'border-box',
           }}
         />

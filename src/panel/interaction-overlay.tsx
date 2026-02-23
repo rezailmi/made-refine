@@ -84,7 +84,6 @@ export function InteractionOverlay({
       />
       {hoverHighlight && (() => {
         const cr = hoverHighlight.flexContainer.getBoundingClientRect()
-        const containerRadius = window.getComputedStyle(hoverHighlight.flexContainer).borderRadius
         return (
           <div
             data-direct-edit="hover-highlight"
@@ -98,13 +97,12 @@ export function InteractionOverlay({
                 width: cr.width,
                 height: cr.height,
                 border: '1px solid #3b82f6',
-                borderRadius: containerRadius,
+                borderRadius: '0px',
                 boxSizing: 'border-box',
               }}
             />
             {hoverHighlight.children.map((child) => {
               const r = child.getBoundingClientRect()
-              const childRadius = window.getComputedStyle(child).borderRadius
               return (
                 <div
                   key={`${r.left}-${r.top}-${r.width}-${r.height}`}
@@ -115,7 +113,7 @@ export function InteractionOverlay({
                     width: r.width,
                     height: r.height,
                     border: '1px dashed #3b82f6',
-                    borderRadius: childRadius,
+                    borderRadius: '0px',
                     boxSizing: 'border-box',
                   }}
                 />
