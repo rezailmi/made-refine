@@ -76,6 +76,12 @@ export function DirectEditToolbarInner({
   React.useEffect(() => {
     if (isDragging) setActivePopover(null)
   }, [isDragging])
+
+  // Do not leave popovers open when design mode is turned off.
+  React.useEffect(() => {
+    if (!editModeActive) setActivePopover(null)
+  }, [editModeActive])
+
   const tooltipSide = dockedEdge === 'bottom' ? 'top'
     : dockedEdge === 'top' ? 'bottom'
     : dockedEdge === 'left' ? 'right' : 'left'

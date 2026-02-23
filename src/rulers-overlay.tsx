@@ -36,14 +36,28 @@ function computeTickIntervals(zoom: number) {
   return { major, minor, stepsPerMajor }
 }
 
+function getColorSchemeQuery(): MediaQueryList | null {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+    return null
+  }
+  return window.matchMedia('(prefers-color-scheme: dark)')
+}
+
 function subscribeColorScheme(cb: () => void) {
-  const mq = window.matchMedia('(prefers-color-scheme: dark)')
-  mq.addEventListener('change', cb)
-  return () => mq.removeEventListener('change', cb)
+  const mq = getColorSchemeQuery()
+  if (!mq) return () => {}
+
+  if (typeof mq.addEventListener === 'function') {
+    mq.addEventListener('change', cb)
+    return () => mq.removeEventListener('change', cb)
+  }
+
+  mq.addListener(cb)
+  return () => mq.removeListener(cb)
 }
 
 function getColorScheme() {
-  return window.matchMedia('(prefers-color-scheme: dark)').matches
+  return getColorSchemeQuery()?.matches ?? false
 }
 
 /** Triggers canvas redraws when system color scheme changes (theme = 'system'). */

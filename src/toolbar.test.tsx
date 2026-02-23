@@ -87,6 +87,40 @@ describe('DirectEditToolbarInner', () => {
     expect(onToggleCanvas).toHaveBeenCalledTimes(1)
   })
 
+  it('closes popovers when edit mode is turned off', async () => {
+    const { container, rerender } = render(
+      <DirectEditToolbarInner
+        editModeActive={true}
+        onToggleEditMode={() => {}}
+        rulersVisible={false}
+        onToggleRulers={() => {}}
+      />,
+    )
+
+    const settingsTrigger = container.querySelector('svg.lucide-ellipsis-vertical')?.closest('button')
+    expect(settingsTrigger).not.toBeNull()
+    fireEvent.click(settingsTrigger as HTMLButtonElement)
+
+    await waitFor(() => {
+      expect(settingsTrigger?.className).toContain('bg-muted text-foreground')
+    })
+
+    rerender(
+      <DirectEditToolbarInner
+        editModeActive={false}
+        onToggleEditMode={() => {}}
+        rulersVisible={false}
+        onToggleRulers={() => {}}
+      />,
+    )
+
+    await waitFor(() => {
+      const nextSettingsTrigger = container.querySelector('svg.lucide-ellipsis-vertical')?.closest('button')
+      expect(nextSettingsTrigger).not.toBeNull()
+      expect(nextSettingsTrigger?.className).not.toContain('bg-muted text-foreground')
+    })
+  })
+
   it('uses theme-token classes for keyboard shortcuts', () => {
     const { container } = render(
       <DirectEditToolbarInner
