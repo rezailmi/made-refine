@@ -37,11 +37,9 @@ const sizes = ['xs', 'sm', 'md', 'lg', 'xl'] as const
 
 function SizeSelector({ selected = 'md' }: { selected?: string }) {
   return (
-    <div style={{ display: 'flex' }}>
+    <div style={{ display: 'inline-flex', borderRadius: 6, border: `1px solid ${gray[200]}`, overflow: 'hidden' }}>
       {sizes.map((size, i) => {
         const isSelected = size === selected
-        const isFirst = i === 0
-        const isLast = i === sizes.length - 1
         return (
           <div
             key={size}
@@ -49,9 +47,7 @@ function SizeSelector({ selected = 'md' }: { selected?: string }) {
               padding: '6px 14px',
               fontSize: 12,
               fontWeight: 500,
-              border: `1px solid ${isSelected ? gray[900] : gray[200]}`,
-              borderLeft: i > 0 ? 'none' : undefined,
-              borderRadius: isFirst ? '6px 0 0 6px' : isLast ? '0 6px 6px 0' : 0,
+              borderLeft: i > 0 ? `1px solid ${isSelected ? gray[900] : gray[200]}` : undefined,
               backgroundColor: isSelected ? gray[900] : 'transparent',
               color: isSelected ? '#fff' : gray[500],
             }}

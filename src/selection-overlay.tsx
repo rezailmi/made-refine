@@ -1,4 +1,5 @@
 import * as React from 'react'
+import type { ActiveTool } from './types'
 import { elementFromPointWithoutOverlays } from './utils'
 
 const BLUE = '#0D99FF'
@@ -22,6 +23,7 @@ export interface SelectionOverlayProps {
     options?: MoveStartOptions
   ) => void
   showMoveHandle?: boolean
+  activeTool?: ActiveTool
   isTextEditing?: boolean
   onDoubleClick?: (clientX: number, clientY: number) => void
   onHoverElement?: (element: HTMLElement | null) => void
@@ -35,6 +37,7 @@ export function SelectionOverlay({
   ghostPosition,
   onMoveStart,
   showMoveHandle = false,
+  activeTool = 'select',
   isTextEditing,
   onDoubleClick,
   onHoverElement,
@@ -258,7 +261,7 @@ export function SelectionOverlay({
             height: rect.height,
             zIndex: 99996,
             cursor: 'default',
-            pointerEvents: 'auto',
+            pointerEvents: activeTool === 'comment' ? 'none' : 'auto',
           }}
           onPointerDown={handlePointerDown}
           onDoubleClick={handleDoubleClick}

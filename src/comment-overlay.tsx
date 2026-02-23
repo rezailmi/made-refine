@@ -37,6 +37,7 @@ export interface CommentOverlayProps {
   onExport?: (id: string) => Promise<boolean>
   onSendToAgent: (id: string) => Promise<boolean>
   attentionRequest?: { commentId: string; nonce: number } | null
+  draftRef?: React.MutableRefObject<string>
 }
 
 export function CommentOverlay({
@@ -49,6 +50,7 @@ export function CommentOverlay({
   onExport,
   onSendToAgent,
   attentionRequest = null,
+  draftRef,
 }: CommentOverlayProps) {
   if (comments.length === 0) return null
 
@@ -68,6 +70,7 @@ export function CommentOverlay({
           onExport={onExport ? () => onExport(comment.id) : undefined}
           onSendToAgent={() => onSendToAgent(comment.id)}
           attentionNonce={attentionRequest?.commentId === comment.id ? attentionRequest.nonce : 0}
+          draftRef={activeCommentId === comment.id ? draftRef : undefined}
         />
       ))}
     </>
@@ -86,6 +89,7 @@ interface CommentPinProps {
   onExport?: () => Promise<boolean>
   onSendToAgent: () => Promise<boolean>
   attentionNonce: number
+  draftRef?: React.MutableRefObject<string>
 }
 
 function CommentPin({
@@ -100,6 +104,7 @@ function CommentPin({
   onExport,
   onSendToAgent,
   attentionNonce,
+  draftRef,
 }: CommentPinProps) {
   const [position, setPosition] = React.useState(comment.clickPosition)
   const [elementRect, setElementRect] = React.useState<DOMRect | null>(null)
@@ -196,6 +201,7 @@ function CommentPin({
             }}
             onCancel={onClose}
             attentionNonce={attentionNonce}
+            draftRef={draftRef}
           />
         ) : (
           <CommentThread
@@ -225,6 +231,7 @@ interface NewCommentInputProps {
   onSubmit: (text: string) => void
   onCancel: () => void
   attentionNonce: number
+  draftRef?: React.MutableRefObject<string>
 }
 
 function NewCommentInput({
@@ -234,6 +241,7 @@ function NewCommentInput({
   onSubmit,
   onCancel,
   attentionNonce,
+  draftRef,
 }: NewCommentInputProps) {
   const [text, setText] = React.useState('')
   const [showError, setShowError] = React.useState(false)
@@ -289,7 +297,10 @@ function NewCommentInput({
         )}
         placeholder="Add a comment..."
         value={text}
-        onChange={(e) => setText(e.target.value)}
+        onChange={(e) => {
+          setText(e.target.value)
+          if (draftRef) draftRef.current = e.target.value
+        }}
         onKeyDown={(e) => {
           e.stopPropagation()
           if (e.key === 'Enter' && text.trim()) {

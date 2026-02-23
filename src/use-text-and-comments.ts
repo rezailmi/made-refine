@@ -110,11 +110,17 @@ export function useTextAndComments({
       createdAt: Date.now(),
       replies: [],
     }
-    setState((prev) => ({
-      ...prev,
-      comments: [...prev.comments, comment],
-      activeCommentId: id,
-    }))
+    setState((prev) => {
+      // Remove previously active empty comment
+      const filtered = prev.activeCommentId
+        ? prev.comments.filter((c) => c.id !== prev.activeCommentId || c.text.trim().length > 0)
+        : prev.comments
+      return {
+        ...prev,
+        comments: [...filtered, comment],
+        activeCommentId: id,
+      }
+    })
   }, [])
 
   const updateCommentText = React.useCallback((id: string, text: string) => {
