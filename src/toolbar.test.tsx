@@ -20,8 +20,8 @@ vi.mock('./use-toolbar-dock', () => ({
 vi.mock('@base-ui/react/popover', () => ({
   Popover: {
     Root: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-    Trigger: React.forwardRef<HTMLButtonElement, { render?: React.ReactElement; children?: React.ReactNode }>(
-      ({ render, children }, ref) => {
+    Trigger: React.forwardRef<HTMLElement, { render?: React.ReactElement; children?: React.ReactNode; nativeButton?: boolean }>(
+      ({ render, children, nativeButton: _nativeButton }, ref) => {
         if (render) {
           return React.cloneElement(render, { ref }, children)
         }
@@ -43,10 +43,13 @@ vi.mock('@base-ui/react/popover', () => ({
 vi.mock('./ui/tooltip', () => ({
   TooltipProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  TooltipTrigger: React.forwardRef<HTMLButtonElement, React.ComponentPropsWithoutRef<'button'>>(
-    ({ children, nativeButton: _nativeButton, ...props }, ref) => (
-      <button ref={ref} type="button" {...props}>{children}</button>
-    ),
+  TooltipTrigger: React.forwardRef<HTMLElement, React.ComponentPropsWithoutRef<'button'> & { render?: React.ReactElement; nativeButton?: boolean }>(
+    ({ children, render, nativeButton: _nativeButton, ...props }, ref) => {
+      if (render) {
+        return React.cloneElement(render, { ...props, ref }, children)
+      }
+      return <button ref={ref as React.Ref<HTMLButtonElement>} type="button" {...props}>{children}</button>
+    },
   ),
   TooltipContent: ({ children, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
     <div {...props}>{children}</div>

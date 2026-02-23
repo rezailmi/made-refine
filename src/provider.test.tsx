@@ -29,6 +29,13 @@ const fullUiWrapper = ({ children }: { children: React.ReactNode }) => (
   </DirectEditProvider>
 )
 
+const toolbarWrapper = ({ children }: { children: React.ReactNode }) => (
+  <DirectEditProvider>
+    <DirectEditToolbar />
+    {children}
+  </DirectEditProvider>
+)
+
 const panelWrapper = ({ children }: { children: React.ReactNode }) => (
   <DirectEditProvider>
     <DirectEditPanel />
@@ -128,6 +135,15 @@ async function findOverlayElement(): Promise<HTMLElement> {
     const overlay = host.shadowRoot?.querySelector('[data-direct-edit="overlay"]') as HTMLElement | null
     expect(overlay).not.toBeNull()
     return overlay as HTMLElement
+  })
+}
+
+async function findToolbarButtonByIcon(shadowRoot: ShadowRoot, iconClass: string): Promise<HTMLButtonElement> {
+  return waitFor(() => {
+    const icon = shadowRoot.querySelector(`svg.${iconClass}`) as SVGElement | null
+    const button = icon?.closest('button') as HTMLButtonElement | null
+    expect(button).not.toBeNull()
+    return button as HTMLButtonElement
   })
 }
 
@@ -424,6 +440,60 @@ describe('DirectEditProvider', () => {
     await waitFor(() => {
       expect(host.getAttribute('data-theme')).toBe('light')
       expect(localStorage.getItem('direct-edit-theme')).toBe('light')
+    })
+  })
+
+  it('coordinates toolbar popovers and closes them on outside click', async () => {
+    class ResizeObserverMock {
+      observe() {}
+      disconnect() {}
+      unobserve() {}
+    }
+    vi.stubGlobal('ResizeObserver', ResizeObserverMock)
+    stubMatchMedia()
+
+    const { result } = renderHook(() => useDirectEdit(), { wrapper: toolbarWrapper })
+
+    act(() => {
+      result.current.toggleEditMode()
+    })
+
+    const host = await waitFor(() => {
+      const node = document.querySelector('[data-direct-edit-host]') as HTMLElement | null
+      expect(node).not.toBeNull()
+      return node as HTMLElement
+    })
+
+    const shadowRoot = host.shadowRoot
+    expect(shadowRoot).not.toBeNull()
+    const root = shadowRoot as ShadowRoot
+
+    const editsTrigger = await findToolbarButtonByIcon(root, 'lucide-copy')
+    act(() => {
+      fireEvent.click(editsTrigger)
+    })
+    await waitFor(() => {
+      expect(root.textContent).toContain('Copy to AI agents')
+    })
+
+    const settingsTrigger = await findToolbarButtonByIcon(root, 'lucide-ellipsis-vertical')
+    act(() => {
+      fireEvent.click(settingsTrigger)
+    })
+    await waitFor(() => {
+      expect(root.textContent).toContain('Theme')
+      expect(root.textContent).not.toContain('Copy to AI agents')
+    })
+
+    await act(async () => {
+      await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)))
+    })
+
+    act(() => {
+      fireEvent.pointerDown(document.documentElement)
+    })
+    await waitFor(() => {
+      expect(root.textContent).not.toContain('Theme')
     })
   })
 

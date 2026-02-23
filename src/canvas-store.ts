@@ -6,6 +6,7 @@ const DEFAULT: CanvasSnapshot = { active: false, zoom: 1, panX: 0, panY: 0 }
 
 let snapshot: CanvasSnapshot = DEFAULT
 const listeners = new Set<() => void>()
+let ownerCount = 0
 
 let bodyOffset = { x: 0, y: 0 }
 export function getBodyOffset() { return bodyOffset }
@@ -18,6 +19,16 @@ export function getCanvasSnapshot(): CanvasSnapshot {
 export function setCanvasSnapshot(next: CanvasSnapshot) {
   snapshot = next
   listeners.forEach((cb) => cb())
+}
+
+export function registerCanvasStoreOwner(): () => void {
+  ownerCount += 1
+  if (ownerCount > 1 && (typeof process === 'undefined' || process.env.NODE_ENV !== 'test')) {
+    console.warn('[made-refine] multiple DirectEditProvider instances share canvas-store globals')
+  }
+  return () => {
+    ownerCount = Math.max(0, ownerCount - 1)
+  }
 }
 
 function subscribe(cb: () => void) {

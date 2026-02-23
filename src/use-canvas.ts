@@ -1,7 +1,7 @@
 import * as React from 'react'
 import type { DirectEditState } from './types'
 import { isInputFocused } from './utils'
-import { setCanvasSnapshot, getBodyOffset, setBodyOffset } from './canvas-store'
+import { setCanvasSnapshot, getBodyOffset, setBodyOffset, registerCanvasStoreOwner } from './canvas-store'
 
 const MIN_ZOOM = 0.1
 const MAX_ZOOM = 5.0
@@ -72,6 +72,8 @@ export interface UseCanvasReturn {
 }
 
 export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasReturn {
+  React.useEffect(() => registerCanvasStoreOwner(), [])
+
   // Synchronous ref for canvas state (avoids stale closures in event handlers)
   const canvasRef = React.useRef({ active: false, zoom: 1, panX: 0, panY: 0 })
 

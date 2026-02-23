@@ -7,6 +7,7 @@ import type { Theme } from '../types'
 import { cn } from '../cn'
 import {
   Tooltip,
+  TooltipTrigger,
   TooltipContent,
 } from '../ui/tooltip'
 
@@ -90,30 +91,33 @@ export function SettingsPopover({
   return (
     <>
       <Popover.Root open={isOpen && !shortcutsOpen} onOpenChange={(open) => { if (!open) onOpenChange(false) }}>
-        <Tooltip open={isOpen || shortcutsOpen ? false : undefined}>
-          <Popover.Trigger ref={settingsTriggerRef} render={
-            <button
-              type="button"
-              className={cn(
-                'flex cursor-pointer items-center justify-center rounded-[8px] p-2 transition-colors',
-                isOpen || shortcutsOpen
-                  ? 'bg-muted text-foreground'
-                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-              )}
-              onPointerDown={(e: React.PointerEvent) => e.stopPropagation()}
-              onClick={(e) => {
-                e.preventDefault()
-                e.stopPropagation()
-                if (shortcutsOpen) {
-                  setShortcutsOpen(false)
-                } else {
-                  onOpenChange(!isOpen)
-                }
-              }}
-            />
+        <Tooltip disabled={isOpen || shortcutsOpen}>
+          <TooltipTrigger render={
+            <Popover.Trigger render={
+              <button
+                ref={settingsTriggerRef}
+                type="button"
+                className={cn(
+                  'flex cursor-pointer items-center justify-center rounded-[8px] p-2 transition-colors',
+                  isOpen || shortcutsOpen
+                    ? 'bg-muted text-foreground'
+                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                )}
+                onPointerDown={(e: React.PointerEvent) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  if (shortcutsOpen) {
+                    setShortcutsOpen(false)
+                  } else {
+                    onOpenChange(!isOpen)
+                  }
+                }}
+              />
+            } />
           }>
             <EllipsisVertical className="size-4" />
-          </Popover.Trigger>
+          </TooltipTrigger>
           <TooltipContent side={tooltipSide}>
             <span>Preferences</span>
           </TooltipContent>

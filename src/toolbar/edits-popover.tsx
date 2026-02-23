@@ -122,26 +122,29 @@ export function EditsPopover({
 
   return (
     <Popover.Root open={isOpen} onOpenChange={onOpenChange}>
-      <Tooltip open={isOpen ? false : undefined}>
-        <Popover.Trigger ref={editsTriggerRef} render={
-          <button
-            type="button"
-            className={cn(
-              'flex cursor-pointer items-center justify-center rounded-[8px] p-2 transition-colors',
-              sessionEditCount > 0 || isOpen
-                ? 'bg-muted text-foreground'
-                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-            )}
-            onPointerDown={(e: React.PointerEvent) => e.stopPropagation()}
-            onClick={(e) => {
-              e.preventDefault()
-              e.stopPropagation()
-              onOpenChange(!isOpen)
-            }}
-          />
+      <Tooltip disabled={isOpen}>
+        <TooltipTrigger render={
+          <Popover.Trigger render={
+            <button
+              ref={editsTriggerRef}
+              type="button"
+              className={cn(
+                'flex cursor-pointer items-center justify-center rounded-[8px] p-2 transition-colors',
+                sessionEditCount > 0 || isOpen
+                  ? 'bg-muted text-foreground'
+                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+              )}
+              onPointerDown={(e: React.PointerEvent) => e.stopPropagation()}
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                onOpenChange(!isOpen)
+              }}
+            />
+          } />
         }>
           <Copy className="size-4" />
-        </Popover.Trigger>
+        </TooltipTrigger>
         <TooltipContent side={tooltipSide}>
           <span>Export edits</span>
         </TooltipContent>

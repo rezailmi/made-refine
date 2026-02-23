@@ -142,7 +142,7 @@ export function ZoomPopover({
                 }}
               >
                 {canvasActive && <Check className="size-3.5" />}
-                Enable canvas mode
+                {canvasActive ? 'Disable canvas mode' : 'Enable canvas mode'}
               </BaseButton>
             </div>
           </Popover.Popup>
