@@ -116,8 +116,8 @@ function CommentPin({
       if (!comment.element.isConnected) return
       const rect = comment.element.getBoundingClientRect()
       setPosition({
-        x: rect.left + comment.relativePosition.x,
-        y: rect.top + comment.relativePosition.y,
+        x: rect.left + comment.relativePosition.x * rect.width,
+        y: rect.top + comment.relativePosition.y * rect.height,
       })
       setElementRect(rect)
     }

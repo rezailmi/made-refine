@@ -96,8 +96,8 @@ export function useTextAndComments({
     const locator = getElementLocator(element)
     const rect = element.getBoundingClientRect()
     const relativePosition = {
-      x: clickPosition.x - rect.left,
-      y: clickPosition.y - rect.top,
+      x: rect.width > 0 ? (clickPosition.x - rect.left) / rect.width : 0,
+      y: rect.height > 0 ? (clickPosition.y - rect.top) / rect.height : 0,
     }
     const id = `comment-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
     const comment: Comment = {

@@ -1,6 +1,8 @@
 import * as React from 'react'
+import { flushSync } from 'react-dom'
 import type { DirectEditState } from './types'
 import { isInputFocused } from './utils'
+import { setCanvasSnapshot } from './canvas-store'
 
 const MIN_ZOOM = 0.1
 const MAX_ZOOM = 5.0
@@ -117,6 +119,11 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
     const clamped = clampPan(zoom, panX, panY, bodyW, bodyH)
 
     canvasRef.current = { ...canvasRef.current, zoom, panX: clamped.panX, panY: clamped.panY }
+    // flushSync ensures RulersOverlay (guidelines + tick marks) commits synchronously
+    // before the browser can paint, so overlays never lag the body transform.
+    flushSync(() => {
+      setCanvasSnapshot(canvasRef.current)
+    })
     applyTransform(zoom, clamped.panX, clamped.panY)
     dispatchCanvasChange()
 
@@ -165,6 +172,7 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
     applyTransform(1, initialPanX, initialPanY)
 
     canvasRef.current = { active: true, zoom: 1, panX: initialPanX, panY: initialPanY }
+    setCanvasSnapshot(canvasRef.current)
     setState((prev) => ({
       ...prev,
       canvas: { active: true, zoom: 1, panX: initialPanX, panY: initialPanY },
@@ -187,6 +195,7 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
     window.scrollTo(savedScrollRef.current.x, savedScrollRef.current.y)
 
     canvasRef.current = { active: false, zoom: 1, panX: 0, panY: 0 }
+    setCanvasSnapshot(canvasRef.current)
     setState((prev) => ({
       ...prev,
       canvas: { active: false, zoom: 1, panX: 0, panY: 0 },

@@ -133,7 +133,11 @@ export function useGuidelines(
     if (!enabled) return
 
     function update() {
-      setScrollOffset({ x: window.scrollX, y: window.scrollY })
+      setScrollOffset((prev) => {
+        const x = window.scrollX
+        const y = window.scrollY
+        return prev.x === x && prev.y === y ? prev : { x, y }
+      })
     }
 
     update()

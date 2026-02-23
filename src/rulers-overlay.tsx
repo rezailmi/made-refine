@@ -2,6 +2,7 @@ import * as React from 'react'
 import { createPortal } from 'react-dom'
 import { usePortalContainer } from './portal-container'
 import { useDirectEditState } from './hooks'
+import { useCanvasSnapshot } from './canvas-store'
 import { useGuidelines } from './use-guidelines'
 import type { Guideline } from './types'
 
@@ -443,7 +444,7 @@ function useViewportHeight() {
 
 export function RulersOverlay({ enabled }: { enabled: boolean }) {
   const container = usePortalContainer()
-  const { canvas } = useDirectEditState()
+  const canvas = useCanvasSnapshot()
 
   const hostElement = React.useMemo(() => {
     if (!container) return null
