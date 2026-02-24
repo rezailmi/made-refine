@@ -105,6 +105,22 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
     window.dispatchEvent(new Event('direct-edit-canvas-change'))
   }, [])
 
+  const readBodyOffset = React.useCallback(() => {
+    const bodyStyle = getComputedStyle(document.body)
+    return {
+      x: parseFloat(bodyStyle.marginLeft) || 0,
+      y: parseFloat(bodyStyle.marginTop) || 0,
+    }
+  }, [])
+
+  const updateBodyOffset = React.useCallback(() => {
+    const next = readBodyOffset()
+    const prev = getBodyOffset()
+    if (prev.x === next.x && prev.y === next.y) return false
+    setBodyOffset(next)
+    return true
+  }, [readBodyOffset])
+
   const cancelPendingRaf = React.useCallback(() => {
     if (rafIdRef.current !== null) {
       cancelAnimationFrame(rafIdRef.current)
@@ -161,11 +177,7 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
     window.scrollTo(0, 0)
 
     // Measure body margin before applying transform — needed for guideline math.
-    const bodyStyle = getComputedStyle(document.body)
-    setBodyOffset({
-      x: parseFloat(bodyStyle.marginLeft) || 0,
-      y: parseFloat(bodyStyle.marginTop) || 0,
-    })
+    updateBodyOffset()
 
     document.body.style.overflow = 'hidden'
     document.documentElement.style.overflow = 'hidden'
@@ -183,7 +195,7 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
       canvas: { active: true, zoom: 1, panX: initialPanX, panY: initialPanY },
     }))
     dispatchCanvasChange()
-  }, [applyTransform, dispatchCanvasChange, setState])
+  }, [applyTransform, dispatchCanvasChange, setState, updateBodyOffset])
 
   const exitCanvas = React.useCallback(() => {
     // Cancel any pending rAF first to prevent stale setState firing after exit
@@ -276,6 +288,19 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
     window.addEventListener('wheel', handleWheel, { passive: false })
     return () => window.removeEventListener('wheel', handleWheel)
   }, [updateCanvas])
+
+  // Body margins can change on responsive breakpoints; keep canvas math in sync.
+  React.useEffect(() => {
+    function handleResize() {
+      if (!canvasRef.current.active) return
+      if (updateBodyOffset()) {
+        dispatchCanvasChange()
+      }
+    }
+
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [dispatchCanvasChange, updateBodyOffset])
 
   // Space key tracking for grab cursor
   React.useEffect(() => {

@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useCanvas } from './use-canvas'
 import type { DirectEditState } from './types'
 import { DirectEditProvider, useDirectEdit } from './provider'
+import { getBodyOffset, setBodyOffset } from './canvas-store'
 
 // --- Mocks ---
 
@@ -121,6 +122,7 @@ afterEach(() => {
   document.documentElement.style.cssText = ''
   document.body.innerHTML = ''
   document.querySelectorAll('[data-direct-edit-host]').forEach((el) => el.remove())
+  setBodyOffset({ x: 0, y: 0 })
 })
 
 // ─── Group 1: useCanvas hook lifecycle ───
@@ -157,6 +159,26 @@ describe('useCanvas hook lifecycle', () => {
     expect(document.body.style.overflow).toBe('hidden')
     expect(document.body.style.transform).toBe('scale(1) translate(-100px, -200px)')
     expect(document.body.style.transformOrigin).toBe('0 0')
+  })
+
+  it('recomputes body offset on resize while canvas mode is active', () => {
+    document.body.style.margin = '8px 10px 12px 14px'
+    const opts = createMockCanvasOptions()
+    const { result } = renderHook(() => useCanvas(opts))
+
+    act(() => {
+      result.current.toggleCanvas()
+    })
+
+    expect(getBodyOffset()).toEqual({ x: 14, y: 8 })
+
+    document.body.style.margin = '16px 18px 20px 22px'
+
+    act(() => {
+      window.dispatchEvent(new Event('resize'))
+    })
+
+    expect(getBodyOffset()).toEqual({ x: 22, y: 16 })
   })
 
   it('toggleCanvas exits and restores DOM state', () => {
