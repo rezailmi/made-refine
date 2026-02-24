@@ -166,6 +166,72 @@ export default function App() {
           {/* Components & Sizing */}
           <ComponentsAndSizing />
 
+          {/* Color Palette — below the fold to test scroll container expansion in canvas mode */}
+          <div style={card}>
+            <div style={sectionLabel}>Color Palette</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {(['gray', 'blue', 'emerald', 'amber', 'rose'] as const).map((name) => {
+                const palettes: Record<string, string[]> = {
+                  gray: ['#f9fafb','#f3f4f6','#e5e7eb','#d1d5db','#9ca3af','#6b7280','#4b5563','#374151','#1f2937','#111827'],
+                  blue: ['#eff6ff','#dbeafe','#bfdbfe','#93c5fd','#60a5fa','#3b82f6','#2563eb','#1d4ed8','#1e40af','#1e3a8a'],
+                  emerald: ['#ecfdf5','#d1fae5','#a7f3d0','#6ee7b7','#34d399','#10b981','#059669','#047857','#065f46','#064e3b'],
+                  amber: ['#fffbeb','#fef3c7','#fde68a','#fcd34d','#fbbf24','#f59e0b','#d97706','#b45309','#92400e','#78350f'],
+                  rose: ['#fff1f2','#ffe4e6','#fecdd3','#fda4af','#fb7185','#f43f5e','#e11d48','#be123c','#9f1239','#881337'],
+                }
+                return (
+                  <div key={name}>
+                    <div style={{ fontSize: 12, fontWeight: 500, marginBottom: 6, textTransform: 'capitalize' }}>{name}</div>
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      {palettes[name].map((color, i) => (
+                        <div key={i} style={{ width: 40, height: 32, backgroundColor: color, borderRadius: 6, border: `1px solid ${gray[200]}` }} />
+                      ))}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Data Table — more below-the-fold content */}
+          <div style={card}>
+            <div style={sectionLabel}>Data Table</div>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+              <thead>
+                <tr>
+                  {['Name', 'Role', 'Status', 'Activity'].map((h) => (
+                    <th key={h} style={{ textAlign: 'left', padding: '8px 12px', borderBottom: `1px solid ${gray[200]}`, fontSize: 12, fontWeight: 600, color: gray[500] }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {[
+                  { name: 'Alice Martin', role: 'Engineer', status: 'Active', activity: '2 min ago' },
+                  { name: 'Bob Johnson', role: 'Designer', status: 'Away', activity: '1 hr ago' },
+                  { name: 'Carol Williams', role: 'PM', status: 'Active', activity: 'just now' },
+                  { name: 'David Brown', role: 'Engineer', status: 'Offline', activity: '3 hrs ago' },
+                  { name: 'Eva Garcia', role: 'Designer', status: 'Active', activity: '15 min ago' },
+                  { name: 'Frank Lee', role: 'Engineer', status: 'Active', activity: '5 min ago' },
+                  { name: 'Grace Kim', role: 'PM', status: 'Away', activity: '30 min ago' },
+                  { name: 'Hank Davis', role: 'Engineer', status: 'Active', activity: 'just now' },
+                ].map((row) => (
+                  <tr key={row.name}>
+                    <td style={{ padding: '10px 12px', borderBottom: `1px solid ${gray[100]}`, fontWeight: 500 }}>{row.name}</td>
+                    <td style={{ padding: '10px 12px', borderBottom: `1px solid ${gray[100]}`, color: gray[500] }}>{row.role}</td>
+                    <td style={{ padding: '10px 12px', borderBottom: `1px solid ${gray[100]}` }}>
+                      <span style={{ fontSize: 12, fontWeight: 600, padding: '2px 8px', borderRadius: 9999, backgroundColor: row.status === 'Active' ? '#ecfdf5' : row.status === 'Away' ? '#fffbeb' : gray[100], color: row.status === 'Active' ? '#059669' : row.status === 'Away' ? '#d97706' : gray[500] }}>{row.status}</span>
+                    </td>
+                    <td style={{ padding: '10px 12px', borderBottom: `1px solid ${gray[100]}`, color: gray[400], fontSize: 13 }}>{row.activity}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Footer spacer */}
+          <div style={{ padding: '24px 0', textAlign: 'center', color: gray[400], fontSize: 12 }}>
+            End of playground — this content should be visible when zoomed out in canvas mode
+          </div>
+
         </div>
       </div>
     </>

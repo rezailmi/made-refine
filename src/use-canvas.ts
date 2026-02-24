@@ -83,6 +83,13 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
   const savedHtmlOverflowRef = React.useRef('')
   const savedHtmlBgColorRef = React.useRef('')
   const savedBodyDimensionsRef = React.useRef({ width: 0, height: 0 })
+  const savedScrollContainersRef = React.useRef<Array<{
+    el: HTMLElement
+    height: string
+    maxHeight: string
+    overflow: string
+    overflowY: string
+  }>>([])
 
   // rAF batching for setState: DOM transform is applied immediately for visual
   // smoothness; React state is deferred to avoid 60fps re-renders across all consumers.
@@ -156,6 +163,50 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
     }
   }, [applyTransform, dispatchCanvasChange, setState])
 
+  function expandScrollContainers(): void {
+    const saved: typeof savedScrollContainersRef.current = []
+    const queue: HTMLElement[] = Array.from(document.body.children).filter(
+      (el): el is HTMLElement => el instanceof HTMLElement
+    )
+    let depth = 0
+    while (queue.length > 0 && depth < 5) {
+      const nextQueue: HTMLElement[] = []
+      for (const el of queue) {
+        if (el.scrollHeight > el.clientHeight + 1) {
+          const style = el.style
+          saved.push({
+            el,
+            height: style.height,
+            maxHeight: style.maxHeight,
+            overflow: style.overflow,
+            overflowY: style.overflowY,
+          })
+          style.height = 'auto'
+          style.maxHeight = 'none'
+          style.overflow = 'visible'
+          style.overflowY = 'visible'
+        }
+        for (const child of el.children) {
+          if (child instanceof HTMLElement) nextQueue.push(child)
+        }
+      }
+      queue.length = 0
+      queue.push(...nextQueue)
+      depth++
+    }
+    savedScrollContainersRef.current = saved
+  }
+
+  function restoreScrollContainers(): void {
+    for (const { el, height, maxHeight, overflow, overflowY } of savedScrollContainersRef.current) {
+      el.style.height = height
+      el.style.maxHeight = maxHeight
+      el.style.overflow = overflow
+      el.style.overflowY = overflowY
+    }
+    savedScrollContainersRef.current = []
+  }
+
   const enterCanvas = React.useCallback(() => {
     const scrollX = window.scrollX
     const scrollY = window.scrollY
@@ -163,10 +214,6 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
     savedBodyOverflowRef.current = document.body.style.overflow
     savedHtmlOverflowRef.current = document.documentElement.style.overflow
     savedHtmlBgColorRef.current = document.documentElement.style.backgroundColor
-    savedBodyDimensionsRef.current = {
-      width: document.body.scrollWidth,
-      height: document.body.scrollHeight,
-    }
 
     const existingTransform = document.body.style.transform
     if (existingTransform && existingTransform !== 'none' && existingTransform !== '') {
@@ -175,6 +222,14 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
 
     // Reset window scroll so transform does the positioning
     window.scrollTo(0, 0)
+
+    // Expand scroll containers so body reflects full content dimensions
+    expandScrollContainers()
+
+    savedBodyDimensionsRef.current = {
+      width: document.body.scrollWidth,
+      height: document.body.scrollHeight,
+    }
 
     // Measure body margin before applying transform — needed for guideline math.
     updateBodyOffset()
@@ -204,6 +259,7 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
 
     document.body.style.transform = ''
     document.body.style.transformOrigin = ''
+    restoreScrollContainers()
     document.body.style.overflow = savedBodyOverflowRef.current
     document.documentElement.style.overflow = savedHtmlOverflowRef.current
     document.documentElement.style.backgroundColor = savedHtmlBgColorRef.current

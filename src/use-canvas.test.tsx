@@ -286,6 +286,48 @@ describe('useCanvas hook lifecycle', () => {
     expect(opts.stateRef.current.canvas.active).toBe(true)
   })
 
+  it('enterCanvas expands scroll containers and captures full height', () => {
+    // Create a root div simulating a scrollable app container
+    const root = document.createElement('div')
+    root.id = 'root'
+    root.style.height = '100px'
+    root.style.overflow = 'auto'
+    root.style.overflowY = 'auto'
+    root.style.maxHeight = '100px'
+    document.body.appendChild(root)
+
+    const tall = document.createElement('div')
+    tall.style.height = '500px'
+    root.appendChild(tall)
+
+    // Fake scrollHeight > clientHeight for jsdom
+    Object.defineProperty(root, 'scrollHeight', { value: 500, configurable: true })
+    Object.defineProperty(root, 'clientHeight', { value: 100, configurable: true })
+
+    const opts = createMockCanvasOptions()
+    const { result } = renderHook(() => useCanvas(opts))
+
+    act(() => {
+      result.current.enterCanvas()
+    })
+
+    // Scroll container should be expanded
+    expect(root.style.height).toBe('auto')
+    expect(root.style.maxHeight).toBe('none')
+    expect(root.style.overflow).toBe('visible')
+    expect(root.style.overflowY).toBe('visible')
+
+    // Exit should restore original styles
+    act(() => {
+      result.current.exitCanvas()
+    })
+
+    expect(root.style.height).toBe('100px')
+    expect(root.style.maxHeight).toBe('100px')
+    expect(root.style.overflow).toBe('auto')
+    expect(root.style.overflowY).toBe('auto')
+  })
+
   it('unmount exits canvas automatically', () => {
     const opts = createMockCanvasOptions()
     const { result, unmount } = renderHook(() => useCanvas(opts))
