@@ -100,6 +100,36 @@ function dispatchPointer(
   window.dispatchEvent(event)
 }
 
+function mountDominantCanvas({
+  width = 1200,
+  height = 800,
+  opacity,
+  position = 'fixed',
+}: { width?: number; height?: number; opacity?: number; position?: string } = {}) {
+  Object.defineProperty(window, 'innerWidth', { value: width, configurable: true })
+  Object.defineProperty(window, 'innerHeight', { value: height, configurable: true })
+
+  const canvas = document.createElement('canvas')
+  canvas.style.display = 'block'
+  canvas.style.position = position
+  if (opacity !== undefined) {
+    canvas.style.opacity = String(opacity)
+  }
+  canvas.getBoundingClientRect = () => ({
+    left: 0,
+    top: 0,
+    width,
+    height,
+    right: width,
+    bottom: height,
+    x: 0,
+    y: 0,
+    toJSON: () => ({}),
+  }) as DOMRect
+  document.body.appendChild(canvas)
+  return canvas
+}
+
 const wrapper = ({ children }: { children: React.ReactNode }) => (
   <DirectEditProvider>{children}</DirectEditProvider>
 )
@@ -582,6 +612,91 @@ describe('useCanvas hook lifecycle', () => {
     unmount()
 
     expect(document.body.style.transform).toBe('')
+  })
+
+  it('uses fixed-frame strategy for dominant canvas apps', () => {
+    const canvas = mountDominantCanvas()
+
+    const opts = createMockCanvasOptions()
+    const { result } = renderHook(() => useCanvas(opts))
+
+    act(() => {
+      result.current.toggleCanvas()
+    })
+
+    expect(opts.stateRef.current.canvas.active).toBe(true)
+    expect(opts.stateRef.current.canvas.zoom).toBe(1)
+    expect(opts.stateRef.current.canvas.panX).toBe(0)
+    expect(opts.stateRef.current.canvas.panY).toBe(0)
+    expect(document.body.style.transform).toBe('scale(1) translate(0px, 0px)')
+    expect(document.body.style.transformOrigin).toBe('0 0')
+    expect(getBodyOffset()).toEqual({ x: 0, y: 0 })
+    act(() => {
+      result.current.setCanvasZoom(2)
+    })
+    expect(opts.stateRef.current.canvas.zoom).toBe(2)
+    expect(document.body.style.transform).toContain('scale(2)')
+
+    act(() => {
+      result.current.fitCanvasToViewport()
+      result.current.zoomCanvasTo100()
+    })
+    expect(opts.stateRef.current.canvas.zoom).toBe(1)
+    expect(opts.stateRef.current.canvas.panX).toBe(0)
+    expect(opts.stateRef.current.canvas.panY).toBe(0)
+    expect(document.body.style.transform).toBe('scale(1) translate(0px, 0px)')
+
+    act(() => {
+      result.current.toggleCanvas()
+    })
+  })
+
+  it('uses body-transform strategy for dominant non-fixed canvases', () => {
+    mountDominantCanvas({ position: 'absolute' })
+    Object.defineProperty(window, 'scrollX', { value: 80, configurable: true })
+    Object.defineProperty(window, 'scrollY', { value: 120, configurable: true })
+
+    const opts = createMockCanvasOptions()
+    const { result } = renderHook(() => useCanvas(opts))
+
+    act(() => {
+      result.current.toggleCanvas()
+    })
+
+    expect(opts.stateRef.current.canvas.active).toBe(true)
+    expect(opts.stateRef.current.canvas.panX).toBe(-80)
+    expect(opts.stateRef.current.canvas.panY).toBe(-120)
+    expect(document.body.style.transform).toBe('scale(1) translate(-80px, -120px)')
+
+    act(() => {
+      result.current.toggleCanvas()
+    })
+    Object.defineProperty(window, 'scrollX', { value: 0, configurable: true })
+    Object.defineProperty(window, 'scrollY', { value: 0, configurable: true })
+  })
+
+  it('ignores fully transparent canvases when selecting fixed-frame strategy', () => {
+    mountDominantCanvas({ opacity: 0 })
+    Object.defineProperty(window, 'scrollX', { value: 80, configurable: true })
+    Object.defineProperty(window, 'scrollY', { value: 120, configurable: true })
+
+    const opts = createMockCanvasOptions()
+    const { result } = renderHook(() => useCanvas(opts))
+
+    act(() => {
+      result.current.toggleCanvas()
+    })
+
+    expect(opts.stateRef.current.canvas.active).toBe(true)
+    expect(opts.stateRef.current.canvas.panX).toBe(-80)
+    expect(opts.stateRef.current.canvas.panY).toBe(-120)
+    expect(document.body.style.transform).toBe('scale(1) translate(-80px, -120px)')
+
+    act(() => {
+      result.current.toggleCanvas()
+    })
+    Object.defineProperty(window, 'scrollX', { value: 0, configurable: true })
+    Object.defineProperty(window, 'scrollY', { value: 0, configurable: true })
   })
 })
 

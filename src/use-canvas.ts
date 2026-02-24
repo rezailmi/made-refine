@@ -18,6 +18,10 @@ const LINE_HEIGHT_PX = 40
 const PAGE_HEIGHT_PX = 800
 const CANVAS_MEASURE_NODE_BUDGET = 12000
 const CANVAS_PRIORITY_ROOT_SELECTORS = ['#root', '#app', '#__next', 'main'] as const
+const FIXED_FRAME_CANVAS_MIN_VIEWPORT_COVERAGE = 0.6
+const FIXED_FRAME_CANVAS_EDGE_TOLERANCE_PX = 1
+
+type CanvasStrategy = 'body-transform' | 'fixed-frame'
 
 function normalizeWheelDelta(e: WheelEvent): { deltaX: number; deltaY: number } {
   let { deltaX, deltaY } = e
@@ -29,6 +33,57 @@ function normalizeWheelDelta(e: WheelEvent): { deltaX: number; deltaY: number } 
     deltaY *= PAGE_HEIGHT_PX
   }
   return { deltaX, deltaY }
+}
+
+function getVisibleAreaInViewport(rect: DOMRect): number {
+  const left = Math.max(0, rect.left)
+  const top = Math.max(0, rect.top)
+  const right = Math.min(window.innerWidth, rect.right)
+  const bottom = Math.min(window.innerHeight, rect.bottom)
+  const width = Math.max(0, right - left)
+  const height = Math.max(0, bottom - top)
+  return width * height
+}
+
+function getFixedFrameCanvasDimensions(): { width: number; height: number } | null {
+  const viewportWidth = window.innerWidth
+  const viewportHeight = window.innerHeight
+  const viewportArea = viewportWidth * viewportHeight
+  if (viewportArea <= 0) return null
+
+  let bestArea = 0
+  let bestRect: DOMRect | null = null
+
+  const canvases = document.querySelectorAll('canvas')
+  for (const canvas of canvases) {
+    if (canvas.closest('[data-direct-edit]') || canvas.closest('[data-direct-edit-host]')) continue
+
+    const style = getComputedStyle(canvas)
+    if (style.display === 'none' || style.visibility === 'hidden') continue
+    const opacity = parseFloat(style.opacity)
+    if ((Number.isFinite(opacity) ? opacity : 1) <= 0) continue
+
+    const rect = canvas.getBoundingClientRect()
+    if (style.position !== 'fixed') continue
+    if (
+      Math.abs(rect.left) > FIXED_FRAME_CANVAS_EDGE_TOLERANCE_PX
+      || Math.abs(rect.top) > FIXED_FRAME_CANVAS_EDGE_TOLERANCE_PX
+    ) {
+      continue
+    }
+    const visibleArea = getVisibleAreaInViewport(rect)
+    if (visibleArea <= bestArea) continue
+    bestArea = visibleArea
+    bestRect = rect
+  }
+
+  if (!bestRect) return null
+  if (bestArea / viewportArea < FIXED_FRAME_CANVAS_MIN_VIEWPORT_COVERAGE) return null
+
+  return {
+    width: Math.max(viewportWidth, bestRect.width),
+    height: Math.max(viewportHeight, bestRect.height),
+  }
 }
 
 function getResolvedOverflowY(style: CSSStyleDeclaration): string {
@@ -131,6 +186,7 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
 
   // Synchronous ref for canvas state (avoids stale closures in event handlers)
   const canvasRef = React.useRef({ active: false, zoom: 1, panX: 0, panY: 0 })
+  const canvasStrategyRef = React.useRef<CanvasStrategy>('body-transform')
 
   // Saved state for restoring on exit
   const savedScrollRef = React.useRef({ x: 0, y: 0 })
@@ -168,6 +224,9 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
   }, [])
 
   const readBodyOffset = React.useCallback(() => {
+    if (canvasStrategyRef.current !== 'body-transform') {
+      return { x: 0, y: 0 }
+    }
     const bodyStyle = getComputedStyle(document.body)
     return {
       x: parseFloat(bodyStyle.marginLeft) || 0,
@@ -326,10 +385,14 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
     savedHtmlOverflowRef.current = document.documentElement.style.overflow
     savedHtmlBgColorRef.current = document.documentElement.style.backgroundColor
     domStateSavedRef.current = true
+    const fixedFrameDims = getFixedFrameCanvasDimensions()
+    canvasStrategyRef.current = fixedFrameDims ? 'fixed-frame' : 'body-transform'
 
-    const existingTransform = document.body.style.transform
-    if (existingTransform && existingTransform !== 'none' && existingTransform !== '') {
-      console.warn('[made-refine] canvas mode: overriding existing body transform:', existingTransform)
+    if (canvasStrategyRef.current === 'body-transform') {
+      const existingTransform = document.body.style.transform
+      if (existingTransform && existingTransform !== 'none' && existingTransform !== '') {
+        console.warn('[made-refine] canvas mode: overriding existing body transform:', existingTransform)
+      }
     }
 
     let entered = false
@@ -337,19 +400,27 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
       // Reset window scroll so transform does the positioning
       window.scrollTo(0, 0)
 
-      // Expand scroll regions and clipped ancestors before measuring canvas bounds.
-      savedBodyDimensionsRef.current = expandScrollableRegionsAndMeasureBody()
+      if (canvasStrategyRef.current === 'body-transform') {
+        // Expand scroll regions and clipped ancestors before measuring canvas bounds.
+        savedBodyDimensionsRef.current = expandScrollableRegionsAndMeasureBody()
 
-      // Measure body margin before applying transform — needed for guideline math.
-      updateBodyOffset()
+        // Measure body margin before applying transform — needed for guideline math.
+        updateBodyOffset()
+      } else {
+        savedBodyDimensionsRef.current = fixedFrameDims ?? {
+          width: window.innerWidth,
+          height: window.innerHeight,
+        }
+        setBodyOffset({ x: 0, y: 0 })
+      }
 
       document.body.style.overflow = 'hidden'
       document.documentElement.style.overflow = 'hidden'
       document.documentElement.style.backgroundColor = '#F5F5F5'
 
-      // Initial pan compensates for saved scroll position
-      const initialPanX = -scrollX
-      const initialPanY = -scrollY
+      // In body-transform strategy, initial pan compensates for saved scroll position.
+      const initialPanX = canvasStrategyRef.current === 'body-transform' ? -scrollX : 0
+      const initialPanY = canvasStrategyRef.current === 'body-transform' ? -scrollY : 0
       applyTransform(1, initialPanX, initialPanY)
 
       canvasRef.current = { active: true, zoom: 1, panX: initialPanX, panY: initialPanY }
@@ -370,6 +441,7 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
         document.documentElement.style.backgroundColor = savedHtmlBgColorRef.current
         window.scrollTo(scrollX, scrollY)
         domStateSavedRef.current = false
+        canvasStrategyRef.current = 'body-transform'
       }
     }
   }, [applyTransform, dispatchCanvasChange, setState, updateBodyOffset])
@@ -394,6 +466,7 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
     }
     document.body.style.cursor = ''
     domStateSavedRef.current = false
+    canvasStrategyRef.current = 'body-transform'
 
     setBodyOffset({ x: 0, y: 0 })
     canvasRef.current = { active: false, zoom: 1, panX: 0, panY: 0 }
@@ -479,6 +552,14 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
   React.useEffect(() => {
     function handleResize() {
       if (!canvasRef.current.active) return
+      if (canvasStrategyRef.current === 'fixed-frame') {
+        savedBodyDimensionsRef.current = getFixedFrameCanvasDimensions() ?? {
+          width: window.innerWidth,
+          height: window.innerHeight,
+        }
+        dispatchCanvasChange()
+        return
+      }
       if (updateBodyOffset()) {
         dispatchCanvasChange()
       }

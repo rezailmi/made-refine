@@ -1,6 +1,7 @@
 import React from 'react'
 import { DirectEdit } from '../src/direct-edit'
 import { Avatar, Button, Badge } from './components'
+import { CanvasPlayground } from './canvas-playground'
 
 const gray = {
   50: 'var(--color-gray-50, #f9fafb)',
@@ -49,6 +50,24 @@ const reproductionChecklist = [
   'Exit canvas mode and confirm the inner scroller returns to normal behavior.',
   'Toggle this checklist off/on to verify the playground control state.',
 ] as const
+
+type PlaygroundPage = 'default' | 'canvas'
+const PLAYGROUND_PAGE_QUERY_KEY = 'playground'
+
+function getPlaygroundPageFromLocation(location: Location): PlaygroundPage {
+  const value = new URLSearchParams(location.search).get(PLAYGROUND_PAGE_QUERY_KEY)
+  return value === 'canvas' ? 'canvas' : 'default'
+}
+
+function writePlaygroundPageToLocation(page: PlaygroundPage): void {
+  const url = new URL(window.location.href)
+  if (page === 'default') {
+    url.searchParams.delete(PLAYGROUND_PAGE_QUERY_KEY)
+  } else {
+    url.searchParams.set(PLAYGROUND_PAGE_QUERY_KEY, page)
+  }
+  window.history.pushState(null, '', `${url.pathname}${url.search}${url.hash}`)
+}
 
 function SizeSelector({ selected = 'md' }: { selected?: string }) {
   return (
@@ -107,6 +126,32 @@ function ComponentsAndSizing() {
 
 export default function App() {
   const [showReproductionChecklist, setShowReproductionChecklist] = React.useState(true)
+  const [page, setPage] = React.useState<PlaygroundPage>(() => {
+    if (typeof window === 'undefined') return 'default'
+    return getPlaygroundPageFromLocation(window.location)
+  })
+
+  React.useEffect(() => {
+    const handlePopState = () => {
+      setPage(getPlaygroundPageFromLocation(window.location))
+    }
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [])
+
+  const navigatePage = React.useCallback((nextPage: PlaygroundPage) => {
+    writePlaygroundPageToLocation(nextPage)
+    setPage(nextPage)
+  }, [])
+
+  if (page === 'canvas') {
+    return (
+      <>
+        <DirectEdit />
+        <CanvasPlayground onBack={() => navigatePage('default')} />
+      </>
+    )
+  }
 
   return (
     <>
@@ -118,6 +163,24 @@ export default function App() {
           <kbd style={{ fontSize: 12, fontFamily: 'ui-monospace, monospace', padding: '2px 6px', backgroundColor: gray[100], border: `1px solid ${gray[200]}`, borderRadius: '0.375rem' }}>⌘.</kbd>
           {' '}to toggle edit mode. Click any element to inspect and edit styles.
         </p>
+        <div style={{ marginBottom: 24 }}>
+          <button
+            type="button"
+            onClick={() => navigatePage('canvas')}
+            style={{
+              border: `1px solid ${gray[300]}`,
+              borderRadius: 10,
+              padding: '8px 12px',
+              fontSize: 13,
+              fontWeight: 600,
+              backgroundColor: '#fff',
+              color: gray[700],
+              cursor: 'pointer',
+            }}
+          >
+            Go to canvas playground page
+          </button>
+        </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
 

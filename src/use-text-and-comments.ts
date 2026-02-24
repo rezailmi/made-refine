@@ -11,6 +11,11 @@ import {
   isTextElement,
 } from './utils'
 
+function clampUnit(value: number): number {
+  if (!Number.isFinite(value)) return 0
+  return Math.max(0, Math.min(1, value))
+}
+
 export interface TextAndCommentsOptions {
   stateRef: React.MutableRefObject<DirectEditState>
   sessionEditsRef: React.MutableRefObject<Map<HTMLElement, SessionEdit>>
@@ -96,8 +101,8 @@ export function useTextAndComments({
     const locator = getElementLocator(element)
     const rect = element.getBoundingClientRect()
     const relativePosition = {
-      x: rect.width > 0 ? (clickPosition.x - rect.left) / rect.width : 0,
-      y: rect.height > 0 ? (clickPosition.y - rect.top) / rect.height : 0,
+      x: rect.width > 0 ? clampUnit((clickPosition.x - rect.left) / rect.width) : 0,
+      y: rect.height > 0 ? clampUnit((clickPosition.y - rect.top) / rect.height) : 0,
     }
     const id = `comment-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
     const comment: Comment = {

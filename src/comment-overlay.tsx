@@ -4,6 +4,11 @@ import { cn } from './cn'
 import { ChevronLeft, Check, Copy, Trash2, ArrowUp, Send, X } from 'lucide-react'
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from './ui/tooltip'
 
+function clampUnit(value: number): number {
+  if (!Number.isFinite(value)) return 0
+  return Math.max(0, Math.min(1, value))
+}
+
 function formatRelativeTime(timestamp: number): string {
   const seconds = Math.floor((Date.now() - timestamp) / 1000)
   if (seconds < 60) return 'just now'
@@ -115,9 +120,11 @@ function CommentPin({
     function updatePosition() {
       if (!comment.element.isConnected) return
       const rect = comment.element.getBoundingClientRect()
+      const relativeX = clampUnit(comment.relativePosition.x)
+      const relativeY = clampUnit(comment.relativePosition.y)
       setPosition({
-        x: rect.left + comment.relativePosition.x * rect.width,
-        y: rect.top + comment.relativePosition.y * rect.height,
+        x: rect.left + relativeX * rect.width,
+        y: rect.top + relativeY * rect.height,
       })
       setElementRect(rect)
     }

@@ -798,6 +798,30 @@ describe('DirectEditProvider', () => {
     expect(sendCommentToAgentMock).toHaveBeenCalledTimes(1)
   })
 
+  it('clamps comment anchor position to the target bounds', () => {
+    const target = createTarget('comment-anchor-clamp-target')
+    target.getBoundingClientRect = () => ({
+      left: 100,
+      top: 80,
+      width: 300,
+      height: 200,
+      right: 400,
+      bottom: 280,
+      x: 100,
+      y: 80,
+      toJSON: () => ({}),
+    }) as DOMRect
+
+    const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+    act(() => {
+      result.current.addComment(target, { x: 40, y: 420 })
+    })
+
+    expect(result.current.comments).toHaveLength(1)
+    expect(result.current.comments[0].relativePosition).toEqual({ x: 0, y: 1 })
+  })
+
   it('exports move-only changes with structured move context', async () => {
     const clipboardWrite = mockClipboard()
     const originalParent = createTarget('move-parent')
