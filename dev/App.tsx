@@ -42,6 +42,13 @@ const card = {
 }
 
 const sizes = ['xs', 'sm', 'md', 'lg', 'xl'] as const
+const reproductionChecklist = [
+  'Scroll this card to the bottom so the inner list is far below the fold.',
+  'Toggle canvas mode and click "Fit to viewport".',
+  'Confirm the full reproduction content is visible in canvas view.',
+  'Exit canvas mode and confirm the inner scroller returns to normal behavior.',
+  'Toggle this checklist off/on to verify the playground control state.',
+] as const
 
 function SizeSelector({ selected = 'md' }: { selected?: string }) {
   return (
@@ -99,6 +106,8 @@ function ComponentsAndSizing() {
 }
 
 export default function App() {
+  const [showReproductionChecklist, setShowReproductionChecklist] = React.useState(true)
+
   return (
     <>
       <DirectEdit />
@@ -226,6 +235,74 @@ export default function App() {
                 ))}
               </tbody>
             </table>
+          </div>
+
+          {/* Scroll Reproduction — mirrors external nested scroller layouts */}
+          <div style={card}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 16 }}>
+              <div style={{ ...sectionLabel, marginBottom: 0 }}>Scroll Reproduction</div>
+              <button
+                type="button"
+                onClick={() => setShowReproductionChecklist((prev) => !prev)}
+                style={{
+                  border: `1px solid ${gray[300]}`,
+                  borderRadius: 8,
+                  padding: '6px 10px',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  backgroundColor: '#fff',
+                  color: gray[700],
+                  cursor: 'pointer',
+                }}
+              >
+                {showReproductionChecklist ? 'Hide checklist' : 'Show checklist'}
+              </button>
+            </div>
+
+            <p style={{ margin: '0 0 12px', color: gray[500], fontSize: 13, lineHeight: 1.5 }}>
+              This reproduces the external app shape: clipped shell + nested vertical scroller + deep content.
+            </p>
+
+            <div style={{ border: `1px solid ${gray[200]}`, borderRadius: 10, padding: 12, backgroundColor: gray[50], marginBottom: 12 }}>
+              <div style={{ fontSize: 12, color: gray[500], marginBottom: 8 }}>
+                Outer shell
+                <code style={{ marginLeft: 6, fontFamily: 'ui-monospace, monospace', backgroundColor: '#fff', padding: '1px 6px', borderRadius: 4, border: `1px solid ${gray[200]}` }}>
+                  overflow: hidden; max-height: 280px;
+                </code>
+              </div>
+              <div style={{ maxHeight: 280, height: 280, overflow: 'hidden', border: `1px solid ${gray[300]}`, borderRadius: 8, backgroundColor: '#fff' }}>
+                <div style={{ height: '100%', overflowY: 'auto', padding: 12 }}>
+                  <div style={{ position: 'sticky', top: 0, zIndex: 1, backgroundColor: '#fff', borderBottom: `1px solid ${gray[100]}`, paddingBottom: 8, marginBottom: 10 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: gray[700] }}>Inner scroller (overflow-y: auto)</div>
+                    <div style={{ fontSize: 12, color: gray[400] }}>Long content should still be fully measurable in canvas mode.</div>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {Array.from({ length: 30 }).map((_, i) => (
+                      <div key={i} style={{ border: `1px solid ${gray[200]}`, borderRadius: 8, padding: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                          <div style={{ fontSize: 13, fontWeight: 600 }}>Repro row {i + 1}</div>
+                          <div style={{ fontSize: 12, color: gray[500] }}>Nested content block for canvas measurement validation.</div>
+                        </div>
+                        <Badge variant={i % 3 === 0 ? 'success' : i % 3 === 1 ? 'warning' : 'muted'}>
+                          {i % 3 === 0 ? 'active' : i % 3 === 1 ? 'check' : 'idle'}
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {showReproductionChecklist && (
+              <div style={{ border: `1px dashed ${gray[300]}`, borderRadius: 10, padding: 12 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: gray[700], marginBottom: 8 }}>Checklist</div>
+                <ol style={{ margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {reproductionChecklist.map((item) => (
+                    <li key={item} style={{ fontSize: 13, color: gray[600], lineHeight: 1.45 }}>{item}</li>
+                  ))}
+                </ol>
+              </div>
+            )}
           </div>
 
           {/* Footer spacer */}
