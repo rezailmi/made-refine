@@ -72,35 +72,31 @@ export function DirectEditToolbarInner({
   const isVertical = dockedEdge === 'left' || dockedEdge === 'right'
   const [activePopover, setActivePopover] = React.useState<'edits' | 'settings' | 'zoom' | null>(null)
 
-  // Cache toolbar sizes for expanded/collapsed states so we can predict position on toggle
-  const expandedSizeRef = React.useRef<{ w: number; h: number } | null>(null)
-  const collapsedSizeRef = React.useRef<{ w: number; h: number } | null>(null)
+  // Cache toolbar sizes per edge + state so prediction stays accurate after re-docking.
+  const sizeCacheRef = React.useRef<Record<string, { w: number; h: number }>>({})
 
   React.useEffect(() => {
     const el = toolbarRef.current
     if (!el) return
+    const key = `${dockedEdge}:${editModeActive ? 'expanded' : 'collapsed'}`
     // Cache size after transition settles
     const timer = setTimeout(() => {
       const rect = el.getBoundingClientRect()
-      if (editModeActive) {
-        expandedSizeRef.current = { w: rect.width, h: rect.height }
-      } else {
-        collapsedSizeRef.current = { w: rect.width, h: rect.height }
-      }
+      sizeCacheRef.current[key] = { w: rect.width, h: rect.height }
     }, 350)
     return () => clearTimeout(timer)
-  }, [editModeActive])
+  }, [editModeActive, dockedEdge])
 
   // On toggle, immediately predict the final position so expand + move run in parallel
   const prevEditModeRef = React.useRef(editModeActive)
   React.useEffect(() => {
     if (prevEditModeRef.current === editModeActive) return
     prevEditModeRef.current = editModeActive
-    const target = editModeActive ? expandedSizeRef.current : collapsedSizeRef.current
+    const target = sizeCacheRef.current[`${dockedEdge}:${editModeActive ? 'expanded' : 'collapsed'}`]
     if (target) {
       predictSize(target.w, target.h)
     }
-  }, [editModeActive, predictSize])
+  }, [editModeActive, dockedEdge, predictSize])
 
   // Close active popover when toolbar starts dragging
   React.useEffect(() => {
@@ -115,11 +111,9 @@ export function DirectEditToolbarInner({
   const tooltipSide = dockedEdge === 'bottom' ? 'top'
     : dockedEdge === 'top' ? 'bottom'
     : dockedEdge === 'left' ? 'right' : 'left'
-  const [isMac, setIsMac] = React.useState(false)
-
-  React.useEffect(() => {
-    setIsMac(navigator.platform?.includes('Mac') ?? false)
-  }, [])
+  const [isMac] = React.useState(() => (
+    typeof navigator !== 'undefined' ? (navigator.platform?.includes('Mac') ?? false) : false
+  ))
 
   const kbdClass = 'inline-flex items-center justify-center rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground min-w-[20px] min-h-[18px]'
 

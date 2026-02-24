@@ -114,10 +114,32 @@ interface DirectEditProviderProps {
 }
 
 const BORDER_STYLE_CONTROL_PREFERENCE_KEY = 'direct-edit-border-style-control'
+const useIsomorphicLayoutEffect = typeof window === 'undefined' ? React.useEffect : React.useLayoutEffect
+
+function getInitialTheme(): Theme {
+  if (typeof window === 'undefined') return 'system'
+  try {
+    const theme = localStorage.getItem('direct-edit-theme')
+    if (theme === 'light' || theme === 'dark' || theme === 'system') {
+      return theme
+    }
+  } catch {}
+  return 'system'
+}
+
+function getInitialBorderStyleControlPreference(): BorderStyleControlPreference {
+  if (typeof window === 'undefined') return 'icon'
+  try {
+    const borderPref = localStorage.getItem(BORDER_STYLE_CONTROL_PREFERENCE_KEY)
+    if (borderPref === 'label' || borderPref === 'icon') {
+      return borderPref
+    }
+  } catch {}
+  return 'icon'
+}
 
 export function DirectEditProvider({ children }: DirectEditProviderProps) {
-
-  const [state, setState] = React.useState<DirectEditState>({
+  const [state, setState] = React.useState<DirectEditState>(() => ({
     isOpen: false,
     selectedElement: null,
     elementInfo: null,
@@ -133,31 +155,13 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     pendingStyles: {},
     editModeActive: false,
     activeTool: 'select',
-    theme: 'system',
-    borderStyleControlPreference: 'icon',
+    theme: getInitialTheme(),
+    borderStyleControlPreference: getInitialBorderStyleControlPreference(),
     comments: [],
     activeCommentId: null,
     textEditingElement: null,
     canvas: { active: false, zoom: 1, panX: 0, panY: 0 },
-  })
-
-  // Read all persisted preferences on mount (SSR-safe, single setState)
-  React.useEffect(() => {
-    try {
-      const updates: Partial<DirectEditState> = {}
-      const theme = localStorage.getItem('direct-edit-theme')
-      if (theme === 'light' || theme === 'dark' || theme === 'system') {
-        updates.theme = theme
-      }
-      const borderPref = localStorage.getItem(BORDER_STYLE_CONTROL_PREFERENCE_KEY)
-      if (borderPref === 'label' || borderPref === 'icon') {
-        updates.borderStyleControlPreference = borderPref
-      }
-      if (Object.keys(updates).length > 0) {
-        setState((prev) => ({ ...prev, ...updates }))
-      }
-    } catch {}
-  }, [])
+  }))
 
   const undoStackRef = React.useRef<UndoEntry[]>([])
   const sessionEditsRef = React.useRef<Map<HTMLElement, SessionEdit>>(new Map())
@@ -342,7 +346,7 @@ function ThemeApplier() {
   const { theme } = useDirectEditState()
   const container = usePortalContainer()
 
-  React.useEffect(() => {
+  useIsomorphicLayoutEffect(() => {
     if (!container) return
     const host = (container.getRootNode() as ShadowRoot).host as HTMLElement
     if (theme === 'system') {

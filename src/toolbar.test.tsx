@@ -10,6 +10,7 @@ vi.mock('./use-toolbar-dock', () => ({
     isDragging: false,
     isSnapping: false,
     style: {},
+    predictSize: vi.fn(),
     handlePointerDown: vi.fn(),
     handlePointerMove: vi.fn(),
     handlePointerUp: vi.fn(),

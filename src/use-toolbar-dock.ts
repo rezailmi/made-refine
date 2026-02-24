@@ -45,6 +45,12 @@ function getDockedPosition(edge: DockedEdge, width: number, height: number) {
   }
 }
 
+function getInitialDockedPosition(edge: DockedEdge) {
+  if (typeof window === 'undefined') return { x: 0, y: 0 }
+  // Start near the target edge before measurement so we never flash from (0,0).
+  return getDockedPosition(edge, 0, 0)
+}
+
 function getNearestEdge(centerX: number, centerY: number): DockedEdge {
   const vw = window.innerWidth
   const vh = window.innerHeight
@@ -81,6 +87,7 @@ export function useToolbarDock(toolbarRef: React.RefObject<HTMLDivElement | null
   const snapTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
   const transitionTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
   const transitioningRef = React.useRef(false)
+  const recalcRef = React.useRef<(() => void) | null>(null)
 
   // Compute docked position based on current edge and toolbar size
   const getDockedPos = React.useCallback(() => {
@@ -91,20 +98,27 @@ export function useToolbarDock(toolbarRef: React.RefObject<HTMLDivElement | null
   }, [dockedEdge, toolbarRef])
 
   // Docked pixel position (recalculated on edge change / resize)
-  const [dockedPos, setDockedPos] = React.useState<{ x: number; y: number }>({ x: 0, y: 0 })
-  const [ready, setReady] = React.useState(false)
+  const [dockedPos, setDockedPos] = React.useState<{ x: number; y: number }>(() => (
+    getInitialDockedPosition(dockedEdge)
+  ))
+  const [dockedTransitionEnabled, setDockedTransitionEnabled] = React.useState(false)
 
-  // Initialize docked position once toolbar mounts
-  React.useEffect(() => {
+  // Compute initial position synchronously before the browser paints.
+  // useLayoutEffect fires after DOM commit but before paint, so the browser
+  // never sees the element at (0,0) — no flash, no fly-in, no visibility hack needed.
+  React.useLayoutEffect(() => {
     const el = toolbarRef.current
     if (!el) return
-    // Wait one frame so the element has layout
+    setDockedPos(getDockedPos())
+  }, [getDockedPos, toolbarRef])
+
+  // Keep docked transitions off for the first paint to avoid startup motion.
+  React.useEffect(() => {
     const raf = requestAnimationFrame(() => {
-      setDockedPos(getDockedPos())
-      setReady(true)
+      setDockedTransitionEnabled(true)
     })
     return () => cancelAnimationFrame(raf)
-  }, [getDockedPos, toolbarRef])
+  }, [])
 
   // Predict the final size before an expand/collapse transition starts.
   // Sets the target position immediately so it transitions in parallel with the resize.
@@ -115,6 +129,8 @@ export function useToolbarDock(toolbarRef: React.RefObject<HTMLDivElement | null
     transitionTimerRef.current = setTimeout(() => {
       transitioningRef.current = false
       transitionTimerRef.current = null
+      // Ensure we always settle to the measured final size/position.
+      recalcRef.current?.()
     }, 350)
   }, [dockedEdge])
 
@@ -130,11 +146,13 @@ export function useToolbarDock(toolbarRef: React.RefObject<HTMLDivElement | null
       setDockedPos(getDockedPosition(dockedEdge, rect.width, rect.height))
     }
 
+    recalcRef.current = recalc
     const ro = new ResizeObserver(recalc)
     ro.observe(el)
     window.addEventListener('resize', recalc)
 
     return () => {
+      recalcRef.current = null
       ro.disconnect()
       window.removeEventListener('resize', recalc)
     }
@@ -247,10 +265,7 @@ export function useToolbarDock(toolbarRef: React.RefObject<HTMLDivElement | null
   const isSnapping = phase === 'snapping'
 
   const style = React.useMemo((): React.CSSProperties => {
-    const base: React.CSSProperties = {
-      position: 'fixed',
-      ...(!ready && { visibility: 'hidden' as const }),
-    }
+    const base: React.CSSProperties = { position: 'fixed' }
 
     if (phase === 'dragging' && dragPosition) {
       return {
@@ -278,9 +293,11 @@ export function useToolbarDock(toolbarRef: React.RefObject<HTMLDivElement | null
       ...base,
       left: dockedPos.x,
       top: dockedPos.y,
-      transition: 'left 300ms cubic-bezier(0.25, 1, 0.5, 1), top 300ms cubic-bezier(0.25, 1, 0.5, 1), box-shadow 150ms ease-out',
+      ...(dockedTransitionEnabled && {
+        transition: 'left 300ms cubic-bezier(0.25, 1, 0.5, 1), top 300ms cubic-bezier(0.25, 1, 0.5, 1), box-shadow 150ms ease-out',
+      }),
     }
-  }, [phase, dragPosition, dockedPos, ready])
+  }, [phase, dragPosition, dockedPos, dockedTransitionEnabled])
 
   return {
     dockedEdge,

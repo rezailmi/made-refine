@@ -11,6 +11,11 @@ const GUIDELINE_COLOR = '#FF6B6B'
 const SNAPPED_COLOR = '#0D99FF'
 const HIT_ZONE = 9
 
+export function computeCanvasRulerScrollOffset(pan: number, zoom: number, bodyOffset: number): number {
+  if (zoom === 0) return -pan
+  return bodyOffset * (1 - 1 / zoom) - pan
+}
+
 /**
  * Compute adaptive tick intervals so major labels stay ~80px apart on screen.
  * Returns the major (labeled) interval, minor (small tick) interval, and steps per major.
@@ -552,7 +557,15 @@ export function RulersOverlay({ enabled }: { enabled: boolean }) {
   // In canvas mode, pan replaces scroll and we need zoom for coordinate mapping
   const zoom = canvas?.active ? (canvas.zoom || 1) : 1
   const effectiveScrollOffset = canvas?.active
-    ? { x: -(canvas.panX || 0), y: -(canvas.panY || 0) }
+    ? (() => {
+      // Convert canvas pan + body margin into an offset compatible with
+      // ruler tick math: viewport = (content - scrollOffset) * zoom.
+      const bo = getBodyOffset()
+      return {
+        x: computeCanvasRulerScrollOffset(canvas.panX || 0, zoom, bo.x),
+        y: computeCanvasRulerScrollOffset(canvas.panY || 0, zoom, bo.y),
+      }
+    })()
     : scrollOffset
 
   const handleHorizontalPointerDown = (e: React.PointerEvent) => {
