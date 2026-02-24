@@ -38,6 +38,18 @@ export function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value))
 }
 
+export function isInputFocused(): boolean {
+  let active: Element | null = document.activeElement
+  while (active?.shadowRoot?.activeElement) {
+    active = active.shadowRoot.activeElement
+  }
+  return (
+    active instanceof HTMLInputElement ||
+    active instanceof HTMLTextAreaElement ||
+    (active instanceof HTMLElement && active.isContentEditable)
+  )
+}
+
 declare global {
   interface Window {
     __DIRECT_EDIT_DEVTOOLS__?: {

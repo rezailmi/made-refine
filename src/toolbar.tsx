@@ -5,7 +5,7 @@ import { useDirectEditState, useDirectEditActions } from './provider'
 import { useRulersVisible } from './rulers-overlay'
 import { cn } from './cn'
 import { useToolbarDock } from './use-toolbar-dock'
-import { MousePointer2, Ruler, Command, ArrowBigUp, MessageSquare, Maximize2 } from 'lucide-react'
+import { MousePointer2, Ruler, Command, ArrowBigUp, MessageSquare, X } from 'lucide-react'
 import type { ActiveTool, Theme, SessionItem } from './types'
 import {
   Tooltip,
@@ -15,6 +15,7 @@ import {
 } from './ui/tooltip'
 import { EditsPopover } from './toolbar/edits-popover'
 import { SettingsPopover } from './toolbar/settings-popover'
+import { ZoomPopover } from './toolbar/zoom-popover'
 
 export interface DirectEditToolbarInnerProps {
   editModeActive: boolean
@@ -36,6 +37,7 @@ export interface DirectEditToolbarInnerProps {
   canvasActive?: boolean
   canvasZoom?: number
   onToggleCanvas?: () => void
+  onSetCanvasZoom?: (zoom: number) => void
   onZoomTo100?: () => void
   onFitToViewport?: () => void
 }
@@ -60,21 +62,58 @@ export function DirectEditToolbarInner({
   canvasActive = false,
   canvasZoom = 1,
   onToggleCanvas,
+  onSetCanvasZoom,
   onZoomTo100,
   onFitToViewport,
 }: DirectEditToolbarInnerProps) {
   const container = usePortalContainer()
   const toolbarRef = React.useRef<HTMLDivElement>(null)
-  const { dockedEdge, isDragging, isSnapping, style: dockStyle, handlePointerDown, handlePointerMove, handlePointerUp, handlePointerCancel } = useToolbarDock(toolbarRef)
+  const { dockedEdge, isDragging, isSnapping, style: dockStyle, predictSize, handlePointerDown, handlePointerMove, handlePointerUp, handlePointerCancel } = useToolbarDock(toolbarRef)
   const isVertical = dockedEdge === 'left' || dockedEdge === 'right'
+  const [activePopover, setActivePopover] = React.useState<'edits' | 'settings' | 'zoom' | null>(null)
+
+  // Cache toolbar sizes per edge + state so prediction stays accurate after re-docking.
+  const sizeCacheRef = React.useRef<Record<string, { w: number; h: number }>>({})
+
+  React.useEffect(() => {
+    const el = toolbarRef.current
+    if (!el) return
+    const key = `${dockedEdge}:${editModeActive ? 'expanded' : 'collapsed'}`
+    // Cache size after transition settles
+    const timer = setTimeout(() => {
+      const rect = el.getBoundingClientRect()
+      sizeCacheRef.current[key] = { w: rect.width, h: rect.height }
+    }, 350)
+    return () => clearTimeout(timer)
+  }, [editModeActive, dockedEdge])
+
+  // On toggle, immediately predict the final position so expand + move run in parallel
+  const prevEditModeRef = React.useRef(editModeActive)
+  React.useEffect(() => {
+    if (prevEditModeRef.current === editModeActive) return
+    prevEditModeRef.current = editModeActive
+    const target = sizeCacheRef.current[`${dockedEdge}:${editModeActive ? 'expanded' : 'collapsed'}`]
+    if (target) {
+      predictSize(target.w, target.h)
+    }
+  }, [editModeActive, dockedEdge, predictSize])
+
+  // Close active popover when toolbar starts dragging
+  React.useEffect(() => {
+    if (isDragging) setActivePopover(null)
+  }, [isDragging])
+
+  // Do not leave popovers open when design mode is turned off.
+  React.useEffect(() => {
+    if (!editModeActive) setActivePopover(null)
+  }, [editModeActive])
+
   const tooltipSide = dockedEdge === 'bottom' ? 'top'
     : dockedEdge === 'top' ? 'bottom'
     : dockedEdge === 'left' ? 'right' : 'left'
-  const [isMac, setIsMac] = React.useState(false)
-
-  React.useEffect(() => {
-    setIsMac(navigator.platform?.includes('Mac') ?? false)
-  }, [])
+  const [isMac] = React.useState(() => (
+    typeof navigator !== 'undefined' ? (navigator.platform?.includes('Mac') ?? false) : false
+  ))
 
   const kbdClass = 'inline-flex items-center justify-center rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground min-w-[20px] min-h-[18px]'
 
@@ -97,7 +136,7 @@ export function DirectEditToolbarInner({
         data-direct-edit="toolbar"
         style={{ pointerEvents: 'auto', touchAction: 'none', ...dockStyle }}
         className={cn(
-          'group z-[99999] flex rounded-xl outline outline-1 outline-foreground/10 bg-background p-1.5 shadow-lg transition-shadow duration-200',
+          'group z-[99999] flex rounded-xl outline outline-1 outline-foreground/10 bg-background p-1.5 shadow-lg',
           isVertical ? 'flex-col items-center' : 'flex-row items-center',
           isDragging && 'cursor-grabbing select-none shadow-2xl',
           className
@@ -123,12 +162,10 @@ export function DirectEditToolbarInner({
           <Tooltip>
             <TooltipTrigger
               className={cn(
-                'flex cursor-pointer items-center justify-center rounded-[8px] p-2 transition-colors',
+                'flex cursor-pointer items-center justify-center rounded-[8px] p-2 transition-[color,background-color] duration-150 ease-out',
                 editModeActive && activeTool !== 'comment'
                   ? 'bg-foreground text-background hover:bg-foreground/80'
-                  : editModeActive && activeTool === 'comment'
-                    ? 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
               )}
               onPointerDown={(e: React.PointerEvent) => e.stopPropagation()}
               onClick={() => {
@@ -149,13 +186,29 @@ export function DirectEditToolbarInner({
 
           <div
             className={cn(
-              'overflow-hidden transition-[max-width,max-height,margin,opacity] duration-300 ease-out',
+              'grid place-items-center overflow-hidden',
               isVertical
-                ? (editModeActive ? 'mt-1 max-h-[220px] opacity-100' : 'mt-0 max-h-0 opacity-0')
-                : (editModeActive ? 'ml-1 max-w-[200px] opacity-100' : 'ml-0 max-w-0 opacity-0')
+                ? (editModeActive ? 'mt-1 grid-rows-[1fr]' : 'mt-0 grid-rows-[0fr]')
+                : (editModeActive ? 'ml-1 grid-cols-[1fr]' : 'ml-0 grid-cols-[0fr]')
             )}
+            style={{
+              transitionProperty: 'grid-template-columns, grid-template-rows, margin',
+              transitionDuration: '200ms',
+              transitionTimingFunction: 'cubic-bezier(0.25, 1, 0.5, 1)',
+              transitionDelay: editModeActive ? '0ms' : '80ms',
+            }}
           >
-            <div className={cn('flex gap-1', isVertical ? 'flex-col items-center' : 'flex-row items-center')}>
+            <div
+              className={cn('flex gap-1 overflow-hidden', isVertical ? 'min-h-0 flex-col items-center' : 'min-w-0 flex-row items-center')}
+              style={{
+                filter: editModeActive ? 'blur(0px)' : 'blur(5px)',
+                opacity: editModeActive ? 1 : 0,
+                transitionProperty: 'filter, opacity',
+                transitionDuration: '250ms, 100ms',
+                transitionTimingFunction: 'cubic-bezier(0.33, 1, 0.68, 1)',
+                transitionDelay: editModeActive ? '80ms' : '0ms',
+              }}
+            >
               <Tooltip>
                 <TooltipTrigger
                   className={cn(
@@ -196,40 +249,17 @@ export function DirectEditToolbarInner({
                 </TooltipContent>
               </Tooltip>
 
-              <Tooltip>
-                <TooltipTrigger
-                  className={cn(
-                    'flex cursor-pointer items-center justify-center rounded-[8px] p-2 transition-colors',
-                    canvasActive
-                      ? 'bg-muted text-foreground'
-                      : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                  )}
-                  onPointerDown={(e) => e.stopPropagation()}
-                  onClick={onToggleCanvas}
-                >
-                  <Maximize2 className="size-4" />
-                </TooltipTrigger>
-                <TooltipContent side={tooltipSide} className="inline-flex items-center gap-1.5">
-                  <span>{canvasActive ? 'Exit canvas mode' : 'Canvas mode'}</span>
-                  <kbd className={kbdClass}><ArrowBigUp className="size-3" /></kbd>
-                  <kbd className={kbdClass}>Z</kbd>
-                </TooltipContent>
-              </Tooltip>
-
-              {canvasActive && (
-                <Tooltip>
-                  <TooltipTrigger
-                    className="flex cursor-pointer items-center justify-center rounded-[8px] px-1.5 py-1 text-xs font-medium tabular-nums text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                    onPointerDown={(e) => e.stopPropagation()}
-                    onClick={onZoomTo100}
-                  >
-                    {Math.round(canvasZoom * 100)}%
-                  </TooltipTrigger>
-                  <TooltipContent side={tooltipSide} className="inline-flex items-center gap-1.5">
-                    <span>Reset to 100%</span>
-                  </TooltipContent>
-                </Tooltip>
-              )}
+              <ZoomPopover
+                tooltipSide={tooltipSide}
+                canvasActive={canvasActive}
+                canvasZoom={canvasZoom}
+                isOpen={activePopover === 'zoom'}
+                onOpenChange={(open) => setActivePopover(open ? 'zoom' : null)}
+                onToggleCanvas={onToggleCanvas}
+                onSetCanvasZoom={onSetCanvasZoom}
+                onZoomTo100={onZoomTo100}
+                onFitToViewport={onFitToViewport}
+              />
 
               <div className={cn(
                 'border-foreground/10',
@@ -239,7 +269,8 @@ export function DirectEditToolbarInner({
               <EditsPopover
                 tooltipSide={tooltipSide}
                 sessionEditCount={sessionEditCount}
-                isDragging={isDragging}
+                isOpen={activePopover === 'edits'}
+                onOpenChange={(open) => setActivePopover(open ? 'edits' : null)}
                 onGetSessionItems={onGetSessionItems}
                 onExportAllEdits={onExportAllEdits}
                 onSendAllToAgents={onSendAllToAgents}
@@ -252,9 +283,29 @@ export function DirectEditToolbarInner({
                 tooltipSide={tooltipSide}
                 theme={theme}
                 isMac={isMac}
-                isDragging={isDragging}
+                isOpen={activePopover === 'settings'}
+                onOpenChange={(open) => setActivePopover(open ? 'settings' : null)}
                 onSetTheme={onSetTheme}
               />
+
+              <div className={cn(
+                'border-foreground/10',
+                isVertical ? 'my-0.5 w-5 border-t' : 'mx-0.5 h-5 border-l'
+              )} />
+
+              <Tooltip>
+                <TooltipTrigger
+                  className="flex cursor-pointer items-center justify-center rounded-[8px] p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={onToggleEditMode}
+                >
+                  <X className="size-4" />
+                </TooltipTrigger>
+                <TooltipContent side={tooltipSide} className="inline-flex items-center gap-1.5">
+                  <span>Close</span>
+                  <kbd className={kbdClass}>Esc</kbd>
+                </TooltipContent>
+              </Tooltip>
             </div>
           </div>
         </TooltipProvider>
@@ -274,7 +325,7 @@ function DirectEditToolbarContent() {
   const {
     toggleEditMode, setActiveTool, setTheme,
     getSessionItems, exportAllEdits, sendAllSessionItemsToAgent, clearSessionEdits, removeSessionEdit, deleteComment,
-    toggleCanvas, zoomCanvasTo100, fitCanvasToViewport,
+    toggleCanvas, setCanvasZoom, zoomCanvasTo100, fitCanvasToViewport,
   } = useDirectEditActions()
   const [rulersVisible, toggleRulers] = useRulersVisible()
 
@@ -298,6 +349,7 @@ function DirectEditToolbarContent() {
       canvasActive={canvas?.active ?? false}
       canvasZoom={canvas?.zoom ?? 1}
       onToggleCanvas={toggleCanvas}
+      onSetCanvasZoom={setCanvasZoom}
       onZoomTo100={zoomCanvasTo100}
       onFitToViewport={fitCanvasToViewport}
     />

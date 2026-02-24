@@ -1,5 +1,7 @@
 import * as React from 'react'
 import type { DirectEditState } from './types'
+import { isInputFocused } from './utils'
+import { setCanvasSnapshot, getBodyOffset, setBodyOffset, registerCanvasStoreOwner } from './canvas-store'
 
 const MIN_ZOOM = 0.1
 const MAX_ZOOM = 5.0
@@ -70,6 +72,8 @@ export interface UseCanvasReturn {
 }
 
 export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasReturn {
+  React.useEffect(() => registerCanvasStoreOwner(), [])
+
   // Synchronous ref for canvas state (avoids stale closures in event handlers)
   const canvasRef = React.useRef({ active: false, zoom: 1, panX: 0, panY: 0 })
 
@@ -101,6 +105,22 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
     window.dispatchEvent(new Event('direct-edit-canvas-change'))
   }, [])
 
+  const readBodyOffset = React.useCallback(() => {
+    const bodyStyle = getComputedStyle(document.body)
+    return {
+      x: parseFloat(bodyStyle.marginLeft) || 0,
+      y: parseFloat(bodyStyle.marginTop) || 0,
+    }
+  }, [])
+
+  const updateBodyOffset = React.useCallback(() => {
+    const next = readBodyOffset()
+    const prev = getBodyOffset()
+    if (prev.x === next.x && prev.y === next.y) return false
+    setBodyOffset(next)
+    return true
+  }, [readBodyOffset])
+
   const cancelPendingRaf = React.useCallback(() => {
     if (rafIdRef.current !== null) {
       cancelAnimationFrame(rafIdRef.current)
@@ -116,6 +136,7 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
     const clamped = clampPan(zoom, panX, panY, bodyW, bodyH)
 
     canvasRef.current = { ...canvasRef.current, zoom, panX: clamped.panX, panY: clamped.panY }
+    setCanvasSnapshot(canvasRef.current)
     applyTransform(zoom, clamped.panX, clamped.panY)
     dispatchCanvasChange()
 
@@ -154,6 +175,10 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
 
     // Reset window scroll so transform does the positioning
     window.scrollTo(0, 0)
+
+    // Measure body margin before applying transform — needed for guideline math.
+    updateBodyOffset()
+
     document.body.style.overflow = 'hidden'
     document.documentElement.style.overflow = 'hidden'
     document.documentElement.style.backgroundColor = '#F5F5F5'
@@ -164,12 +189,13 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
     applyTransform(1, initialPanX, initialPanY)
 
     canvasRef.current = { active: true, zoom: 1, panX: initialPanX, panY: initialPanY }
+    setCanvasSnapshot(canvasRef.current)
     setState((prev) => ({
       ...prev,
       canvas: { active: true, zoom: 1, panX: initialPanX, panY: initialPanY },
     }))
     dispatchCanvasChange()
-  }, [applyTransform, dispatchCanvasChange, setState])
+  }, [applyTransform, dispatchCanvasChange, setState, updateBodyOffset])
 
   const exitCanvas = React.useCallback(() => {
     // Cancel any pending rAF first to prevent stale setState firing after exit
@@ -185,7 +211,9 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
 
     window.scrollTo(savedScrollRef.current.x, savedScrollRef.current.y)
 
+    setBodyOffset({ x: 0, y: 0 })
     canvasRef.current = { active: false, zoom: 1, panX: 0, panY: 0 }
+    setCanvasSnapshot(canvasRef.current)
     setState((prev) => ({
       ...prev,
       canvas: { active: false, zoom: 1, panX: 0, panY: 0 },
@@ -244,9 +272,10 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
         const newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, oldZoom * zoomFactor))
         const cx = e.clientX
         const cy = e.clientY
-        // Zoom-to-cursor: newPan = oldPan + cursor * (1/newZoom - 1/oldZoom)
-        const newPanX = c.panX + cx * (1 / newZoom - 1 / oldZoom)
-        const newPanY = c.panY + cy * (1 / newZoom - 1 / oldZoom)
+        // Zoom-to-cursor: account for body margin offset
+        const bo = getBodyOffset()
+        const newPanX = c.panX + (cx - bo.x) * (1 / newZoom - 1 / oldZoom)
+        const newPanY = c.panY + (cy - bo.y) * (1 / newZoom - 1 / oldZoom)
         updateCanvas(newZoom, newPanX, newPanY)
       } else {
         // Pan: divide by zoom to convert viewport delta to content-space delta
@@ -260,17 +289,25 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
     return () => window.removeEventListener('wheel', handleWheel)
   }, [updateCanvas])
 
+  // Body margins can change on responsive breakpoints; keep canvas math in sync.
+  React.useEffect(() => {
+    function handleResize() {
+      if (!canvasRef.current.active) return
+      if (updateBodyOffset()) {
+        dispatchCanvasChange()
+      }
+    }
+
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [dispatchCanvasChange, updateBodyOffset])
+
   // Space key tracking for grab cursor
   React.useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.code !== 'Space' || e.repeat) return
       if (!canvasRef.current.active) return
-      const active = document.activeElement
-      const isInput =
-        active instanceof HTMLInputElement ||
-        active instanceof HTMLTextAreaElement ||
-        (active instanceof HTMLElement && active.isContentEditable)
-      if (isInput) return
+      if (isInputFocused()) return
       spaceHeldRef.current = true
       if (!isDraggingRef.current) {
         document.body.style.cursor = 'grab'

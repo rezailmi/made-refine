@@ -68,10 +68,10 @@ export function InteractionOverlay({
           if (activeTool === 'comment') {
             if (hasPendingCommentDraft()) return
             const elementUnder = elementFromPointWithoutOverlays(e.clientX, e.clientY)
-            if (elementUnder && elementUnder !== document.body && elementUnder !== document.documentElement) {
-              const resolved = resolveElementTarget(elementUnder, selectedElement)
-              onAddComment(resolved, { x: e.clientX, y: e.clientY })
-            }
+            const target = (elementUnder && elementUnder !== document.body && elementUnder !== document.documentElement)
+              ? resolveElementTarget(elementUnder, selectedElement)
+              : document.body
+            onAddComment(target, { x: e.clientX, y: e.clientY })
             return
           }
           if (activeCommentId) { onSetActiveCommentId(null); return }
@@ -85,39 +85,41 @@ export function InteractionOverlay({
       {hoverHighlight && (() => {
         const cr = hoverHighlight.flexContainer.getBoundingClientRect()
         return (
-          <svg
+          <div
             data-direct-edit="hover-highlight"
             className="pointer-events-none fixed inset-0 z-[99991]"
-            width="100%"
-            height="100%"
-            style={{ width: '100vw', height: '100vh' }}
           >
-            <rect
-              x={cr.left}
-              y={cr.top}
-              width={cr.width}
-              height={cr.height}
-              fill="transparent"
-              stroke="#3b82f6"
-              strokeWidth={1}
+            <div
+              style={{
+                position: 'absolute',
+                left: cr.left,
+                top: cr.top,
+                width: cr.width,
+                height: cr.height,
+                border: '1px solid #3b82f6',
+                borderRadius: '0px',
+                boxSizing: 'border-box',
+              }}
             />
             {hoverHighlight.children.map((child) => {
               const r = child.getBoundingClientRect()
               return (
-                <rect
+                <div
                   key={`${r.left}-${r.top}-${r.width}-${r.height}`}
-                  x={r.left}
-                  y={r.top}
-                  width={r.width}
-                  height={r.height}
-                  fill="transparent"
-                  stroke="#3b82f6"
-                  strokeWidth={1}
-                  strokeDasharray="4 2"
+                  style={{
+                    position: 'absolute',
+                    left: r.left,
+                    top: r.top,
+                    width: r.width,
+                    height: r.height,
+                    border: '1px dashed #3b82f6',
+                    borderRadius: '0px',
+                    boxSizing: 'border-box',
+                  }}
                 />
               )
             })}
-          </svg>
+          </div>
         )
       })()}
     </>

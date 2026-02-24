@@ -23,3 +23,4 @@ Visual CSS editor for React apps, rendered inside Shadow DOM for CSS isolation.
 - [Mac app integration](docs/mac-app-integration.md) — HTTP contract between the overlay and the local Mac app broker
 - [Runner workflow](docs/runner-workflow.md) — end-to-end: element selection → CSS edit → send → agent applies code
 - [Preload](docs/preload.md) — React fiber DevTools hook, why it loads before React, framework wiring
+- [Canvas body offset](docs/canvas-body-offset.md) — why guideline math must account for body margin in canvas mode

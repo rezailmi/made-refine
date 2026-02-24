@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { act, renderHook, waitFor } from '@testing-library/react'
+import { act, fireEvent, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DirectEditProvider, useDirectEdit, useDirectEditActions, useDirectEditState } from './provider'
 import { DirectEditPanel } from './panel'
@@ -25,6 +25,13 @@ const fullUiWrapper = ({ children }: { children: React.ReactNode }) => (
     <DirectEditPanel />
     <DirectEditToolbar />
     <Rulers />
+    {children}
+  </DirectEditProvider>
+)
+
+const toolbarWrapper = ({ children }: { children: React.ReactNode }) => (
+  <DirectEditProvider>
+    <DirectEditToolbar />
     {children}
   </DirectEditProvider>
 )
@@ -128,6 +135,15 @@ async function findOverlayElement(): Promise<HTMLElement> {
     const overlay = host.shadowRoot?.querySelector('[data-direct-edit="overlay"]') as HTMLElement | null
     expect(overlay).not.toBeNull()
     return overlay as HTMLElement
+  })
+}
+
+async function findToolbarButtonByIcon(shadowRoot: ShadowRoot, iconClass: string): Promise<HTMLButtonElement> {
+  return waitFor(() => {
+    const icon = shadowRoot.querySelector(`svg.${iconClass}`) as SVGElement | null
+    const button = icon?.closest('button') as HTMLButtonElement | null
+    expect(button).not.toBeNull()
+    return button as HTMLButtonElement
   })
 }
 
@@ -424,6 +440,89 @@ describe('DirectEditProvider', () => {
     await waitFor(() => {
       expect(host.getAttribute('data-theme')).toBe('light')
       expect(localStorage.getItem('direct-edit-theme')).toBe('light')
+    })
+  })
+
+  it('coordinates toolbar popovers and closes them on outside click', async () => {
+    class ResizeObserverMock {
+      observe() {}
+      disconnect() {}
+      unobserve() {}
+    }
+    vi.stubGlobal('ResizeObserver', ResizeObserverMock)
+    stubMatchMedia()
+
+    const { result } = renderHook(() => useDirectEdit(), { wrapper: toolbarWrapper })
+
+    act(() => {
+      result.current.toggleEditMode()
+    })
+
+    const host = await waitFor(() => {
+      const node = document.querySelector('[data-direct-edit-host]') as HTMLElement | null
+      expect(node).not.toBeNull()
+      return node as HTMLElement
+    })
+
+    const shadowRoot = host.shadowRoot
+    expect(shadowRoot).not.toBeNull()
+    const root = shadowRoot as ShadowRoot
+
+    const editsTrigger = await findToolbarButtonByIcon(root, 'lucide-copy')
+    act(() => {
+      fireEvent.click(editsTrigger)
+    })
+    await waitFor(() => {
+      expect(root.textContent).toContain('Copy to AI agents')
+    })
+
+    const settingsTrigger = await findToolbarButtonByIcon(root, 'lucide-ellipsis-vertical')
+    act(() => {
+      fireEvent.click(settingsTrigger)
+    })
+    await waitFor(() => {
+      expect(root.textContent).toContain('Theme')
+      expect(root.textContent).toContain('Keyboard shortcuts')
+      expect(root.textContent).not.toContain('Copy to AI agents')
+    })
+
+    const keyboardShortcutsTrigger = await waitFor(() => {
+      const items = Array.from(root.querySelectorAll('[role="menuitem"]')) as HTMLElement[]
+      const item = items.find((el) => el.textContent?.trim() === 'Keyboard shortcuts')
+      expect(item).not.toBeUndefined()
+      return item as HTMLElement
+    })
+    act(() => {
+      fireEvent.click(keyboardShortcutsTrigger)
+    })
+    await waitFor(() => {
+      expect(root.textContent).toContain('Toggle design mode')
+    })
+
+    const themeTrigger = await waitFor(() => {
+      const items = Array.from(root.querySelectorAll('[role="menuitem"]')) as HTMLElement[]
+      const item = items.find((el) => el.textContent?.trim() === 'Theme')
+      expect(item).not.toBeUndefined()
+      return item as HTMLElement
+    })
+    act(() => {
+      fireEvent.click(themeTrigger)
+    })
+    await waitFor(() => {
+      expect(root.textContent).toContain('Light')
+      expect(root.textContent).toContain('Dark')
+      expect(root.textContent).toContain('System')
+    })
+
+    await act(async () => {
+      await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)))
+    })
+
+    act(() => {
+      fireEvent.pointerDown(document.documentElement)
+    })
+    await waitFor(() => {
+      expect(root.textContent).not.toContain('Theme')
     })
   })
 
@@ -906,6 +1005,22 @@ describe('DirectEditProvider', () => {
     const draftCommentId = result.current.activeCommentId
     expect(draftCommentId).not.toBeNull()
 
+    const host = await waitFor(() => {
+      const node = document.querySelector('[data-direct-edit-host]') as HTMLElement | null
+      expect(node).not.toBeNull()
+      return node as HTMLElement
+    })
+
+    const draftInput = await waitFor(() => {
+      const input = host.shadowRoot?.querySelector('input[placeholder="Add a comment..."]') as HTMLInputElement | null
+      expect(input).not.toBeNull()
+      return input as HTMLInputElement
+    })
+
+    act(() => {
+      fireEvent.change(draftInput, { target: { value: 'Unsent draft' } })
+    })
+
     const overlay = await findOverlayElement()
     act(() => {
       clickOverlay(overlay, 60, 68)
@@ -914,7 +1029,6 @@ describe('DirectEditProvider', () => {
     expect(result.current.comments).toHaveLength(1)
     expect(result.current.activeCommentId).toBe(draftCommentId)
 
-    const host = document.querySelector('[data-direct-edit-host]') as HTMLElement
     await waitFor(() => {
       const input = host.shadowRoot?.querySelector('input[placeholder="Add a comment..."]') as HTMLInputElement | null
       expect(input).not.toBeNull()

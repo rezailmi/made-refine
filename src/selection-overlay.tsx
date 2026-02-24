@@ -1,4 +1,5 @@
 import * as React from 'react'
+import type { ActiveTool } from './types'
 import { elementFromPointWithoutOverlays } from './utils'
 
 const BLUE = '#0D99FF'
@@ -22,6 +23,7 @@ export interface SelectionOverlayProps {
     options?: MoveStartOptions
   ) => void
   showMoveHandle?: boolean
+  activeTool?: ActiveTool
   isTextEditing?: boolean
   onDoubleClick?: (clientX: number, clientY: number) => void
   onHoverElement?: (element: HTMLElement | null) => void
@@ -35,6 +37,7 @@ export function SelectionOverlay({
   ghostPosition,
   onMoveStart,
   showMoveHandle = false,
+  activeTool = 'select',
   isTextEditing,
   onDoubleClick,
   onHoverElement,
@@ -227,29 +230,23 @@ export function SelectionOverlay({
 
   return (
     <>
-      <svg
-        data-direct-edit="selection-overlay"
-        style={{
-          position: 'fixed',
-          inset: 0,
-          width: '100vw',
-          height: '100vh',
-          pointerEvents: 'none',
-          zIndex: 99996,
-        }}
-      >
-        {!isTextEditing && (
-          <rect
-            x={displayX}
-            y={displayY}
-            width={rect.width}
-            height={rect.height}
-            fill="transparent"
-            stroke={BLUE}
-            strokeWidth={1}
-          />
-        )}
-      </svg>
+      {!isTextEditing && (
+        <div
+          data-direct-edit="selection-overlay"
+          style={{
+            position: 'fixed',
+            left: displayX,
+            top: displayY,
+            width: rect.width,
+            height: rect.height,
+            pointerEvents: 'none',
+            zIndex: 99996,
+            border: `1px solid ${BLUE}`,
+            borderRadius: '0px',
+            boxSizing: 'border-box',
+          }}
+        />
+      )}
 
       {!isDragging && !isTextEditing && (
         <div
@@ -262,7 +259,7 @@ export function SelectionOverlay({
             height: rect.height,
             zIndex: 99996,
             cursor: 'default',
-            pointerEvents: 'auto',
+            pointerEvents: activeTool === 'comment' ? 'none' : 'auto',
           }}
           onPointerDown={handlePointerDown}
           onDoubleClick={handleDoubleClick}

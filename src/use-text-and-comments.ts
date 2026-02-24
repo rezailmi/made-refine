@@ -96,8 +96,8 @@ export function useTextAndComments({
     const locator = getElementLocator(element)
     const rect = element.getBoundingClientRect()
     const relativePosition = {
-      x: clickPosition.x - rect.left,
-      y: clickPosition.y - rect.top,
+      x: rect.width > 0 ? (clickPosition.x - rect.left) / rect.width : 0,
+      y: rect.height > 0 ? (clickPosition.y - rect.top) / rect.height : 0,
     }
     const id = `comment-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
     const comment: Comment = {
@@ -110,11 +110,17 @@ export function useTextAndComments({
       createdAt: Date.now(),
       replies: [],
     }
-    setState((prev) => ({
-      ...prev,
-      comments: [...prev.comments, comment],
-      activeCommentId: id,
-    }))
+    setState((prev) => {
+      // Remove previously active empty comment
+      const filtered = prev.activeCommentId
+        ? prev.comments.filter((c) => c.id !== prev.activeCommentId || c.text.trim().length > 0)
+        : prev.comments
+      return {
+        ...prev,
+        comments: [...filtered, comment],
+        activeCommentId: id,
+      }
+    })
   }, [])
 
   const updateCommentText = React.useCallback((id: string, text: string) => {

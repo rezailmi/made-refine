@@ -210,7 +210,7 @@ export function DirectEditPanelInner({
         sectionRefs={sectionRefs}
       />
 
-      <div className="flex-1 overflow-y-auto backdrop-blur-xl bg-background/85" ref={scrollRef}>
+      <div className="flex-1 overflow-y-auto backdrop-blur-xl bg-background/85" ref={scrollRef} onWheelCapture={(e) => e.stopPropagation()}>
         <LayoutSection
           elementInfo={elementInfo}
           computedFlex={computedFlex}
@@ -348,6 +348,11 @@ function DirectEditPanelContent() {
     children: HTMLElement[]
   } | null>(null)
   const [commentInputAttention, setCommentInputAttention] = React.useState<{ commentId: string; nonce: number } | null>(null)
+  const commentDraftRef = React.useRef('')
+
+  React.useEffect(() => {
+    commentDraftRef.current = ''
+  }, [activeCommentId])
 
   const { isActive: measurementActive, hoveredElement, measurements, mousePosition } = useMeasurement(
     isOpen ? selectedElement : null
@@ -373,15 +378,25 @@ function DirectEditPanelContent() {
     if (!activeCommentId) return false
     if (nextCommentId && nextCommentId === activeCommentId) return false
     const active = comments.find((comment) => comment.id === activeCommentId)
-    if (!active || active.text.trim().length > 0) return false
+    if (!active) return false
+    // Block only unsent drafts (typed input not yet submitted to comment.text).
+    const hasUnsentDraft = active.text.trim().length === 0 && commentDraftRef.current.trim().length > 0
+    if (!hasUnsentDraft) return false
     triggerCommentInputAttention(active.id)
     return true
   }, [activeCommentId, comments, triggerCommentInputAttention])
 
   const handleSetActiveComment = React.useCallback((id: string | null) => {
-    if (id && hasPendingCommentDraft(id)) return
+    if (hasPendingCommentDraft(id)) return
+    // Delete empty comment when switching away
+    if (activeCommentId && activeCommentId !== id) {
+      const active = comments.find((comment) => comment.id === activeCommentId)
+      if (active && active.text.trim().length === 0) {
+        deleteComment(active.id)
+      }
+    }
     setActiveCommentId(id)
-  }, [hasPendingCommentDraft, setActiveCommentId])
+  }, [activeCommentId, comments, hasPendingCommentDraft, deleteComment, setActiveCommentId])
 
   const overlay = editModeActive && container ? createPortal(
     <InteractionOverlay
@@ -393,7 +408,7 @@ function DirectEditPanelContent() {
       onSelectElement={selectElement}
       onStartTextEditing={startTextEditing}
       onAddComment={addComment}
-      onSetActiveCommentId={setActiveCommentId}
+      onSetActiveCommentId={handleSetActiveComment}
       onSetHoverHighlight={setHoverHighlight}
       hasPendingCommentDraft={hasPendingCommentDraft}
     />,
@@ -411,6 +426,7 @@ function DirectEditPanelContent() {
       onExport={exportComment}
       onSendToAgent={sendCommentToAgent}
       attentionRequest={commentInputAttention}
+      draftRef={commentDraftRef}
     />,
     container
   ) : null
@@ -463,6 +479,7 @@ function DirectEditPanelContent() {
           ghostPosition={dragState.ghostPosition}
           onMoveStart={handleMoveStart}
           showMoveHandle={showMoveHandle}
+          activeTool={activeTool}
           isTextEditing={Boolean(textEditingElement)}
           onDoubleClick={(clientX, clientY) => {
             if (!selectedElement) return

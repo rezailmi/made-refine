@@ -23,18 +23,11 @@ function truncateText(value: string, max = 64): string {
   return `${value.slice(0, max)}...`
 }
 
-function isWithinFocusRegion(
-  nextTarget: EventTarget | null,
-  ...elements: Array<HTMLElement | null>
-): boolean {
-  if (!(nextTarget instanceof Node)) return false
-  return elements.some((element) => Boolean(element?.contains(nextTarget)))
-}
-
 export interface EditsPopoverProps {
   tooltipSide: 'top' | 'bottom' | 'left' | 'right'
   sessionEditCount: number
-  isDragging: boolean
+  isOpen: boolean
+  onOpenChange: (open: boolean) => void
   onGetSessionItems?: () => SessionItem[]
   onExportAllEdits?: () => Promise<boolean>
   onSendAllToAgents?: () => Promise<boolean>
@@ -46,7 +39,8 @@ export interface EditsPopoverProps {
 export function EditsPopover({
   tooltipSide,
   sessionEditCount,
-  isDragging,
+  isOpen,
+  onOpenChange,
   onGetSessionItems,
   onExportAllEdits,
   onSendAllToAgents,
@@ -54,23 +48,21 @@ export function EditsPopover({
   onRemoveSessionEdit,
   onDeleteComment,
 }: EditsPopoverProps) {
-  const [editsOpen, setEditsOpen] = React.useState(false)
   const [copied, setCopied] = React.useState(false)
   const [sendStatus, setSendStatus] = React.useState<'idle' | 'sending' | 'sent' | 'offline'>('idle')
   const editsPopupRef = React.useRef<HTMLDivElement>(null)
   const editsTriggerRef = React.useRef<HTMLButtonElement>(null)
-  const editsCloseTimerRef = React.useRef<number | null>(null)
   const [editsSnapshot, setEditsSnapshot] = React.useState<SessionItem[]>([])
 
   // Close on outside click (Shadow DOM breaks base-ui's dismiss)
   React.useEffect(() => {
-    if (!editsOpen) return
+    if (!isOpen) return
 
     function handlePointerDown(e: PointerEvent) {
       const path = e.composedPath()
       if (editsPopupRef.current && path.includes(editsPopupRef.current)) return
       if (editsTriggerRef.current && path.includes(editsTriggerRef.current)) return
-      setEditsOpen(false)
+      onOpenChange(false)
     }
 
     const raf = requestAnimationFrame(() => {
@@ -81,43 +73,14 @@ export function EditsPopover({
       cancelAnimationFrame(raf)
       document.removeEventListener('pointerdown', handlePointerDown)
     }
-  }, [editsOpen])
+  }, [isOpen, onOpenChange])
 
   // Refresh snapshot when popover opens
   React.useEffect(() => {
-    if (editsOpen && onGetSessionItems) {
+    if (isOpen && onGetSessionItems) {
       setEditsSnapshot(onGetSessionItems())
     }
-  }, [editsOpen, onGetSessionItems])
-
-  // Cleanup timer
-  React.useEffect(() => {
-    return () => {
-      if (editsCloseTimerRef.current !== null) {
-        window.clearTimeout(editsCloseTimerRef.current)
-      }
-    }
-  }, [])
-
-  // Close on drag start
-  React.useEffect(() => {
-    if (isDragging) setEditsOpen(false)
-  }, [isDragging])
-
-  const clearEditsCloseTimer = React.useCallback(() => {
-    if (editsCloseTimerRef.current !== null) {
-      window.clearTimeout(editsCloseTimerRef.current)
-      editsCloseTimerRef.current = null
-    }
-  }, [])
-
-  const scheduleEditsClose = React.useCallback(() => {
-    clearEditsCloseTimer()
-    editsCloseTimerRef.current = window.setTimeout(() => {
-      setEditsOpen(false)
-      editsCloseTimerRef.current = null
-    }, 120)
-  }, [clearEditsCloseTimer])
+  }, [isOpen, onGetSessionItems])
 
   const handleCopyAll = React.useCallback(async () => {
     const success = await onExportAllEdits?.()
@@ -158,55 +121,40 @@ export function EditsPopover({
   }, [])
 
   return (
-    <Popover.Root open={editsOpen} onOpenChange={setEditsOpen}>
-      <Popover.Trigger ref={editsTriggerRef} render={
-        <button
-          type="button"
-          className={cn(
-            'flex cursor-pointer items-center justify-center rounded-[8px] p-2 transition-colors',
-            sessionEditCount > 0 || editsOpen
-              ? 'bg-muted text-foreground'
-              : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-          )}
-          onPointerDown={(e: React.PointerEvent) => e.stopPropagation()}
-          onPointerEnter={() => {
-            clearEditsCloseTimer()
-            setEditsOpen(true)
-          }}
-          onPointerLeave={scheduleEditsClose}
-          onFocus={(e) => {
-            clearEditsCloseTimer()
-            if (e.currentTarget.matches(':focus-visible')) {
-              setEditsOpen(true)
-            }
-          }}
-          onBlur={(e) => {
-            if (isWithinFocusRegion(e.relatedTarget, editsTriggerRef.current, editsPopupRef.current)) return
-            scheduleEditsClose()
-          }}
-          onClick={(e) => {
-            e.preventDefault()
-            e.stopPropagation()
-            clearEditsCloseTimer()
-            setEditsOpen((prev) => !prev)
-          }}
-        />
-      }>
-        <Copy className="size-4" />
-      </Popover.Trigger>
+    <Popover.Root open={isOpen} onOpenChange={onOpenChange}>
+      <Tooltip disabled={isOpen}>
+        <TooltipTrigger render={
+          <Popover.Trigger render={
+            <button
+              ref={editsTriggerRef}
+              type="button"
+              className={cn(
+                'flex cursor-pointer items-center justify-center rounded-[8px] p-2 transition-colors',
+                sessionEditCount > 0 || isOpen
+                  ? 'bg-muted text-foreground'
+                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+              )}
+              onPointerDown={(e: React.PointerEvent) => e.stopPropagation()}
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                onOpenChange(!isOpen)
+              }}
+            />
+          } />
+        }>
+          <Copy className="size-4" />
+        </TooltipTrigger>
+        <TooltipContent side={tooltipSide}>
+          <span>Export edits</span>
+        </TooltipContent>
+      </Tooltip>
       <EditsPopoverPortal>
         <Popover.Positioner side={tooltipSide} sideOffset={12} className="fixed z-[99999]" style={{ pointerEvents: 'auto' }}>
           <Popover.Popup
             ref={editsPopupRef}
             className="w-[340px] rounded-xl bg-background text-xs outline outline-1 outline-foreground/10 shadow-lg"
             onPointerDown={(e: React.PointerEvent) => e.stopPropagation()}
-            onPointerEnter={clearEditsCloseTimer}
-            onPointerLeave={scheduleEditsClose}
-            onFocus={clearEditsCloseTimer}
-            onBlur={(e) => {
-              if (isWithinFocusRegion(e.relatedTarget, editsTriggerRef.current, editsPopupRef.current)) return
-              scheduleEditsClose()
-            }}
           >
             <div className="flex items-center justify-between px-3 pb-1 pt-2.5">
               <span className="text-xs font-medium text-foreground">Copy to AI agents</span>

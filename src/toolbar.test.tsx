@@ -10,6 +10,7 @@ vi.mock('./use-toolbar-dock', () => ({
     isDragging: false,
     isSnapping: false,
     style: {},
+    predictSize: vi.fn(),
     handlePointerDown: vi.fn(),
     handlePointerMove: vi.fn(),
     handlePointerUp: vi.fn(),
@@ -20,8 +21,8 @@ vi.mock('./use-toolbar-dock', () => ({
 vi.mock('@base-ui/react/popover', () => ({
   Popover: {
     Root: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-    Trigger: React.forwardRef<HTMLButtonElement, { render?: React.ReactElement; children?: React.ReactNode }>(
-      ({ render, children }, ref) => {
+    Trigger: React.forwardRef<HTMLButtonElement, { render?: React.ReactElement; children?: React.ReactNode; nativeButton?: boolean }>(
+      ({ render, children, nativeButton: _nativeButton }, ref) => {
         if (render) {
           return React.cloneElement(render, { ref }, children)
         }
@@ -43,10 +44,13 @@ vi.mock('@base-ui/react/popover', () => ({
 vi.mock('./ui/tooltip', () => ({
   TooltipProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  TooltipTrigger: React.forwardRef<HTMLButtonElement, React.ComponentPropsWithoutRef<'button'>>(
-    ({ children, ...props }, ref) => (
-      <button ref={ref} type="button" {...props}>{children}</button>
-    ),
+  TooltipTrigger: React.forwardRef<HTMLElement, React.ComponentPropsWithoutRef<'button'> & { render?: React.ReactElement; nativeButton?: boolean }>(
+    ({ children, render, nativeButton: _nativeButton, ...props }, ref) => {
+      if (render) {
+        return React.cloneElement(render, { ...props, ref }, children)
+      }
+      return <button ref={ref as React.Ref<HTMLButtonElement>} type="button" {...props}>{children}</button>
+    },
   ),
   TooltipContent: ({ children, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
     <div {...props}>{children}</div>
@@ -54,6 +58,70 @@ vi.mock('./ui/tooltip', () => ({
 }))
 
 describe('DirectEditToolbarInner', () => {
+  it('opens zoom popover without toggling canvas mode from toolbar icon', async () => {
+    const onToggleCanvas = vi.fn()
+    const { container } = render(
+      <DirectEditToolbarInner
+        editModeActive={true}
+        onToggleEditMode={() => {}}
+        rulersVisible={false}
+        onToggleRulers={() => {}}
+        canvasActive={false}
+        onToggleCanvas={onToggleCanvas}
+      />,
+    )
+
+    const canvasTrigger = container.querySelector('svg.lucide-maximize-2')?.closest('button')
+    expect(canvasTrigger).not.toBeNull()
+    fireEvent.click(canvasTrigger as HTMLButtonElement)
+
+    await waitFor(() => {
+      expect(canvasTrigger?.className).toContain('bg-muted')
+    })
+    expect(onToggleCanvas).not.toHaveBeenCalled()
+
+    const canvasModeButton = Array.from(container.querySelectorAll('button')).find((button) => (
+      button.textContent?.trim() === 'Canvas mode'
+    ))
+    expect(canvasModeButton).not.toBeNull()
+    fireEvent.click(canvasModeButton as HTMLButtonElement)
+    expect(onToggleCanvas).toHaveBeenCalledTimes(1)
+  })
+
+  it('closes popovers when edit mode is turned off', async () => {
+    const { container, rerender } = render(
+      <DirectEditToolbarInner
+        editModeActive={true}
+        onToggleEditMode={() => {}}
+        rulersVisible={false}
+        onToggleRulers={() => {}}
+      />,
+    )
+
+    const settingsTrigger = container.querySelector('svg.lucide-ellipsis-vertical')?.closest('button')
+    expect(settingsTrigger).not.toBeNull()
+    fireEvent.click(settingsTrigger as HTMLButtonElement)
+
+    await waitFor(() => {
+      expect(settingsTrigger?.className).toContain('bg-muted text-foreground')
+    })
+
+    rerender(
+      <DirectEditToolbarInner
+        editModeActive={false}
+        onToggleEditMode={() => {}}
+        rulersVisible={false}
+        onToggleRulers={() => {}}
+      />,
+    )
+
+    await waitFor(() => {
+      const nextSettingsTrigger = container.querySelector('svg.lucide-ellipsis-vertical')?.closest('button')
+      expect(nextSettingsTrigger).not.toBeNull()
+      expect(nextSettingsTrigger?.className).not.toContain('bg-muted text-foreground')
+    })
+  })
+
   it('uses theme-token classes for keyboard shortcuts', () => {
     const { container } = render(
       <DirectEditToolbarInner

@@ -150,6 +150,13 @@
   }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation: none;
+    transition: none;
+  }
+}
+
 /* Lucide icons — use 1px stroke globally */
 .lucide {
   stroke-width: 1;

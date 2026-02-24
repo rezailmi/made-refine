@@ -195,6 +195,49 @@ describe('useToolbarDock', () => {
     expect(result.current.style.top).toBe(0)
   })
 
+  it('enables docked transition after first animation frame', () => {
+    const rect: RectState = { left: 560, top: 720, width: 160, height: 40 }
+    const toolbarEl = createToolbarElement(rect)
+    const ref: React.RefObject<HTMLDivElement | null> = { current: toolbarEl }
+
+    const { result } = renderHook(() => useToolbarDock(ref))
+
+    expect(result.current.style.transition).toBeUndefined()
+
+    act(() => {
+      vi.runOnlyPendingTimers()
+    })
+
+    expect(result.current.style.transition).toContain('left 300ms cubic-bezier(0.25, 1, 0.5, 1)')
+    expect(result.current.style.transition).toContain('top 300ms cubic-bezier(0.25, 1, 0.5, 1)')
+  })
+
+  it('reconciles docked position with measured size after predict transition', () => {
+    const rect: RectState = { left: 560, top: 720, width: 200, height: 40 }
+    const toolbarEl = createToolbarElement(rect)
+    const ref: React.RefObject<HTMLDivElement | null> = { current: toolbarEl }
+
+    const { result } = renderHook(() => useToolbarDock(ref))
+
+    act(() => {
+      vi.runOnlyPendingTimers()
+    })
+
+    expect(result.current.style.left).toBe(540)
+
+    act(() => {
+      result.current.predictSize(300, 40)
+    })
+    expect(result.current.style.left).toBe(490)
+
+    rect.width = 240
+    act(() => {
+      vi.advanceTimersByTime(350)
+    })
+
+    expect(result.current.style.left).toBe(520)
+  })
+
   it('does not throw when pointer capture is unavailable on pointer down', () => {
     const rect: RectState = { left: 560, top: 720, width: 160, height: 40 }
     const toolbarEl = createToolbarElement(rect)
