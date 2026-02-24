@@ -87,7 +87,7 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
     el: HTMLElement
     height: string
     maxHeight: string
-    overflow: string
+    overflowX: string
     overflowY: string
   }>>([])
 
@@ -163,27 +163,39 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
     }
   }, [applyTransform, dispatchCanvasChange, setState])
 
+  function isScrollableContainer(el: HTMLElement): boolean {
+    if (el.scrollHeight <= el.clientHeight + 1) return false
+    const style = getComputedStyle(el)
+    const overflowY = style.overflowY || style.overflow
+    // Skip intentionally clipped containers; expanding them can inflate canvas bounds.
+    if (overflowY === 'hidden' || overflowY === 'clip') return false
+    return overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'overlay'
+  }
+
   function expandScrollContainers(): void {
     const saved: typeof savedScrollContainersRef.current = []
     const queue: HTMLElement[] = Array.from(document.body.children).filter(
       (el): el is HTMLElement => el instanceof HTMLElement
     )
-    let depth = 0
-    while (queue.length > 0 && depth < 5) {
+    let visited = 0
+    const maxNodes = 5000
+    while (queue.length > 0 && visited < maxNodes) {
       const nextQueue: HTMLElement[] = []
       for (const el of queue) {
-        if (el.scrollHeight > el.clientHeight + 1) {
+        if (visited >= maxNodes) break
+        visited++
+        if (isScrollableContainer(el)) {
           const style = el.style
           saved.push({
             el,
             height: style.height,
             maxHeight: style.maxHeight,
-            overflow: style.overflow,
+            overflowX: style.overflowX,
             overflowY: style.overflowY,
           })
           style.height = 'auto'
           style.maxHeight = 'none'
-          style.overflow = 'visible'
+          style.overflowX = 'visible'
           style.overflowY = 'visible'
         }
         for (const child of el.children) {
@@ -192,16 +204,16 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
       }
       queue.length = 0
       queue.push(...nextQueue)
-      depth++
     }
     savedScrollContainersRef.current = saved
   }
 
   function restoreScrollContainers(): void {
-    for (const { el, height, maxHeight, overflow, overflowY } of savedScrollContainersRef.current) {
+    for (let i = savedScrollContainersRef.current.length - 1; i >= 0; i--) {
+      const { el, height, maxHeight, overflowX, overflowY } = savedScrollContainersRef.current[i]
       el.style.height = height
       el.style.maxHeight = maxHeight
-      el.style.overflow = overflow
+      el.style.overflowX = overflowX
       el.style.overflowY = overflowY
     }
     savedScrollContainersRef.current = []
