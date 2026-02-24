@@ -463,6 +463,7 @@ describe('SelectionOverlay', () => {
     })
 
     expect(onMoveStart).toHaveBeenCalled()
+    expect(onMoveStart.mock.calls[0]?.[2]).toEqual({ mode: 'position' })
     expect(onClickThrough).not.toHaveBeenCalled()
   })
 
@@ -579,7 +580,7 @@ describe('SelectionOverlay', () => {
 
     expect(onMoveStart).toHaveBeenCalledTimes(1)
     expect(onMoveStart.mock.calls[0]?.[1]).toBe(children[1])
-    expect(onMoveStart.mock.calls[0]?.[2]).toEqual({ constrainToOriginalParent: true })
+    expect(onMoveStart.mock.calls[0]?.[2]).toEqual({ constrainToOriginalParent: true, mode: 'reorder' })
     expect(onClickThrough).not.toHaveBeenCalled()
   })
 
@@ -603,6 +604,14 @@ describe('SelectionOverlay', () => {
     child.getBoundingClientRect = childRect
     selectedElement.appendChild(child)
 
+    const child2 = document.createElement('div')
+    child2.getBoundingClientRect = () => ({
+      left: 200, top: 60, width: 60, height: 80,
+      right: 260, bottom: 140, x: 200, y: 60,
+      toJSON: () => ({}),
+    }) as DOMRect
+    selectedElement.appendChild(child2)
+
     const { container, rerender } = render(
       <SelectionOverlay
         selectedElement={selectedElement}
@@ -612,7 +621,7 @@ describe('SelectionOverlay', () => {
       />
     )
 
-    expect(container.querySelectorAll('[data-direct-edit="move-handle"]').length).toBe(1)
+    expect(container.querySelectorAll('[data-direct-edit="move-handle"]').length).toBe(2)
     const measureCallsBefore = childRect.mock.calls.length
 
     rerender(
@@ -624,7 +633,7 @@ describe('SelectionOverlay', () => {
       />
     )
 
-    expect(container.querySelectorAll('[data-direct-edit="move-handle"]').length).toBe(1)
+    expect(container.querySelectorAll('[data-direct-edit="move-handle"]').length).toBe(2)
     expect(childRect.mock.calls.length).toBe(measureCallsBefore)
   })
 
@@ -684,7 +693,7 @@ describe('SelectionOverlay', () => {
 
     expect(onMoveStart).toHaveBeenCalledTimes(1)
     expect(onMoveStart.mock.calls[0]?.[1]).toBe(selectedElement)
-    expect(onMoveStart.mock.calls[0]?.[2]).toEqual({ constrainToOriginalParent: true })
+    expect(onMoveStart.mock.calls[0]?.[2]).toEqual({ constrainToOriginalParent: true, mode: 'reorder' })
   })
 
   it('renders a single move handle for nested selection inside a flex item', () => {
@@ -758,7 +767,7 @@ describe('SelectionOverlay', () => {
 
     expect(onMoveStart).toHaveBeenCalledTimes(1)
     expect(onMoveStart.mock.calls[0]?.[1]).toBe(flexItemA)
-    expect(onMoveStart.mock.calls[0]?.[2]).toEqual({ constrainToOriginalParent: true })
+    expect(onMoveStart.mock.calls[0]?.[2]).toEqual({ constrainToOriginalParent: true, mode: 'reorder' })
   })
 
   it('targets the selected flex item when it has only one child', () => {
@@ -833,7 +842,33 @@ describe('SelectionOverlay', () => {
 
     expect(onMoveStart).toHaveBeenCalledTimes(1)
     expect(onMoveStart.mock.calls[0]?.[1]).toBe(selectedElement)
-    expect(onMoveStart.mock.calls[0]?.[2]).toEqual({ constrainToOriginalParent: true })
+    expect(onMoveStart.mock.calls[0]?.[2]).toEqual({ constrainToOriginalParent: true, mode: 'reorder' })
+  })
+
+  it('does not render move handle for non-flex elements', () => {
+    const blockParent = document.createElement('div')
+    blockParent.style.display = 'block'
+    document.body.appendChild(blockParent)
+
+    selectedElement.getBoundingClientRect = () => ({
+      left: 100, top: 50, width: 200, height: 100,
+      right: 300, bottom: 150, x: 100, y: 50,
+      toJSON: () => ({}),
+    }) as DOMRect
+    blockParent.appendChild(selectedElement)
+
+    const { container } = render(
+      <SelectionOverlay
+        selectedElement={selectedElement}
+        isDragging={false}
+        onMoveStart={vi.fn()}
+        showMoveHandle={true}
+      />
+    )
+
+    expect(container.querySelector('[data-direct-edit="move-handle"]')).toBeNull()
+
+    blockParent.remove()
   })
 
   it('recomputes move handle target when selected element is reparented', () => {
@@ -924,7 +959,7 @@ describe('SelectionOverlay', () => {
 
     expect(onMoveStart).toHaveBeenCalledTimes(1)
     expect(onMoveStart.mock.calls[0]?.[1]).toBe(flexItemA)
-    expect(onMoveStart.mock.calls[0]?.[2]).toEqual({ constrainToOriginalParent: true })
+    expect(onMoveStart.mock.calls[0]?.[2]).toEqual({ constrainToOriginalParent: true, mode: 'reorder' })
 
     onMoveStart.mockClear()
     flexItemB.appendChild(selectedElement)
@@ -951,7 +986,7 @@ describe('SelectionOverlay', () => {
 
     expect(onMoveStart).toHaveBeenCalledTimes(1)
     expect(onMoveStart.mock.calls[0]?.[1]).toBe(flexItemB)
-    expect(onMoveStart.mock.calls[0]?.[2]).toEqual({ constrainToOriginalParent: true })
+    expect(onMoveStart.mock.calls[0]?.[2]).toEqual({ constrainToOriginalParent: true, mode: 'reorder' })
   })
 
   it('hides handle div when isTextEditing is true', () => {

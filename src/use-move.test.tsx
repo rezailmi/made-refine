@@ -139,6 +139,7 @@ describe('useMove', () => {
     expect(onMoveComplete.mock.calls[0][1]).toMatchObject({
       originalParent,
       originalNextSibling: originalSibling,
+      mode: 'free',
     })
   })
 
@@ -196,5 +197,48 @@ describe('useMove', () => {
     expect(Array.from(originalParent.children)).toEqual([siblingA, dragged, siblingB])
     expect(dragged.parentElement).toBe(originalParent)
     expect(onMoveComplete).toHaveBeenCalledTimes(1)
+    expect(onMoveComplete.mock.calls[0]?.[1]).toMatchObject({
+      originalParent,
+      mode: 'reorder',
+    })
+  })
+
+  it('position mode skips container detection and returns delta', () => {
+    const onMoveComplete = vi.fn()
+    const { result } = renderHook(() => useMove({ onMoveComplete }))
+
+    const parent = document.createElement('div')
+    const dragged = document.createElement('div')
+    parent.appendChild(dragged)
+    document.body.appendChild(parent)
+
+    dragged.getBoundingClientRect = () => ({
+      left: 50, top: 50, width: 100, height: 40,
+      right: 150, bottom: 90, x: 50, y: 50,
+      toJSON: () => ({}),
+    }) as DOMRect
+
+    act(() => {
+      result.current.startDrag(pointerEvent(70, 60), dragged, { mode: 'position' })
+    })
+
+    act(() => {
+      dispatchPointer('pointermove', 120, 110)
+    })
+
+    expect(findContainerAtPointMock).not.toHaveBeenCalled()
+    expect(calculateDropPositionMock).not.toHaveBeenCalled()
+    expect(result.current.dropTarget).toBeNull()
+
+    act(() => {
+      dispatchPointer('pointerup', 120, 110)
+    })
+
+    expect(dragged.parentElement).toBe(parent)
+    expect(onMoveComplete).toHaveBeenCalledTimes(1)
+    expect(onMoveComplete.mock.calls[0]?.[1]).toMatchObject({
+      mode: 'position',
+      positionDelta: { x: 50, y: 50 },
+    })
   })
 })

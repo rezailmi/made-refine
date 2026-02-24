@@ -80,7 +80,19 @@ Both call through `useAgentComms` (`src/use-agent-comms.ts`).
     { cssProperty: 'background-color', cssValue: '#3b82f6', tailwindClass: 'bg-blue-500' },
   ],
   textChange: { originalText: 'Get started', newText: 'Start now' } | null,
-  moveChange: MoveInfo | null,
+  moveChange: {
+    fromParentName: 'section',
+    toParentName: 'main',
+    mode: 'free', // 'free' for unconstrained non-flex drags, 'reorder' for flex-handle reorders
+    fromParentDisplay: 'block',
+    toParentDisplay: 'flex',
+    fromParentLayout: 'block',
+    toParentLayout: 'flex',
+    draggedPosition: 'relative',
+    fromIndex: 1,
+    toIndex: 3,
+    // selector/source anchors remain included
+  } | null,
   exportMarkdown: '## Hero\n\n**Changes:**\n- `padding-top: 24px` → `pt-6`\n...',
 }
 ```
@@ -89,6 +101,7 @@ Key fields for the agent:
 - **`source`** — exact file and line from the Babel plugin (when available). Most reliable for locating the element in source.
 - **`reactStack`** — React component hierarchy from the fiber hook. Useful as a fallback when `source` is absent.
 - **`changes[].tailwindClass`** — the Tailwind utility that maps to the raw CSS value. The agent applies this class rather than inline styles.
+- **`moveChange`** — includes move mode (`free` vs `reorder`) and layout/index metadata so non-flex and flex moves can be interpreted correctly.
 - **`exportMarkdown`** — a pre-formatted human-readable summary the agent can include in commit messages or PR descriptions.
 
 ### 5. Session bootstrap and annotation delivery

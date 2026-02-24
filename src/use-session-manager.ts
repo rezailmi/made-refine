@@ -6,7 +6,7 @@ import type {
   SessionItem,
   Comment,
 } from './types'
-import type { MoveInfo } from './use-move'
+import type { MoveInfo, MoveMode } from './use-move'
 import {
   getAllComputedStyles,
   getComputedStyles,
@@ -25,6 +25,52 @@ import {
   getElementDisplayName,
   getElementLocator,
 } from './utils'
+
+type ParentLayout = 'flex' | 'grid' | 'block' | 'other'
+
+function getLayoutFromDisplay(display: string): ParentLayout {
+  if (display === 'flex' || display === 'inline-flex') return 'flex'
+  if (display === 'grid' || display === 'inline-grid') return 'grid'
+  if (
+    display === 'block'
+    || display === 'inline-block'
+    || display === 'flow-root'
+    || display === 'list-item'
+  ) {
+    return 'block'
+  }
+  return 'other'
+}
+
+function getParentLayoutMeta(parent: HTMLElement | null): {
+  display?: string
+  layout?: ParentLayout
+} {
+  if (!parent) return {}
+  const display = window.getComputedStyle(parent).display
+  return {
+    display,
+    layout: getLayoutFromDisplay(display),
+  }
+}
+
+function findChildIndex(parent: HTMLElement | null, child: HTMLElement | null): number | undefined {
+  if (!parent || !child) return undefined
+  const index = Array.from(parent.children).indexOf(child)
+  return index >= 0 ? index : undefined
+}
+
+function getOriginalMoveIndex(
+  parent: HTMLElement,
+  previousSibling: HTMLElement | null,
+  nextSibling: HTMLElement | null,
+): number {
+  const previousIndex = findChildIndex(parent, previousSibling)
+  if (previousIndex !== undefined) return previousIndex + 1
+  const nextIndex = findChildIndex(parent, nextSibling)
+  if (nextIndex !== undefined) return nextIndex
+  return 0
+}
 
 export interface SessionManagerOptions {
   stateRef: React.MutableRefObject<DirectEditState>
@@ -399,6 +445,7 @@ export function useSessionManager({
 
         const existing = sessionEditsRef.current.get(element)
         const styleState = getStyleStateForElement(existing)
+        const moveMode: MoveMode = moveInfo.mode ?? 'free'
         pushUndo({
           type: 'move',
           element,
@@ -416,6 +463,15 @@ export function useSessionManager({
         const toParentAnchor = getAnchor(newParent)
         const toBeforeAnchor = getAnchor(nextPrevSibling)
         const toAfterAnchor = getAnchor(nextSibling)
+        const fromParentMeta = getParentLayoutMeta(moveInfo.originalParent)
+        const toParentMeta = getParentLayoutMeta(newParent)
+        const fromIndex = getOriginalMoveIndex(
+          moveInfo.originalParent,
+          moveInfo.originalPreviousSibling,
+          moveInfo.originalNextSibling,
+        )
+        const toIndex = findChildIndex(newParent, element)
+        const draggedPosition = window.getComputedStyle(element).position
 
         // Preserve initial from* from the first move; only update to* on later moves
         const fromFields = existing?.move
@@ -429,6 +485,9 @@ export function useSessionManager({
               fromParentSource: existing.move.fromParentSource ?? null,
               fromSiblingBeforeSource: existing.move.fromSiblingBeforeSource ?? null,
               fromSiblingAfterSource: existing.move.fromSiblingAfterSource ?? null,
+              fromParentDisplay: existing.move.fromParentDisplay ?? fromParentMeta.display,
+              fromParentLayout: existing.move.fromParentLayout ?? fromParentMeta.layout,
+              fromIndex: existing.move.fromIndex ?? fromIndex,
             }
           : {
               fromParentName: getElementDisplayName(moveInfo.originalParent),
@@ -444,6 +503,9 @@ export function useSessionManager({
               fromParentSource: fromParentAnchor.source,
               fromSiblingBeforeSource: fromBeforeAnchor.source,
               fromSiblingAfterSource: fromAfterAnchor.source,
+              fromParentDisplay: fromParentMeta.display,
+              fromParentLayout: fromParentMeta.layout,
+              fromIndex,
             }
 
         sessionEditsRef.current.set(element, {
@@ -468,6 +530,14 @@ export function useSessionManager({
                 toParentSource: toParentAnchor.source,
                 toSiblingBeforeSource: toBeforeAnchor.source,
                 toSiblingAfterSource: toAfterAnchor.source,
+                mode: moveMode,
+                fromParentDisplay: fromFields.fromParentDisplay,
+                fromParentLayout: fromFields.fromParentLayout,
+                fromIndex: fromFields.fromIndex,
+                toParentDisplay: toParentMeta.display,
+                toParentLayout: toParentMeta.layout,
+                draggedPosition,
+                toIndex,
               }
             : null,
         })

@@ -6,10 +6,14 @@ import {
   detectChildrenDirection,
 } from './utils'
 
+export type MoveMode = 'free' | 'reorder' | 'position'
+
 export interface MoveInfo {
   originalParent: HTMLElement
   originalPreviousSibling: HTMLElement | null
   originalNextSibling: HTMLElement | null
+  mode?: MoveMode
+  positionDelta?: { x: number; y: number }
 }
 
 export interface UseMoveOptions {
@@ -24,6 +28,7 @@ export interface UseMoveDropTarget {
 
 export interface StartDragOptions {
   constrainToOriginalParent?: boolean
+  mode?: MoveMode
 }
 
 export interface UseMoveResult {
@@ -43,6 +48,24 @@ const INITIAL_DRAG_STATE: DragState = {
   dragOffset: { x: 0, y: 0 },
 }
 
+interface ActiveDragOptions {
+  constrainToOriginalParent: boolean
+  mode: MoveMode
+}
+
+const DEFAULT_DRAG_OPTIONS: ActiveDragOptions = {
+  constrainToOriginalParent: false,
+  mode: 'free',
+}
+
+function normalizeStartDragOptions(options?: StartDragOptions): ActiveDragOptions {
+  const mode = options?.mode ?? (options?.constrainToOriginalParent ? 'reorder' : 'free')
+  return {
+    mode,
+    constrainToOriginalParent: mode === 'reorder' || Boolean(options?.constrainToOriginalParent),
+  }
+}
+
 export function useMove({ onMoveComplete }: UseMoveOptions): UseMoveResult {
   const [dragState, setDragState] = React.useState<DragState>(INITIAL_DRAG_STATE)
   const [dropTarget, setDropTarget] = React.useState<UseMoveDropTarget | null>(null)
@@ -51,7 +74,7 @@ export function useMove({ onMoveComplete }: UseMoveOptions): UseMoveResult {
   const dragStateRef = React.useRef(dragState)
   const dropTargetRef = React.useRef(dropTarget)
   const onMoveCompleteRef = React.useRef(onMoveComplete)
-  const dragOptionsRef = React.useRef<StartDragOptions>({})
+  const dragOptionsRef = React.useRef<ActiveDragOptions>(DEFAULT_DRAG_OPTIONS)
 
   React.useEffect(() => {
     dragStateRef.current = dragState
@@ -64,7 +87,7 @@ export function useMove({ onMoveComplete }: UseMoveOptions): UseMoveResult {
     if (current.draggedElement) {
       current.draggedElement.style.opacity = ''
     }
-    dragOptionsRef.current = {}
+    dragOptionsRef.current = DEFAULT_DRAG_OPTIONS
     setDragState(INITIAL_DRAG_STATE)
     setDropTarget(null)
     setDropIndicator(null)
@@ -81,7 +104,29 @@ export function useMove({ onMoveComplete }: UseMoveOptions): UseMoveResult {
     }
 
     draggedElement.style.opacity = ''
-    dragOptionsRef.current = {}
+    const dragMode = dragOptionsRef.current.mode
+    dragOptionsRef.current = DEFAULT_DRAG_OPTIONS
+
+    if (dragMode === 'position') {
+      const rect = draggedElement.getBoundingClientRect()
+      const deltaX = current.ghostPosition.x - rect.left
+      const deltaY = current.ghostPosition.y - rect.top
+      const hasMoved = Math.abs(deltaX) > 0.5 || Math.abs(deltaY) > 0.5
+
+      setDragState(INITIAL_DRAG_STATE)
+      setDropTarget(null)
+      setDropIndicator(null)
+
+      if (onMoveCompleteRef.current) {
+        onMoveCompleteRef.current(
+          draggedElement,
+          hasMoved && originalParent
+            ? { originalParent, originalPreviousSibling, originalNextSibling, mode: 'position', positionDelta: { x: deltaX, y: deltaY } }
+            : null,
+        )
+      }
+      return
+    }
 
     let didMove = false
     if (target) {
@@ -113,7 +158,7 @@ export function useMove({ onMoveComplete }: UseMoveOptions): UseMoveResult {
 
     if (onMoveCompleteRef.current && draggedElement) {
       const moveInfo: MoveInfo | null = didMove && originalParent
-        ? { originalParent, originalPreviousSibling, originalNextSibling }
+        ? { originalParent, originalPreviousSibling, originalNextSibling, mode: dragMode }
         : null
       onMoveCompleteRef.current(draggedElement, moveInfo)
     }
@@ -125,7 +170,7 @@ export function useMove({ onMoveComplete }: UseMoveOptions): UseMoveResult {
       const parent = element.parentElement
       const previousSibling = element.previousElementSibling as HTMLElement | null
       const nextSibling = element.nextElementSibling as HTMLElement | null
-      dragOptionsRef.current = options ?? {}
+      dragOptionsRef.current = normalizeStartDragOptions(options)
 
       setDragState({
         isDragging: true,
@@ -156,6 +201,10 @@ export function useMove({ onMoveComplete }: UseMoveOptions): UseMoveResult {
           y: e.clientY - dragOffset.y,
         },
       }))
+
+      if (dragOptionsRef.current.mode === 'position') {
+        return
+      }
 
       const container = dragOptionsRef.current.constrainToOriginalParent
         ? originalParent

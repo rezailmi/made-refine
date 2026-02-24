@@ -840,6 +840,8 @@ describe('DirectEditProvider', () => {
     nextParent.setAttribute('data-direct-edit-source', 'src/App.tsx:100:5')
     nextSibling.setAttribute('data-direct-edit-source', 'src/App.tsx:101:7')
     moved.setAttribute('data-direct-edit-source', 'src/App.tsx:96:19')
+    moved.style.position = 'relative'
+    nextParent.style.display = 'flex'
 
     const { result } = renderHook(() => useDirectEdit(), { wrapper })
 
@@ -859,6 +861,7 @@ describe('DirectEditProvider', () => {
         originalParent,
         originalPreviousSibling: originalBefore,
         originalNextSibling: originalAfter,
+        mode: 'free',
       })
     })
 
@@ -869,6 +872,12 @@ describe('DirectEditProvider', () => {
     const exported = String(clipboardWrite.mock.calls[0][0])
     expect(exported).toContain('moved:')
     expect(exported).toContain('summary:')
+    expect(exported).toContain('mode: free')
+    expect(exported).toContain('dragged_position: relative')
+    expect(exported).toContain('from_parent_layout: block')
+    expect(exported).toContain('to_parent_layout: flex')
+    expect(exported).toContain('from_index: 1')
+    expect(exported).toContain('to_index: 1')
     expect(exported).toContain('from_parent_selector:')
     expect(exported).toContain('to_parent_selector:')
     expect(exported).toContain('#move-parent')
@@ -914,6 +923,7 @@ describe('DirectEditProvider', () => {
         originalParent,
         originalPreviousSibling: null,
         originalNextSibling: originalAfter,
+        mode: 'free',
       })
     })
 
@@ -954,6 +964,7 @@ describe('DirectEditProvider', () => {
         originalParent,
         originalPreviousSibling: originalBefore,
         originalNextSibling: originalAfter,
+        mode: 'reorder',
       })
     })
 
@@ -969,6 +980,7 @@ describe('DirectEditProvider', () => {
     expect(payload.changes).toEqual([])
     expect(payload.moveChange).toEqual(
       expect.objectContaining({
+        mode: 'reorder',
         fromParentName: expect.any(String),
         toParentName: expect.any(String),
       }),

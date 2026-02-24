@@ -2921,10 +2921,27 @@ function formatMoveSource(
   return formatSourceLocation(source.file, source.line, source.column)
 }
 
+function formatMoveMetadata(value: string | null | undefined): string {
+  const normalized = value?.trim()
+  return normalized ? normalized : '(unknown)'
+}
+
+function formatMoveIndex(value: number | undefined): string {
+  return typeof value === 'number' && Number.isFinite(value) ? String(value) : '(unknown)'
+}
+
 function buildMoveExportLines(move: NonNullable<SessionEdit['move']>): string[] {
   return [
     'moved:',
     `summary: ${formatMoveSummary(move)}`,
+    `mode: ${formatMoveMetadata(move.mode)}`,
+    `dragged_position: ${formatMoveMetadata(move.draggedPosition)}`,
+    `from_parent_display: ${formatMoveMetadata(move.fromParentDisplay)}`,
+    `from_parent_layout: ${formatMoveMetadata(move.fromParentLayout)}`,
+    `from_index: ${formatMoveIndex(move.fromIndex)}`,
+    `to_parent_display: ${formatMoveMetadata(move.toParentDisplay)}`,
+    `to_parent_layout: ${formatMoveMetadata(move.toParentLayout)}`,
+    `to_index: ${formatMoveIndex(move.toIndex)}`,
     `from_parent_selector: ${formatMoveSelector(move.fromParentSelector, '(unknown)')}`,
     `from_before_selector: ${formatMoveSelector(move.fromSiblingBeforeSelector, '(none)')}`,
     `from_after_selector: ${formatMoveSelector(move.fromSiblingAfterSelector, '(none)')}`,

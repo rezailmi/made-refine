@@ -10,6 +10,7 @@ import type { SpacingPropertyKey, BorderRadiusPropertyKey, BorderPropertyKey, Bo
 import { useMeasurement } from './use-measurement'
 import { MeasurementOverlay } from './measurement-overlay'
 import { useMove } from './use-move'
+import type { StartDragOptions } from './use-move'
 import { getStoredGuidelines } from './use-guidelines'
 import {
   calculateGuidelineMeasurements, isFlexContainer, isTextElement,
@@ -358,12 +359,31 @@ function DirectEditPanelContent() {
     isOpen ? selectedElement : null
   )
 
+  const onMoveCompleteWithPositioning = React.useCallback(
+    (element: HTMLElement, moveInfo: import('./use-move').MoveInfo | null) => {
+      if (moveInfo?.mode === 'position' && moveInfo.positionDelta) {
+        const computedStyle = window.getComputedStyle(element)
+        const properties: Record<string, string> = {
+          left: `${(parseFloat(computedStyle.left) || 0) + moveInfo.positionDelta.x}px`,
+          top: `${(parseFloat(computedStyle.top) || 0) + moveInfo.positionDelta.y}px`,
+        }
+        if (computedStyle.position === 'static') {
+          properties.position = 'relative'
+        }
+        updateRawCSS(properties)
+        return
+      }
+      handleMoveComplete(element, moveInfo)
+    },
+    [handleMoveComplete, updateRawCSS],
+  )
+
   const {
     dragState,
     dropIndicator,
     startDrag,
   } = useMove({
-    onMoveComplete: handleMoveComplete,
+    onMoveComplete: onMoveCompleteWithPositioning,
   })
 
   const triggerCommentInputAttention = React.useCallback((commentId: string) => {
@@ -436,7 +456,7 @@ function DirectEditPanelContent() {
   const handleMoveStart = (
     e: React.PointerEvent,
     targetElement?: HTMLElement,
-    options?: { constrainToOriginalParent?: boolean }
+    options?: StartDragOptions
   ) => {
     const elementToDrag = targetElement ?? selectedElement
     if (elementToDrag) {

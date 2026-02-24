@@ -590,12 +590,28 @@ describe('export context quality', () => {
         toParentSource: { file: 'src/App.tsx', line: 40, column: 3 },
         toSiblingBeforeSource: { file: 'src/App.tsx', line: 47, column: 9 },
         toSiblingAfterSource: null,
+        mode: 'reorder',
+        draggedPosition: 'relative',
+        fromParentDisplay: 'block',
+        fromParentLayout: 'block',
+        fromIndex: 0,
+        toParentDisplay: 'flex',
+        toParentLayout: 'flex',
+        toIndex: 2,
       },
     }
 
     const output = buildSessionExport([edit], [])
     expect(output).toContain('moved:')
     expect(output).toContain('summary: in <div>, from before <div> (first) to after <div> (last)')
+    expect(output).toContain('mode: reorder')
+    expect(output).toContain('dragged_position: relative')
+    expect(output).toContain('from_parent_display: block')
+    expect(output).toContain('from_parent_layout: block')
+    expect(output).toContain('from_index: 0')
+    expect(output).toContain('to_parent_display: flex')
+    expect(output).toContain('to_parent_layout: flex')
+    expect(output).toContain('to_index: 2')
     expect(output).toContain('from_parent_selector: main > div:nth-of-type(1)')
     expect(output).toContain('from_before_selector: (none)')
     expect(output).toContain('from_after_selector: main > div:nth-of-type(1) > div:nth-of-type(1)')

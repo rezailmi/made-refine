@@ -278,6 +278,14 @@ export interface SessionEdit {
     fromSiblingAfterSource?: DomSourceLocation | null
     toSiblingBeforeSource?: DomSourceLocation | null
     toSiblingAfterSource?: DomSourceLocation | null
+    mode?: 'free' | 'reorder'
+    fromParentDisplay?: string
+    toParentDisplay?: string
+    fromParentLayout?: 'flex' | 'grid' | 'block' | 'other'
+    toParentLayout?: 'flex' | 'grid' | 'block' | 'other'
+    draggedPosition?: string
+    fromIndex?: number
+    toIndex?: number
   } | null
   textEdit: {
     originalText: string
