@@ -16,6 +16,8 @@ const ZOOM_SENSITIVITY = 0.0145
 // use DOM_DELTA_PAGE, giving very different deltaY magnitudes than pixel mode.
 const LINE_HEIGHT_PX = 40
 const PAGE_HEIGHT_PX = 800
+const CANVAS_MEASURE_NODE_BUDGET = 12000
+const CANVAS_PRIORITY_ROOT_SELECTORS = ['#root', '#app', '#__next', 'main'] as const
 
 function normalizeWheelDelta(e: WheelEvent): { deltaX: number; deltaY: number } {
   let { deltaX, deltaY } = e
@@ -27,6 +29,59 @@ function normalizeWheelDelta(e: WheelEvent): { deltaX: number; deltaY: number } 
     deltaY *= PAGE_HEIGHT_PX
   }
   return { deltaX, deltaY }
+}
+
+function getResolvedOverflowY(style: CSSStyleDeclaration): string {
+  return style.overflowY || style.overflow
+}
+
+function isScrollableOverflowY(value: string): boolean {
+  return value === 'auto' || value === 'scroll' || value === 'overlay'
+}
+
+function isClippedOverflowY(value: string): boolean {
+  return value === 'hidden' || value === 'clip'
+}
+
+function getParentAcrossShadowTree(el: HTMLElement): HTMLElement | null {
+  const parent = el.parentElement
+  if (parent) return parent
+  const root = el.getRootNode()
+  if (root instanceof ShadowRoot && root.host instanceof HTMLElement) {
+    return root.host
+  }
+  return null
+}
+
+function enqueueChildren(el: HTMLElement, queue: HTMLElement[]): void {
+  for (const child of el.children) {
+    if (child instanceof HTMLElement) queue.push(child)
+  }
+  const shadowRoot = el.shadowRoot
+  if (!shadowRoot) return
+  for (const child of shadowRoot.children) {
+    if (child instanceof HTMLElement) queue.push(child)
+  }
+}
+
+function measureContentBounds(el: HTMLElement): { width: number; height: number } {
+  const rect = el.getBoundingClientRect()
+  const pageLeft = rect.left + (window.scrollX || window.pageXOffset || 0)
+  const pageTop = rect.top + (window.scrollY || window.pageYOffset || 0)
+  return {
+    width: Math.max(0, pageLeft) + el.scrollWidth,
+    height: Math.max(0, pageTop) + el.scrollHeight,
+  }
+}
+
+function hasClippedAncestor(el: HTMLElement): boolean {
+  let ancestor = getParentAcrossShadowTree(el)
+  while (ancestor && ancestor !== document.body) {
+    const ancestorStyle = getComputedStyle(ancestor)
+    if (isClippedOverflowY(getResolvedOverflowY(ancestorStyle))) return true
+    ancestor = getParentAcrossShadowTree(ancestor)
+  }
+  return false
 }
 
 // Clamp pan so at least PAN_MARGIN of the viewport always shows content,
@@ -82,12 +137,12 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
   const savedBodyOverflowRef = React.useRef('')
   const savedHtmlOverflowRef = React.useRef('')
   const savedHtmlBgColorRef = React.useRef('')
+  const domStateSavedRef = React.useRef(false)
   const savedBodyDimensionsRef = React.useRef({ width: 0, height: 0 })
-  const savedScrollContainersRef = React.useRef<Array<{
+  const savedExpandedNodesRef = React.useRef<Array<{
     el: HTMLElement
     height: string
     maxHeight: string
-    overflowX: string
     overflowY: string
   }>>([])
 
@@ -163,130 +218,193 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
     }
   }, [applyTransform, dispatchCanvasChange, setState])
 
-  function isScrollableContainer(el: HTMLElement): boolean {
-    if (el.scrollHeight <= el.clientHeight + 1) return false
-    const style = getComputedStyle(el)
-    const overflowY = style.overflowY || style.overflow
-    // Skip intentionally clipped containers; expanding them can inflate canvas bounds.
-    if (overflowY === 'hidden' || overflowY === 'clip') return false
-    return overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'overlay'
+  function collectTraversalSeeds(): HTMLElement[] {
+    const out: HTMLElement[] = []
+    const seen = new Set<HTMLElement>()
+    const push = (el: Element | null): void => {
+      if (!(el instanceof HTMLElement)) return
+      if (!document.body.contains(el)) return
+      if (seen.has(el)) return
+      seen.add(el)
+      out.push(el)
+    }
+
+    for (const selector of CANVAS_PRIORITY_ROOT_SELECTORS) {
+      push(document.querySelector(selector))
+    }
+    for (const child of document.body.children) {
+      push(child)
+    }
+    return out
   }
 
-  function expandScrollContainers(): void {
-    const saved: typeof savedScrollContainersRef.current = []
-    const queue: HTMLElement[] = Array.from(document.body.children).filter(
-      (el): el is HTMLElement => el instanceof HTMLElement
-    )
-    let visited = 0
-    const maxNodes = 5000
-    while (queue.length > 0 && visited < maxNodes) {
-      const nextQueue: HTMLElement[] = []
-      for (const el of queue) {
-        if (visited >= maxNodes) break
-        visited++
-        if (isScrollableContainer(el)) {
-          const style = el.style
-          saved.push({
-            el,
-            height: style.height,
-            maxHeight: style.maxHeight,
-            overflowX: style.overflowX,
-            overflowY: style.overflowY,
-          })
-          style.height = 'auto'
-          style.maxHeight = 'none'
-          style.overflowX = 'visible'
-          style.overflowY = 'visible'
-        }
-        for (const child of el.children) {
-          if (child instanceof HTMLElement) nextQueue.push(child)
+  function expandScrollableRegionsAndMeasureBody(): { width: number; height: number } {
+    const snapshots = new Map<HTMLElement, { height: string; maxHeight: string; overflowY: string }>()
+    const expandedOrder: HTMLElement[] = []
+    const queue = collectTraversalSeeds()
+    const visited = new Set<HTMLElement>()
+    let visitedCount = 0
+    let fallbackWidth = 0
+    let fallbackHeight = 0
+
+    const expandNode = (el: HTMLElement): void => {
+      if (snapshots.has(el)) return
+      snapshots.set(el, {
+        height: el.style.height,
+        maxHeight: el.style.maxHeight,
+        overflowY: el.style.overflowY,
+      })
+      expandedOrder.push(el)
+      el.style.height = 'auto'
+      el.style.maxHeight = 'none'
+      el.style.overflowY = 'visible'
+    }
+
+    while (queue.length > 0 && visitedCount < CANVAS_MEASURE_NODE_BUDGET) {
+      const el = queue.shift()
+      if (!el || visited.has(el)) continue
+      visited.add(el)
+      visitedCount++
+
+      const hasVerticalOverflow = el.scrollHeight > el.clientHeight + 1
+      const style = getComputedStyle(el)
+      const overflowY = getResolvedOverflowY(style)
+      const isScrollable = hasVerticalOverflow && isScrollableOverflowY(overflowY)
+
+      if (isScrollable) {
+        expandNode(el)
+        // Relax clipped ancestors of detected scrollers so body dimensions can include full content.
+        let ancestor = getParentAcrossShadowTree(el)
+        while (ancestor && ancestor !== document.body) {
+          const ancestorStyle = getComputedStyle(ancestor)
+          if (isClippedOverflowY(getResolvedOverflowY(ancestorStyle))) {
+            expandNode(ancestor)
+          }
+          ancestor = getParentAcrossShadowTree(ancestor)
         }
       }
-      queue.length = 0
-      queue.push(...nextQueue)
+
+      const canContributeFallback = hasVerticalOverflow && (isScrollable || (!isClippedOverflowY(overflowY) && !hasClippedAncestor(el)))
+      if (canContributeFallback) {
+        const bounds = measureContentBounds(el)
+        fallbackWidth = Math.max(fallbackWidth, bounds.width)
+        fallbackHeight = Math.max(fallbackHeight, bounds.height)
+      }
+
+      enqueueChildren(el, queue)
     }
-    savedScrollContainersRef.current = saved
+
+    savedExpandedNodesRef.current = expandedOrder.map((el) => ({ el, ...snapshots.get(el)! }))
+
+    return {
+      width: Math.max(document.body.scrollWidth, document.documentElement.scrollWidth, fallbackWidth, window.innerWidth),
+      height: Math.max(document.body.scrollHeight, document.documentElement.scrollHeight, fallbackHeight, window.innerHeight),
+    }
   }
 
-  function restoreScrollContainers(): void {
-    for (let i = savedScrollContainersRef.current.length - 1; i >= 0; i--) {
-      const { el, height, maxHeight, overflowX, overflowY } = savedScrollContainersRef.current[i]
+  function restoreExpandedNodes(): void {
+    for (let i = savedExpandedNodesRef.current.length - 1; i >= 0; i--) {
+      const { el, height, maxHeight, overflowY } = savedExpandedNodesRef.current[i]
       el.style.height = height
       el.style.maxHeight = maxHeight
-      el.style.overflowX = overflowX
       el.style.overflowY = overflowY
     }
-    savedScrollContainersRef.current = []
+    savedExpandedNodesRef.current = []
   }
 
   const enterCanvas = React.useCallback(() => {
+    if (canvasRef.current.active) return
+    if (domStateSavedRef.current || savedExpandedNodesRef.current.length > 0) {
+      restoreExpandedNodes()
+      domStateSavedRef.current = false
+    }
+
     const scrollX = window.scrollX
     const scrollY = window.scrollY
     savedScrollRef.current = { x: scrollX, y: scrollY }
     savedBodyOverflowRef.current = document.body.style.overflow
     savedHtmlOverflowRef.current = document.documentElement.style.overflow
     savedHtmlBgColorRef.current = document.documentElement.style.backgroundColor
+    domStateSavedRef.current = true
 
     const existingTransform = document.body.style.transform
     if (existingTransform && existingTransform !== 'none' && existingTransform !== '') {
       console.warn('[made-refine] canvas mode: overriding existing body transform:', existingTransform)
     }
 
-    // Reset window scroll so transform does the positioning
-    window.scrollTo(0, 0)
+    let entered = false
+    try {
+      // Reset window scroll so transform does the positioning
+      window.scrollTo(0, 0)
 
-    // Expand scroll containers so body reflects full content dimensions
-    expandScrollContainers()
+      // Expand scroll regions and clipped ancestors before measuring canvas bounds.
+      savedBodyDimensionsRef.current = expandScrollableRegionsAndMeasureBody()
 
-    savedBodyDimensionsRef.current = {
-      width: document.body.scrollWidth,
-      height: document.body.scrollHeight,
+      // Measure body margin before applying transform — needed for guideline math.
+      updateBodyOffset()
+
+      document.body.style.overflow = 'hidden'
+      document.documentElement.style.overflow = 'hidden'
+      document.documentElement.style.backgroundColor = '#F5F5F5'
+
+      // Initial pan compensates for saved scroll position
+      const initialPanX = -scrollX
+      const initialPanY = -scrollY
+      applyTransform(1, initialPanX, initialPanY)
+
+      canvasRef.current = { active: true, zoom: 1, panX: initialPanX, panY: initialPanY }
+      setCanvasSnapshot(canvasRef.current)
+      setState((prev) => ({
+        ...prev,
+        canvas: { active: true, zoom: 1, panX: initialPanX, panY: initialPanY },
+      }))
+      dispatchCanvasChange()
+      entered = true
+    } finally {
+      if (!entered) {
+        document.body.style.transform = ''
+        document.body.style.transformOrigin = ''
+        restoreExpandedNodes()
+        document.body.style.overflow = savedBodyOverflowRef.current
+        document.documentElement.style.overflow = savedHtmlOverflowRef.current
+        document.documentElement.style.backgroundColor = savedHtmlBgColorRef.current
+        window.scrollTo(scrollX, scrollY)
+        domStateSavedRef.current = false
+      }
     }
-
-    // Measure body margin before applying transform — needed for guideline math.
-    updateBodyOffset()
-
-    document.body.style.overflow = 'hidden'
-    document.documentElement.style.overflow = 'hidden'
-    document.documentElement.style.backgroundColor = '#F5F5F5'
-
-    // Initial pan compensates for saved scroll position
-    const initialPanX = -scrollX
-    const initialPanY = -scrollY
-    applyTransform(1, initialPanX, initialPanY)
-
-    canvasRef.current = { active: true, zoom: 1, panX: initialPanX, panY: initialPanY }
-    setCanvasSnapshot(canvasRef.current)
-    setState((prev) => ({
-      ...prev,
-      canvas: { active: true, zoom: 1, panX: initialPanX, panY: initialPanY },
-    }))
-    dispatchCanvasChange()
   }, [applyTransform, dispatchCanvasChange, setState, updateBodyOffset])
 
   const exitCanvas = React.useCallback(() => {
+    const shouldRestoreDom = domStateSavedRef.current || savedExpandedNodesRef.current.length > 0
+    const wasActive = canvasRef.current.active
+    if (!wasActive && !shouldRestoreDom) return
+
     // Cancel any pending rAF first to prevent stale setState firing after exit
     // has already reset canvas state to { active: false, zoom: 1, panX: 0, panY: 0 }.
     cancelPendingRaf()
 
     document.body.style.transform = ''
     document.body.style.transformOrigin = ''
-    restoreScrollContainers()
-    document.body.style.overflow = savedBodyOverflowRef.current
-    document.documentElement.style.overflow = savedHtmlOverflowRef.current
-    document.documentElement.style.backgroundColor = savedHtmlBgColorRef.current
+    restoreExpandedNodes()
+    if (shouldRestoreDom) {
+      document.body.style.overflow = savedBodyOverflowRef.current
+      document.documentElement.style.overflow = savedHtmlOverflowRef.current
+      document.documentElement.style.backgroundColor = savedHtmlBgColorRef.current
+      window.scrollTo(savedScrollRef.current.x, savedScrollRef.current.y)
+    }
     document.body.style.cursor = ''
-
-    window.scrollTo(savedScrollRef.current.x, savedScrollRef.current.y)
+    domStateSavedRef.current = false
 
     setBodyOffset({ x: 0, y: 0 })
     canvasRef.current = { active: false, zoom: 1, panX: 0, panY: 0 }
     setCanvasSnapshot(canvasRef.current)
-    setState((prev) => ({
-      ...prev,
-      canvas: { active: false, zoom: 1, panX: 0, panY: 0 },
-    }))
-    dispatchCanvasChange()
+    if (wasActive) {
+      setState((prev) => ({
+        ...prev,
+        canvas: { active: false, zoom: 1, panX: 0, panY: 0 },
+      }))
+      dispatchCanvasChange()
+    }
   }, [cancelPendingRaf, dispatchCanvasChange, setState])
 
   const toggleCanvas = React.useCallback(() => {
@@ -447,7 +565,7 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
   React.useEffect(() => {
     return () => {
       cancelPendingRaf()
-      if (canvasRef.current.active) {
+      if (canvasRef.current.active || domStateSavedRef.current || savedExpandedNodesRef.current.length > 0) {
         exitCanvas()
       }
     }
