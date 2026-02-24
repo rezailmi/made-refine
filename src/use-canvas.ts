@@ -74,6 +74,26 @@ function measureContentBounds(el: HTMLElement): { width: number; height: number 
   }
 }
 
+type SavedInlineProperty = {
+  value: string
+  priority: string
+}
+
+function readInlineProperty(style: CSSStyleDeclaration, property: string): SavedInlineProperty {
+  return {
+    value: style.getPropertyValue(property),
+    priority: style.getPropertyPriority(property),
+  }
+}
+
+function restoreInlineProperty(style: CSSStyleDeclaration, property: string, saved: SavedInlineProperty): void {
+  if (saved.value === '') {
+    style.removeProperty(property)
+    return
+  }
+  style.setProperty(property, saved.value, saved.priority)
+}
+
 function hasClippedAncestor(el: HTMLElement): boolean {
   let ancestor = getParentAcrossShadowTree(el)
   while (ancestor && ancestor !== document.body) {
@@ -141,9 +161,9 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
   const savedBodyDimensionsRef = React.useRef({ width: 0, height: 0 })
   const savedExpandedNodesRef = React.useRef<Array<{
     el: HTMLElement
-    height: string
-    maxHeight: string
-    overflowY: string
+    height: SavedInlineProperty
+    maxHeight: SavedInlineProperty
+    overflowY: SavedInlineProperty
   }>>([])
 
   // rAF batching for setState: DOM transform is applied immediately for visual
@@ -239,7 +259,7 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
   }
 
   function expandScrollableRegionsAndMeasureBody(): { width: number; height: number } {
-    const snapshots = new Map<HTMLElement, { height: string; maxHeight: string; overflowY: string }>()
+    const snapshots = new Map<HTMLElement, { height: SavedInlineProperty; maxHeight: SavedInlineProperty; overflowY: SavedInlineProperty }>()
     const expandedOrder: HTMLElement[] = []
     const queue = collectTraversalSeeds()
     const visited = new Set<HTMLElement>()
@@ -249,15 +269,16 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
 
     const expandNode = (el: HTMLElement): void => {
       if (snapshots.has(el)) return
+      const style = el.style
       snapshots.set(el, {
-        height: el.style.height,
-        maxHeight: el.style.maxHeight,
-        overflowY: el.style.overflowY,
+        height: readInlineProperty(style, 'height'),
+        maxHeight: readInlineProperty(style, 'max-height'),
+        overflowY: readInlineProperty(style, 'overflow-y'),
       })
       expandedOrder.push(el)
-      el.style.height = 'auto'
-      el.style.maxHeight = 'none'
-      el.style.overflowY = 'visible'
+      style.setProperty('height', 'auto', 'important')
+      style.setProperty('max-height', 'none', 'important')
+      style.setProperty('overflow-y', 'visible', 'important')
     }
 
     while (queue.length > 0 && visitedCount < CANVAS_MEASURE_NODE_BUDGET) {
@@ -305,9 +326,10 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
   function restoreExpandedNodes(): void {
     for (let i = savedExpandedNodesRef.current.length - 1; i >= 0; i--) {
       const { el, height, maxHeight, overflowY } = savedExpandedNodesRef.current[i]
-      el.style.height = height
-      el.style.maxHeight = maxHeight
-      el.style.overflowY = overflowY
+      const style = el.style
+      restoreInlineProperty(style, 'height', height)
+      restoreInlineProperty(style, 'max-height', maxHeight)
+      restoreInlineProperty(style, 'overflow-y', overflowY)
     }
     savedExpandedNodesRef.current = []
   }

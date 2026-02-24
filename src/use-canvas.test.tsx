@@ -315,6 +315,7 @@ describe('useCanvas hook lifecycle', () => {
     expect(root.style.height).toBe('auto')
     expect(root.style.maxHeight).toBe('none')
     expect(root.style.overflowY).toBe('visible')
+    expect(root.style.getPropertyPriority('height')).toBe('important')
 
     // Exit should restore original styles
     act(() => {
@@ -325,6 +326,7 @@ describe('useCanvas hook lifecycle', () => {
     expect(root.style.maxHeight).toBe('100px')
     expect(root.style.overflow).toBe('auto')
     expect(root.style.overflowY).toBe('auto')
+    expect(root.style.getPropertyPriority('height')).toBe('')
   })
 
   it('enterCanvas expands deeply nested scroll containers', () => {
