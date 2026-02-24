@@ -74,6 +74,16 @@ function measureContentBounds(el: HTMLElement): { width: number; height: number 
   }
 }
 
+function hasClippedAncestor(el: HTMLElement): boolean {
+  let ancestor = getParentAcrossShadowTree(el)
+  while (ancestor && ancestor !== document.body) {
+    const ancestorStyle = getComputedStyle(ancestor)
+    if (isClippedOverflowY(getResolvedOverflowY(ancestorStyle))) return true
+    ancestor = getParentAcrossShadowTree(ancestor)
+  }
+  return false
+}
+
 // Clamp pan so at least PAN_MARGIN of the viewport always shows content,
 // preventing the user from panning content entirely off-screen.
 // fitCanvasToViewport centering values always satisfy this constraint.
@@ -257,15 +267,11 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
       visitedCount++
 
       const hasVerticalOverflow = el.scrollHeight > el.clientHeight + 1
-      if (hasVerticalOverflow) {
-        const bounds = measureContentBounds(el)
-        fallbackWidth = Math.max(fallbackWidth, bounds.width)
-        fallbackHeight = Math.max(fallbackHeight, bounds.height)
-      }
-
       const style = getComputedStyle(el)
       const overflowY = getResolvedOverflowY(style)
-      if (hasVerticalOverflow && isScrollableOverflowY(overflowY)) {
+      const isScrollable = hasVerticalOverflow && isScrollableOverflowY(overflowY)
+
+      if (isScrollable) {
         expandNode(el)
         // Relax clipped ancestors of detected scrollers so body dimensions can include full content.
         let ancestor = getParentAcrossShadowTree(el)
@@ -276,6 +282,13 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
           }
           ancestor = getParentAcrossShadowTree(ancestor)
         }
+      }
+
+      const canContributeFallback = hasVerticalOverflow && (isScrollable || (!isClippedOverflowY(overflowY) && !hasClippedAncestor(el)))
+      if (canContributeFallback) {
+        const bounds = measureContentBounds(el)
+        fallbackWidth = Math.max(fallbackWidth, bounds.width)
+        fallbackHeight = Math.max(fallbackHeight, bounds.height)
       }
 
       enqueueChildren(el, queue)

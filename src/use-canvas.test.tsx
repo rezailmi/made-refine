@@ -461,6 +461,43 @@ describe('useCanvas hook lifecycle', () => {
     expect(clipped.style.overflow).toBe('hidden')
   })
 
+  it('fitCanvasToViewport ignores fallback bounds from clipped overflow nodes', () => {
+    Object.defineProperty(window, 'innerWidth', { value: 1000, configurable: true })
+    Object.defineProperty(window, 'innerHeight', { value: 800, configurable: true })
+
+    const clipped = document.createElement('div')
+    clipped.style.height = '120px'
+    clipped.style.maxHeight = '120px'
+    clipped.style.overflow = 'hidden'
+    document.body.appendChild(clipped)
+
+    const hiddenTall = document.createElement('div')
+    hiddenTall.style.height = '3000px'
+    clipped.appendChild(hiddenTall)
+
+    Object.defineProperty(clipped, 'scrollHeight', { value: 3000, configurable: true })
+    Object.defineProperty(clipped, 'clientHeight', { value: 120, configurable: true })
+    Object.defineProperty(clipped, 'scrollWidth', { value: 1000, configurable: true })
+
+    const opts = createMockCanvasOptions()
+    const { result } = renderHook(() => useCanvas(opts))
+
+    act(() => {
+      result.current.enterCanvas()
+    })
+
+    act(() => {
+      result.current.fitCanvasToViewport()
+    })
+
+    // Hidden overflow should not distort fit; default jsdom fallback stays near 0.9.
+    expect(opts.stateRef.current.canvas.zoom).toBeCloseTo(0.9, 1)
+
+    act(() => {
+      result.current.exitCanvas()
+    })
+  })
+
   it('enterCanvas is idempotent when already active', () => {
     Object.defineProperty(window, 'scrollX', { value: 25, configurable: true })
     Object.defineProperty(window, 'scrollY', { value: 35, configurable: true })
