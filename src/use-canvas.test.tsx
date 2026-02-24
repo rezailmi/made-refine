@@ -314,7 +314,7 @@ describe('useCanvas hook lifecycle', () => {
     // Scroll container should be expanded
     expect(root.style.height).toBe('auto')
     expect(root.style.maxHeight).toBe('none')
-    expect(root.style.overflow).toBe('visible')
+    expect(root.style.overflowX).toBe('visible')
     expect(root.style.overflowY).toBe('visible')
 
     // Exit should restore original styles
@@ -326,6 +326,82 @@ describe('useCanvas hook lifecycle', () => {
     expect(root.style.maxHeight).toBe('100px')
     expect(root.style.overflow).toBe('auto')
     expect(root.style.overflowY).toBe('auto')
+  })
+
+  it('enterCanvas expands deeply nested scroll containers', () => {
+    let parent: HTMLElement = document.body
+    for (let i = 0; i < 7; i++) {
+      const wrapper = document.createElement('div')
+      wrapper.dataset.depth = String(i)
+      parent.appendChild(wrapper)
+      parent = wrapper
+    }
+
+    const scroller = document.createElement('div')
+    scroller.style.height = '120px'
+    scroller.style.maxHeight = '120px'
+    scroller.style.overflowY = 'auto'
+    parent.appendChild(scroller)
+
+    const tall = document.createElement('div')
+    tall.style.height = '600px'
+    scroller.appendChild(tall)
+
+    Object.defineProperty(scroller, 'scrollHeight', { value: 600, configurable: true })
+    Object.defineProperty(scroller, 'clientHeight', { value: 120, configurable: true })
+
+    const opts = createMockCanvasOptions()
+    const { result } = renderHook(() => useCanvas(opts))
+
+    act(() => {
+      result.current.enterCanvas()
+    })
+
+    expect(scroller.style.height).toBe('auto')
+    expect(scroller.style.maxHeight).toBe('none')
+    expect(scroller.style.overflowY).toBe('visible')
+
+    act(() => {
+      result.current.exitCanvas()
+    })
+
+    expect(scroller.style.height).toBe('120px')
+    expect(scroller.style.maxHeight).toBe('120px')
+    expect(scroller.style.overflowY).toBe('auto')
+  })
+
+  it('enterCanvas does not expand clipped containers', () => {
+    const clipped = document.createElement('div')
+    clipped.style.height = '120px'
+    clipped.style.maxHeight = '120px'
+    clipped.style.overflow = 'hidden'
+    document.body.appendChild(clipped)
+
+    const tall = document.createElement('div')
+    tall.style.height = '600px'
+    clipped.appendChild(tall)
+
+    Object.defineProperty(clipped, 'scrollHeight', { value: 600, configurable: true })
+    Object.defineProperty(clipped, 'clientHeight', { value: 120, configurable: true })
+
+    const opts = createMockCanvasOptions()
+    const { result } = renderHook(() => useCanvas(opts))
+
+    act(() => {
+      result.current.enterCanvas()
+    })
+
+    expect(clipped.style.height).toBe('120px')
+    expect(clipped.style.maxHeight).toBe('120px')
+    expect(clipped.style.overflow).toBe('hidden')
+
+    act(() => {
+      result.current.exitCanvas()
+    })
+
+    expect(clipped.style.height).toBe('120px')
+    expect(clipped.style.maxHeight).toBe('120px')
+    expect(clipped.style.overflow).toBe('hidden')
   })
 
   it('unmount exits canvas automatically', () => {
