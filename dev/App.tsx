@@ -17,6 +17,14 @@ const gray = {
 const emerald = '#10b981'
 const rose = '#f43f5e'
 
+const colorPalettes = {
+  gray: ['#f9fafb','#f3f4f6','#e5e7eb','#d1d5db','#9ca3af','#6b7280','#4b5563','#374151','#1f2937','#111827'],
+  blue: ['#eff6ff','#dbeafe','#bfdbfe','#93c5fd','#60a5fa','#3b82f6','#2563eb','#1d4ed8','#1e40af','#1e3a8a'],
+  emerald: ['#ecfdf5','#d1fae5','#a7f3d0','#6ee7b7','#34d399','#10b981','#059669','#047857','#065f46','#064e3b'],
+  amber: ['#fffbeb','#fef3c7','#fde68a','#fcd34d','#fbbf24','#f59e0b','#d97706','#b45309','#92400e','#78350f'],
+  rose: ['#fff1f2','#ffe4e6','#fecdd3','#fda4af','#fb7185','#f43f5e','#e11d48','#be123c','#9f1239','#881337'],
+}
+
 const sectionLabel = {
   fontSize: 11,
   fontWeight: 600,
@@ -171,18 +179,11 @@ export default function App() {
             <div style={sectionLabel}>Color Palette</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {(['gray', 'blue', 'emerald', 'amber', 'rose'] as const).map((name) => {
-                const palettes: Record<string, string[]> = {
-                  gray: ['#f9fafb','#f3f4f6','#e5e7eb','#d1d5db','#9ca3af','#6b7280','#4b5563','#374151','#1f2937','#111827'],
-                  blue: ['#eff6ff','#dbeafe','#bfdbfe','#93c5fd','#60a5fa','#3b82f6','#2563eb','#1d4ed8','#1e40af','#1e3a8a'],
-                  emerald: ['#ecfdf5','#d1fae5','#a7f3d0','#6ee7b7','#34d399','#10b981','#059669','#047857','#065f46','#064e3b'],
-                  amber: ['#fffbeb','#fef3c7','#fde68a','#fcd34d','#fbbf24','#f59e0b','#d97706','#b45309','#92400e','#78350f'],
-                  rose: ['#fff1f2','#ffe4e6','#fecdd3','#fda4af','#fb7185','#f43f5e','#e11d48','#be123c','#9f1239','#881337'],
-                }
                 return (
                   <div key={name}>
                     <div style={{ fontSize: 12, fontWeight: 500, marginBottom: 6, textTransform: 'capitalize' }}>{name}</div>
                     <div style={{ display: 'flex', gap: 4 }}>
-                      {palettes[name].map((color, i) => (
+                      {colorPalettes[name].map((color, i) => (
                         <div key={i} style={{ width: 40, height: 32, backgroundColor: color, borderRadius: 6, border: `1px solid ${gray[200]}` }} />
                       ))}
                     </div>
