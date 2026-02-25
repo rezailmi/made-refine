@@ -44,7 +44,14 @@ Output: {
   reactStack: ReactComponentFrame[],
   changes: { cssProperty, cssValue, tailwindClass }[],
   textChange: { originalText, newText } | null,
-  moveChange: MoveInfo | null,
+  moveChange: {
+    fromParentName, toParentName,
+    mode, // 'free' | 'reorder'
+    fromParentDisplay, toParentDisplay,
+    fromParentLayout, toParentLayout,
+    draggedPosition, fromIndex, toIndex,
+    ...selectorAndSourceAnchors
+  } | null,
   exportMarkdown: string
 }
 ```

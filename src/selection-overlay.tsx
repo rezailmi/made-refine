@@ -1,5 +1,6 @@
 import * as React from 'react'
 import type { ActiveTool } from './types'
+import type { StartDragOptions } from './use-move'
 import { elementFromPointWithoutOverlays } from './utils'
 
 const BLUE = '#0D99FF'
@@ -8,8 +9,12 @@ const DRAG_THRESHOLD = 4
 const DBLCLICK_DELAY = 300
 const HANDLE_SIZE = 12
 
-interface MoveStartOptions {
-  constrainToOriginalParent?: boolean
+function isInLayoutContainer(element: HTMLElement): boolean {
+  const parent = element.parentElement
+  if (!parent) return false
+  const display = window.getComputedStyle(parent).display
+  return display === 'flex' || display === 'inline-flex'
+    || display === 'grid' || display === 'inline-grid'
 }
 
 export interface SelectionOverlayProps {
@@ -20,7 +25,7 @@ export interface SelectionOverlayProps {
   onMoveStart: (
     e: React.PointerEvent,
     targetElement?: HTMLElement,
-    options?: MoveStartOptions
+    options?: StartDragOptions
   ) => void
   showMoveHandle?: boolean
   activeTool?: ActiveTool
@@ -107,7 +112,9 @@ export function SelectionOverlay({
       const dy = moveEvent.clientY - origin.y
       if (dx * dx + dy * dy >= DRAG_THRESHOLD * DRAG_THRESHOLD) {
         cleanup()
-        onMoveStart(savedEvent)
+        onMoveStart(savedEvent, undefined, {
+          mode: isInLayoutContainer(selectedElement) ? 'free' : 'position',
+        })
       }
     }
 
@@ -174,7 +181,7 @@ export function SelectionOverlay({
     }
 
     if (!flexParent) {
-      return [selectedElement]
+      return []
     }
 
     let target: HTMLElement = selectedElement
@@ -222,7 +229,7 @@ export function SelectionOverlay({
       clearTimeout(clickThroughTimerRef.current)
       clickThroughTimerRef.current = null
     }
-    onMoveStart(e, target, { constrainToOriginalParent: true })
+    onMoveStart(e, target, { constrainToOriginalParent: true, mode: 'reorder' })
   }
 
   const displayX = isDragging && ghostPosition ? ghostPosition.x : rect.left

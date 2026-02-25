@@ -1593,7 +1593,7 @@ export function elementFromPointWithoutOverlays(x: number, y: number): HTMLEleme
   return el
 }
 
-function isLayoutContainer(element: HTMLElement): boolean {
+export function isLayoutContainer(element: HTMLElement): boolean {
   const display = window.getComputedStyle(element).display
   return (
     display === 'flex' ||
@@ -1657,6 +1657,31 @@ export function findContainerAtPoint(
 
   // Last resort: walk up DOM
   return findContainerViaTraversal(x, y, exclude)
+}
+
+export function findLayoutContainerAtPoint(
+  x: number,
+  y: number,
+  exclude: HTMLElement | null,
+  preferredParent?: HTMLElement | null,
+): HTMLElement | null {
+  const host = document.querySelector<HTMLElement>('[data-direct-edit-host]')
+  if (host) host.style.display = 'none'
+  const elements = document.elementsFromPoint(x, y) as HTMLElement[]
+  if (host) host.style.display = ''
+
+  for (const el of elements) {
+    if (skipElement(el, exclude)) continue
+    if (isLayoutContainer(el)) return el
+  }
+
+  if (preferredParent && isLayoutContainer(preferredParent)) {
+    for (const el of elements) {
+      if (el === preferredParent) return preferredParent
+    }
+  }
+
+  return null
 }
 
 export function calculateDropPosition(
@@ -2921,10 +2946,35 @@ function formatMoveSource(
   return formatSourceLocation(source.file, source.line, source.column)
 }
 
+function formatMoveMetadata(value: string | null | undefined): string {
+  return value?.trim() || '(unknown)'
+}
+
+function formatMoveIndex(value: number | undefined): string {
+  return typeof value === 'number' && Number.isFinite(value) ? String(value) : '(unknown)'
+}
+
 function buildMoveExportLines(move: NonNullable<SessionEdit['move']>): string[] {
+  if (move.mode === 'position' && move.appliedLeft && move.appliedTop) {
+    return [
+      'moved:',
+      `mode: position`,
+      `left: ${move.appliedLeft}`,
+      `top: ${move.appliedTop}`,
+    ]
+  }
+
   return [
     'moved:',
     `summary: ${formatMoveSummary(move)}`,
+    `mode: ${formatMoveMetadata(move.mode)}`,
+    `dragged_position: ${formatMoveMetadata(move.draggedPosition)}`,
+    `from_parent_display: ${formatMoveMetadata(move.fromParentDisplay)}`,
+    `from_parent_layout: ${formatMoveMetadata(move.fromParentLayout)}`,
+    `from_index: ${formatMoveIndex(move.fromIndex)}`,
+    `to_parent_display: ${formatMoveMetadata(move.toParentDisplay)}`,
+    `to_parent_layout: ${formatMoveMetadata(move.toParentLayout)}`,
+    `to_index: ${formatMoveIndex(move.toIndex)}`,
     `from_parent_selector: ${formatMoveSelector(move.fromParentSelector, '(unknown)')}`,
     `from_before_selector: ${formatMoveSelector(move.fromSiblingBeforeSelector, '(none)')}`,
     `from_after_selector: ${formatMoveSelector(move.fromSiblingAfterSelector, '(none)')}`,

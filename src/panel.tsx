@@ -10,6 +10,7 @@ import type { SpacingPropertyKey, BorderRadiusPropertyKey, BorderPropertyKey, Bo
 import { useMeasurement } from './use-measurement'
 import { MeasurementOverlay } from './measurement-overlay'
 import { useMove } from './use-move'
+import type { StartDragOptions } from './use-move'
 import { getStoredGuidelines } from './use-guidelines'
 import {
   calculateGuidelineMeasurements, isFlexContainer, isTextElement,
@@ -436,7 +437,7 @@ function DirectEditPanelContent() {
   const handleMoveStart = (
     e: React.PointerEvent,
     targetElement?: HTMLElement,
-    options?: { constrainToOriginalParent?: boolean }
+    options?: StartDragOptions
   ) => {
     const elementToDrag = targetElement ?? selectedElement
     if (elementToDrag) {

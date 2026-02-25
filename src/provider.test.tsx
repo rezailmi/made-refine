@@ -840,6 +840,8 @@ describe('DirectEditProvider', () => {
     nextParent.setAttribute('data-direct-edit-source', 'src/App.tsx:100:5')
     nextSibling.setAttribute('data-direct-edit-source', 'src/App.tsx:101:7')
     moved.setAttribute('data-direct-edit-source', 'src/App.tsx:96:19')
+    moved.style.position = 'relative'
+    nextParent.style.display = 'flex'
 
     const { result } = renderHook(() => useDirectEdit(), { wrapper })
 
@@ -859,6 +861,7 @@ describe('DirectEditProvider', () => {
         originalParent,
         originalPreviousSibling: originalBefore,
         originalNextSibling: originalAfter,
+        mode: 'free',
       })
     })
 
@@ -869,6 +872,12 @@ describe('DirectEditProvider', () => {
     const exported = String(clipboardWrite.mock.calls[0][0])
     expect(exported).toContain('moved:')
     expect(exported).toContain('summary:')
+    expect(exported).toContain('mode: free')
+    expect(exported).toContain('dragged_position: relative')
+    expect(exported).toContain('from_parent_layout: block')
+    expect(exported).toContain('to_parent_layout: flex')
+    expect(exported).toContain('from_index: 1')
+    expect(exported).toContain('to_index: 1')
     expect(exported).toContain('from_parent_selector:')
     expect(exported).toContain('to_parent_selector:')
     expect(exported).toContain('#move-parent')
@@ -914,6 +923,7 @@ describe('DirectEditProvider', () => {
         originalParent,
         originalPreviousSibling: null,
         originalNextSibling: originalAfter,
+        mode: 'free',
       })
     })
 
@@ -954,6 +964,7 @@ describe('DirectEditProvider', () => {
         originalParent,
         originalPreviousSibling: originalBefore,
         originalNextSibling: originalAfter,
+        mode: 'reorder',
       })
     })
 
@@ -969,12 +980,58 @@ describe('DirectEditProvider', () => {
     expect(payload.changes).toEqual([])
     expect(payload.moveChange).toEqual(
       expect.objectContaining({
+        mode: 'reorder',
         fromParentName: expect.any(String),
         toParentName: expect.any(String),
       }),
     )
     expect(payload.exportMarkdown).toContain('moved:')
     expect(payload.exportMarkdown).toContain('summary:')
+  })
+
+  it('records position move as move metadata with applied left/top', async () => {
+    const clipboardWrite = mockClipboard()
+    const parent = createTarget('pos-parent')
+    const moved = createTarget('pos-moved')
+    parent.replaceChildren(moved)
+    moved.style.position = 'static'
+
+    const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+    act(() => {
+      result.current.selectElement(moved)
+    })
+
+    await waitFor(() => {
+      expect(result.current.selectedElement).toBe(moved)
+    })
+
+    clipboardWrite.mockClear()
+
+    act(() => {
+      result.current.handleMoveComplete(moved, {
+        originalParent: parent,
+        originalPreviousSibling: null,
+        originalNextSibling: null,
+        mode: 'position',
+        positionDelta: { x: 50, y: 30 },
+      })
+    })
+
+    expect(moved.style.position).toBe('relative')
+    expect(moved.style.left).toBe('50px')
+    expect(moved.style.top).toBe('30px')
+
+    const copied = await result.current.exportEdits()
+    expect(copied).toBe(true)
+
+    const exported = String(clipboardWrite.mock.calls[0][0])
+    expect(exported).toContain('moved:')
+    expect(exported).toContain('mode: position')
+    expect(exported).toContain('left: 50px')
+    expect(exported).toContain('top: 30px')
+    expect(exported).not.toContain('summary:')
+    expect(exported).not.toContain('from_parent_selector')
   })
 
   it('starts a new comment in one click when the current comment is already submitted', async () => {

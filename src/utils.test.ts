@@ -590,12 +590,28 @@ describe('export context quality', () => {
         toParentSource: { file: 'src/App.tsx', line: 40, column: 3 },
         toSiblingBeforeSource: { file: 'src/App.tsx', line: 47, column: 9 },
         toSiblingAfterSource: null,
+        mode: 'reorder',
+        draggedPosition: 'relative',
+        fromParentDisplay: 'block',
+        fromParentLayout: 'block',
+        fromIndex: 0,
+        toParentDisplay: 'flex',
+        toParentLayout: 'flex',
+        toIndex: 2,
       },
     }
 
     const output = buildSessionExport([edit], [])
     expect(output).toContain('moved:')
     expect(output).toContain('summary: in <div>, from before <div> (first) to after <div> (last)')
+    expect(output).toContain('mode: reorder')
+    expect(output).toContain('dragged_position: relative')
+    expect(output).toContain('from_parent_display: block')
+    expect(output).toContain('from_parent_layout: block')
+    expect(output).toContain('from_index: 0')
+    expect(output).toContain('to_parent_display: flex')
+    expect(output).toContain('to_parent_layout: flex')
+    expect(output).toContain('to_index: 2')
     expect(output).toContain('from_parent_selector: main > div:nth-of-type(1)')
     expect(output).toContain('from_before_selector: (none)')
     expect(output).toContain('from_after_selector: main > div:nth-of-type(1) > div:nth-of-type(1)')
@@ -608,6 +624,46 @@ describe('export context quality', () => {
     expect(output).toContain('to_parent_source: src/App.tsx:40:3')
     expect(output).toContain('to_before_source: src/App.tsx:47:9')
     expect(output).toContain('to_after_source: (none)')
+  })
+
+  it('exports position move with applied left/top', () => {
+    const edit: SessionEdit = {
+      element: document.createElement('div'),
+      locator: {
+        tagName: 'div',
+        id: 'card',
+        classList: [],
+        domSelector: '#card',
+        targetHtml: '<div id="card">',
+        textPreview: '',
+        reactStack: [],
+        domSource: { file: 'src/App.tsx', line: 10, column: 5 },
+      },
+      originalStyles: {},
+      pendingStyles: { 'background-color': 'red' },
+      textEdit: null,
+      move: {
+        mode: 'position',
+        positionDelta: { x: 50, y: 30 },
+        appliedLeft: '60px',
+        appliedTop: '30px',
+        fromParentName: 'div',
+        toParentName: 'div',
+        fromSiblingBefore: null,
+        fromSiblingAfter: null,
+        toSiblingBefore: null,
+        toSiblingAfter: null,
+      },
+    }
+
+    const output = buildSessionExport([edit], [])
+    expect(output).toContain('moved:')
+    expect(output).toContain('mode: position')
+    expect(output).toContain('left: 60px')
+    expect(output).toContain('top: 30px')
+    expect(output).not.toContain('summary:')
+    expect(output).not.toContain('from_parent_selector')
+    expect(output).toContain('background-color')
   })
 
   it('anchors deep selectors to a stable root', () => {

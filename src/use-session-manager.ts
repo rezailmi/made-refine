@@ -6,7 +6,7 @@ import type {
   SessionItem,
   Comment,
 } from './types'
-import type { MoveInfo } from './use-move'
+import type { MoveInfo, MoveMode } from './use-move'
 import {
   getAllComputedStyles,
   getComputedStyles,
@@ -25,6 +25,80 @@ import {
   getElementDisplayName,
   getElementLocator,
 } from './utils'
+
+type ParentLayout = 'flex' | 'grid' | 'block' | 'other'
+
+function getLayoutFromDisplay(display: string): ParentLayout {
+  if (display === 'flex' || display === 'inline-flex') return 'flex'
+  if (display === 'grid' || display === 'inline-grid') return 'grid'
+  if (
+    display === 'block'
+    || display === 'inline-block'
+    || display === 'flow-root'
+    || display === 'list-item'
+  ) {
+    return 'block'
+  }
+  return 'other'
+}
+
+function getParentLayoutMeta(parent: HTMLElement | null): {
+  display?: string
+  layout?: ParentLayout
+} {
+  if (!parent) return {}
+  const display = window.getComputedStyle(parent).display
+  return {
+    display,
+    layout: getLayoutFromDisplay(display),
+  }
+}
+
+function findChildIndex(parent: HTMLElement | null, child: HTMLElement | null): number | undefined {
+  if (!parent || !child) return undefined
+  const index = Array.from(parent.children).indexOf(child)
+  return index >= 0 ? index : undefined
+}
+
+function getOriginalMoveIndex(
+  parent: HTMLElement,
+  previousSibling: HTMLElement | null,
+  nextSibling: HTMLElement | null,
+): number {
+  const previousIndex = findChildIndex(parent, previousSibling)
+  if (previousIndex !== undefined) return previousIndex + 1
+  const nextIndex = findChildIndex(parent, nextSibling)
+  if (nextIndex !== undefined) return nextIndex
+  return 0
+}
+
+function applyPositionMoveCSS(
+  element: HTMLElement,
+  delta: { x: number; y: number },
+): {
+  previousStyles: Array<{ cssProperty: string; previousValue: string | null }>
+  appliedLeft: string
+  appliedTop: string
+} {
+  const computed = window.getComputedStyle(element)
+  const previousStyles: Array<{ cssProperty: string; previousValue: string | null }> = []
+
+  if (computed.position === 'static') {
+    previousStyles.push({ cssProperty: 'position', previousValue: element.style.getPropertyValue('position') || null })
+    element.style.setProperty('position', 'relative')
+  }
+
+  const appliedLeft = `${(parseFloat(computed.left) || 0) + delta.x}px`
+  const appliedTop = `${(parseFloat(computed.top) || 0) + delta.y}px`
+
+  previousStyles.push({ cssProperty: 'left', previousValue: element.style.getPropertyValue('left') || null })
+  previousStyles.push({ cssProperty: 'top', previousValue: element.style.getPropertyValue('top') || null })
+
+  element.style.setProperty('left', appliedLeft)
+  element.style.setProperty('top', appliedTop)
+
+  return { previousStyles, appliedLeft, appliedTop }
+}
 
 export interface SessionManagerOptions {
   stateRef: React.MutableRefObject<DirectEditState>
@@ -295,14 +369,24 @@ export function useSessionManager({
       }
       case 'move': {
         if (!entry.element.isConnected) return
-        try {
-          if (entry.originalNextSibling) {
-            entry.originalParent.insertBefore(entry.element, entry.originalNextSibling)
-          } else {
-            entry.originalParent.appendChild(entry.element)
+        if (entry.previousPositionStyles) {
+          for (const { cssProperty, previousValue } of entry.previousPositionStyles) {
+            if (previousValue) {
+              entry.element.style.setProperty(cssProperty, previousValue)
+            } else {
+              entry.element.style.removeProperty(cssProperty)
+            }
           }
-        } catch {
-          // Ignore invalid DOM moves
+        } else {
+          try {
+            if (entry.originalNextSibling) {
+              entry.originalParent.insertBefore(entry.element, entry.originalNextSibling)
+            } else {
+              entry.originalParent.appendChild(entry.element)
+            }
+          } catch {
+            // Ignore invalid DOM moves
+          }
         }
         const sessionEntry = sessionEditsRef.current.get(entry.element)
         if (sessionEntry) {
@@ -382,6 +466,51 @@ export function useSessionManager({
       }
 
       if (moveInfo) {
+        if (moveInfo.mode === 'position' && moveInfo.positionDelta) {
+          const existing = sessionEditsRef.current.get(element)
+          const styleState = getStyleStateForElement(existing)
+          const { previousStyles, appliedLeft, appliedTop } = applyPositionMoveCSS(element, moveInfo.positionDelta)
+
+          pushUndo({
+            type: 'move',
+            element,
+            originalParent: moveInfo.originalParent,
+            originalNextSibling: moveInfo.originalNextSibling,
+            previousSessionMove: existing?.move ?? null,
+            previousPositionStyles: previousStyles,
+          })
+
+          const locator = existing?.locator ?? getElementLocator(element)
+          const parent = element.parentElement
+          const parentName = parent ? getElementDisplayName(parent) : '(unknown)'
+
+          // Strip position/left/top from pendingStyles — move metadata is the authority
+          const pendingStyles = { ...styleState.pendingStyles }
+          delete pendingStyles['position']
+          delete pendingStyles['left']
+          delete pendingStyles['top']
+
+          sessionEditsRef.current.set(element, {
+            element,
+            locator,
+            originalStyles: styleState.originalStyles,
+            pendingStyles,
+            textEdit: existing?.textEdit ?? null,
+            move: {
+              mode: 'position',
+              positionDelta: moveInfo.positionDelta,
+              appliedLeft,
+              appliedTop,
+              fromParentName: parentName,
+              toParentName: parentName,
+              fromSiblingBefore: null,
+              fromSiblingAfter: null,
+              toSiblingBefore: null,
+              toSiblingAfter: null,
+            },
+          })
+          syncSessionItemCount()
+        } else {
         const getAnchor = (node: HTMLElement | null): {
           selector: string | null
           source: ReturnType<typeof getElementLocator>['domSource'] | null
@@ -399,6 +528,7 @@ export function useSessionManager({
 
         const existing = sessionEditsRef.current.get(element)
         const styleState = getStyleStateForElement(existing)
+        const moveMode: MoveMode = moveInfo.mode ?? 'free'
         pushUndo({
           type: 'move',
           element,
@@ -416,6 +546,15 @@ export function useSessionManager({
         const toParentAnchor = getAnchor(newParent)
         const toBeforeAnchor = getAnchor(nextPrevSibling)
         const toAfterAnchor = getAnchor(nextSibling)
+        const fromParentMeta = getParentLayoutMeta(moveInfo.originalParent)
+        const toParentMeta = getParentLayoutMeta(newParent)
+        const fromIndex = getOriginalMoveIndex(
+          moveInfo.originalParent,
+          moveInfo.originalPreviousSibling,
+          moveInfo.originalNextSibling,
+        )
+        const toIndex = findChildIndex(newParent, element)
+        const draggedPosition = window.getComputedStyle(element).position
 
         // Preserve initial from* from the first move; only update to* on later moves
         const fromFields = existing?.move
@@ -429,6 +568,9 @@ export function useSessionManager({
               fromParentSource: existing.move.fromParentSource ?? null,
               fromSiblingBeforeSource: existing.move.fromSiblingBeforeSource ?? null,
               fromSiblingAfterSource: existing.move.fromSiblingAfterSource ?? null,
+              fromParentDisplay: existing.move.fromParentDisplay ?? fromParentMeta.display,
+              fromParentLayout: existing.move.fromParentLayout ?? fromParentMeta.layout,
+              fromIndex: existing.move.fromIndex ?? fromIndex,
             }
           : {
               fromParentName: getElementDisplayName(moveInfo.originalParent),
@@ -444,6 +586,9 @@ export function useSessionManager({
               fromParentSource: fromParentAnchor.source,
               fromSiblingBeforeSource: fromBeforeAnchor.source,
               fromSiblingAfterSource: fromAfterAnchor.source,
+              fromParentDisplay: fromParentMeta.display,
+              fromParentLayout: fromParentMeta.layout,
+              fromIndex,
             }
 
         sessionEditsRef.current.set(element, {
@@ -468,10 +613,19 @@ export function useSessionManager({
                 toParentSource: toParentAnchor.source,
                 toSiblingBeforeSource: toBeforeAnchor.source,
                 toSiblingAfterSource: toAfterAnchor.source,
+                mode: moveMode,
+                fromParentDisplay: fromFields.fromParentDisplay,
+                fromParentLayout: fromFields.fromParentLayout,
+                fromIndex: fromFields.fromIndex,
+                toParentDisplay: toParentMeta.display,
+                toParentLayout: toParentMeta.layout,
+                draggedPosition,
+                toIndex,
               }
             : null,
         })
         syncSessionItemCount()
+        }
       }
       // Refresh element state without going through selectElement,
       // which would push an extra selection undo entry.
