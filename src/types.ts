@@ -237,6 +237,7 @@ export interface UndoMoveEntry {
   originalParent: HTMLElement
   originalNextSibling: HTMLElement | null
   previousSessionMove: SessionEdit['move']
+  previousPositionStyles?: Array<{ cssProperty: string; previousValue: string | null }>
 }
 
 export interface UndoTextEditEntry {
@@ -278,7 +279,7 @@ export interface SessionEdit {
     fromSiblingAfterSource?: DomSourceLocation | null
     toSiblingBeforeSource?: DomSourceLocation | null
     toSiblingAfterSource?: DomSourceLocation | null
-    mode?: 'free' | 'reorder'
+    mode?: 'free' | 'reorder' | 'position'
     fromParentDisplay?: string
     toParentDisplay?: string
     fromParentLayout?: 'flex' | 'grid' | 'block' | 'other'
@@ -286,6 +287,9 @@ export interface SessionEdit {
     draggedPosition?: string
     fromIndex?: number
     toIndex?: number
+    positionDelta?: { x: number; y: number }
+    appliedLeft?: string
+    appliedTop?: string
   } | null
   textEdit: {
     originalText: string

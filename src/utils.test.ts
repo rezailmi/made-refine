@@ -626,6 +626,46 @@ describe('export context quality', () => {
     expect(output).toContain('to_after_source: (none)')
   })
 
+  it('exports position move with applied left/top', () => {
+    const edit: SessionEdit = {
+      element: document.createElement('div'),
+      locator: {
+        tagName: 'div',
+        id: 'card',
+        classList: [],
+        domSelector: '#card',
+        targetHtml: '<div id="card">',
+        textPreview: '',
+        reactStack: [],
+        domSource: { file: 'src/App.tsx', line: 10, column: 5 },
+      },
+      originalStyles: {},
+      pendingStyles: { 'background-color': 'red' },
+      textEdit: null,
+      move: {
+        mode: 'position',
+        positionDelta: { x: 50, y: 30 },
+        appliedLeft: '60px',
+        appliedTop: '30px',
+        fromParentName: 'div',
+        toParentName: 'div',
+        fromSiblingBefore: null,
+        fromSiblingAfter: null,
+        toSiblingBefore: null,
+        toSiblingAfter: null,
+      },
+    }
+
+    const output = buildSessionExport([edit], [])
+    expect(output).toContain('moved:')
+    expect(output).toContain('mode: position')
+    expect(output).toContain('left: 60px')
+    expect(output).toContain('top: 30px')
+    expect(output).not.toContain('summary:')
+    expect(output).not.toContain('from_parent_selector')
+    expect(output).toContain('background-color')
+  })
+
   it('anchors deep selectors to a stable root', () => {
     const root = document.createElement('div')
     root.id = 'selector-anchor-root'

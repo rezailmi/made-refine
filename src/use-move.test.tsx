@@ -5,16 +5,19 @@ import { useMove } from './use-move'
 
 const {
   findContainerAtPointMock,
+  findLayoutContainerAtPointMock,
   calculateDropPositionMock,
   detectChildrenDirectionMock,
 } = vi.hoisted(() => ({
   findContainerAtPointMock: vi.fn(),
+  findLayoutContainerAtPointMock: vi.fn(),
   calculateDropPositionMock: vi.fn(),
   detectChildrenDirectionMock: vi.fn(() => ({ axis: 'vertical', reversed: false })),
 }))
 
 vi.mock('./utils', () => ({
   findContainerAtPoint: findContainerAtPointMock,
+  findLayoutContainerAtPoint: findLayoutContainerAtPointMock,
   calculateDropPosition: calculateDropPositionMock,
   detectChildrenDirection: detectChildrenDirectionMock,
 }))
@@ -33,6 +36,7 @@ function dispatchPointer(type: 'pointermove' | 'pointerup', x = 0, y = 0) {
 describe('useMove', () => {
   beforeEach(() => {
     findContainerAtPointMock.mockReset()
+    findLayoutContainerAtPointMock.mockReset()
     calculateDropPositionMock.mockReset()
     detectChildrenDirectionMock.mockReset()
     detectChildrenDirectionMock.mockReturnValue({ axis: 'vertical', reversed: false })
@@ -203,7 +207,7 @@ describe('useMove', () => {
     })
   })
 
-  it('position mode skips container detection and returns delta', () => {
+  it('position mode uses layout container detection and falls back to delta', () => {
     const onMoveComplete = vi.fn()
     const { result } = renderHook(() => useMove({ onMoveComplete }))
 
@@ -218,6 +222,8 @@ describe('useMove', () => {
       toJSON: () => ({}),
     }) as DOMRect
 
+    findLayoutContainerAtPointMock.mockReturnValue(null)
+
     act(() => {
       result.current.startDrag(pointerEvent(70, 60), dragged, { mode: 'position' })
     })
@@ -226,8 +232,8 @@ describe('useMove', () => {
       dispatchPointer('pointermove', 120, 110)
     })
 
+    expect(findLayoutContainerAtPointMock).toHaveBeenCalled()
     expect(findContainerAtPointMock).not.toHaveBeenCalled()
-    expect(calculateDropPositionMock).not.toHaveBeenCalled()
     expect(result.current.dropTarget).toBeNull()
 
     act(() => {
@@ -239,6 +245,118 @@ describe('useMove', () => {
     expect(onMoveComplete.mock.calls[0]?.[1]).toMatchObject({
       mode: 'position',
       positionDelta: { x: 50, y: 50 },
+    })
+  })
+
+  it('position mode drops into flex container with DOM reparenting', () => {
+    const onMoveComplete = vi.fn()
+    const { result } = renderHook(() => useMove({ onMoveComplete }))
+
+    const originalParent = document.createElement('div')
+    const dragged = document.createElement('div')
+    const originalSibling = document.createElement('div')
+    originalParent.appendChild(dragged)
+    originalParent.appendChild(originalSibling)
+
+    const flexContainer = document.createElement('div')
+    const insertionPoint = document.createElement('span')
+    flexContainer.appendChild(insertionPoint)
+
+    document.body.appendChild(originalParent)
+    document.body.appendChild(flexContainer)
+
+    dragged.getBoundingClientRect = () => ({
+      left: 50, top: 50, width: 100, height: 40,
+      right: 150, bottom: 90, x: 50, y: 50,
+      toJSON: () => ({}),
+    }) as DOMRect
+
+    findLayoutContainerAtPointMock.mockReturnValue(flexContainer)
+    calculateDropPositionMock.mockReturnValue({
+      insertBefore: insertionPoint,
+      indicator: { x: 10, y: 20, width: 100, height: 2 },
+    })
+
+    act(() => {
+      result.current.startDrag(pointerEvent(70, 60), dragged, { mode: 'position' })
+    })
+
+    act(() => {
+      dispatchPointer('pointermove', 200, 200)
+    })
+
+    expect(result.current.dropTarget?.container).toBe(flexContainer)
+    expect(result.current.dropTarget?.insertBefore).toBe(insertionPoint)
+    expect(result.current.dropIndicator).toEqual({ x: 10, y: 20, width: 100, height: 2 })
+
+    act(() => {
+      dispatchPointer('pointerup', 200, 200)
+    })
+
+    expect(dragged.parentElement).toBe(flexContainer)
+    expect(flexContainer.firstElementChild).toBe(dragged)
+    expect(onMoveComplete).toHaveBeenCalledTimes(1)
+    expect(onMoveComplete.mock.calls[0]?.[1]).toMatchObject({
+      originalParent,
+      originalNextSibling: originalSibling,
+      mode: 'free',
+    })
+  })
+
+  it('position mode clears indicator when leaving flex and falls back to CSS position', () => {
+    const onMoveComplete = vi.fn()
+    const { result } = renderHook(() => useMove({ onMoveComplete }))
+
+    const parent = document.createElement('div')
+    const dragged = document.createElement('div')
+    parent.appendChild(dragged)
+    document.body.appendChild(parent)
+
+    const flexContainer = document.createElement('div')
+    document.body.appendChild(flexContainer)
+
+    dragged.getBoundingClientRect = () => ({
+      left: 50, top: 50, width: 100, height: 40,
+      right: 150, bottom: 90, x: 50, y: 50,
+      toJSON: () => ({}),
+    }) as DOMRect
+
+    findLayoutContainerAtPointMock.mockReturnValue(flexContainer)
+    calculateDropPositionMock.mockReturnValue({
+      insertBefore: null,
+      indicator: { x: 10, y: 20, width: 100, height: 2 },
+    })
+
+    act(() => {
+      result.current.startDrag(pointerEvent(70, 60), dragged, { mode: 'position' })
+    })
+
+    act(() => {
+      dispatchPointer('pointermove', 200, 200)
+    })
+
+    expect(result.current.dropTarget?.container).toBe(flexContainer)
+    expect(result.current.dropIndicator).toBeTruthy()
+
+    // Now move away — no flex container under pointer
+    findLayoutContainerAtPointMock.mockReturnValue(null)
+
+    act(() => {
+      dispatchPointer('pointermove', 300, 300)
+    })
+
+    expect(result.current.dropTarget).toBeNull()
+    expect(result.current.dropIndicator).toBeNull()
+
+    act(() => {
+      dispatchPointer('pointerup', 300, 300)
+    })
+
+    expect(dragged.parentElement).toBe(parent)
+    expect(onMoveComplete).toHaveBeenCalledTimes(1)
+    expect(onMoveComplete.mock.calls[0]?.[1]).toMatchObject({
+      mode: 'position',
+      positionDelta: expect.any(Object),
     })
   })
 })

@@ -359,31 +359,12 @@ function DirectEditPanelContent() {
     isOpen ? selectedElement : null
   )
 
-  const onMoveCompleteWithPositioning = React.useCallback(
-    (element: HTMLElement, moveInfo: import('./use-move').MoveInfo | null) => {
-      if (moveInfo?.mode === 'position' && moveInfo.positionDelta) {
-        const computedStyle = window.getComputedStyle(element)
-        const properties: Record<string, string> = {
-          left: `${(parseFloat(computedStyle.left) || 0) + moveInfo.positionDelta.x}px`,
-          top: `${(parseFloat(computedStyle.top) || 0) + moveInfo.positionDelta.y}px`,
-        }
-        if (computedStyle.position === 'static') {
-          properties.position = 'relative'
-        }
-        updateRawCSS(properties)
-        return
-      }
-      handleMoveComplete(element, moveInfo)
-    },
-    [handleMoveComplete, updateRawCSS],
-  )
-
   const {
     dragState,
     dropIndicator,
     startDrag,
   } = useMove({
-    onMoveComplete: onMoveCompleteWithPositioning,
+    onMoveComplete: handleMoveComplete,
   })
 
   const triggerCommentInputAttention = React.useCallback((commentId: string) => {

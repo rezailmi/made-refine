@@ -1593,7 +1593,7 @@ export function elementFromPointWithoutOverlays(x: number, y: number): HTMLEleme
   return el
 }
 
-function isLayoutContainer(element: HTMLElement): boolean {
+export function isLayoutContainer(element: HTMLElement): boolean {
   const display = window.getComputedStyle(element).display
   return (
     display === 'flex' ||
@@ -1657,6 +1657,31 @@ export function findContainerAtPoint(
 
   // Last resort: walk up DOM
   return findContainerViaTraversal(x, y, exclude)
+}
+
+export function findLayoutContainerAtPoint(
+  x: number,
+  y: number,
+  exclude: HTMLElement | null,
+  preferredParent?: HTMLElement | null,
+): HTMLElement | null {
+  const host = document.querySelector<HTMLElement>('[data-direct-edit-host]')
+  if (host) host.style.display = 'none'
+  const elements = document.elementsFromPoint(x, y) as HTMLElement[]
+  if (host) host.style.display = ''
+
+  for (const el of elements) {
+    if (skipElement(el, exclude)) continue
+    if (isLayoutContainer(el)) return el
+  }
+
+  if (preferredParent && isLayoutContainer(preferredParent)) {
+    for (const el of elements) {
+      if (el === preferredParent) return preferredParent
+    }
+  }
+
+  return null
 }
 
 export function calculateDropPosition(
@@ -2922,8 +2947,7 @@ function formatMoveSource(
 }
 
 function formatMoveMetadata(value: string | null | undefined): string {
-  const normalized = value?.trim()
-  return normalized ? normalized : '(unknown)'
+  return value?.trim() || '(unknown)'
 }
 
 function formatMoveIndex(value: number | undefined): string {
@@ -2931,6 +2955,15 @@ function formatMoveIndex(value: number | undefined): string {
 }
 
 function buildMoveExportLines(move: NonNullable<SessionEdit['move']>): string[] {
+  if (move.mode === 'position' && move.appliedLeft && move.appliedTop) {
+    return [
+      'moved:',
+      `mode: position`,
+      `left: ${move.appliedLeft}`,
+      `top: ${move.appliedTop}`,
+    ]
+  }
+
   return [
     'moved:',
     `summary: ${formatMoveSummary(move)}`,

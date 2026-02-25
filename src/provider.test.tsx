@@ -989,6 +989,51 @@ describe('DirectEditProvider', () => {
     expect(payload.exportMarkdown).toContain('summary:')
   })
 
+  it('records position move as move metadata with applied left/top', async () => {
+    const clipboardWrite = mockClipboard()
+    const parent = createTarget('pos-parent')
+    const moved = createTarget('pos-moved')
+    parent.replaceChildren(moved)
+    moved.style.position = 'static'
+
+    const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+    act(() => {
+      result.current.selectElement(moved)
+    })
+
+    await waitFor(() => {
+      expect(result.current.selectedElement).toBe(moved)
+    })
+
+    clipboardWrite.mockClear()
+
+    act(() => {
+      result.current.handleMoveComplete(moved, {
+        originalParent: parent,
+        originalPreviousSibling: null,
+        originalNextSibling: null,
+        mode: 'position',
+        positionDelta: { x: 50, y: 30 },
+      })
+    })
+
+    expect(moved.style.position).toBe('relative')
+    expect(moved.style.left).toBe('50px')
+    expect(moved.style.top).toBe('30px')
+
+    const copied = await result.current.exportEdits()
+    expect(copied).toBe(true)
+
+    const exported = String(clipboardWrite.mock.calls[0][0])
+    expect(exported).toContain('moved:')
+    expect(exported).toContain('mode: position')
+    expect(exported).toContain('left: 50px')
+    expect(exported).toContain('top: 30px')
+    expect(exported).not.toContain('summary:')
+    expect(exported).not.toContain('from_parent_selector')
+  })
+
   it('starts a new comment in one click when the current comment is already submitted', async () => {
     const targetA = createTarget('comment-first', 'padding-top: 8px;')
     const targetB = createTarget('comment-second', 'padding-top: 8px;')

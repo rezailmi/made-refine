@@ -9,6 +9,14 @@ const DRAG_THRESHOLD = 4
 const DBLCLICK_DELAY = 300
 const HANDLE_SIZE = 12
 
+function isInLayoutContainer(element: HTMLElement): boolean {
+  const parent = element.parentElement
+  if (!parent) return false
+  const display = window.getComputedStyle(parent).display
+  return display === 'flex' || display === 'inline-flex'
+    || display === 'grid' || display === 'inline-grid'
+}
+
 export interface SelectionOverlayProps {
   selectedElement: HTMLElement
   draggedElement?: HTMLElement | null
@@ -104,12 +112,9 @@ export function SelectionOverlay({
       const dy = moveEvent.clientY - origin.y
       if (dx * dx + dy * dy >= DRAG_THRESHOLD * DRAG_THRESHOLD) {
         cleanup()
-        const parent = selectedElement.parentElement
-        const parentDisplay = parent ? window.getComputedStyle(parent).display : ''
-        const isInLayoutContainer =
-          parentDisplay === 'flex' || parentDisplay === 'inline-flex'
-          || parentDisplay === 'grid' || parentDisplay === 'inline-grid'
-        onMoveStart(savedEvent, undefined, { mode: isInLayoutContainer ? 'free' : 'position' })
+        onMoveStart(savedEvent, undefined, {
+          mode: isInLayoutContainer(selectedElement) ? 'free' : 'position',
+        })
       }
     }
 
