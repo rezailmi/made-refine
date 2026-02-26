@@ -22,9 +22,14 @@ import {
   buildElementContext,
   buildEditExport,
   buildSessionExport,
+  buildExportInstruction,
+  getExportContentProfile,
+  buildMovePlanContext,
+  getMoveIntentForEdit,
   getElementDisplayName,
   getElementLocator,
   computeIntendedIndex,
+  isInFlowChild,
 } from './utils'
 
 type ParentLayout = 'flex' | 'grid' | 'block' | 'other'
@@ -46,13 +51,38 @@ function getLayoutFromDisplay(display: string): ParentLayout {
 function getParentLayoutMeta(parent: HTMLElement | null): {
   display?: string
   layout?: ParentLayout
+  flexDirection?: 'row' | 'row-reverse' | 'column' | 'column-reverse'
+  gap?: string
+  childCount?: number
 } {
   if (!parent) return {}
-  const display = window.getComputedStyle(parent).display
-  return {
-    display,
-    layout: getLayoutFromDisplay(display),
+  const computed = window.getComputedStyle(parent)
+  const display = computed.display
+  const layout = getLayoutFromDisplay(display)
+  const childCount = countInFlowChildren(parent)
+
+  if (layout === 'flex') {
+    return {
+      display, layout, childCount,
+      flexDirection: computed.flexDirection as 'row' | 'row-reverse' | 'column' | 'column-reverse',
+      gap: computed.gap !== 'normal' && computed.gap !== '0px' ? computed.gap : undefined,
+    }
   }
+  if (layout === 'grid') {
+    return {
+      display, layout, childCount,
+      gap: computed.gap !== 'normal' && computed.gap !== '0px' ? computed.gap : undefined,
+    }
+  }
+  return { display, layout, childCount }
+}
+
+function countInFlowChildren(parent: HTMLElement): number {
+  let count = 0
+  for (const c of parent.children) {
+    if (c instanceof HTMLElement && isInFlowChild(c)) count++
+  }
+  return count
 }
 
 function findChildIndex(parent: HTMLElement | null, child: HTMLElement | null): number | undefined {
@@ -132,6 +162,8 @@ export function buildPositionMoveFields(
     moveInfo.originalNextSibling,
   )
 
+  const fromParentMeta = existingMove ? getParentLayoutMeta(moveInfo.originalParent) : parentMeta
+
   const fromFields = existingMove
     ? {
         fromParentName: existingMove.fromParentName,
@@ -146,6 +178,9 @@ export function buildPositionMoveFields(
         fromParentDisplay: existingMove.fromParentDisplay ?? parentMeta.display,
         fromParentLayout: existingMove.fromParentLayout ?? parentMeta.layout,
         fromIndex: existingMove.fromIndex ?? fromIndex,
+        fromFlexDirection: existingMove.fromFlexDirection ?? fromParentMeta.flexDirection,
+        fromGap: existingMove.fromGap ?? fromParentMeta.gap,
+        fromChildCount: existingMove.fromChildCount ?? fromParentMeta.childCount,
       }
     : {
         fromParentName: parentName,
@@ -164,6 +199,9 @@ export function buildPositionMoveFields(
         fromParentDisplay: parentMeta.display,
         fromParentLayout: parentMeta.layout,
         fromIndex,
+        fromFlexDirection: parentMeta.flexDirection,
+        fromGap: parentMeta.gap,
+        fromChildCount: parentMeta.childCount,
       }
 
   return {
@@ -172,6 +210,9 @@ export function buildPositionMoveFields(
     positionDelta: moveInfo.positionDelta,
     appliedLeft,
     appliedTop,
+    visualDelta: moveInfo.positionDelta
+      ? { x: Math.round(moveInfo.positionDelta.x), y: Math.round(moveInfo.positionDelta.y) }
+      : undefined,
     toParentName: parentName,
     toSiblingBefore: intended.siblingBefore ? getElementDisplayName(intended.siblingBefore) : null,
     toSiblingAfter: intended.siblingAfter ? getElementDisplayName(intended.siblingAfter) : null,
@@ -184,7 +225,9 @@ export function buildPositionMoveFields(
     toParentDisplay: parentMeta.display,
     toParentLayout: parentMeta.layout,
     toIndex: intended.index,
-    draggedPosition: window.getComputedStyle(element).position,
+    toFlexDirection: parentMeta.flexDirection,
+    toGap: parentMeta.gap,
+    toChildCount: parentMeta.childCount,
   }
 }
 
@@ -627,7 +670,6 @@ export function useSessionManager({
           moveInfo.originalNextSibling,
         )
         const toIndex = findChildIndex(newParent, element)
-        const draggedPosition = window.getComputedStyle(element).position
 
         // Preserve initial from* from the first move; only update to* on later moves
         const fromFields = existing?.move
@@ -644,6 +686,9 @@ export function useSessionManager({
               fromParentDisplay: existing.move.fromParentDisplay ?? fromParentMeta.display,
               fromParentLayout: existing.move.fromParentLayout ?? fromParentMeta.layout,
               fromIndex: existing.move.fromIndex ?? fromIndex,
+              fromFlexDirection: existing.move.fromFlexDirection ?? fromParentMeta.flexDirection,
+              fromGap: existing.move.fromGap ?? fromParentMeta.gap,
+              fromChildCount: existing.move.fromChildCount ?? fromParentMeta.childCount,
             }
           : {
               fromParentName: getElementDisplayName(moveInfo.originalParent),
@@ -662,6 +707,9 @@ export function useSessionManager({
               fromParentDisplay: fromParentMeta.display,
               fromParentLayout: fromParentMeta.layout,
               fromIndex,
+              fromFlexDirection: fromParentMeta.flexDirection,
+              fromGap: fromParentMeta.gap,
+              fromChildCount: fromParentMeta.childCount,
             }
 
         sessionEditsRef.current.set(element, {
@@ -692,8 +740,11 @@ export function useSessionManager({
                 fromIndex: fromFields.fromIndex,
                 toParentDisplay: toParentMeta.display,
                 toParentLayout: toParentMeta.layout,
-                draggedPosition,
                 toIndex,
+                visualDelta: moveInfo.visualDelta,
+                toFlexDirection: toParentMeta.flexDirection,
+                toGap: toParentMeta.gap,
+                toChildCount: toParentMeta.childCount,
               }
             : null,
         })
@@ -758,9 +809,11 @@ export function useSessionManager({
     if (items.length === 0) return false
     const edits = items.filter((item) => item.type === 'edit').map((item) => item.edit)
     const comments = items.filter((item) => item.type === 'comment').map((item) => item.comment)
-    const text = buildSessionExport(edits, comments)
+    const movePlanContext = buildMovePlanContext(edits)
+    const text = buildSessionExport(edits, comments, { movePlanContext })
+    const instruction = buildExportInstruction(getExportContentProfile(edits, comments, movePlanContext))
     try {
-      await navigator.clipboard.writeText(`implement the visual edits\n\n${text}`)
+      await navigator.clipboard.writeText(`${instruction}\n\n${text}`)
       return true
     } catch {
       return false
@@ -849,21 +902,35 @@ export function useSessionManager({
     const sessionEdit = sessionEditsRef.current.get(current.selectedElement)
     const hasPendingStyles = Object.keys(current.pendingStyles).length > 0
     const hasTextEdit = Boolean(sessionEdit?.textEdit)
-    const hasMove = Boolean(sessionEdit?.move)
 
     const locator = getElementLocator(current.selectedElement)
-    const exportMarkdown = hasPendingStyles || hasTextEdit || hasMove
-      ? hasMove && sessionEdit
-        ? buildSessionExport([{
-            ...sessionEdit,
-            locator,
-            pendingStyles: { ...current.pendingStyles },
-            textEdit: sessionEdit.textEdit,
-          }], [])
+    const editForExport = sessionEdit
+      ? {
+          ...sessionEdit,
+          locator,
+          pendingStyles: { ...current.pendingStyles },
+          textEdit: sessionEdit.textEdit,
+        }
+      : null
+    const movePlanContext = editForExport?.move ? buildMovePlanContext([editForExport]) : null
+    const moveIntent = editForExport?.move ? getMoveIntentForEdit(editForExport, movePlanContext) : null
+    const hasMove = Boolean(moveIntent)
+    const hasExportableEdit = hasPendingStyles || hasTextEdit || hasMove
+    const exportMarkdown = hasExportableEdit
+      ? hasMove && editForExport
+        ? buildSessionExport([editForExport], [], { movePlanContext })
         : buildEditExport(locator, current.pendingStyles, sessionEdit?.textEdit)
       : buildElementContext(locator)
     try {
-      await navigator.clipboard.writeText(`implement the visual edits\n\n${exportMarkdown}`)
+      const instruction = hasExportableEdit
+        ? buildExportInstruction({
+            hasCssEdits: hasPendingStyles,
+            hasTextEdits: hasTextEdit,
+            hasMoves: hasMove,
+            hasComments: false,
+          })
+        : 'Here is the element context for reference'
+      await navigator.clipboard.writeText(`${instruction}\n\n${exportMarkdown}`)
       return true
     } catch {
       return false

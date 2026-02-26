@@ -17,6 +17,8 @@ import {
   buildEditExport,
   buildCommentExport,
   buildSessionExport,
+  getExportContentProfile,
+  buildExportInstruction,
   getElementLocator,
   computeIntendedIndex,
 } from './utils'
@@ -604,27 +606,18 @@ describe('export context quality', () => {
 
     const output = buildSessionExport([edit], [])
     expect(output).toContain('moved:')
-    expect(output).toContain('summary: in <div>, from before <div> (first) to after <div> (last)')
-    expect(output).toContain('mode: reorder')
-    expect(output).toContain('dragged_position: relative')
-    expect(output).toContain('from_parent_display: block')
-    expect(output).toContain('from_parent_layout: block')
-    expect(output).toContain('from_index: 0')
-    expect(output).toContain('to_parent_display: flex')
-    expect(output).toContain('to_parent_layout: flex')
-    expect(output).toContain('to_index: 2')
-    expect(output).toContain('from_parent_selector: main > div:nth-of-type(1)')
-    expect(output).toContain('from_before_selector: (none)')
-    expect(output).toContain('from_after_selector: main > div:nth-of-type(1) > div:nth-of-type(1)')
-    expect(output).toContain('to_parent_selector: main > div:nth-of-type(1)')
-    expect(output).toContain('to_before_selector: main > div:nth-of-type(1) > div:nth-of-type(3)')
-    expect(output).toContain('to_after_selector: (none)')
-    expect(output).toContain('from_parent_source: src/App.tsx:40:3')
-    expect(output).toContain('from_before_source: (none)')
-    expect(output).toContain('from_after_source: src/App.tsx:42:9')
-    expect(output).toContain('to_parent_source: src/App.tsx:40:3')
-    expect(output).toContain('to_before_source: src/App.tsx:47:9')
-    expect(output).toContain('to_after_source: (none)')
+    expect(output).toContain('=== LAYOUT MOVE PLAN ===')
+    expect(output).toContain('id:')
+    expect(output).toContain('type: structural_move')
+    expect(output).toContain('parent: main > div:nth-of-type(1)')
+    expect(output).toContain('current_anchor:')
+    expect(output).toContain('target_anchor:')
+    expect(output).toContain('implementation_steps:')
+    expect(output).toContain('guardrails:')
+    expect(output).toContain('instruction:')
+    expect(output).not.toContain('from_parent_display:')
+    expect(output).not.toContain('to_parent_display:')
+    expect(output).not.toContain('layout_intent:')
   })
 
   it('exports position move with structural metadata and applied left/top', () => {
@@ -678,18 +671,45 @@ describe('export context quality', () => {
 
     const output = buildSessionExport([edit], [])
     expect(output).toContain('moved:')
-    expect(output).toContain('summary:')
-    expect(output).toContain('mode: position')
-    expect(output).toContain('dragged_position: relative')
-    expect(output).toContain('from_parent_display: block')
-    expect(output).toContain('from_parent_layout: block')
-    expect(output).toContain('from_index: 0')
-    expect(output).toContain('to_index: 1')
-    expect(output).toContain('from_parent_selector: main > section')
-    expect(output).toContain('to_parent_selector: main > section')
-    expect(output).toContain('applied_left: 60px')
-    expect(output).toContain('applied_top: 30px')
+    expect(output).toContain('id:')
+    expect(output).toContain('type: layout_refactor')
+    expect(output).toContain('parent: main > section')
+    expect(output).toContain('visual_hint: 50px horizontal, 30px vertical')
+    expect(output).toContain('recommended_layout:')
+    expect(output).toContain('implementation_steps:')
+    expect(output).not.toContain('applied_left')
+    expect(output).not.toContain('applied_top')
     expect(output).toContain('background-color')
+  })
+
+  it('treats no-op move metadata as no move in export instructions', () => {
+    const edit: SessionEdit = {
+      element: document.createElement('div'),
+      locator: makeLocator(),
+      originalStyles: {},
+      pendingStyles: { color: 'red' },
+      textEdit: null,
+      move: {
+        fromParentName: 'div',
+        toParentName: 'div',
+        fromSiblingBefore: 'h1',
+        fromSiblingAfter: 'p',
+        toSiblingBefore: 'h1',
+        toSiblingAfter: 'p',
+        fromParentSelector: '#root > div',
+        toParentSelector: '#root > div',
+        mode: 'reorder',
+        fromIndex: 1,
+        toIndex: 1,
+        visualDelta: { x: 0, y: 0 },
+      },
+    }
+
+    const profile = getExportContentProfile([edit], [], null)
+    expect(profile.hasMoves).toBe(false)
+    const instruction = buildExportInstruction(profile)
+    expect(instruction).toContain('Apply the CSS changes')
+    expect(instruction).not.toContain('Implement the move plan below')
   })
 
   it('anchors deep selectors to a stable root', () => {

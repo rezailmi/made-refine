@@ -188,9 +188,10 @@ describe('DirectEditToolbarInner', () => {
     fireEvent.click(editsTrigger as HTMLButtonElement)
 
     const row = await waitFor(() => {
-      const found = document.body.querySelector('div[role="button"][tabindex="0"]')
-      expect(found).not.toBeNull()
-      return found as HTMLDivElement
+      const found = Array.from(document.body.querySelectorAll('div[role="button"][tabindex="0"]'))
+      const target = found.find((node) => node.textContent?.includes('Need more visual hierarchy'))
+      expect(target).toBeTruthy()
+      return target as HTMLDivElement
     })
 
     const deleteButton = row.querySelector('button')
@@ -257,5 +258,196 @@ describe('DirectEditToolbarInner', () => {
     await waitFor(() => {
       expect(onSendAllToAgents).toHaveBeenCalledTimes(1)
     })
+  })
+
+  it('keeps move operation id parity when copying a single moved item', async () => {
+    const writeText = vi.fn<(...args: unknown[]) => Promise<void>>().mockResolvedValue(undefined)
+    Object.defineProperty(window.navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    })
+
+    const firstEl = document.createElement('button')
+    const secondEl = document.createElement('button')
+
+    const firstEdit: SessionItem = {
+      type: 'edit',
+      edit: {
+        element: firstEl,
+        locator: {
+          reactStack: [{ name: 'App' }],
+          domSelector: '#root > div > button:first-of-type',
+          domContextHtml: '<div><button>First</button><button>Second</button></div>',
+          targetHtml: '<button>First</button>',
+          textPreview: 'First',
+          tagName: 'button',
+          id: null,
+          classList: [],
+          domSource: { file: 'App.tsx', line: 10, column: 9 },
+        },
+        originalStyles: {},
+        pendingStyles: {},
+        textEdit: null,
+        move: {
+          fromParentName: 'div',
+          toParentName: 'div',
+          fromSiblingBefore: 'h1',
+          fromSiblingAfter: 'p',
+          toSiblingBefore: 'h1',
+          toSiblingAfter: 'p',
+          fromParentSelector: '#root > div',
+          toParentSelector: '#root > div',
+          fromParentLayout: 'block',
+          toParentLayout: 'block',
+          mode: 'position',
+          visualDelta: { x: 100, y: 0 },
+        },
+      },
+    }
+
+    const secondEdit: SessionItem = {
+      type: 'edit',
+      edit: {
+        element: secondEl,
+        locator: {
+          reactStack: [{ name: 'App' }],
+          domSelector: '#root > div > button:last-of-type',
+          domContextHtml: '<div><button>First</button><button>Second</button></div>',
+          targetHtml: '<button>Second</button>',
+          textPreview: 'Second',
+          tagName: 'button',
+          id: null,
+          classList: [],
+          domSource: { file: 'App.tsx', line: 20, column: 9 },
+        },
+        originalStyles: {},
+        pendingStyles: {},
+        textEdit: null,
+        move: {
+          fromParentName: 'div',
+          toParentName: 'div',
+          fromSiblingBefore: 'h1',
+          fromSiblingAfter: 'p',
+          toSiblingBefore: 'h1',
+          toSiblingAfter: 'p',
+          fromParentSelector: '#root > div',
+          toParentSelector: '#root > div',
+          fromParentLayout: 'block',
+          toParentLayout: 'block',
+          mode: 'position',
+          visualDelta: { x: 180, y: -20 },
+        },
+      },
+    }
+
+    const { container } = render(
+      <DirectEditToolbarInner
+        editModeActive={true}
+        onToggleEditMode={() => {}}
+        rulersVisible={false}
+        onToggleRulers={() => {}}
+        sessionEditCount={2}
+        onGetSessionItems={() => [firstEdit, secondEdit]}
+      />,
+    )
+
+    const editsTrigger = container.querySelector('svg.lucide-copy')?.closest('button')
+    expect(editsTrigger).not.toBeNull()
+    fireEvent.click(editsTrigger as HTMLButtonElement)
+
+    const targetRow = await waitFor(() => {
+      const found = Array.from(document.body.querySelectorAll('div[role="button"][tabindex="0"]'))
+      const row = found.find((node) => node.textContent?.includes('op-2'))
+      expect(row).toBeTruthy()
+      return row as HTMLDivElement
+    })
+
+    fireEvent.keyDown(targetRow, { key: 'Enter' })
+
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalledTimes(1)
+    })
+
+    const copied = String(writeText.mock.calls[0][0])
+    expect(copied).toContain('id: op-2')
+    expect(copied).not.toContain('id: op-1')
+    expect(copied).not.toContain('=== LAYOUT MOVE PLAN ===')
+  })
+
+  it('does not include move-plan instruction for style edits with noop move metadata', async () => {
+    const writeText = vi.fn<(...args: unknown[]) => Promise<void>>().mockResolvedValue(undefined)
+    Object.defineProperty(window.navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    })
+
+    const item: SessionItem = {
+      type: 'edit',
+      edit: {
+        element: document.createElement('button'),
+        locator: {
+          reactStack: [{ name: 'App' }],
+          domSelector: '#root > div > button',
+          domContextHtml: '<div><button>CTA</button></div>',
+          targetHtml: '<button>CTA</button>',
+          textPreview: 'CTA',
+          tagName: 'button',
+          id: null,
+          classList: [],
+          domSource: { file: 'App.tsx', line: 15, column: 7 },
+        },
+        originalStyles: {},
+        pendingStyles: { color: 'rgb(255, 0, 0)' },
+        textEdit: null,
+        move: {
+          fromParentName: 'div',
+          toParentName: 'div',
+          fromSiblingBefore: 'h1',
+          fromSiblingAfter: 'p',
+          toSiblingBefore: 'h1',
+          toSiblingAfter: 'p',
+          fromParentSelector: '#root > div',
+          toParentSelector: '#root > div',
+          mode: 'reorder',
+          fromIndex: 1,
+          toIndex: 1,
+          visualDelta: { x: 0, y: 0 },
+        },
+      },
+    }
+
+    const { container } = render(
+      <DirectEditToolbarInner
+        editModeActive={true}
+        onToggleEditMode={() => {}}
+        rulersVisible={false}
+        onToggleRulers={() => {}}
+        sessionEditCount={1}
+        onGetSessionItems={() => [item]}
+      />,
+    )
+
+    const editsTrigger = container.querySelector('svg.lucide-copy')?.closest('button')
+    expect(editsTrigger).not.toBeNull()
+    fireEvent.click(editsTrigger as HTMLButtonElement)
+
+    const row = await waitFor(() => {
+      const found = Array.from(document.body.querySelectorAll('div[role="button"][tabindex="0"]'))
+      const target = found.find((node) => node.textContent?.includes('color: rgb(255, 0, 0)'))
+      expect(target).toBeTruthy()
+      return target as HTMLDivElement
+    })
+
+    fireEvent.keyDown(row, { key: 'Enter' })
+
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalledTimes(1)
+    })
+
+    const copied = String(writeText.mock.calls[0][0])
+    expect(copied).toContain('Apply the CSS changes')
+    expect(copied).toContain('color: rgb(255, 0, 0)')
+    expect(copied).not.toContain('Implement the move plan below')
+    expect(copied).not.toContain('moved:')
   })
 })

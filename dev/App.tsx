@@ -156,14 +156,16 @@ export default function App() {
   return (
     <>
       <DirectEdit />
-      <div style={{ fontFamily: 'system-ui, sans-serif', color: gray[900], padding: 32, maxWidth: 960, margin: '0 auto' }}>
-        <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 6, letterSpacing: '-0.02em' }}>handmade playground</h1>
-        <p style={{ color: gray[500], marginBottom: 32, fontSize: 14, lineHeight: 1.5 }}>
-          Press{' '}
-          <kbd style={{ fontSize: 12, fontFamily: 'ui-monospace, monospace', padding: '2px 6px', backgroundColor: gray[100], border: `1px solid ${gray[200]}`, borderRadius: '0.375rem' }}>⌘.</kbd>
-          {' '}to toggle edit mode. Click any element to inspect and edit styles.
-        </p>
-        <div style={{ marginBottom: 24 }}>
+      <div style={{ fontFamily: 'system-ui, sans-serif', color: gray[900], padding: 32, maxWidth: 960, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 24 }}>
+        <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16 }}>
+          <div>
+            <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 6, letterSpacing: '-0.02em', width: 'fit-content' }}>handmade playground</h1>
+            <p style={{ color: gray[500], fontSize: 14, lineHeight: 1.5, width: 'fit-content' }}>
+              Press{' '}
+              <kbd style={{ fontSize: 12, fontFamily: 'ui-monospace, monospace', padding: '2px 6px', backgroundColor: gray[100], border: `1px solid ${gray[200]}`, borderRadius: '0.375rem' }}>⌘.</kbd>
+              {' '}to toggle edit mode. Click any element to inspect and edit styles.
+            </p>
+          </div>
           <button
             type="button"
             onClick={() => navigatePage('canvas')}
@@ -181,20 +183,19 @@ export default function App() {
             Go to canvas playground page
           </button>
         </div>
-
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
 
           {/* Layout & Flex */}
-          <div style={card}>
+          <div style={{ ...card, minHeight: 360 }}>
             <div style={sectionLabel}>Layout & Flex</div>
             <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>Dashboard</div>
             <div style={{ display: 'flex', gap: 12 }}>
               {[
                 { label: 'Views', value: '2,847' },
-                { label: 'Active', value: '128' },
                 { label: 'Growth', value: '+24%' },
+                { label: 'Active', value: '128' },
               ].map((metric) => (
-                <div key={metric.label} style={{ flex: 1, border: `1px solid ${gray[200]}`, borderRadius: 8, padding: 16 }}>
+                <div key={metric.label} style={{ flex: 1, border: `1px solid ${gray[200]}`, borderRadius: metric.label === 'Views' ? 16 : 8, padding: 16 }}>
                   <div style={{ fontSize: 12, color: gray[500], marginBottom: 4 }}>{metric.label}</div>
                   <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em', color: metric.label === 'Growth' ? emerald : gray[900] }}>{metric.value}</div>
                 </div>
