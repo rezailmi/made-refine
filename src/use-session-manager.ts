@@ -31,6 +31,7 @@ import {
   computeIntendedIndex,
   isInFlowChild,
 } from './utils'
+import { copyText } from './clipboard'
 
 type ParentLayout = 'flex' | 'grid' | 'block' | 'other'
 
@@ -812,12 +813,7 @@ export function useSessionManager({
     const movePlanContext = buildMovePlanContext(edits)
     const text = buildSessionExport(edits, comments, { movePlanContext })
     const instruction = buildExportInstruction(getExportContentProfile(edits, comments, movePlanContext))
-    try {
-      await navigator.clipboard.writeText(`${instruction}\n\n${text}`)
-      return true
-    } catch {
-      return false
-    }
+    return copyText(`${instruction}\n\n${text}`)
   }, [getSessionItems])
 
   const revertElementStyles = React.useCallback((element: HTMLElement, sessionEdit: SessionEdit) => {
@@ -921,20 +917,15 @@ export function useSessionManager({
         ? buildSessionExport([editForExport], [], { movePlanContext })
         : buildEditExport(locator, current.pendingStyles, sessionEdit?.textEdit)
       : buildElementContext(locator)
-    try {
-      const instruction = hasExportableEdit
-        ? buildExportInstruction({
-            hasCssEdits: hasPendingStyles,
-            hasTextEdits: hasTextEdit,
-            hasMoves: hasMove,
-            hasComments: false,
-          })
-        : 'Here is the element context for reference'
-      await navigator.clipboard.writeText(`${instruction}\n\n${exportMarkdown}`)
-      return true
-    } catch {
-      return false
-    }
+    const instruction = hasExportableEdit
+      ? buildExportInstruction({
+          hasCssEdits: hasPendingStyles,
+          hasTextEdits: hasTextEdit,
+          hasMoves: hasMove,
+          hasComments: false,
+        })
+      : 'Here is the element context for reference'
+    return copyText(`${instruction}\n\n${exportMarkdown}`)
   }, [])
 
   return {
