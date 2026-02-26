@@ -44,17 +44,32 @@ Output: {
   reactStack: ReactComponentFrame[],
   changes: { cssProperty, cssValue, tailwindClass }[],
   textChange: { originalText, newText } | null,
-  moveChange: {
-    fromParentName, toParentName,
-    mode, // 'free' | 'reorder'
-    fromParentDisplay, toParentDisplay,
-    fromParentLayout, toParentLayout,
-    draggedPosition, fromIndex, toIndex,
-    ...selectorAndSourceAnchors
+  moveIntent: {
+    operationId: 'op-1',
+    classification: 'existing_layout_move' | 'layout_refactor',
+    interactionMode: 'free' | 'reorder' | 'position',
+    subject: AnchorRef,
+    from: { parent: AnchorRef, placement: PlacementRef },
+    to: { parent: AnchorRef, placement: PlacementRef },
+    visualDelta?: { x, y },
+    layoutPrescription?: LayoutPrescription,
+    confidence: 'high' | 'medium' | 'low',
+    reasons: string[]
   } | null,
+  movePlan?: {
+    operations: MoveOperation[],
+    affectedContainers: AnchorRef[],
+    orderingConstraints: string[],
+    notes: string[]
+  },
   exportMarkdown: string
+  // Move exports use the canonical format:
+  //   - "=== LAYOUT MOVE PLAN ===" batch header
+  //   - per-edit moved block with id/type/anchors and implementation steps
 }
 ```
+
+TODO (MCP server): ensure any payload validators/DTOs in the server are updated to the non-versioned move schema (no `schemaVersion` fields) and new export wording.
 
 ### `export_all_annotations`
 

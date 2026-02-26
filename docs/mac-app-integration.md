@@ -109,7 +109,8 @@ Body:
     { "cssProperty": "background-color", "cssValue": "#3b82f6", "tailwindClass": "bg-blue-500" }
   ],
   "textChange": { "originalText": "Get started", "newText": "Start now" } | null,
-  "moveChange": { ... } | null,
+  "moveIntent": { ... } | null,
+  "movePlan": { ... } | undefined,
   "exportMarkdown": "## Hero\n\n**Changes:**\n- `padding-top: 24px` → `pt-6`\n..."
 }
 ```

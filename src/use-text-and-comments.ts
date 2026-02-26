@@ -8,6 +8,7 @@ import type {
 import {
   getElementLocator,
   buildCommentExport,
+  buildExportInstruction,
   isTextElement,
 } from './utils'
 
@@ -160,7 +161,8 @@ export function useTextAndComments({
 
     const exportMarkdown = buildCommentExport(comment.locator, comment.text, comment.replies)
     try {
-      await navigator.clipboard.writeText(`implement the visual edits\n\n${exportMarkdown}`)
+      const instruction = buildExportInstruction({ hasCssEdits: false, hasTextEdits: false, hasMoves: false, hasComments: true })
+      await navigator.clipboard.writeText(`${instruction}\n\n${exportMarkdown}`)
       return true
     } catch {
       return false

@@ -75,11 +75,22 @@ describe('useMove', () => {
     expect(dragged.style.opacity).toBe('0.5')
 
     act(() => {
+      dispatchPointer('pointermove', 60, 70)
+    })
+
+    // Element should visually follow the cursor via CSS transform
+    // dragOffset = { x: 30-10, y: 40-20 } = { x: 20, y: 20 }
+    // ghostPosition = { x: 60-20, y: 70-20 } = { x: 40, y: 50 }
+    // dx = 40 - 10 = 30, dy = 50 - 20 = 30
+    expect(dragged.style.transform).toBe('translate(30px, 30px)')
+
+    act(() => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
     })
 
     expect(result.current.dragState.isDragging).toBe(false)
     expect(dragged.style.opacity).toBe('')
+    expect(dragged.style.transform).toBe('')
     expect(onMoveComplete).not.toHaveBeenCalled()
   })
 
@@ -126,6 +137,10 @@ describe('useMove', () => {
       dispatchPointer('pointermove', 50, 60)
     })
 
+    // dragOffset = { x: 10, y: 10 }, ghostPosition = { x: 40, y: 50 }
+    // dx = 40 - 0 = 40, dy = 50 - 0 = 50
+    expect(dragged.style.transform).toBe('translate(40px, 50px)')
+
     expect(result.current.dropTarget?.container).toBe(newContainer)
     expect(result.current.dropTarget?.insertBefore).toBe(insertionPoint)
     expect(result.current.dropTarget?.flexDirection).toBe('column')
@@ -136,6 +151,7 @@ describe('useMove', () => {
     })
 
     expect(result.current.dragState.isDragging).toBe(false)
+    expect(dragged.style.transform).toBe('')
     expect(dragged.parentElement).toBe(newContainer)
     expect(newContainer.firstElementChild).toBe(dragged)
     expect(onMoveComplete).toHaveBeenCalledTimes(1)
@@ -145,6 +161,8 @@ describe('useMove', () => {
       originalNextSibling: originalSibling,
       mode: 'free',
     })
+    // visualDelta: ghostPosition { x: 40, y: 50 } - initialPos { x: 0, y: 0 }
+    expect(onMoveComplete.mock.calls[0][1].visualDelta).toEqual({ x: 40, y: 50 })
   })
 
   it('keeps handle-initiated drag target inside the original parent', () => {
@@ -216,9 +234,20 @@ describe('useMove', () => {
     parent.appendChild(dragged)
     document.body.appendChild(parent)
 
+    // Transform-aware mock: returns shifted position when style.transform is set,
+    // ensuring the test fails if transform isn't restored before getBoundingClientRect.
     dragged.getBoundingClientRect = () => ({
-      left: 50, top: 50, width: 100, height: 40,
+      left: dragged.style.transform ? 100 : 50,
+      top: dragged.style.transform ? 100 : 50,
+      width: 100, height: 40,
       right: 150, bottom: 90, x: 50, y: 50,
+      toJSON: () => ({}),
+    }) as DOMRect
+
+    // Parent rect encloses the pointer — no detach triggered
+    parent.getBoundingClientRect = () => ({
+      left: 0, top: 0, width: 300, height: 300,
+      right: 300, bottom: 300, x: 0, y: 0,
       toJSON: () => ({}),
     }) as DOMRect
 
@@ -232,6 +261,9 @@ describe('useMove', () => {
       dispatchPointer('pointermove', 120, 110)
     })
 
+    // dragOffset = { x: 20, y: 10 }, ghostPosition = { x: 100, y: 100 }
+    // dx = 100 - 50 = 50, dy = 100 - 50 = 50
+    expect(dragged.style.transform).toBe('translate(50px, 50px)')
     expect(findLayoutContainerAtPointMock).toHaveBeenCalled()
     expect(findContainerAtPointMock).not.toHaveBeenCalled()
     expect(result.current.dropTarget).toBeNull()
@@ -240,6 +272,7 @@ describe('useMove', () => {
       dispatchPointer('pointerup', 120, 110)
     })
 
+    expect(dragged.style.transform).toBe('')
     expect(dragged.parentElement).toBe(parent)
     expect(onMoveComplete).toHaveBeenCalledTimes(1)
     expect(onMoveComplete.mock.calls[0]?.[1]).toMatchObject({
@@ -268,6 +301,12 @@ describe('useMove', () => {
     dragged.getBoundingClientRect = () => ({
       left: 50, top: 50, width: 100, height: 40,
       right: 150, bottom: 90, x: 50, y: 50,
+      toJSON: () => ({}),
+    }) as DOMRect
+
+    originalParent.getBoundingClientRect = () => ({
+      left: 0, top: 0, width: 300, height: 300,
+      right: 300, bottom: 300, x: 0, y: 0,
       toJSON: () => ({}),
     }) as DOMRect
 
@@ -300,6 +339,273 @@ describe('useMove', () => {
       originalParent,
       originalNextSibling: originalSibling,
       mode: 'free',
+      resetPositionOffsets: true,
+    })
+    // visualDelta: ghostPosition { x: 180, y: 190 } - initialPos { x: 50, y: 50 }
+    expect(onMoveComplete.mock.calls[0]?.[1].visualDelta).toEqual({ x: 130, y: 140 })
+  })
+
+  it('position mode detaches element when dragged outside parent bounds', () => {
+    const onMoveComplete = vi.fn()
+    const { result } = renderHook(() => useMove({ onMoveComplete }))
+
+    const grandparent = document.createElement('div')
+    const parent = document.createElement('div')
+    const dragged = document.createElement('div')
+    parent.appendChild(dragged)
+    grandparent.appendChild(parent)
+    document.body.appendChild(grandparent)
+
+    dragged.getBoundingClientRect = () => ({
+      left: 50, top: 50, width: 100, height: 40,
+      right: 150, bottom: 90, x: 50, y: 50,
+      toJSON: () => ({}),
+    }) as DOMRect
+
+    parent.getBoundingClientRect = () => ({
+      left: 40, top: 40, width: 120, height: 60,
+      right: 160, bottom: 100, x: 40, y: 40,
+      toJSON: () => ({}),
+    }) as DOMRect
+
+    findLayoutContainerAtPointMock.mockReturnValue(null)
+    findContainerAtPointMock.mockReturnValue(grandparent)
+    calculateDropPositionMock.mockReturnValue({
+      insertBefore: null,
+      indicator: { x: 0, y: 0, width: 200, height: 2 },
+    })
+
+    act(() => {
+      result.current.startDrag(pointerEvent(70, 60), dragged, { mode: 'position' })
+    })
+
+    // Move pointer outside parent bounds (200, 200 is outside parent rect 40,40 → 160,100)
+    act(() => {
+      dispatchPointer('pointermove', 200, 200)
+    })
+
+    expect(result.current.dropTarget?.container).toBe(grandparent)
+    expect(result.current.dropIndicator).toEqual({ x: 0, y: 0, width: 200, height: 2 })
+
+    act(() => {
+      dispatchPointer('pointerup', 200, 200)
+    })
+
+    expect(dragged.parentElement).toBe(grandparent)
+    expect(onMoveComplete).toHaveBeenCalledTimes(1)
+    expect(onMoveComplete.mock.calls[0]?.[1]).toMatchObject({
+      originalParent: parent,
+      mode: 'free',
+      resetPositionOffsets: true,
+    })
+  })
+
+  it('position mode stays in parent when pointer is inside parent bounds', () => {
+    const onMoveComplete = vi.fn()
+    const { result } = renderHook(() => useMove({ onMoveComplete }))
+
+    const grandparent = document.createElement('div')
+    const parent = document.createElement('div')
+    const dragged = document.createElement('div')
+    parent.appendChild(dragged)
+    grandparent.appendChild(parent)
+    document.body.appendChild(grandparent)
+
+    dragged.getBoundingClientRect = () => ({
+      left: dragged.style.transform ? 80 : 50,
+      top: dragged.style.transform ? 70 : 50,
+      width: 100, height: 40,
+      right: 150, bottom: 90, x: 50, y: 50,
+      toJSON: () => ({}),
+    }) as DOMRect
+
+    parent.getBoundingClientRect = () => ({
+      left: 0, top: 0, width: 300, height: 300,
+      right: 300, bottom: 300, x: 0, y: 0,
+      toJSON: () => ({}),
+    }) as DOMRect
+
+    findLayoutContainerAtPointMock.mockReturnValue(null)
+
+    act(() => {
+      result.current.startDrag(pointerEvent(70, 60), dragged, { mode: 'position' })
+    })
+
+    // Move pointer to (100, 90) — still inside parent bounds (0,0 → 300,300)
+    act(() => {
+      dispatchPointer('pointermove', 100, 90)
+    })
+
+    // No drop target since pointer is inside parent
+    expect(result.current.dropTarget).toBeNull()
+    expect(findContainerAtPointMock).not.toHaveBeenCalled()
+
+    act(() => {
+      dispatchPointer('pointerup', 100, 90)
+    })
+
+    // Element stays in parent, falls back to CSS position delta
+    expect(dragged.parentElement).toBe(parent)
+    expect(onMoveComplete).toHaveBeenCalledTimes(1)
+    expect(onMoveComplete.mock.calls[0]?.[1]).toMatchObject({
+      mode: 'position',
+      positionDelta: expect.any(Object),
+    })
+  })
+
+  it('preserves original transform on cancel', () => {
+    const onMoveComplete = vi.fn()
+    const parent = document.createElement('div')
+    const dragged = document.createElement('div')
+    parent.appendChild(dragged)
+    document.body.appendChild(parent)
+
+    dragged.style.transform = 'rotate(45deg)'
+    dragged.getBoundingClientRect = () => ({
+      left: 10, top: 20, width: 100, height: 40,
+      right: 110, bottom: 60, x: 10, y: 20,
+      toJSON: () => ({}),
+    }) as DOMRect
+
+    const { result } = renderHook(() => useMove({ onMoveComplete }))
+
+    act(() => {
+      result.current.startDrag(pointerEvent(30, 40), dragged)
+    })
+
+    act(() => {
+      dispatchPointer('pointermove', 60, 70)
+    })
+
+    expect(dragged.style.transform).toContain('translate')
+
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    })
+
+    expect(dragged.style.transform).toBe('rotate(45deg)')
+  })
+
+  it('preserves original transform on drop', () => {
+    const onMoveComplete = vi.fn()
+    const originalParent = document.createElement('div')
+    const dragged = document.createElement('div')
+    originalParent.appendChild(dragged)
+
+    const newContainer = document.createElement('div')
+    const insertionPoint = document.createElement('span')
+    newContainer.appendChild(insertionPoint)
+
+    document.body.appendChild(originalParent)
+    document.body.appendChild(newContainer)
+
+    dragged.style.transform = 'scale(1.2)'
+    dragged.getBoundingClientRect = () => ({
+      left: 0, top: 0, width: 80, height: 20,
+      right: 80, bottom: 20, x: 0, y: 0,
+      toJSON: () => ({}),
+    }) as DOMRect
+
+    findContainerAtPointMock.mockReturnValue(newContainer)
+    calculateDropPositionMock.mockReturnValue({
+      insertBefore: insertionPoint,
+      indicator: { x: 0, y: 0, width: 100, height: 2 },
+    })
+
+    const { result } = renderHook(() => useMove({ onMoveComplete }))
+
+    act(() => {
+      result.current.startDrag(pointerEvent(10, 10), dragged)
+    })
+
+    act(() => {
+      dispatchPointer('pointermove', 50, 60)
+    })
+
+    expect(dragged.style.transform).toContain('translate')
+
+    act(() => {
+      dispatchPointer('pointerup', 50, 60)
+    })
+
+    expect(dragged.style.transform).toBe('scale(1.2)')
+  })
+
+  it('scales translate delta by parent CSS scale (canvas mode)', () => {
+    const onMoveComplete = vi.fn()
+    const parent = document.createElement('div')
+    const dragged = document.createElement('div')
+    parent.appendChild(dragged)
+    document.body.appendChild(parent)
+
+    // rect.width = 100, offsetWidth = 50 → scaleX = 2
+    // rect.height = 40, offsetHeight = 20 → scaleY = 2
+    dragged.getBoundingClientRect = () => ({
+      left: 0, top: 0, width: 100, height: 40,
+      right: 100, bottom: 40, x: 0, y: 0,
+      toJSON: () => ({}),
+    }) as DOMRect
+    Object.defineProperty(dragged, 'offsetWidth', { value: 50, configurable: true })
+    Object.defineProperty(dragged, 'offsetHeight', { value: 20, configurable: true })
+
+    const { result } = renderHook(() => useMove({ onMoveComplete }))
+
+    act(() => {
+      result.current.startDrag(pointerEvent(0, 0), dragged)
+    })
+
+    act(() => {
+      dispatchPointer('pointermove', 100, 40)
+    })
+
+    // scaleX = 100/50 = 2, scaleY = 40/20 = 2
+    // dx = (100 - 0 - 0) / 2 = 50, dy = (40 - 0 - 0) / 2 = 20
+    expect(dragged.style.transform).toBe('translate(50px, 20px)')
+  })
+
+  it('position mode scales delta by canvas zoom', () => {
+    const onMoveComplete = vi.fn()
+    const { result } = renderHook(() => useMove({ onMoveComplete }))
+
+    const parent = document.createElement('div')
+    const dragged = document.createElement('div')
+    parent.appendChild(dragged)
+    document.body.appendChild(parent)
+
+    // rect.width = 100, offsetWidth = 50 → scaleX = 2
+    // rect.height = 40, offsetHeight = 20 → scaleY = 2
+    dragged.getBoundingClientRect = () => ({
+      left: dragged.style.transform ? 100 : 0,
+      top: dragged.style.transform ? 40 : 0,
+      width: 100, height: 40,
+      right: 100, bottom: 40, x: 0, y: 0,
+      toJSON: () => ({}),
+    }) as DOMRect
+    Object.defineProperty(dragged, 'offsetWidth', { value: 50, configurable: true })
+    Object.defineProperty(dragged, 'offsetHeight', { value: 20, configurable: true })
+
+    findLayoutContainerAtPointMock.mockReturnValue(null)
+
+    act(() => {
+      result.current.startDrag(pointerEvent(0, 0), dragged, { mode: 'position' })
+    })
+
+    act(() => {
+      dispatchPointer('pointermove', 100, 40)
+    })
+
+    // ghostPosition = { x: 100, y: 40 }
+    act(() => {
+      dispatchPointer('pointerup', 100, 40)
+    })
+
+    // After transform is restored, rect returns { left: 0, top: 0 }
+    // viewport delta = { x: 100, y: 40 }
+    // CSS delta = { x: 50, y: 20 }  ← divided by scaleX=2, scaleY=2
+    expect(onMoveComplete).toHaveBeenCalledTimes(1)
+    expect(onMoveComplete.mock.calls[0]?.[1]).toMatchObject({
+      mode: 'position',
+      positionDelta: { x: 50, y: 20 },
     })
   })
 
@@ -318,6 +624,12 @@ describe('useMove', () => {
     dragged.getBoundingClientRect = () => ({
       left: 50, top: 50, width: 100, height: 40,
       right: 150, bottom: 90, x: 50, y: 50,
+      toJSON: () => ({}),
+    }) as DOMRect
+
+    parent.getBoundingClientRect = () => ({
+      left: 0, top: 0, width: 500, height: 500,
+      right: 500, bottom: 500, x: 0, y: 0,
       toJSON: () => ({}),
     }) as DOMRect
 
@@ -352,6 +664,110 @@ describe('useMove', () => {
       dispatchPointer('pointerup', 300, 300)
     })
 
+    expect(dragged.parentElement).toBe(parent)
+    expect(onMoveComplete).toHaveBeenCalledTimes(1)
+    expect(onMoveComplete.mock.calls[0]?.[1]).toMatchObject({
+      mode: 'position',
+      positionDelta: expect.any(Object),
+    })
+  })
+
+  it('position mode skips detach when parent has zero dimensions', () => {
+    const onMoveComplete = vi.fn()
+    const { result } = renderHook(() => useMove({ onMoveComplete }))
+
+    const parent = document.createElement('div')
+    const dragged = document.createElement('div')
+    parent.appendChild(dragged)
+    document.body.appendChild(parent)
+
+    dragged.getBoundingClientRect = () => ({
+      left: dragged.style.transform ? 200 : 50,
+      top: dragged.style.transform ? 200 : 50,
+      width: 100, height: 40,
+      right: 150, bottom: 90, x: 50, y: 50,
+      toJSON: () => ({}),
+    }) as DOMRect
+
+    // Collapsed/hidden parent — all zeros
+    parent.getBoundingClientRect = () => ({
+      left: 0, top: 0, width: 0, height: 0,
+      right: 0, bottom: 0, x: 0, y: 0,
+      toJSON: () => ({}),
+    }) as DOMRect
+
+    findLayoutContainerAtPointMock.mockReturnValue(null)
+
+    act(() => {
+      result.current.startDrag(pointerEvent(70, 60), dragged, { mode: 'position' })
+    })
+
+    // Pointer at (200, 200) — would be "outside" but hasSize guard prevents detach
+    act(() => {
+      dispatchPointer('pointermove', 200, 200)
+    })
+
+    expect(findContainerAtPointMock).not.toHaveBeenCalled()
+    expect(result.current.dropTarget).toBeNull()
+
+    act(() => {
+      dispatchPointer('pointerup', 200, 200)
+    })
+
+    // Falls back to CSS delta
+    expect(dragged.parentElement).toBe(parent)
+    expect(onMoveComplete).toHaveBeenCalledTimes(1)
+    expect(onMoveComplete.mock.calls[0]?.[1]).toMatchObject({
+      mode: 'position',
+      positionDelta: expect.any(Object),
+    })
+  })
+
+  it('position mode does not detach when findContainerAtPoint returns original parent', () => {
+    const onMoveComplete = vi.fn()
+    const { result } = renderHook(() => useMove({ onMoveComplete }))
+
+    const parent = document.createElement('div')
+    const dragged = document.createElement('div')
+    parent.appendChild(dragged)
+    document.body.appendChild(parent)
+
+    dragged.getBoundingClientRect = () => ({
+      left: dragged.style.transform ? 200 : 50,
+      top: dragged.style.transform ? 200 : 50,
+      width: 100, height: 40,
+      right: 150, bottom: 90, x: 50, y: 50,
+      toJSON: () => ({}),
+    }) as DOMRect
+
+    // Small parent so pointer will be outside
+    parent.getBoundingClientRect = () => ({
+      left: 40, top: 40, width: 120, height: 60,
+      right: 160, bottom: 100, x: 40, y: 40,
+      toJSON: () => ({}),
+    }) as DOMRect
+
+    findLayoutContainerAtPointMock.mockReturnValue(null)
+    // findContainerAtPoint returns the same originalParent — no detach
+    findContainerAtPointMock.mockReturnValue(parent)
+
+    act(() => {
+      result.current.startDrag(pointerEvent(70, 60), dragged, { mode: 'position' })
+    })
+
+    // Pointer outside parent bounds
+    act(() => {
+      dispatchPointer('pointermove', 200, 200)
+    })
+
+    // container should NOT be set because found === originalParent
+    expect(result.current.dropTarget).toBeNull()
+
+    act(() => {
+      dispatchPointer('pointerup', 200, 200)
+    })
+
+    // Falls back to CSS delta
     expect(dragged.parentElement).toBe(parent)
     expect(onMoveComplete).toHaveBeenCalledTimes(1)
     expect(onMoveComplete.mock.calls[0]?.[1]).toMatchObject({

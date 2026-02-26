@@ -59,9 +59,18 @@ export function SelectionOverlay({
   }>>([])
   const cleanupRef = React.useRef<(() => void) | null>(null)
   const clickThroughTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+  const isDraggingRef = React.useRef(isDragging)
+  isDraggingRef.current = isDragging
+
+  React.useLayoutEffect(() => {
+    if (!isDragging) {
+      setRect(rectElement.getBoundingClientRect())
+    }
+  }, [isDragging, rectElement])
 
   React.useEffect(() => {
     function updateRect() {
+      if (isDraggingRef.current) return
       setRect(rectElement.getBoundingClientRect())
     }
 

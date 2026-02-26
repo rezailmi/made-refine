@@ -15,6 +15,9 @@ export interface MoveInfo {
   originalNextSibling: HTMLElement | null
   mode?: MoveMode
   positionDelta?: { x: number; y: number }
+  visualDelta?: { x: number; y: number }
+  /** When true, the element was reparented — clear any position/left/top inline styles from prior position-mode moves. */
+  resetPositionOffsets?: boolean
 }
 
 export interface UseMoveOptions {
@@ -67,6 +70,37 @@ function normalizeStartDragOptions(options?: StartDragOptions): ActiveDragOption
   }
 }
 
+function resolveFlexDirection(
+  container: HTMLElement,
+  draggedElement: HTMLElement,
+): UseMoveDropTarget['flexDirection'] {
+  const { axis, reversed } = detectChildrenDirection(container, draggedElement)
+  if (axis === 'horizontal') return reversed ? 'row-reverse' : 'row'
+  return reversed ? 'column-reverse' : 'column'
+}
+
+function tryReparent(
+  draggedElement: HTMLElement,
+  target: UseMoveDropTarget,
+  originalParent: HTMLElement | null,
+  originalNextSibling: HTMLElement | null,
+): boolean {
+  const isSamePosition = target.container === originalParent
+    && target.insertBefore === originalNextSibling
+  const isInvalidTarget = target.container === draggedElement
+    || draggedElement.contains(target.container)
+    || (target.insertBefore ? draggedElement.contains(target.insertBefore) : false)
+  if (isSamePosition || isInvalidTarget) return false
+  try {
+    if (target.insertBefore) {
+      target.container.insertBefore(draggedElement, target.insertBefore)
+    } else {
+      target.container.appendChild(draggedElement)
+    }
+    return true
+  } catch { return false }
+}
+
 export function useMove({ onMoveComplete }: UseMoveOptions): UseMoveResult {
   const [dragState, setDragState] = React.useState<DragState>(INITIAL_DRAG_STATE)
   const [dropTarget, setDropTarget] = React.useState<UseMoveDropTarget | null>(null)
@@ -76,6 +110,10 @@ export function useMove({ onMoveComplete }: UseMoveOptions): UseMoveResult {
   const dropTargetRef = React.useRef(dropTarget)
   const onMoveCompleteRef = React.useRef(onMoveComplete)
   const dragOptionsRef = React.useRef<ActiveDragOptions>(DEFAULT_DRAG_OPTIONS)
+  const initialRectRef = React.useRef<{ x: number; y: number; scaleX: number; scaleY: number }>(
+    { x: 0, y: 0, scaleX: 1, scaleY: 1 }
+  )
+  const originalTransformRef = React.useRef('')
 
   React.useEffect(() => {
     dragStateRef.current = dragState
@@ -87,7 +125,10 @@ export function useMove({ onMoveComplete }: UseMoveOptions): UseMoveResult {
     const current = dragStateRef.current
     if (current.draggedElement) {
       current.draggedElement.style.opacity = ''
+      current.draggedElement.style.transform = originalTransformRef.current
     }
+    originalTransformRef.current = ''
+    initialRectRef.current = { x: 0, y: 0, scaleX: 1, scaleY: 1 }
     dragOptionsRef.current = DEFAULT_DRAG_OPTIONS
     setDragState(INITIAL_DRAG_STATE)
     setDropTarget(null)
@@ -104,63 +145,40 @@ export function useMove({ onMoveComplete }: UseMoveOptions): UseMoveResult {
       return
     }
 
+    const initialPos = { x: initialRectRef.current.x, y: initialRectRef.current.y }
+    const { scaleX, scaleY } = initialRectRef.current
+    draggedElement.style.transform = originalTransformRef.current
     draggedElement.style.opacity = ''
+    originalTransformRef.current = ''
+    initialRectRef.current = { x: 0, y: 0, scaleX: 1, scaleY: 1 }
     const dragMode = dragOptionsRef.current.mode
     dragOptionsRef.current = DEFAULT_DRAG_OPTIONS
+
+    const vd = {
+      x: Math.round(current.ghostPosition.x - initialPos.x),
+      y: Math.round(current.ghostPosition.y - initialPos.y),
+    }
+    const hasVisualDelta = vd.x !== 0 || vd.y !== 0
 
     let moveInfo: MoveInfo | null = null
 
     if (dragMode === 'position') {
-      if (target) {
-        const isSamePosition = target.container === originalParent
-          && target.insertBefore === originalNextSibling
-        const isInvalidTarget = target.container === draggedElement
-          || draggedElement.contains(target.container)
-          || (target.insertBefore ? draggedElement.contains(target.insertBefore) : false)
-
-        if (!isSamePosition && !isInvalidTarget) {
-          try {
-            if (target.insertBefore) {
-              target.container.insertBefore(draggedElement, target.insertBefore)
-            } else {
-              target.container.appendChild(draggedElement)
-            }
-            if (originalParent) {
-              moveInfo = { originalParent, originalPreviousSibling, originalNextSibling, mode: 'free' }
-            }
-          } catch { /* ignore invalid DOM moves */ }
+      if (target && tryReparent(draggedElement, target, originalParent, originalNextSibling)) {
+        if (originalParent) {
+          moveInfo = { originalParent, originalPreviousSibling, originalNextSibling, mode: 'free', resetPositionOffsets: true, visualDelta: hasVisualDelta ? vd : undefined }
         }
       }
       if (!moveInfo) {
         const rect = draggedElement.getBoundingClientRect()
-        const deltaX = current.ghostPosition.x - rect.left
-        const deltaY = current.ghostPosition.y - rect.top
+        const deltaX = (current.ghostPosition.x - rect.left) / scaleX
+        const deltaY = (current.ghostPosition.y - rect.top) / scaleY
         if ((Math.abs(deltaX) > 0.5 || Math.abs(deltaY) > 0.5) && originalParent) {
           moveInfo = { originalParent, originalPreviousSibling, originalNextSibling, mode: 'position', positionDelta: { x: deltaX, y: deltaY } }
         }
       }
-    } else if (target) {
-      const isSamePosition =
-        target.container === originalParent &&
-        target.insertBefore === originalNextSibling
-      const isInvalidTarget =
-        target.container === draggedElement ||
-        draggedElement.contains(target.container) ||
-        (target.insertBefore ? draggedElement.contains(target.insertBefore) : false)
-
-      if (!isSamePosition && !isInvalidTarget) {
-        try {
-          if (target.insertBefore) {
-            target.container.insertBefore(draggedElement, target.insertBefore)
-          } else {
-            target.container.appendChild(draggedElement)
-          }
-          if (originalParent) {
-            moveInfo = { originalParent, originalPreviousSibling, originalNextSibling, mode: dragMode }
-          }
-        } catch {
-          // Ignore invalid DOM moves and leave the element in place.
-        }
+    } else if (target && tryReparent(draggedElement, target, originalParent, originalNextSibling)) {
+      if (originalParent) {
+        moveInfo = { originalParent, originalPreviousSibling, originalNextSibling, mode: dragMode, visualDelta: hasVisualDelta ? vd : undefined }
       }
     }
 
@@ -178,6 +196,13 @@ export function useMove({ onMoveComplete }: UseMoveOptions): UseMoveResult {
       const previousSibling = element.previousElementSibling as HTMLElement | null
       const nextSibling = element.nextElementSibling as HTMLElement | null
       dragOptionsRef.current = normalizeStartDragOptions(options)
+      initialRectRef.current = {
+        x: rect.left,
+        y: rect.top,
+        scaleX: element.offsetWidth > 0 ? rect.width / element.offsetWidth : 1,
+        scaleY: element.offsetHeight > 0 ? rect.height / element.offsetHeight : 1,
+      }
+      originalTransformRef.current = element.style.transform
 
       setDragState({
         isDragging: true,
@@ -209,21 +234,39 @@ export function useMove({ onMoveComplete }: UseMoveOptions): UseMoveResult {
         },
       }))
 
+      if (draggedElement) {
+        const { x, y, scaleX, scaleY } = initialRectRef.current
+        const dx = (e.clientX - dragOffset.x - x) / scaleX
+        const dy = (e.clientY - dragOffset.y - y) / scaleY
+        draggedElement.style.transform = `translate(${dx}px, ${dy}px)`
+      }
+
       if (dragOptionsRef.current.mode === 'position') {
-        const layoutContainer = findLayoutContainerAtPoint(
+        let container = findLayoutContainerAtPoint(
           e.clientX, e.clientY, draggedElement, originalParent,
         )
-        if (layoutContainer && draggedElement) {
-          const dropPos = calculateDropPosition(layoutContainer, e.clientX, e.clientY, draggedElement)
+
+        // If no layout container and pointer is outside original parent, look for any container to detach into
+        if (!container && draggedElement && originalParent) {
+          const parentRect = originalParent.getBoundingClientRect()
+          const hasSize = parentRect.width > 0 || parentRect.height > 0
+          const isOutside = hasSize && (
+            e.clientX < parentRect.left || e.clientX > parentRect.right
+            || e.clientY < parentRect.top || e.clientY > parentRect.bottom
+          )
+          if (isOutside) {
+            const found = findContainerAtPoint(e.clientX, e.clientY, draggedElement, null)
+            if (found && found !== originalParent) container = found
+          }
+        }
+
+        if (container && draggedElement) {
+          const dropPos = calculateDropPosition(container, e.clientX, e.clientY, draggedElement)
           if (dropPos) {
             setDropTarget({
-              container: layoutContainer,
+              container,
               insertBefore: dropPos.insertBefore,
-              flexDirection: (() => {
-                const { axis, reversed } = detectChildrenDirection(layoutContainer, draggedElement)
-                if (axis === 'horizontal') return reversed ? 'row-reverse' : 'row'
-                return reversed ? 'column-reverse' : 'column'
-              })(),
+              flexDirection: resolveFlexDirection(container, draggedElement),
             })
             setDropIndicator(dropPos.indicator)
           }
@@ -255,11 +298,7 @@ export function useMove({ onMoveComplete }: UseMoveOptions): UseMoveResult {
           setDropTarget({
             container,
             insertBefore: dropPos.insertBefore,
-            flexDirection: (() => {
-              const { axis, reversed } = detectChildrenDirection(container, draggedElement)
-              if (axis === 'horizontal') return reversed ? 'row-reverse' : 'row'
-              return reversed ? 'column-reverse' : 'column'
-            })(),
+            flexDirection: resolveFlexDirection(container, draggedElement),
           })
           setDropIndicator(dropPos.indicator)
         }

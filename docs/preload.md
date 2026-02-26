@@ -29,7 +29,7 @@ The preload script must therefore run as early as possible — before any `impor
    // → Fiber | null
    ```
 
-   `element-locator.ts` calls this whenever the user selects an element to build the React component stack included in every annotation.
+   `utils.ts` calls this whenever the user selects an element to build the React component stack included in every annotation.
 
 ## What the fiber data provides
 

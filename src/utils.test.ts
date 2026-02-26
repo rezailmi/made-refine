@@ -17,7 +17,10 @@ import {
   buildEditExport,
   buildCommentExport,
   buildSessionExport,
+  getExportContentProfile,
+  buildExportInstruction,
   getElementLocator,
+  computeIntendedIndex,
 } from './utils'
 import type { ElementLocator, SessionEdit } from './types'
 
@@ -591,7 +594,6 @@ describe('export context quality', () => {
         toSiblingBeforeSource: { file: 'src/App.tsx', line: 47, column: 9 },
         toSiblingAfterSource: null,
         mode: 'reorder',
-        draggedPosition: 'relative',
         fromParentDisplay: 'block',
         fromParentLayout: 'block',
         fromIndex: 0,
@@ -603,30 +605,21 @@ describe('export context quality', () => {
 
     const output = buildSessionExport([edit], [])
     expect(output).toContain('moved:')
-    expect(output).toContain('summary: in <div>, from before <div> (first) to after <div> (last)')
-    expect(output).toContain('mode: reorder')
-    expect(output).toContain('dragged_position: relative')
-    expect(output).toContain('from_parent_display: block')
-    expect(output).toContain('from_parent_layout: block')
-    expect(output).toContain('from_index: 0')
-    expect(output).toContain('to_parent_display: flex')
-    expect(output).toContain('to_parent_layout: flex')
-    expect(output).toContain('to_index: 2')
-    expect(output).toContain('from_parent_selector: main > div:nth-of-type(1)')
-    expect(output).toContain('from_before_selector: (none)')
-    expect(output).toContain('from_after_selector: main > div:nth-of-type(1) > div:nth-of-type(1)')
-    expect(output).toContain('to_parent_selector: main > div:nth-of-type(1)')
-    expect(output).toContain('to_before_selector: main > div:nth-of-type(1) > div:nth-of-type(3)')
-    expect(output).toContain('to_after_selector: (none)')
-    expect(output).toContain('from_parent_source: src/App.tsx:40:3')
-    expect(output).toContain('from_before_source: (none)')
-    expect(output).toContain('from_after_source: src/App.tsx:42:9')
-    expect(output).toContain('to_parent_source: src/App.tsx:40:3')
-    expect(output).toContain('to_before_source: src/App.tsx:47:9')
-    expect(output).toContain('to_after_source: (none)')
+    expect(output).toContain('=== LAYOUT MOVE PLAN ===')
+    expect(output).toContain('id:')
+    expect(output).toContain('type: structural_move')
+    expect(output).toContain('parent: main > div:nth-of-type(1)')
+    expect(output).toContain('current_anchor:')
+    expect(output).toContain('target_anchor:')
+    expect(output).toContain('implementation_steps:')
+    expect(output).toContain('guardrails:')
+    expect(output).toContain('instruction:')
+    expect(output).not.toContain('from_parent_display:')
+    expect(output).not.toContain('to_parent_display:')
+    expect(output).not.toContain('layout_intent:')
   })
 
-  it('exports position move with applied left/top', () => {
+  it('exports position move with structural metadata and applied left/top', () => {
     const edit: SessionEdit = {
       element: document.createElement('div'),
       locator: {
@@ -634,6 +627,7 @@ describe('export context quality', () => {
         id: 'card',
         classList: [],
         domSelector: '#card',
+        domContextHtml: '<section><div id="card" data-direct-edit-target="true"></div></section>',
         targetHtml: '<div id="card">',
         textPreview: '',
         reactStack: [],
@@ -647,23 +641,74 @@ describe('export context quality', () => {
         positionDelta: { x: 50, y: 30 },
         appliedLeft: '60px',
         appliedTop: '30px',
-        fromParentName: 'div',
-        toParentName: 'div',
+        fromParentName: 'section',
+        toParentName: 'section',
         fromSiblingBefore: null,
-        fromSiblingAfter: null,
-        toSiblingBefore: null,
+        fromSiblingAfter: 'div (second)',
+        toSiblingBefore: 'div (second)',
         toSiblingAfter: null,
+        fromParentSelector: 'main > section',
+        fromSiblingBeforeSelector: null,
+        fromSiblingAfterSelector: 'main > section > div:nth-of-type(2)',
+        toParentSelector: 'main > section',
+        toSiblingBeforeSelector: 'main > section > div:nth-of-type(2)',
+        toSiblingAfterSelector: null,
+        fromParentSource: { file: 'src/App.tsx', line: 20, column: 3 },
+        fromSiblingBeforeSource: null,
+        fromSiblingAfterSource: { file: 'src/App.tsx', line: 22, column: 5 },
+        toParentSource: { file: 'src/App.tsx', line: 20, column: 3 },
+        toSiblingBeforeSource: { file: 'src/App.tsx', line: 22, column: 5 },
+        toSiblingAfterSource: null,
+        fromParentDisplay: 'block',
+        fromParentLayout: 'block',
+        toParentDisplay: 'block',
+        toParentLayout: 'block',
+        fromIndex: 0,
+        toIndex: 1,
       },
     }
 
     const output = buildSessionExport([edit], [])
     expect(output).toContain('moved:')
-    expect(output).toContain('mode: position')
-    expect(output).toContain('left: 60px')
-    expect(output).toContain('top: 30px')
-    expect(output).not.toContain('summary:')
-    expect(output).not.toContain('from_parent_selector')
+    expect(output).toContain('id:')
+    expect(output).toContain('type: layout_refactor')
+    expect(output).toContain('parent: main > section')
+    expect(output).toContain('visual_hint: 50px horizontal, 30px vertical')
+    expect(output).toContain('recommended_layout:')
+    expect(output).toContain('implementation_steps:')
+    expect(output).not.toContain('applied_left')
+    expect(output).not.toContain('applied_top')
     expect(output).toContain('background-color')
+  })
+
+  it('treats no-op move metadata as no move in export instructions', () => {
+    const edit: SessionEdit = {
+      element: document.createElement('div'),
+      locator: makeLocator(),
+      originalStyles: {},
+      pendingStyles: { color: 'red' },
+      textEdit: null,
+      move: {
+        fromParentName: 'div',
+        toParentName: 'div',
+        fromSiblingBefore: 'h1',
+        fromSiblingAfter: 'p',
+        toSiblingBefore: 'h1',
+        toSiblingAfter: 'p',
+        fromParentSelector: '#root > div',
+        toParentSelector: '#root > div',
+        mode: 'reorder',
+        fromIndex: 1,
+        toIndex: 1,
+        visualDelta: { x: 0, y: 0 },
+      },
+    }
+
+    const profile = getExportContentProfile([edit], [], null)
+    expect(profile.hasMoves).toBe(false)
+    const instruction = buildExportInstruction(profile)
+    expect(instruction).toContain('Apply the CSS changes')
+    expect(instruction).not.toContain('Implement the move plan below')
   })
 
   it('anchors deep selectors to a stable root', () => {
@@ -1030,5 +1075,84 @@ react-stack-bottom-frame@http://localhost:3000/_next/static/chunks/main.js:2:2`,
       window.__DIRECT_EDIT_DEVTOOLS__ = previousDevtools
       target.remove()
     }
+  })
+})
+
+describe('computeIntendedIndex', () => {
+  function makeChild(top: number, height: number): HTMLElement {
+    const el = document.createElement('div')
+    el.style.display = 'block'
+    el.style.position = 'static'
+    el.getBoundingClientRect = () => ({
+      top, left: 0, width: 100, height, bottom: top + height, right: 100,
+      x: 0, y: top, toJSON() {},
+    })
+    return el
+  }
+
+  it('returns index past siblings when dragged below them', () => {
+    const parent = document.createElement('div')
+    const child1 = makeChild(0, 50)
+    const child2 = makeChild(50, 50)
+    const dragged = makeChild(120, 50) // center at 145, past both siblings
+    parent.appendChild(child1)
+    parent.appendChild(dragged)
+    parent.appendChild(child2)
+
+    // Mock getComputedStyle for children
+    const origGetComputedStyle = window.getComputedStyle
+    vi.spyOn(window, 'getComputedStyle').mockImplementation((el) => {
+      const style = origGetComputedStyle(el)
+      return style
+    })
+
+    const result = computeIntendedIndex(parent, dragged)
+    expect(result.index).toBe(2)
+    expect(result.siblingBefore).toBe(child2)
+    expect(result.siblingAfter).toBe(null)
+
+    vi.restoreAllMocks()
+  })
+
+  it('returns original index when element does not cross any midpoint', () => {
+    const parent = document.createElement('div')
+    const child1 = makeChild(0, 50)
+    const dragged = makeChild(55, 50) // center at 80, between child1(25) and child2(125)
+    const child2 = makeChild(100, 50)
+    parent.appendChild(child1)
+    parent.appendChild(dragged)
+    parent.appendChild(child2)
+
+    const result = computeIntendedIndex(parent, dragged)
+    expect(result.index).toBe(1)
+    expect(result.siblingBefore).toBe(child1)
+    expect(result.siblingAfter).toBe(child2)
+  })
+
+  it('returns index 0 with no siblings', () => {
+    const parent = document.createElement('div')
+    const dragged = makeChild(0, 50)
+    parent.appendChild(dragged)
+
+    const result = computeIntendedIndex(parent, dragged)
+    expect(result.index).toBe(0)
+    expect(result.siblingBefore).toBe(null)
+    expect(result.siblingAfter).toBe(null)
+  })
+
+  it('skips position: absolute children', () => {
+    const parent = document.createElement('div')
+    const absChild = makeChild(0, 50)
+    absChild.style.position = 'absolute'
+    const normalChild = makeChild(50, 50)
+    const dragged = makeChild(120, 50) // past normalChild
+    parent.appendChild(absChild)
+    parent.appendChild(normalChild)
+    parent.appendChild(dragged)
+
+    const result = computeIntendedIndex(parent, dragged)
+    expect(result.index).toBe(1)
+    expect(result.siblingBefore).toBe(normalChild)
+    expect(result.siblingAfter).toBe(null)
   })
 })

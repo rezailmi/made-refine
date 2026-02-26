@@ -3,9 +3,15 @@ import { Button as BaseButton } from '@base-ui/react/button'
 import { usePortalContainer } from '../portal-container'
 import { Popover } from '@base-ui/react/popover'
 import { X, Check, Copy, Send, Trash2 } from 'lucide-react'
-import type { SessionItem } from '../types'
+import type { SessionItem, SessionEdit, MoveIntent } from '../types'
 import { Badge } from '../ui/badge'
-import { buildSessionExport } from '../utils'
+import {
+  buildSessionExport,
+  buildExportInstruction,
+  getExportContentProfile,
+  buildMovePlanContext,
+  getMoveIntentForEdit,
+} from '../utils'
 import { cn } from '../cn'
 import {
   Tooltip,
@@ -21,6 +27,12 @@ function EditsPopoverPortal(props: React.ComponentPropsWithoutRef<typeof Popover
 function truncateText(value: string, max = 64): string {
   if (value.length <= max) return value
   return `${value.slice(0, max)}...`
+}
+
+function summarizeMoveForPreview(intent: MoveIntent): string {
+  const system = intent.layoutPrescription?.recommendedSystem
+  const systemPart = system ? `, ${system}` : ''
+  return `${intent.operationId}: ${intent.classification}${systemPart}`
 }
 
 export interface EditsPopoverProps {
@@ -53,6 +65,21 @@ export function EditsPopover({
   const editsPopupRef = React.useRef<HTMLDivElement>(null)
   const editsTriggerRef = React.useRef<HTMLButtonElement>(null)
   const [editsSnapshot, setEditsSnapshot] = React.useState<SessionItem[]>([])
+  const movePlanContext = React.useMemo(() => {
+    const edits = editsSnapshot
+      .filter((item): item is { type: 'edit'; edit: SessionEdit } => item.type === 'edit')
+      .map((item) => item.edit)
+    return buildMovePlanContext(edits)
+  }, [editsSnapshot])
+  const visibleItems = React.useMemo(() => {
+    return editsSnapshot.filter((item) => {
+      if (item.type === 'comment') return true
+      if (!item.edit.move) return true
+      const moveIntent = getMoveIntentForEdit(item.edit, movePlanContext)
+      const hasStyleOrText = Object.keys(item.edit.pendingStyles).length > 0 || item.edit.textEdit != null
+      return Boolean(moveIntent || hasStyleOrText)
+    })
+  }, [editsSnapshot, movePlanContext])
 
   // Close on outside click (Shadow DOM breaks base-ui's dismiss)
   React.useEffect(() => {
@@ -111,14 +138,24 @@ export function EditsPopover({
 
   const handleCopyItem = React.useCallback(async (item: SessionItem) => {
     const text = item.type === 'edit'
-      ? buildSessionExport([item.edit], [])
+      ? buildSessionExport([item.edit], [], {
+          movePlanContext,
+          includeMovePlanHeader: false,
+        })
       : buildSessionExport([], [item.comment])
     try {
-      await navigator.clipboard.writeText(`implement the visual edits\n\n${text}`)
+      const instruction = item.type === 'edit'
+        ? buildExportInstruction(getExportContentProfile(
+            [item.edit],
+            [],
+            item.edit.move ? buildMovePlanContext([item.edit]) : null,
+          ))
+        : buildExportInstruction({ hasCssEdits: false, hasTextEdits: false, hasMoves: false, hasComments: true })
+      await navigator.clipboard.writeText(`${instruction}\n\n${text}`)
       setCopied(true)
       window.setTimeout(() => setCopied(false), 2000)
     } catch {}
-  }, [])
+  }, [movePlanContext])
 
   return (
     <Popover.Root open={isOpen} onOpenChange={onOpenChange}>
@@ -158,7 +195,7 @@ export function EditsPopover({
           >
             <div className="flex items-center justify-between px-3 pb-1 pt-2.5">
               <span className="text-xs font-medium text-foreground">Copy to AI agents</span>
-              {editsSnapshot.length > 0 && (
+              {visibleItems.length > 0 && (
                 <div className="flex items-center gap-1">
                   <BaseButton
                     className="inline-flex h-6 items-center gap-1 rounded-md px-2 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
@@ -216,15 +253,16 @@ export function EditsPopover({
                 </div>
               )}
             </div>
-            {editsSnapshot.length === 0 ? (
+            {visibleItems.length === 0 ? (
               <div className="px-3 pb-3 pt-1 text-xs text-muted-foreground">
                 No edits or comments yet.
               </div>
             ) : (
               <div className="max-h-[240px] overflow-y-auto px-1 py-1">
-                {editsSnapshot.map((item, i) => {
+                {visibleItems.map((item, i) => {
                   const isEdit = item.type === 'edit'
-                  const isMoved = isEdit && Boolean(item.edit.move)
+                  const moveIntent = isEdit && item.edit.move ? getMoveIntentForEdit(item.edit, movePlanContext) : null
+                  const isMoved = Boolean(moveIntent)
                   const locator = isEdit ? item.edit.locator : item.comment.locator
                   const componentName = locator.reactStack[0]?.name ?? locator.tagName
                   let valueSummary = ''
@@ -237,8 +275,8 @@ export function EditsPopover({
                     if (item.edit.textEdit) {
                       editValues.push(`text: "${item.edit.textEdit.newText}"`)
                     }
-                    if (item.edit.move) {
-                      editValues.push(`${item.edit.move.fromParentName} -> ${item.edit.move.toParentName}`)
+                    if (moveIntent) {
+                      editValues.push(summarizeMoveForPreview(moveIntent))
                     }
                     valueSummary = editValues.length > 0 ? editValues.join(', ') : '(no edits)'
                   } else {
@@ -285,7 +323,15 @@ export function EditsPopover({
                           } else {
                             onDeleteComment?.(item.comment.id)
                           }
-                          setEditsSnapshot((prev) => prev.filter((_, j) => j !== i))
+                          setEditsSnapshot((prev) => prev.filter((candidate) => {
+                            if (item.type === 'edit' && candidate.type === 'edit') {
+                              return candidate.edit.element !== item.edit.element
+                            }
+                            if (item.type === 'comment' && candidate.type === 'comment') {
+                              return candidate.comment.id !== item.comment.id
+                            }
+                            return true
+                          }))
                         }}
                       >
                         <X className="size-3" />

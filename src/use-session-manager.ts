@@ -22,8 +22,14 @@ import {
   buildElementContext,
   buildEditExport,
   buildSessionExport,
+  buildExportInstruction,
+  getExportContentProfile,
+  buildMovePlanContext,
+  getMoveIntentForEdit,
   getElementDisplayName,
   getElementLocator,
+  computeIntendedIndex,
+  isInFlowChild,
 } from './utils'
 
 type ParentLayout = 'flex' | 'grid' | 'block' | 'other'
@@ -45,13 +51,38 @@ function getLayoutFromDisplay(display: string): ParentLayout {
 function getParentLayoutMeta(parent: HTMLElement | null): {
   display?: string
   layout?: ParentLayout
+  flexDirection?: 'row' | 'row-reverse' | 'column' | 'column-reverse'
+  gap?: string
+  childCount?: number
 } {
   if (!parent) return {}
-  const display = window.getComputedStyle(parent).display
-  return {
-    display,
-    layout: getLayoutFromDisplay(display),
+  const computed = window.getComputedStyle(parent)
+  const display = computed.display
+  const layout = getLayoutFromDisplay(display)
+  const childCount = countInFlowChildren(parent)
+
+  if (layout === 'flex') {
+    return {
+      display, layout, childCount,
+      flexDirection: computed.flexDirection as 'row' | 'row-reverse' | 'column' | 'column-reverse',
+      gap: computed.gap !== 'normal' && computed.gap !== '0px' ? computed.gap : undefined,
+    }
   }
+  if (layout === 'grid') {
+    return {
+      display, layout, childCount,
+      gap: computed.gap !== 'normal' && computed.gap !== '0px' ? computed.gap : undefined,
+    }
+  }
+  return { display, layout, childCount }
+}
+
+function countInFlowChildren(parent: HTMLElement): number {
+  let count = 0
+  for (const c of parent.children) {
+    if (c instanceof HTMLElement && isInFlowChild(c)) count++
+  }
+  return count
 }
 
 function findChildIndex(parent: HTMLElement | null, child: HTMLElement | null): number | undefined {
@@ -98,6 +129,106 @@ function applyPositionMoveCSS(
   element.style.setProperty('top', appliedTop)
 
   return { previousStyles, appliedLeft, appliedTop }
+}
+
+function getAnchor(node: HTMLElement | null): {
+  selector: string | null
+  source: ReturnType<typeof getElementLocator>['domSource'] | null
+} {
+  if (!node) return { selector: null, source: null }
+  const locator = getElementLocator(node)
+  const selector = locator.domSelector.trim()
+  return {
+    selector: selector.length > 0 ? selector : null,
+    source: locator.domSource ?? null,
+  }
+}
+
+export function buildPositionMoveFields(
+  element: HTMLElement,
+  moveInfo: MoveInfo,
+  appliedLeft: string,
+  appliedTop: string,
+  existingMove: SessionEdit['move'],
+): NonNullable<SessionEdit['move']> {
+  const parent = element.parentElement!
+  const intended = computeIntendedIndex(parent, element)
+  const parentMeta = getParentLayoutMeta(parent)
+  const parentName = getElementDisplayName(parent)
+  const parentAnchor = getAnchor(parent)
+  const fromIndex = getOriginalMoveIndex(
+    moveInfo.originalParent,
+    moveInfo.originalPreviousSibling,
+    moveInfo.originalNextSibling,
+  )
+
+  const fromParentMeta = existingMove ? getParentLayoutMeta(moveInfo.originalParent) : parentMeta
+
+  const fromFields = existingMove
+    ? {
+        fromParentName: existingMove.fromParentName,
+        fromSiblingBefore: existingMove.fromSiblingBefore,
+        fromSiblingAfter: existingMove.fromSiblingAfter,
+        fromParentSelector: existingMove.fromParentSelector ?? null,
+        fromSiblingBeforeSelector: existingMove.fromSiblingBeforeSelector ?? null,
+        fromSiblingAfterSelector: existingMove.fromSiblingAfterSelector ?? null,
+        fromParentSource: existingMove.fromParentSource ?? null,
+        fromSiblingBeforeSource: existingMove.fromSiblingBeforeSource ?? null,
+        fromSiblingAfterSource: existingMove.fromSiblingAfterSource ?? null,
+        fromParentDisplay: existingMove.fromParentDisplay ?? parentMeta.display,
+        fromParentLayout: existingMove.fromParentLayout ?? parentMeta.layout,
+        fromIndex: existingMove.fromIndex ?? fromIndex,
+        fromFlexDirection: existingMove.fromFlexDirection ?? fromParentMeta.flexDirection,
+        fromGap: existingMove.fromGap ?? fromParentMeta.gap,
+        fromChildCount: existingMove.fromChildCount ?? fromParentMeta.childCount,
+      }
+    : {
+        fromParentName: parentName,
+        fromSiblingBefore: moveInfo.originalPreviousSibling
+          ? getElementDisplayName(moveInfo.originalPreviousSibling)
+          : null,
+        fromSiblingAfter: moveInfo.originalNextSibling
+          ? getElementDisplayName(moveInfo.originalNextSibling)
+          : null,
+        fromParentSelector: parentAnchor.selector,
+        fromSiblingBeforeSelector: getAnchor(moveInfo.originalPreviousSibling).selector,
+        fromSiblingAfterSelector: getAnchor(moveInfo.originalNextSibling).selector,
+        fromParentSource: parentAnchor.source,
+        fromSiblingBeforeSource: getAnchor(moveInfo.originalPreviousSibling).source,
+        fromSiblingAfterSource: getAnchor(moveInfo.originalNextSibling).source,
+        fromParentDisplay: parentMeta.display,
+        fromParentLayout: parentMeta.layout,
+        fromIndex,
+        fromFlexDirection: parentMeta.flexDirection,
+        fromGap: parentMeta.gap,
+        fromChildCount: parentMeta.childCount,
+      }
+
+  return {
+    ...fromFields,
+    mode: 'position',
+    positionDelta: moveInfo.positionDelta,
+    appliedLeft,
+    appliedTop,
+    visualDelta: moveInfo.positionDelta
+      ? { x: Math.round(moveInfo.positionDelta.x), y: Math.round(moveInfo.positionDelta.y) }
+      : undefined,
+    toParentName: parentName,
+    toSiblingBefore: intended.siblingBefore ? getElementDisplayName(intended.siblingBefore) : null,
+    toSiblingAfter: intended.siblingAfter ? getElementDisplayName(intended.siblingAfter) : null,
+    toParentSelector: parentAnchor.selector,
+    toSiblingBeforeSelector: getAnchor(intended.siblingBefore).selector,
+    toSiblingAfterSelector: getAnchor(intended.siblingAfter).selector,
+    toParentSource: parentAnchor.source,
+    toSiblingBeforeSource: getAnchor(intended.siblingBefore).source,
+    toSiblingAfterSource: getAnchor(intended.siblingAfter).source,
+    toParentDisplay: parentMeta.display,
+    toParentLayout: parentMeta.layout,
+    toIndex: intended.index,
+    toFlexDirection: parentMeta.flexDirection,
+    toGap: parentMeta.gap,
+    toChildCount: parentMeta.childCount,
+  }
 }
 
 export interface SessionManagerOptions {
@@ -369,6 +500,15 @@ export function useSessionManager({
       }
       case 'move': {
         if (!entry.element.isConnected) return
+        try {
+          if (entry.originalNextSibling) {
+            entry.originalParent.insertBefore(entry.element, entry.originalNextSibling)
+          } else {
+            entry.originalParent.appendChild(entry.element)
+          }
+        } catch {
+          // Ignore invalid DOM moves
+        }
         if (entry.previousPositionStyles) {
           for (const { cssProperty, previousValue } of entry.previousPositionStyles) {
             if (previousValue) {
@@ -376,16 +516,6 @@ export function useSessionManager({
             } else {
               entry.element.style.removeProperty(cssProperty)
             }
-          }
-        } else {
-          try {
-            if (entry.originalNextSibling) {
-              entry.originalParent.insertBefore(entry.element, entry.originalNextSibling)
-            } else {
-              entry.originalParent.appendChild(entry.element)
-            }
-          } catch {
-            // Ignore invalid DOM moves
           }
         }
         const sessionEntry = sessionEditsRef.current.get(entry.element)
@@ -481,8 +611,6 @@ export function useSessionManager({
           })
 
           const locator = existing?.locator ?? getElementLocator(element)
-          const parent = element.parentElement
-          const parentName = parent ? getElementDisplayName(parent) : '(unknown)'
 
           // Strip position/left/top from pendingStyles — move metadata is the authority
           const pendingStyles = { ...styleState.pendingStyles }
@@ -490,51 +618,39 @@ export function useSessionManager({
           delete pendingStyles['left']
           delete pendingStyles['top']
 
+          const move = buildPositionMoveFields(element, moveInfo, appliedLeft, appliedTop, existing?.move ?? null)
+
           sessionEditsRef.current.set(element, {
             element,
             locator,
             originalStyles: styleState.originalStyles,
             pendingStyles,
             textEdit: existing?.textEdit ?? null,
-            move: {
-              mode: 'position',
-              positionDelta: moveInfo.positionDelta,
-              appliedLeft,
-              appliedTop,
-              fromParentName: parentName,
-              toParentName: parentName,
-              fromSiblingBefore: null,
-              fromSiblingAfter: null,
-              toSiblingBefore: null,
-              toSiblingAfter: null,
-            },
+            move,
           })
           syncSessionItemCount()
         } else {
-        const getAnchor = (node: HTMLElement | null): {
-          selector: string | null
-          source: ReturnType<typeof getElementLocator>['domSource'] | null
-        } => {
-          if (!node) {
-            return { selector: null, source: null }
-          }
-          const locator = getElementLocator(node)
-          const selector = locator.domSelector.trim()
-          return {
-            selector: selector.length > 0 ? selector : null,
-            source: locator.domSource ?? null,
-          }
-        }
-
         const existing = sessionEditsRef.current.get(element)
         const styleState = getStyleStateForElement(existing)
         const moveMode: MoveMode = moveInfo.mode ?? 'free'
+
+        let clearedPositionStyles: Array<{ cssProperty: string; previousValue: string | null }> | undefined
+        if (moveInfo.resetPositionOffsets) {
+          clearedPositionStyles = []
+          for (const prop of ['position', 'left', 'top'] as const) {
+            const prev = element.style.getPropertyValue(prop) || null
+            clearedPositionStyles.push({ cssProperty: prop, previousValue: prev })
+            element.style.removeProperty(prop)
+          }
+        }
+
         pushUndo({
           type: 'move',
           element,
           originalParent: moveInfo.originalParent,
           originalNextSibling: moveInfo.originalNextSibling,
           previousSessionMove: existing?.move ?? null,
+          previousPositionStyles: clearedPositionStyles,
         })
         const locator = existing?.locator ?? getElementLocator(element)
         const newParent = element.parentElement
@@ -554,7 +670,6 @@ export function useSessionManager({
           moveInfo.originalNextSibling,
         )
         const toIndex = findChildIndex(newParent, element)
-        const draggedPosition = window.getComputedStyle(element).position
 
         // Preserve initial from* from the first move; only update to* on later moves
         const fromFields = existing?.move
@@ -571,6 +686,9 @@ export function useSessionManager({
               fromParentDisplay: existing.move.fromParentDisplay ?? fromParentMeta.display,
               fromParentLayout: existing.move.fromParentLayout ?? fromParentMeta.layout,
               fromIndex: existing.move.fromIndex ?? fromIndex,
+              fromFlexDirection: existing.move.fromFlexDirection ?? fromParentMeta.flexDirection,
+              fromGap: existing.move.fromGap ?? fromParentMeta.gap,
+              fromChildCount: existing.move.fromChildCount ?? fromParentMeta.childCount,
             }
           : {
               fromParentName: getElementDisplayName(moveInfo.originalParent),
@@ -589,6 +707,9 @@ export function useSessionManager({
               fromParentDisplay: fromParentMeta.display,
               fromParentLayout: fromParentMeta.layout,
               fromIndex,
+              fromFlexDirection: fromParentMeta.flexDirection,
+              fromGap: fromParentMeta.gap,
+              fromChildCount: fromParentMeta.childCount,
             }
 
         sessionEditsRef.current.set(element, {
@@ -619,8 +740,11 @@ export function useSessionManager({
                 fromIndex: fromFields.fromIndex,
                 toParentDisplay: toParentMeta.display,
                 toParentLayout: toParentMeta.layout,
-                draggedPosition,
                 toIndex,
+                visualDelta: moveInfo.visualDelta,
+                toFlexDirection: toParentMeta.flexDirection,
+                toGap: toParentMeta.gap,
+                toChildCount: toParentMeta.childCount,
               }
             : null,
         })
@@ -685,9 +809,11 @@ export function useSessionManager({
     if (items.length === 0) return false
     const edits = items.filter((item) => item.type === 'edit').map((item) => item.edit)
     const comments = items.filter((item) => item.type === 'comment').map((item) => item.comment)
-    const text = buildSessionExport(edits, comments)
+    const movePlanContext = buildMovePlanContext(edits)
+    const text = buildSessionExport(edits, comments, { movePlanContext })
+    const instruction = buildExportInstruction(getExportContentProfile(edits, comments, movePlanContext))
     try {
-      await navigator.clipboard.writeText(`implement the visual edits\n\n${text}`)
+      await navigator.clipboard.writeText(`${instruction}\n\n${text}`)
       return true
     } catch {
       return false
@@ -776,21 +902,35 @@ export function useSessionManager({
     const sessionEdit = sessionEditsRef.current.get(current.selectedElement)
     const hasPendingStyles = Object.keys(current.pendingStyles).length > 0
     const hasTextEdit = Boolean(sessionEdit?.textEdit)
-    const hasMove = Boolean(sessionEdit?.move)
 
     const locator = getElementLocator(current.selectedElement)
-    const exportMarkdown = hasPendingStyles || hasTextEdit || hasMove
-      ? hasMove && sessionEdit
-        ? buildSessionExport([{
-            ...sessionEdit,
-            locator,
-            pendingStyles: { ...current.pendingStyles },
-            textEdit: sessionEdit.textEdit,
-          }], [])
+    const editForExport = sessionEdit
+      ? {
+          ...sessionEdit,
+          locator,
+          pendingStyles: { ...current.pendingStyles },
+          textEdit: sessionEdit.textEdit,
+        }
+      : null
+    const movePlanContext = editForExport?.move ? buildMovePlanContext([editForExport]) : null
+    const moveIntent = editForExport?.move ? getMoveIntentForEdit(editForExport, movePlanContext) : null
+    const hasMove = Boolean(moveIntent)
+    const hasExportableEdit = hasPendingStyles || hasTextEdit || hasMove
+    const exportMarkdown = hasExportableEdit
+      ? hasMove && editForExport
+        ? buildSessionExport([editForExport], [], { movePlanContext })
         : buildEditExport(locator, current.pendingStyles, sessionEdit?.textEdit)
       : buildElementContext(locator)
     try {
-      await navigator.clipboard.writeText(`implement the visual edits\n\n${exportMarkdown}`)
+      const instruction = hasExportableEdit
+        ? buildExportInstruction({
+            hasCssEdits: hasPendingStyles,
+            hasTextEdits: hasTextEdit,
+            hasMoves: hasMove,
+            hasComments: false,
+          })
+        : 'Here is the element context for reference'
+      await navigator.clipboard.writeText(`${instruction}\n\n${exportMarkdown}`)
       return true
     } catch {
       return false

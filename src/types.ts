@@ -284,17 +284,75 @@ export interface SessionEdit {
     toParentDisplay?: string
     fromParentLayout?: 'flex' | 'grid' | 'block' | 'other'
     toParentLayout?: 'flex' | 'grid' | 'block' | 'other'
-    draggedPosition?: string
     fromIndex?: number
     toIndex?: number
     positionDelta?: { x: number; y: number }
     appliedLeft?: string
     appliedTop?: string
+    // Visual intent
+    visualDelta?: { x: number; y: number }
+    // Parent flex/grid context
+    fromFlexDirection?: 'row' | 'row-reverse' | 'column' | 'column-reverse'
+    toFlexDirection?: 'row' | 'row-reverse' | 'column' | 'column-reverse'
+    fromGap?: string
+    toGap?: string
+    fromChildCount?: number
+    toChildCount?: number
   } | null
   textEdit: {
     originalText: string
     newText: string
   } | null
+}
+
+export interface AnchorRef {
+  name: string
+  selector: string | null
+  source: DomSourceLocation | null
+}
+
+export interface PlacementRef {
+  before: AnchorRef | null
+  after: AnchorRef | null
+  description: string
+}
+
+export type MoveClassification = 'existing_layout_move' | 'layout_refactor'
+
+export interface LayoutPrescription {
+  recommendedSystem: 'flex' | 'grid'
+  intentPatterns: string[]
+  refactorSteps: string[]
+  styleSteps: string[]
+  itemSteps: string[]
+}
+
+export interface MoveOperation {
+  operationId: string
+  classification: MoveClassification
+  interactionMode: 'free' | 'reorder' | 'position'
+  subject: AnchorRef
+  from: {
+    parent: AnchorRef
+    placement: PlacementRef
+  }
+  to: {
+    parent: AnchorRef
+    placement: PlacementRef
+  }
+  visualDelta?: { x: number; y: number }
+  layoutPrescription?: LayoutPrescription
+  confidence: 'high' | 'medium' | 'low'
+  reasons: string[]
+}
+
+export interface MoveIntent extends MoveOperation {}
+
+export interface MovePlan {
+  operations: MoveOperation[]
+  affectedContainers: AnchorRef[]
+  orderingConstraints: string[]
+  notes: string[]
 }
 
 export type SessionItem =
