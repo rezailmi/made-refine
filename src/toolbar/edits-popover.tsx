@@ -12,6 +12,7 @@ import {
   buildMovePlanContext,
   getMoveIntentForEdit,
 } from '../utils'
+import { copyText } from '../clipboard'
 import { cn } from '../cn'
 import {
   Tooltip,
@@ -143,18 +144,17 @@ export function EditsPopover({
           includeMovePlanHeader: false,
         })
       : buildSessionExport([], [item.comment])
-    try {
-      const instruction = item.type === 'edit'
-        ? buildExportInstruction(getExportContentProfile(
-            [item.edit],
-            [],
-            item.edit.move ? buildMovePlanContext([item.edit]) : null,
-          ))
-        : buildExportInstruction({ hasCssEdits: false, hasTextEdits: false, hasMoves: false, hasComments: true })
-      await navigator.clipboard.writeText(`${instruction}\n\n${text}`)
-      setCopied(true)
-      window.setTimeout(() => setCopied(false), 2000)
-    } catch {}
+    const instruction = item.type === 'edit'
+      ? buildExportInstruction(getExportContentProfile(
+          [item.edit],
+          [],
+          item.edit.move ? buildMovePlanContext([item.edit]) : null,
+        ))
+      : buildExportInstruction({ hasCssEdits: false, hasTextEdits: false, hasMoves: false, hasComments: true })
+    const success = await copyText(`${instruction}\n\n${text}`)
+    if (!success) return
+    setCopied(true)
+    window.setTimeout(() => setCopied(false), 2000)
   }, [movePlanContext])
 
   return (

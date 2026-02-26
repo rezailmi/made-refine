@@ -71,6 +71,44 @@ function mockClipboard() {
   return writeText
 }
 
+function setNavigatorClipboard(value: Clipboard | undefined) {
+  const descriptor = Object.getOwnPropertyDescriptor(window.navigator, 'clipboard')
+  Object.defineProperty(window.navigator, 'clipboard', {
+    configurable: true,
+    value,
+  })
+  documentPropertyRestores.push(() => {
+    if (descriptor) {
+      Object.defineProperty(window.navigator, 'clipboard', descriptor)
+      return
+    }
+    Object.defineProperty(window.navigator, 'clipboard', {
+      configurable: true,
+      value: undefined,
+    })
+  })
+}
+
+function mockExecCommand() {
+  const descriptor = Object.getOwnPropertyDescriptor(document, 'execCommand')
+  const execCommand = vi.fn<(...args: unknown[]) => boolean>().mockReturnValue(true)
+  Object.defineProperty(document, 'execCommand', {
+    configurable: true,
+    value: (command: string) => execCommand(command),
+  })
+  documentPropertyRestores.push(() => {
+    if (descriptor) {
+      Object.defineProperty(document, 'execCommand', descriptor)
+      return
+    }
+    Object.defineProperty(document, 'execCommand', {
+      configurable: true,
+      value: undefined,
+    })
+  })
+  return execCommand
+}
+
 function stubMatchMedia() {
   vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({
     matches: false,
@@ -288,6 +326,29 @@ describe('DirectEditProvider', () => {
     })
 
     expect(target.style.getPropertyValue('box-shadow')).toBe('')
+  })
+
+  it('exports edits through execCommand fallback when navigator clipboard is unavailable', async () => {
+    setNavigatorClipboard(undefined)
+    const execCommand = mockExecCommand()
+    const target = createTarget('exec-fallback-target', 'padding-top: 8px;')
+    const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+    act(() => {
+      result.current.selectElement(target)
+    })
+
+    await waitFor(() => {
+      expect(result.current.selectedElement).toBe(target)
+    })
+
+    act(() => {
+      result.current.updateSpacingProperty('paddingTop', cssValue(14))
+    })
+
+    const copied = await result.current.exportEdits()
+    expect(copied).toBe(true)
+    expect(execCommand).toHaveBeenCalledWith('copy')
   })
 
   it('retains only the latest 500 undo entries', async () => {
