@@ -1027,11 +1027,63 @@ describe('DirectEditProvider', () => {
 
     const exported = String(clipboardWrite.mock.calls[0][0])
     expect(exported).toContain('moved:')
+    expect(exported).toContain('summary:')
     expect(exported).toContain('mode: position')
-    expect(exported).toContain('left: 50px')
-    expect(exported).toContain('top: 30px')
-    expect(exported).not.toContain('summary:')
-    expect(exported).not.toContain('from_parent_selector')
+    expect(exported).toContain('applied_left: 50px')
+    expect(exported).toContain('applied_top: 30px')
+    expect(exported).toContain('from_parent_selector')
+    expect(exported).toContain('to_parent_selector')
+  })
+
+  it('clears position offsets when dropped into flex container and restores on undo', async () => {
+    const originalParent = createTarget('flex-drop-parent')
+    const moved = createTarget('flex-drop-moved')
+    const flexTarget = createTarget('flex-drop-target')
+    originalParent.replaceChildren(moved)
+
+    // Simulate element that had position offsets from a prior drag
+    moved.style.position = 'relative'
+    moved.style.left = '40px'
+    moved.style.top = '20px'
+
+    // Pre-reparent into flex container (use-move does this before calling handleMoveComplete)
+    flexTarget.appendChild(moved)
+
+    const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+    act(() => {
+      result.current.selectElement(moved)
+    })
+
+    await waitFor(() => {
+      expect(result.current.selectedElement).toBe(moved)
+    })
+
+    act(() => {
+      result.current.handleMoveComplete(moved, {
+        originalParent,
+        originalPreviousSibling: null,
+        originalNextSibling: null,
+        mode: 'free',
+        resetPositionOffsets: true,
+      })
+    })
+
+    // Position offsets should be cleared
+    expect(moved.style.position).toBe('')
+    expect(moved.style.left).toBe('')
+    expect(moved.style.top).toBe('')
+    expect(moved.parentElement).toBe(flexTarget)
+
+    // Undo should restore both DOM position and CSS
+    act(() => {
+      result.current.undo()
+    })
+
+    expect(moved.parentElement).toBe(originalParent)
+    expect(moved.style.position).toBe('relative')
+    expect(moved.style.left).toBe('40px')
+    expect(moved.style.top).toBe('20px')
   })
 
   it('starts a new comment in one click when the current comment is already submitted', async () => {

@@ -18,6 +18,7 @@ import {
   buildCommentExport,
   buildSessionExport,
   getElementLocator,
+  computeIntendedIndex,
 } from './utils'
 import type { ElementLocator, SessionEdit } from './types'
 
@@ -626,7 +627,7 @@ describe('export context quality', () => {
     expect(output).toContain('to_after_source: (none)')
   })
 
-  it('exports position move with applied left/top', () => {
+  it('exports position move with structural metadata and applied left/top', () => {
     const edit: SessionEdit = {
       element: document.createElement('div'),
       locator: {
@@ -647,22 +648,47 @@ describe('export context quality', () => {
         positionDelta: { x: 50, y: 30 },
         appliedLeft: '60px',
         appliedTop: '30px',
-        fromParentName: 'div',
-        toParentName: 'div',
+        fromParentName: 'section',
+        toParentName: 'section',
         fromSiblingBefore: null,
-        fromSiblingAfter: null,
-        toSiblingBefore: null,
+        fromSiblingAfter: 'div (second)',
+        toSiblingBefore: 'div (second)',
         toSiblingAfter: null,
+        fromParentSelector: 'main > section',
+        fromSiblingBeforeSelector: null,
+        fromSiblingAfterSelector: 'main > section > div:nth-of-type(2)',
+        toParentSelector: 'main > section',
+        toSiblingBeforeSelector: 'main > section > div:nth-of-type(2)',
+        toSiblingAfterSelector: null,
+        fromParentSource: { file: 'src/App.tsx', line: 20, column: 3 },
+        fromSiblingBeforeSource: null,
+        fromSiblingAfterSource: { file: 'src/App.tsx', line: 22, column: 5 },
+        toParentSource: { file: 'src/App.tsx', line: 20, column: 3 },
+        toSiblingBeforeSource: { file: 'src/App.tsx', line: 22, column: 5 },
+        toSiblingAfterSource: null,
+        fromParentDisplay: 'block',
+        fromParentLayout: 'block',
+        toParentDisplay: 'block',
+        toParentLayout: 'block',
+        draggedPosition: 'relative',
+        fromIndex: 0,
+        toIndex: 1,
       },
     }
 
     const output = buildSessionExport([edit], [])
     expect(output).toContain('moved:')
+    expect(output).toContain('summary:')
     expect(output).toContain('mode: position')
-    expect(output).toContain('left: 60px')
-    expect(output).toContain('top: 30px')
-    expect(output).not.toContain('summary:')
-    expect(output).not.toContain('from_parent_selector')
+    expect(output).toContain('dragged_position: relative')
+    expect(output).toContain('from_parent_display: block')
+    expect(output).toContain('from_parent_layout: block')
+    expect(output).toContain('from_index: 0')
+    expect(output).toContain('to_index: 1')
+    expect(output).toContain('from_parent_selector: main > section')
+    expect(output).toContain('to_parent_selector: main > section')
+    expect(output).toContain('applied_left: 60px')
+    expect(output).toContain('applied_top: 30px')
     expect(output).toContain('background-color')
   })
 
@@ -1030,5 +1056,84 @@ react-stack-bottom-frame@http://localhost:3000/_next/static/chunks/main.js:2:2`,
       window.__DIRECT_EDIT_DEVTOOLS__ = previousDevtools
       target.remove()
     }
+  })
+})
+
+describe('computeIntendedIndex', () => {
+  function makeChild(top: number, height: number): HTMLElement {
+    const el = document.createElement('div')
+    el.style.display = 'block'
+    el.style.position = 'static'
+    el.getBoundingClientRect = () => ({
+      top, left: 0, width: 100, height, bottom: top + height, right: 100,
+      x: 0, y: top, toJSON() {},
+    })
+    return el
+  }
+
+  it('returns index past siblings when dragged below them', () => {
+    const parent = document.createElement('div')
+    const child1 = makeChild(0, 50)
+    const child2 = makeChild(50, 50)
+    const dragged = makeChild(120, 50) // center at 145, past both siblings
+    parent.appendChild(child1)
+    parent.appendChild(dragged)
+    parent.appendChild(child2)
+
+    // Mock getComputedStyle for children
+    const origGetComputedStyle = window.getComputedStyle
+    vi.spyOn(window, 'getComputedStyle').mockImplementation((el) => {
+      const style = origGetComputedStyle(el)
+      return style
+    })
+
+    const result = computeIntendedIndex(parent, dragged)
+    expect(result.index).toBe(2)
+    expect(result.siblingBefore).toBe(child2)
+    expect(result.siblingAfter).toBe(null)
+
+    vi.restoreAllMocks()
+  })
+
+  it('returns original index when element does not cross any midpoint', () => {
+    const parent = document.createElement('div')
+    const child1 = makeChild(0, 50)
+    const dragged = makeChild(55, 50) // center at 80, between child1(25) and child2(125)
+    const child2 = makeChild(100, 50)
+    parent.appendChild(child1)
+    parent.appendChild(dragged)
+    parent.appendChild(child2)
+
+    const result = computeIntendedIndex(parent, dragged)
+    expect(result.index).toBe(1)
+    expect(result.siblingBefore).toBe(child1)
+    expect(result.siblingAfter).toBe(child2)
+  })
+
+  it('returns index 0 with no siblings', () => {
+    const parent = document.createElement('div')
+    const dragged = makeChild(0, 50)
+    parent.appendChild(dragged)
+
+    const result = computeIntendedIndex(parent, dragged)
+    expect(result.index).toBe(0)
+    expect(result.siblingBefore).toBe(null)
+    expect(result.siblingAfter).toBe(null)
+  })
+
+  it('skips position: absolute children', () => {
+    const parent = document.createElement('div')
+    const absChild = makeChild(0, 50)
+    absChild.style.position = 'absolute'
+    const normalChild = makeChild(50, 50)
+    const dragged = makeChild(120, 50) // past normalChild
+    parent.appendChild(absChild)
+    parent.appendChild(normalChild)
+    parent.appendChild(dragged)
+
+    const result = computeIntendedIndex(parent, dragged)
+    expect(result.index).toBe(1)
+    expect(result.siblingBefore).toBe(normalChild)
+    expect(result.siblingAfter).toBe(null)
   })
 })

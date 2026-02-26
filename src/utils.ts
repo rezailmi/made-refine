@@ -1398,6 +1398,46 @@ export function detectChildrenDirection(
   return { axis: 'vertical', reversed: second.bottom < first.top }
 }
 
+export function computeIntendedIndex(
+  parent: HTMLElement,
+  draggedElement: HTMLElement,
+): {
+  index: number
+  siblingBefore: HTMLElement | null
+  siblingAfter: HTMLElement | null
+} {
+  const { axis } = detectChildrenDirection(parent, draggedElement)
+  const isHorizontal = axis === 'horizontal'
+  const draggedRect = draggedElement.getBoundingClientRect()
+  const intendedCenter = isHorizontal
+    ? draggedRect.left + draggedRect.width / 2
+    : draggedRect.top + draggedRect.height / 2
+
+  const siblings: HTMLElement[] = []
+  for (const c of parent.children) {
+    if (!(c instanceof HTMLElement) || c === draggedElement) continue
+    const cs = window.getComputedStyle(c)
+    if (cs.display === 'none' || cs.position === 'absolute' || cs.position === 'fixed') continue
+    siblings.push(c)
+  }
+
+  if (siblings.length === 0) {
+    return { index: 0, siblingBefore: null, siblingAfter: null }
+  }
+
+  for (let i = 0; i < siblings.length; i++) {
+    const rect = siblings[i].getBoundingClientRect()
+    const midpoint = isHorizontal
+      ? rect.left + rect.width / 2
+      : rect.top + rect.height / 2
+    if (intendedCenter < midpoint) {
+      return { index: i, siblingBefore: i > 0 ? siblings[i - 1] : null, siblingAfter: siblings[i] }
+    }
+  }
+
+  return { index: siblings.length, siblingBefore: siblings[siblings.length - 1], siblingAfter: null }
+}
+
 function htmlChildren(el: HTMLElement): HTMLElement[] {
   return Array.from(el.children).filter(
     (child): child is HTMLElement => child instanceof HTMLElement
@@ -2955,16 +2995,7 @@ function formatMoveIndex(value: number | undefined): string {
 }
 
 function buildMoveExportLines(move: NonNullable<SessionEdit['move']>): string[] {
-  if (move.mode === 'position' && move.appliedLeft && move.appliedTop) {
-    return [
-      'moved:',
-      `mode: position`,
-      `left: ${move.appliedLeft}`,
-      `top: ${move.appliedTop}`,
-    ]
-  }
-
-  return [
+  const lines = [
     'moved:',
     `summary: ${formatMoveSummary(move)}`,
     `mode: ${formatMoveMetadata(move.mode)}`,
@@ -2988,6 +3019,15 @@ function buildMoveExportLines(move: NonNullable<SessionEdit['move']>): string[] 
     `to_before_source: ${formatMoveSource(move.toSiblingBeforeSource, '(none)')}`,
     `to_after_source: ${formatMoveSource(move.toSiblingAfterSource, '(none)')}`,
   ]
+
+  if (move.mode === 'position' && move.appliedLeft) {
+    lines.push(`applied_left: ${move.appliedLeft}`)
+  }
+  if (move.mode === 'position' && move.appliedTop) {
+    lines.push(`applied_top: ${move.appliedTop}`)
+  }
+
+  return lines
 }
 
 export function buildSessionExport(edits: SessionEdit[], comments: Comment[] = []): string {

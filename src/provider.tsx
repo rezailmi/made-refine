@@ -270,6 +270,23 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     }
   }, [state.textEditingElement, commitTextEditing])
 
+  // Block clicks from reaching user app elements during design mode.
+  // The interaction overlay normally intercepts clicks, but in rare timing gaps
+  // (e.g. between renders) a click can leak through to the underlying page.
+  React.useEffect(() => {
+    if (!state.editModeActive || state.textEditingElement) return
+
+    function blockClick(e: MouseEvent) {
+      const host = document.querySelector('[data-direct-edit-host]')
+      if (host && e.target === host) return
+      e.preventDefault()
+      e.stopPropagation()
+    }
+
+    document.addEventListener('click', blockClick, true)
+    return () => document.removeEventListener('click', blockClick, true)
+  }, [state.editModeActive, state.textEditingElement])
+
   const {
     canSendEditToAgent, sendEditToAgent, sendCommentToAgent, sendAllSessionItemsToAgent,
   } = useAgentComms({ stateRef, sessionEditsRef, getSessionItems })
