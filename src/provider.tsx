@@ -47,6 +47,7 @@ export interface DirectEditActionsContextValue {
   ) => void
   updateSizingProperty: (key: SizingPropertyKey, value: SizingValue) => void
   updateColorProperty: (key: ColorPropertyKey, value: ColorValue) => void
+  replaceSelectionColor: (from: ColorValue, to: ColorValue) => void
   updateTypographyProperty: (key: TypographyPropertyKey, value: CSSPropertyValue | string) => void
   resetToOriginal: () => void
   exportEdits: () => Promise<boolean>
@@ -188,18 +189,25 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
   }, [])
 
   const {
-    updateSpacingProperty, updateBorderRadiusProperty, updateBorderProperty,
-    updateBorderProperties, updateRawCSS, updateFlexProperty, toggleFlexLayout,
-    updateSizingProperties, updateSizingProperty, updateColorProperty, updateTypographyProperty,
-  } = useStyleUpdaters({ stateRef, pushUndo, setState })
-
-  const {
     syncSessionItemCount, saveCurrentToSession, selectElement, selectParent, selectChild,
     resetToOriginal, undo, handleMoveComplete, getSessionEdits, getSessionItems,
     exportAllEdits, exportEdits, removeSessionEdit, clearSessionEdits,
   } = useSessionManager({
     stateRef, sessionEditsRef, removedSessionEditsRef, undoStackRef,
     pushUndo, setState, setSessionEditCount,
+  })
+
+  const {
+    updateSpacingProperty, updateBorderRadiusProperty, updateBorderProperty,
+    updateBorderProperties, updateRawCSS, updateFlexProperty, toggleFlexLayout,
+    updateSizingProperties, updateSizingProperty, updateColorProperty, replaceSelectionColor, updateTypographyProperty,
+  } = useStyleUpdaters({
+    stateRef,
+    pushUndo,
+    setState,
+    sessionEditsRef,
+    removedSessionEditsRef,
+    syncSessionItemCount,
   })
 
   // Save current element to session when selected element or pending styles change
@@ -329,7 +337,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     selectElement, selectParent, selectChild, closePanel,
     updateSpacingProperty, updateBorderRadiusProperty, updateBorderProperty,
     updateBorderProperties, updateRawCSS, updateFlexProperty, toggleFlexLayout,
-    updateSizingProperties, updateSizingProperty, updateColorProperty, updateTypographyProperty,
+    updateSizingProperties, updateSizingProperty, updateColorProperty, replaceSelectionColor, updateTypographyProperty,
     resetToOriginal, exportEdits, canSendEditToAgent, sendEditToAgent,
     sendAllSessionItemsToAgent, sendCommentToAgent, toggleEditMode, undo,
     handleMoveComplete, setActiveTool, setTheme, setBorderStyleControlPreference,
@@ -341,7 +349,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     selectElement, selectParent, selectChild, closePanel,
     updateSpacingProperty, updateBorderRadiusProperty, updateBorderProperty,
     updateBorderProperties, updateRawCSS, updateFlexProperty, toggleFlexLayout,
-    updateSizingProperties, updateSizingProperty, updateColorProperty, updateTypographyProperty,
+    updateSizingProperties, updateSizingProperty, updateColorProperty, replaceSelectionColor, updateTypographyProperty,
     resetToOriginal, exportEdits, canSendEditToAgent, sendEditToAgent,
     sendAllSessionItemsToAgent, sendCommentToAgent, toggleEditMode, undo,
     handleMoveComplete, setActiveTool, setTheme, setBorderStyleControlPreference,
