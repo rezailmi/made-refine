@@ -82,7 +82,10 @@ function setNavigatorClipboard(value: Clipboard | undefined) {
       Object.defineProperty(window.navigator, 'clipboard', descriptor)
       return
     }
-    delete (window.navigator as Navigator & { clipboard?: Clipboard }).clipboard
+    Object.defineProperty(window.navigator, 'clipboard', {
+      configurable: true,
+      value: undefined,
+    })
   })
 }
 
@@ -98,7 +101,10 @@ function mockExecCommand() {
       Object.defineProperty(document, 'execCommand', descriptor)
       return
     }
-    delete (document as Document & { execCommand?: (command: string) => boolean }).execCommand
+    Object.defineProperty(document, 'execCommand', {
+      configurable: true,
+      value: undefined,
+    })
   })
   return execCommand
 }

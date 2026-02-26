@@ -15,10 +15,11 @@ function tryRestoreFocus(element: Element | null) {
 
 export async function copyText(text: string): Promise<boolean> {
   const nav = (globalThis as { navigator?: Navigator }).navigator
-  const clipboardWrite = nav?.clipboard?.writeText
+  const clipboard = nav?.clipboard
+  const clipboardWrite = clipboard?.writeText
   if (typeof clipboardWrite === 'function') {
     try {
-      await clipboardWrite.call(nav.clipboard, text)
+      await clipboardWrite.call(clipboard, text)
       return true
     } catch {}
   }
