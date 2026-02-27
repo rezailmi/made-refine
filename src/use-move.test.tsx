@@ -161,6 +161,8 @@ describe('useMove', () => {
       originalNextSibling: originalSibling,
       mode: 'free',
     })
+    // visualDelta: ghostPosition { x: 40, y: 50 } - initialPos { x: 0, y: 0 }
+    expect(onMoveComplete.mock.calls[0][1].visualDelta).toEqual({ x: 40, y: 50 })
   })
 
   it('keeps handle-initiated drag target inside the original parent', () => {
@@ -339,6 +341,8 @@ describe('useMove', () => {
       mode: 'free',
       resetPositionOffsets: true,
     })
+    // visualDelta: ghostPosition { x: 180, y: 190 } - initialPos { x: 50, y: 50 }
+    expect(onMoveComplete.mock.calls[0]?.[1].visualDelta).toEqual({ x: 130, y: 140 })
   })
 
   it('position mode detaches element when dragged outside parent bounds', () => {

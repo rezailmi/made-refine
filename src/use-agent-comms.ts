@@ -12,6 +12,8 @@ import {
   getElementLocator,
   stylesToTailwind,
   collapseExportShorthands,
+  buildMovePlanContext,
+  getMoveIntentForEdit,
 } from './utils'
 import { sendEditToAgent as postEditToAgent, sendCommentToAgent as postCommentToAgent } from './mcp-client'
 
@@ -36,20 +38,34 @@ export function useAgentComms({ stateRef, sessionEditsRef, getSessionItems }: Ag
     const sessionEdit = sessionEditsRef.current.get(selectedElement)
     const hasPendingStyles = Object.keys(pendingStyles).length > 0
     const hasTextEdit = Boolean(sessionEdit?.textEdit)
-    const hasMove = Boolean(sessionEdit?.move)
+    const hasMove = Boolean(
+      sessionEdit?.move
+      && getMoveIntentForEdit(sessionEdit, buildMovePlanContext([sessionEdit])),
+    )
     return hasPendingStyles || hasTextEdit || hasMove
   }, [])
 
-  const sendSessionEditToAgent = React.useCallback(async (sessionEdit: SessionEdit) => {
+  const sendSessionEditToAgent = React.useCallback(async (
+    sessionEdit: SessionEdit,
+    allEdits?: SessionEdit[],
+    movePlanContext?: ReturnType<typeof buildMovePlanContext> | null,
+    options?: { includeBatchMoveEnvelope?: boolean },
+  ) => {
     const locator = sessionEdit.locator
     const pendingStyles = { ...sessionEdit.pendingStyles }
+    const editsForPlan = allEdits ?? [sessionEdit]
+    const resolvedPlanContext = movePlanContext ?? buildMovePlanContext(editsForPlan)
+    const includeBatchMoveEnvelope = Boolean(options?.includeBatchMoveEnvelope && sessionEdit.move)
+    const isBatchSend = Boolean(allEdits && allEdits.length > 1)
     const exportMarkdown = sessionEdit.move
-      ? buildSessionExport([{
-          ...sessionEdit,
-          locator,
-          pendingStyles,
-          textEdit: sessionEdit.textEdit,
-        }], [])
+      ? buildSessionExport(
+          includeBatchMoveEnvelope ? editsForPlan : [sessionEdit],
+          [],
+          {
+            movePlanContext: resolvedPlanContext,
+            includeMovePlanHeader: includeBatchMoveEnvelope || !isBatchSend,
+          },
+        )
       : buildEditExport(locator, pendingStyles, sessionEdit.textEdit)
     const collapsedStyles = collapseExportShorthands(pendingStyles)
     const changes = Object.entries(collapsedStyles).map(([cssProperty, cssValue]) => ({
@@ -57,8 +73,15 @@ export function useAgentComms({ stateRef, sessionEditsRef, getSessionItems }: Ag
       cssValue,
       tailwindClass: stylesToTailwind({ [cssProperty]: cssValue }),
     }))
+    const moveIntent = sessionEdit.move
+      ? getMoveIntentForEdit(sessionEdit, resolvedPlanContext)
+      : null
+    const movePlan = includeBatchMoveEnvelope ? resolvedPlanContext.movePlan : null
+    const hasMeaningfulPayload = changes.length > 0 || sessionEdit.textEdit != null || moveIntent != null
+    if (!hasMeaningfulPayload) return true
 
     try {
+      // TODO(mcp-server): confirm ingest validation/DTOs accept the non-versioned moveIntent/movePlan schema.
       const result = await postEditToAgent({
         element: {
           tagName: locator.tagName,
@@ -72,7 +95,8 @@ export function useAgentComms({ stateRef, sessionEditsRef, getSessionItems }: Ag
         reactStack: locator.reactStack,
         changes,
         textChange: sessionEdit.textEdit ?? null,
-        moveChange: sessionEdit.move ?? null,
+        moveIntent,
+        ...(movePlan ? { movePlan } : {}),
         exportMarkdown,
       })
       return result.ok
@@ -138,11 +162,26 @@ export function useAgentComms({ stateRef, sessionEditsRef, getSessionItems }: Ag
     const items = getSessionItems()
     if (items.length === 0) return false
 
+    const allEdits = items.filter((i): i is { type: 'edit'; edit: SessionEdit } => i.type === 'edit').map(i => i.edit)
+    const movePlanContext = buildMovePlanContext(allEdits)
+    let moveEnvelopeSent = false
+
     let allSucceeded = true
     for (const item of items) {
-      const succeeded = item.type === 'edit'
-        ? await sendSessionEditToAgent(item.edit)
-        : await sendSessionCommentToAgent(item.comment)
+      let succeeded: boolean
+      if (item.type === 'edit') {
+        const hasMoveIntent = Boolean(item.edit.move && getMoveIntentForEdit(item.edit, movePlanContext))
+        const includeBatchMoveEnvelope = hasMoveIntent && !moveEnvelopeSent
+        succeeded = await sendSessionEditToAgent(
+          item.edit,
+          allEdits,
+          movePlanContext,
+          { includeBatchMoveEnvelope },
+        )
+        if (includeBatchMoveEnvelope) moveEnvelopeSent = true
+      } else {
+        succeeded = await sendSessionCommentToAgent(item.comment)
+      }
       if (!succeeded) {
         allSucceeded = false
       }

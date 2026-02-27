@@ -8,8 +8,10 @@ import type {
 import {
   getElementLocator,
   buildCommentExport,
+  buildExportInstruction,
   isTextElement,
 } from './utils'
+import { copyText } from './clipboard'
 
 function clampUnit(value: number): number {
   if (!Number.isFinite(value)) return 0
@@ -159,12 +161,13 @@ export function useTextAndComments({
     if (!comment) return false
 
     const exportMarkdown = buildCommentExport(comment.locator, comment.text, comment.replies)
-    try {
-      await navigator.clipboard.writeText(`implement the visual edits\n\n${exportMarkdown}`)
-      return true
-    } catch {
-      return false
-    }
+    const instruction = buildExportInstruction({
+      hasCssEdits: false,
+      hasTextEdits: false,
+      hasMoves: false,
+      hasComments: true,
+    })
+    return copyText(`${instruction}\n\n${exportMarkdown}`)
   }, [])
 
   const setActiveCommentId = React.useCallback((id: string | null) => {

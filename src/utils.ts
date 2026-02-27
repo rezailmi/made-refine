@@ -26,6 +26,13 @@ import type {
   Guideline,
   DropIndicator,
   SessionEdit,
+  AnchorRef,
+  PlacementRef,
+  MoveClassification,
+  MoveOperation,
+  MoveIntent,
+  MovePlan,
+  LayoutPrescription,
   Comment,
 } from './types'
 
@@ -1361,6 +1368,12 @@ export function getFlexDirection(
   return computed.flexDirection as 'row' | 'row-reverse' | 'column' | 'column-reverse'
 }
 
+/** True when the child participates in normal flow (not hidden, absolute, or fixed). */
+export function isInFlowChild(el: HTMLElement): boolean {
+  const cs = window.getComputedStyle(el)
+  return cs.display !== 'none' && cs.position !== 'absolute' && cs.position !== 'fixed'
+}
+
 export function detectChildrenDirection(
   container: HTMLElement,
   exclude: HTMLElement | null
@@ -1380,8 +1393,7 @@ export function detectChildrenDirection(
   const visible: HTMLElement[] = []
   for (const c of container.children) {
     if (!(c instanceof HTMLElement) || c === exclude) continue
-    const cs = window.getComputedStyle(c)
-    if (cs.display === 'none' || cs.position === 'absolute' || cs.position === 'fixed') continue
+    if (!isInFlowChild(c)) continue
     visible.push(c)
     if (visible.length === 2) break
   }
@@ -1416,8 +1428,7 @@ export function computeIntendedIndex(
   const siblings: HTMLElement[] = []
   for (const c of parent.children) {
     if (!(c instanceof HTMLElement) || c === draggedElement) continue
-    const cs = window.getComputedStyle(c)
-    if (cs.display === 'none' || cs.position === 'absolute' || cs.position === 'fixed') continue
+    if (!isInFlowChild(c)) continue
     siblings.push(c)
   }
 
@@ -2282,8 +2293,28 @@ function getReactComponentStack(element: HTMLElement): ReactComponentFrame[] {
   return getRenderStack(fiber)
 }
 
+interface ChildBriefInfo {
+  name: string
+  textPreview: string
+  source: DomSourceLocation | null
+}
+
 export function getElementDisplayName(element: HTMLElement): string {
-  return element.tagName.toLowerCase()
+  const tag = element.tagName.toLowerCase()
+  if (element.id) return `${tag}#${element.id}`
+  const firstClass = Array.from(element.classList)
+    .find(c => c && !c.startsWith('direct-edit'))
+  if (firstClass) return `${tag}.${firstClass}`
+  return tag
+}
+
+/** Lightweight info for a child element, used in reorder data. Does NOT call getElementLocator. */
+export function getChildBriefInfo(element: HTMLElement): ChildBriefInfo {
+  const name = getElementDisplayName(element)
+  const raw = ((element.innerText || element.textContent) ?? '').replace(/\s+/g, ' ').trim()
+  const textPreview = raw.length > 40 ? `${raw.slice(0, 37)}...` : raw
+  const source = getElementSource(element)
+  return { name, textPreview, source }
 }
 
 const STABLE_ATTRIBUTES = ['data-testid', 'data-qa', 'data-cy', 'aria-label', 'role'] as const
@@ -2653,29 +2684,33 @@ function parseDomSource(element: HTMLElement): DomSourceLocation | null {
   return { file, line, column }
 }
 
-export function getElementLocator(element: HTMLElement): ElementLocator {
-  const elementInfo = getElementInfo(element)
-  let domSource = parseDomSource(element)
+/** Resolve the source location for an element: data-direct-edit-source attribute, then fiber fallback. */
+export function getElementSource(element: HTMLElement): DomSourceLocation | null {
+  const domSource = parseDomSource(element)
+  if (domSource) return domSource
 
   // Fallback: get source from the element's own React fiber when
   // the Vite plugin attribute is not present
-  if (!domSource) {
-    const seenFibers = new Set<any>()
-    let fiber = getFiberForElement(element)
-    while (fiber && !seenFibers.has(fiber)) {
-      seenFibers.add(fiber)
-      const fiberSource = getSourceFromFiber(fiber)
-      if (fiberSource?.fileName) {
-        domSource = {
-          file: fiberSource.fileName,
-          line: fiberSource.lineNumber,
-          column: fiberSource.columnNumber,
-        }
-        break
+  const seenFibers = new Set<any>()
+  let fiber = getFiberForElement(element)
+  while (fiber && !seenFibers.has(fiber)) {
+    seenFibers.add(fiber)
+    const fiberSource = getSourceFromFiber(fiber)
+    if (fiberSource?.fileName) {
+      return {
+        file: fiberSource.fileName,
+        line: fiberSource.lineNumber,
+        column: fiberSource.columnNumber,
       }
-      fiber = fiber._debugOwner ?? fiber.return ?? null
     }
+    fiber = fiber._debugOwner ?? fiber.return ?? null
   }
+  return null
+}
+
+export function getElementLocator(element: HTMLElement): ElementLocator {
+  const elementInfo = getElementInfo(element)
+  const domSource = getElementSource(element)
 
   return {
     reactStack: getReactComponentStack(element),
@@ -2707,7 +2742,7 @@ function getLocatorHeader(locator: ElementLocator): { componentLabel: string; fo
   return { componentLabel, formattedSource }
 }
 
-function buildLocatorContextLines(locator: ElementLocator): string[] {
+function buildLocatorContextLines(locator: ElementLocator, options?: { skipContext?: boolean }): string[] {
   const lines: string[] = []
   const { componentLabel, formattedSource } = getLocatorHeader(locator)
   const target = (locator.targetHtml || locator.domContextHtml || '').trim()
@@ -2721,7 +2756,7 @@ function buildLocatorContextLines(locator: ElementLocator): string[] {
     lines.push('target:')
     lines.push(target)
   }
-  if (context && context !== target) {
+  if (!options?.skipContext && context && context !== target) {
     lines.push('context:')
     lines.push(context)
   }
@@ -2934,6 +2969,39 @@ export function buildEditExport(
   return lines.join('\n')
 }
 
+/** Like buildEditExport but with options to skip context HTML (for move edits). */
+function buildEditExportWithOptions(
+  locator: ElementLocator,
+  pendingStyles: Record<string, string>,
+  textEdit?: { originalText: string; newText: string } | null,
+  options?: { skipContext?: boolean }
+): string {
+  const changes: ExportChange[] = []
+  const collapsedStyles = collapseExportShorthands(pendingStyles)
+  for (const [property, value] of Object.entries(collapsedStyles)) {
+    const tailwindClass = stylesToTailwind({ [property]: value })
+    changes.push({ property, value, tailwind: tailwindClass })
+  }
+
+  const lines = buildLocatorContextLines(locator, options)
+  lines.push('')
+  if (changes.length > 0) {
+    lines.push('edits:')
+    for (const change of changes) {
+      const tailwind = change.tailwind ? ` (${change.tailwind})` : ''
+      lines.push(`${change.property}: ${change.value}${tailwind}`)
+    }
+  }
+
+  if (textEdit) {
+    lines.push('text content changed:')
+    lines.push(`from: "${textEdit.originalText}"`)
+    lines.push(`to: "${textEdit.newText}"`)
+  }
+
+  return lines.join('\n')
+}
+
 export function buildCommentExport(
   locator: ElementLocator,
   commentText: string,
@@ -2951,94 +3019,721 @@ export function buildCommentExport(
   return lines.join('\n')
 }
 
-function formatPosition(
-  siblingBefore: string | null,
-  siblingAfter: string | null
-): string {
-  if (siblingBefore && siblingAfter) return `after <${siblingBefore}>`
-  if (siblingBefore && !siblingAfter) return `after <${siblingBefore}> (last)`
-  if (!siblingBefore && siblingAfter) return `before <${siblingAfter}> (first)`
-  return '(only child)'
+function normalizeSelector(selector: string | null | undefined): string | null {
+  const value = selector?.trim()
+  return value && value.length > 0 ? value : null
 }
 
-function formatMoveSummary(move: NonNullable<SessionEdit['move']>): string {
-  const fromPosition = formatPosition(move.fromSiblingBefore, move.fromSiblingAfter)
-  const toPosition = formatPosition(move.toSiblingBefore, move.toSiblingAfter)
-  if (move.fromParentName === move.toParentName) {
-    return `in <${move.toParentName}>, from ${fromPosition} to ${toPosition}`
-  }
-  return `from <${move.fromParentName}> ${fromPosition} to <${move.toParentName}> ${toPosition}`
+function normalizeName(name: string | null | undefined): string {
+  return name?.trim().toLowerCase() || 'element'
 }
 
-function formatMoveSelector(
+function buildAnchorRef(
+  name: string | null | undefined,
   selector: string | null | undefined,
-  fallback: '(none)' | '(unknown)'
-): string {
-  const normalized = selector?.trim()
-  return normalized ? normalized : fallback
+  source: DomSourceLocation | null | undefined
+): AnchorRef {
+  return {
+    name: name?.trim() || 'element',
+    selector: normalizeSelector(selector),
+    source: source?.file ? source : null,
+  }
 }
 
-function formatMoveSource(
-  source: DomSourceLocation | null | undefined,
-  fallback: '(none)' | '(unknown)'
-): string {
-  if (!source?.file) return fallback
-  return formatSourceLocation(source.file, source.line, source.column)
+function anchorKey(anchor: AnchorRef | null | undefined): string {
+  if (!anchor) return 'none'
+  const selector = normalizeSelector(anchor.selector)
+  if (selector) return `selector:${selector}`
+  if (anchor.source?.file) {
+    return `source:${anchor.source.file}:${anchor.source.line ?? 0}:${anchor.source.column ?? 0}`
+  }
+  return `name:${normalizeName(anchor.name)}`
 }
 
-function formatMoveMetadata(value: string | null | undefined): string {
-  return value?.trim() || '(unknown)'
+function anchorsEqual(a: AnchorRef | null | undefined, b: AnchorRef | null | undefined): boolean {
+  if (!a && !b) return true
+  if (!a || !b) return false
+  const aSelector = normalizeSelector(a.selector)
+  const bSelector = normalizeSelector(b.selector)
+  if (aSelector && bSelector) return aSelector === bSelector
+  if (a.source?.file && b.source?.file) {
+    return (
+      a.source.file === b.source.file
+      && (a.source.line ?? null) === (b.source.line ?? null)
+      && (a.source.column ?? null) === (b.source.column ?? null)
+    )
+  }
+  return normalizeName(a.name) === normalizeName(b.name)
 }
 
-function formatMoveIndex(value: number | undefined): string {
-  return typeof value === 'number' && Number.isFinite(value) ? String(value) : '(unknown)'
+function formatAnchorRef(anchor: AnchorRef | null | undefined, fallback = '(none)'): string {
+  if (!anchor) return fallback
+  const selector = normalizeSelector(anchor.selector)
+  if (selector) return selector
+  if (anchor.source?.file) return `<${anchor.name}> @ ${formatSourceLocation(anchor.source.file, anchor.source.line, anchor.source.column)}`
+  return `<${anchor.name}>`
 }
 
-function buildMoveExportLines(move: NonNullable<SessionEdit['move']>): string[] {
-  const lines = [
+function buildPlacementRef(before: AnchorRef | null, after: AnchorRef | null): PlacementRef {
+  if (before && after) {
+    return {
+      before,
+      after,
+      description: `between after ${formatAnchorRef(before)} and before ${formatAnchorRef(after)}`,
+    }
+  }
+  if (before) {
+    return {
+      before,
+      after: null,
+      description: `after ${formatAnchorRef(before)}`,
+    }
+  }
+  if (after) {
+    return {
+      before: null,
+      after,
+      description: `before ${formatAnchorRef(after)}`,
+    }
+  }
+  return {
+    before: null,
+    after: null,
+    description: 'as the only child',
+  }
+}
+
+function buildPlacementFromMove(
+  beforeName: string | null | undefined,
+  beforeSelector: string | null | undefined,
+  beforeSource: DomSourceLocation | null | undefined,
+  afterName: string | null | undefined,
+  afterSelector: string | null | undefined,
+  afterSource: DomSourceLocation | null | undefined
+): PlacementRef {
+  const before = (beforeName || beforeSelector || beforeSource?.file)
+    ? buildAnchorRef(beforeName, beforeSelector, beforeSource)
+    : null
+  const after = (afterName || afterSelector || afterSource?.file)
+    ? buildAnchorRef(afterName, afterSelector, afterSource)
+    : null
+  return buildPlacementRef(before, after)
+}
+
+function toRoundedVisualDelta(move: NonNullable<SessionEdit['move']>): { x: number; y: number } | undefined {
+  const delta = move.visualDelta ?? move.positionDelta
+  if (!delta) return undefined
+  const rounded = { x: Math.round(delta.x), y: Math.round(delta.y) }
+  return rounded.x === 0 && rounded.y === 0 ? undefined : rounded
+}
+
+function hasVisualIntent(move: NonNullable<SessionEdit['move']>): boolean {
+  return Boolean(toRoundedVisualDelta(move))
+}
+
+function hasStructuralChange(move: NonNullable<SessionEdit['move']>): boolean {
+  const fromParent = buildAnchorRef(move.fromParentName, move.fromParentSelector, move.fromParentSource)
+  const toParent = buildAnchorRef(move.toParentName, move.toParentSelector, move.toParentSource)
+  const fromPlacement = buildPlacementFromMove(
+    move.fromSiblingBefore,
+    move.fromSiblingBeforeSelector,
+    move.fromSiblingBeforeSource,
+    move.fromSiblingAfter,
+    move.fromSiblingAfterSelector,
+    move.fromSiblingAfterSource,
+  )
+  const toPlacement = buildPlacementFromMove(
+    move.toSiblingBefore,
+    move.toSiblingBeforeSelector,
+    move.toSiblingBeforeSource,
+    move.toSiblingAfter,
+    move.toSiblingAfterSelector,
+    move.toSiblingAfterSource,
+  )
+
+  if (!anchorsEqual(fromParent, toParent)) return true
+  if (!anchorsEqual(fromPlacement.before, toPlacement.before)) return true
+  if (!anchorsEqual(fromPlacement.after, toPlacement.after)) return true
+  if (typeof move.fromIndex === 'number' && typeof move.toIndex === 'number' && move.fromIndex !== move.toIndex) return true
+  return false
+}
+
+function isStructuredLayoutContainer(layout: NonNullable<SessionEdit['move']>['fromParentLayout'] | undefined): boolean {
+  return layout === 'flex' || layout === 'grid'
+}
+
+function isExistingFlexWorkflow(move: NonNullable<SessionEdit['move']>): boolean {
+  const structuralChange = hasStructuralChange(move)
+  if (!structuralChange) return false
+
+  const fromParent = buildAnchorRef(move.fromParentName, move.fromParentSelector, move.fromParentSource)
+  const toParent = buildAnchorRef(move.toParentName, move.toParentSelector, move.toParentSource)
+  const sameParent = anchorsEqual(fromParent, toParent)
+  const fromLayout = move.fromParentLayout
+  const toLayout = move.toParentLayout
+
+  if (sameParent) {
+    return Boolean(move.mode === 'reorder' && (isStructuredLayoutContainer(toLayout) || isStructuredLayoutContainer(fromLayout)))
+  }
+  return Boolean(isStructuredLayoutContainer(fromLayout) && isStructuredLayoutContainer(toLayout))
+}
+
+function classifyMove(move: NonNullable<SessionEdit['move']>): MoveClassification | 'noop' {
+  const structuralChange = hasStructuralChange(move)
+  const visualIntent = hasVisualIntent(move)
+  if (!structuralChange && !visualIntent) return 'noop'
+  if (isExistingFlexWorkflow(move)) return 'existing_layout_move'
+  if (move.mode === 'free' || move.mode === 'position') return 'layout_refactor'
+  if (!structuralChange && visualIntent) return 'layout_refactor'
+  return 'layout_refactor'
+}
+
+interface NumericCluster {
+  center: number
+  values: number[]
+}
+
+function buildNumericClusters(values: number[], tolerance: number): NumericCluster[] {
+  if (values.length === 0) return []
+  const sorted = [...values].sort((a, b) => a - b)
+  const clusters: NumericCluster[] = [{ center: sorted[0], values: [sorted[0]] }]
+  for (let i = 1; i < sorted.length; i++) {
+    const value = sorted[i]
+    const current = clusters[clusters.length - 1]
+    if (Math.abs(value - current.center) <= tolerance) {
+      current.values.push(value)
+      current.center = current.values.reduce((sum, n) => sum + n, 0) / current.values.length
+    } else {
+      clusters.push({ center: value, values: [value] })
+    }
+  }
+  return clusters
+}
+
+function inferFlexDirection(
+  sameRowCount: number,
+  sameColumnCount: number,
+  visualDelta?: { x: number; y: number }
+): { direction: 'row' | 'column'; reason: string } {
+  if (sameRowCount > sameColumnCount) {
+    return { direction: 'row', reason: 'Subject aligns with neighboring anchors on the same row.' }
+  }
+  if (sameColumnCount > sameRowCount) {
+    return { direction: 'column', reason: 'Subject aligns with neighboring anchors on the same column.' }
+  }
+  if (sameRowCount > 0) {
+    return { direction: 'row', reason: 'Detected row alignment in final geometry.' }
+  }
+  if (sameColumnCount > 0) {
+    return { direction: 'column', reason: 'Detected column alignment in final geometry.' }
+  }
+  const horizontalDominant = Math.abs(visualDelta?.x ?? 0) >= Math.abs(visualDelta?.y ?? 0)
+  return {
+    direction: horizontalDominant ? 'row' : 'column',
+    reason: 'Fell back to movement axis because anchor alignment was ambiguous.',
+  }
+}
+
+function inferLayoutPrescription(
+  edit: SessionEdit,
+  operation: Omit<MoveOperation, 'operationId'>,
+  reasons: string[]
+): LayoutPrescription {
+  const parent = edit.element.parentElement
+  if (!parent || !edit.element.isConnected) {
+    return {
+      recommendedSystem: 'flex',
+      intentPatterns: ['no_geometry_context'],
+      refactorSteps: [
+        `Reparent ${formatAnchorRef(operation.subject)} under ${formatAnchorRef(operation.to.parent)} at ${operation.to.placement.description}.`,
+      ],
+      styleSteps: [
+        `Convert ${formatAnchorRef(operation.to.parent)} to flex and set a clear primary axis for this relationship.`,
+        'Use `gap` for spacing and keep positioning static.',
+      ],
+      itemSteps: [
+        'Remove any inline `left/top/transform` move artifacts from moved elements.',
+      ],
+    }
+  }
+
+  const children = Array.from(parent.children).filter(
+    (node) => node instanceof HTMLElement && isInFlowChild(node) && !node.hasAttribute('data-direct-edit')
+  ) as HTMLElement[]
+  const childSnapshots = children.map((child) => {
+    const rect = child.getBoundingClientRect()
+    const locator = getElementLocator(child)
+    const anchor = buildAnchorRef(getElementDisplayName(child), locator.domSelector, locator.domSource)
+    return {
+      child,
+      rect,
+      centerX: rect.left + rect.width / 2,
+      centerY: rect.top + rect.height / 2,
+      anchor,
+      anchorLabel: formatAnchorRef(anchor),
+    }
+  })
+  const subjectSnapshot = childSnapshots.find((snapshot) => snapshot.child === edit.element)
+  const subjectRect = edit.element.getBoundingClientRect()
+  const subjectCenterX = subjectRect.left + subjectRect.width / 2
+  const subjectCenterY = subjectRect.top + subjectRect.height / 2
+  const rowTolerance = Math.max(8, subjectRect.height * 0.35)
+  const colTolerance = Math.max(8, subjectRect.width * 0.35)
+
+  const sameRowWith: string[] = []
+  const sameColumnWith: string[] = []
+  const sameRowNodes: typeof childSnapshots = []
+  let aboveAnchor: string | null = null
+  let belowAnchor: string | null = null
+  let bestAboveDistance = Number.POSITIVE_INFINITY
+  let bestBelowDistance = Number.POSITIVE_INFINITY
+
+  for (const node of childSnapshots) {
+    if (node.child === edit.element) continue
+
+    if (Math.abs(node.centerY - subjectCenterY) <= rowTolerance) {
+      sameRowWith.push(node.anchorLabel)
+      sameRowNodes.push(node)
+    }
+    if (Math.abs(node.centerX - subjectCenterX) <= colTolerance) {
+      sameColumnWith.push(node.anchorLabel)
+    }
+
+    const yDelta = node.centerY - subjectCenterY
+    if (yDelta < 0 && Math.abs(yDelta) < bestAboveDistance) {
+      bestAboveDistance = Math.abs(yDelta)
+      aboveAnchor = node.anchorLabel
+    }
+    if (yDelta > 0 && yDelta < bestBelowDistance) {
+      bestBelowDistance = yDelta
+      belowAnchor = node.anchorLabel
+    }
+  }
+
+  const rowCenters = childSnapshots.map(({ centerY }) => centerY)
+  const colCenters = childSnapshots.map(({ centerX }) => centerX)
+  const rowClusters = buildNumericClusters(rowCenters, rowTolerance)
+  const colClusters = buildNumericClusters(colCenters, colTolerance)
+  const denseRowClusters = rowClusters.filter(cluster => cluster.values.length >= 2).length
+  const denseColClusters = colClusters.filter(cluster => cluster.values.length >= 2).length
+  const isTwoDimensional = childSnapshots.length >= 4 && denseRowClusters >= 2 && denseColClusters >= 2
+  const recommendedSystem: 'flex' | 'grid' = isTwoDimensional ? 'grid' : 'flex'
+
+  const intentPatterns: string[] = []
+  if (sameRowWith.length > 0) intentPatterns.push(`same_row_with:${sameRowWith.slice(0, 3).join(', ')}`)
+  if (sameColumnWith.length > 0) intentPatterns.push(`same_column_with:${sameColumnWith.slice(0, 3).join(', ')}`)
+  if (aboveAnchor) intentPatterns.push(`below:${aboveAnchor}`)
+  if (belowAnchor) intentPatterns.push(`above:${belowAnchor}`)
+  if (sameRowWith.length === 0 && sameColumnWith.length === 0) intentPatterns.push('separate_cluster')
+
+  const visualDelta = operation.visualDelta
+  const flexDirectionInfo = inferFlexDirection(sameRowWith.length, sameColumnWith.length, visualDelta)
+  const flexDirection = flexDirectionInfo.direction
+
+  if (recommendedSystem === 'grid') {
+    reasons.push('Detected multiple dense row and column clusters; a 2D layout system is likely intentional.')
+    return {
+      recommendedSystem: 'grid',
+      intentPatterns,
+      refactorSteps: [
+        `Create/ensure a shared container around ${formatAnchorRef(operation.subject)} and related anchors under ${formatAnchorRef(operation.to.parent)}.`,
+        `Reorder/reparent elements to satisfy placement ${operation.to.placement.description}.`,
+      ],
+      styleSteps: [
+        `Set ${formatAnchorRef(operation.to.parent)} to grid with explicit template rows/columns for the final layout.`,
+        'Use `gap` for consistent spacing and keep placement structural.',
+      ],
+      itemSteps: [
+        `Set item alignment on ${formatAnchorRef(operation.subject)} with grid self-alignment (` + '`justify-self`/`align-self`).',
+      ],
+    }
+  }
+
+  reasons.push(`${flexDirectionInfo.reason} Use a 1D flex layout instead of literal drag replay.`)
+
+  let hasStackedCluster = false
+  const stackedAnchorLabels = new Set<string>()
+  if (flexDirection === 'row' && subjectSnapshot) {
+    for (const rowPeer of sameRowNodes) {
+      for (const node of childSnapshots) {
+        if (node.child === edit.element || node.child === rowPeer.child) continue
+        const sameColumnAsPeer = Math.abs(node.centerX - rowPeer.centerX) <= colTolerance
+        const verticallySeparated = Math.abs(node.centerY - rowPeer.centerY) > rowTolerance
+        if (sameColumnAsPeer && verticallySeparated) {
+          hasStackedCluster = true
+          stackedAnchorLabels.add(rowPeer.anchorLabel)
+          stackedAnchorLabels.add(node.anchorLabel)
+        }
+      }
+    }
+  }
+
+  const hasBelowCluster = childSnapshots.some((node) => (
+    node.child !== edit.element
+    && node.centerY - subjectCenterY > rowTolerance * 1.5
+    && Math.abs(node.centerY - subjectCenterY) > Math.abs(node.centerX - subjectCenterX)
+  ))
+
+  const refactorSteps = [
+    `Ensure ${formatAnchorRef(operation.subject)} and referenced neighbors share a common container under ${formatAnchorRef(operation.to.parent)}.`,
+    `Reparent/reorder nodes so ${formatAnchorRef(operation.subject)} lands ${operation.to.placement.description}.`,
+  ]
+  if (flexDirection === 'row' && hasStackedCluster) {
+    const clusterSample = Array.from(stackedAnchorLabels).slice(0, 3).join(', ')
+    refactorSteps.push(`Create a left-side content wrapper for vertically stacked items (${clusterSample}), and keep ${formatAnchorRef(operation.subject)} as the opposite-side sibling.`)
+  }
+  if (hasBelowCluster) {
+    refactorSteps.push('Keep lower content sections in a separate block below the horizontal header row; do not force them into the same row.')
+  }
+
+  const styleSteps = [
+    `Set ${formatAnchorRef(operation.to.parent)} to flex with direction ${flexDirection}.`,
+    flexDirection === 'row'
+      ? 'Use `justify-content: space-between` and `align-items: flex-start` when the moved element should sit on the opposite edge.'
+      : 'Use `justify-content` / `align-items` to establish top-bottom alignment.',
+    'Use `gap` for spacing between siblings.',
+  ]
+  if (flexDirection === 'row' && hasStackedCluster) {
+    styleSteps.push('Set the content wrapper to `display: flex` with `flex-direction: column` and an appropriate vertical gap.')
+  }
+
+  return {
+    recommendedSystem: 'flex',
+    intentPatterns,
+    refactorSteps,
+    styleSteps,
+    itemSteps: [
+      `Apply item-level alignment (` + '`align-self`' + ` / flex-basis) only when needed for ${formatAnchorRef(operation.subject)}.`,
+      'Do not use absolute positioning, top/left offsets, transforms, or margin hacks to simulate movement.',
+    ],
+  }
+}
+
+interface MovePlanEntry {
+  edit: SessionEdit
+  operation: Omit<MoveOperation, 'operationId'>
+  sortKey: string
+}
+
+export interface MovePlanContext {
+  movePlan: MovePlan | null
+  intentsByEdit: Map<SessionEdit, MoveIntent>
+  noopMoveCount: number
+}
+
+function buildMoveEntries(edits: SessionEdit[]): {
+  entries: MovePlanEntry[]
+  noopMoveCount: number
+} {
+  const entries: MovePlanEntry[] = []
+  let noopMoveCount = 0
+
+  for (const edit of edits) {
+    const move = edit.move
+    if (!move) continue
+
+    const subject = buildAnchorRef(
+      getElementDisplayName(edit.element) || edit.locator.tagName,
+      edit.locator.domSelector,
+      edit.locator.domSource,
+    )
+    const fromParent = buildAnchorRef(move.fromParentName, move.fromParentSelector, move.fromParentSource)
+    const toParent = buildAnchorRef(move.toParentName, move.toParentSelector, move.toParentSource)
+    const fromPlacement = buildPlacementFromMove(
+      move.fromSiblingBefore,
+      move.fromSiblingBeforeSelector,
+      move.fromSiblingBeforeSource,
+      move.fromSiblingAfter,
+      move.fromSiblingAfterSelector,
+      move.fromSiblingAfterSource,
+    )
+    const toPlacement = buildPlacementFromMove(
+      move.toSiblingBefore,
+      move.toSiblingBeforeSelector,
+      move.toSiblingBeforeSource,
+      move.toSiblingAfter,
+      move.toSiblingAfterSelector,
+      move.toSiblingAfterSource,
+    )
+
+    const reasons: string[] = []
+    const classification = classifyMove(move)
+    if (classification === 'noop') {
+      noopMoveCount++
+      continue
+    }
+
+    const interactionMode = move.mode ?? 'free'
+    const visualDelta = toRoundedVisualDelta(move)
+    if (visualDelta) {
+      reasons.push(`Non-zero visual delta detected (${visualDelta.x}px, ${visualDelta.y}px).`)
+    }
+
+    const structuralChange = hasStructuralChange(move)
+    if (structuralChange) reasons.push('Anchor placement changed between source and target.')
+    else reasons.push('No anchor placement change; treating movement as layout intent translation.')
+
+    const operationBase: Omit<MoveOperation, 'operationId'> = {
+      classification,
+      interactionMode,
+      subject,
+      from: { parent: fromParent, placement: fromPlacement },
+      to: { parent: toParent, placement: toPlacement },
+      ...(visualDelta ? { visualDelta } : {}),
+      confidence: classification === 'existing_layout_move'
+        ? 'high'
+        : structuralChange
+          ? 'medium'
+          : 'high',
+      reasons,
+    }
+
+    if (classification === 'layout_refactor') {
+      operationBase.layoutPrescription = inferLayoutPrescription(edit, operationBase, reasons)
+    }
+
+    const sortSource = subject.source?.file
+      ? `${subject.source.file}:${subject.source.line ?? 0}:${subject.source.column ?? 0}`
+      : ''
+    const sortKey = [
+      sortSource,
+      anchorKey(subject),
+      anchorKey(toParent),
+      toPlacement.description,
+    ].join('|')
+    entries.push({ edit, operation: operationBase, sortKey })
+  }
+
+  entries.sort((a, b) => a.sortKey.localeCompare(b.sortKey))
+  return { entries, noopMoveCount }
+}
+
+export function buildMovePlanContext(
+  edits: SessionEdit[],
+  _domContext?: unknown
+): MovePlanContext {
+  const { entries, noopMoveCount } = buildMoveEntries(edits)
+  if (entries.length === 0) {
+    return {
+      movePlan: null,
+      intentsByEdit: new Map(),
+      noopMoveCount,
+    }
+  }
+
+  const operations: MoveOperation[] = []
+  const intentsByEdit = new Map<SessionEdit, MoveIntent>()
+  for (let i = 0; i < entries.length; i++) {
+    const operationId = `op-${i + 1}`
+    const operation: MoveOperation = { operationId, ...entries[i].operation }
+    operations.push(operation)
+    intentsByEdit.set(entries[i].edit, operation)
+  }
+
+  const affectedContainerMap = new Map<string, AnchorRef>()
+  for (const operation of operations) {
+    affectedContainerMap.set(anchorKey(operation.from.parent), operation.from.parent)
+    affectedContainerMap.set(anchorKey(operation.to.parent), operation.to.parent)
+  }
+
+  const orderingConstraints = operations
+    .filter(op => op.classification === 'existing_layout_move')
+    .map(op => `${op.operationId}: place ${formatAnchorRef(op.subject)} ${op.to.placement.description} in ${formatAnchorRef(op.to.parent)}.`)
+
+  const notes: string[] = []
+  if (noopMoveCount > 0) notes.push(`Excluded ${noopMoveCount} no-op move(s).`)
+  if (operations.some(op => op.classification === 'layout_refactor')) {
+    notes.push('Layout refactor operations include best-practice flex/grid prescriptions.')
+  }
+
+  return {
+    movePlan: {
+      operations,
+      affectedContainers: Array.from(affectedContainerMap.values()),
+      orderingConstraints,
+      notes,
+    },
+    intentsByEdit,
+    noopMoveCount,
+  }
+}
+
+export function buildMovePlan(edits: SessionEdit[], domContext?: unknown): MovePlan {
+  const context = buildMovePlanContext(edits, domContext)
+  return context.movePlan ?? {
+    operations: [],
+    affectedContainers: [],
+    orderingConstraints: [],
+    notes: context.noopMoveCount > 0 ? [`Excluded ${context.noopMoveCount} no-op move(s).`] : [],
+  }
+}
+
+export function getMoveIntentForEdit(
+  edit: SessionEdit,
+  context?: MovePlanContext | null
+): MoveIntent | null {
+  if (!edit.move) return null
+  if (context?.intentsByEdit.has(edit)) return context.intentsByEdit.get(edit) ?? null
+  const singleContext = buildMovePlanContext([edit])
+  return singleContext.intentsByEdit.get(edit) ?? null
+}
+
+function buildMoveInstructionFromIntent(intent: MoveIntent): string {
+  if (intent.classification === 'existing_layout_move') {
+    return `Apply as a structural move in code: place ${formatAnchorRef(intent.subject)} ${intent.to.placement.description} in ${formatAnchorRef(intent.to.parent)}.`
+  }
+  const system = intent.layoutPrescription?.recommendedSystem ?? 'flex'
+  return `Treat this as a ${system} layout refactor. Implement the listed structure/style steps in source code instead of drag replay.`
+}
+
+function formatMoveType(classification: MoveClassification): 'structural_move' | 'layout_refactor' {
+  return classification === 'existing_layout_move' ? 'structural_move' : 'layout_refactor'
+}
+
+function buildMoveExportLines(intent: MoveIntent): string[] {
+  const moveType = formatMoveType(intent.classification)
+  const implementationSteps: string[] = []
+  if (intent.classification === 'existing_layout_move') {
+    implementationSteps.push(`Reorder/reparent ${formatAnchorRef(intent.subject)} to ${intent.to.placement.description} in ${formatAnchorRef(intent.to.parent)}.`)
+  } else {
+    const prescription = intent.layoutPrescription
+    if (prescription) {
+      implementationSteps.push(...prescription.refactorSteps)
+      implementationSteps.push(...prescription.styleSteps)
+      implementationSteps.push(...prescription.itemSteps)
+    }
+  }
+
+  const lines: string[] = [
     'moved:',
-    `summary: ${formatMoveSummary(move)}`,
-    `mode: ${formatMoveMetadata(move.mode)}`,
-    `dragged_position: ${formatMoveMetadata(move.draggedPosition)}`,
-    `from_parent_display: ${formatMoveMetadata(move.fromParentDisplay)}`,
-    `from_parent_layout: ${formatMoveMetadata(move.fromParentLayout)}`,
-    `from_index: ${formatMoveIndex(move.fromIndex)}`,
-    `to_parent_display: ${formatMoveMetadata(move.toParentDisplay)}`,
-    `to_parent_layout: ${formatMoveMetadata(move.toParentLayout)}`,
-    `to_index: ${formatMoveIndex(move.toIndex)}`,
-    `from_parent_selector: ${formatMoveSelector(move.fromParentSelector, '(unknown)')}`,
-    `from_before_selector: ${formatMoveSelector(move.fromSiblingBeforeSelector, '(none)')}`,
-    `from_after_selector: ${formatMoveSelector(move.fromSiblingAfterSelector, '(none)')}`,
-    `from_parent_source: ${formatMoveSource(move.fromParentSource, '(unknown)')}`,
-    `from_before_source: ${formatMoveSource(move.fromSiblingBeforeSource, '(none)')}`,
-    `from_after_source: ${formatMoveSource(move.fromSiblingAfterSource, '(none)')}`,
-    `to_parent_selector: ${formatMoveSelector(move.toParentSelector, '(unknown)')}`,
-    `to_before_selector: ${formatMoveSelector(move.toSiblingBeforeSelector, '(none)')}`,
-    `to_after_selector: ${formatMoveSelector(move.toSiblingAfterSelector, '(none)')}`,
-    `to_parent_source: ${formatMoveSource(move.toParentSource, '(unknown)')}`,
-    `to_before_source: ${formatMoveSource(move.toSiblingBeforeSource, '(none)')}`,
-    `to_after_source: ${formatMoveSource(move.toSiblingAfterSource, '(none)')}`,
+    `id: ${intent.operationId}`,
+    `type: ${moveType}`,
+    `subject: ${formatAnchorRef(intent.subject, '(unknown)')}`,
+    `parent: ${formatAnchorRef(intent.to.parent, '(unknown)')}`,
+    `current_anchor: ${intent.from.placement.description}`,
+    `target_anchor: ${intent.to.placement.description}`,
+    ...(intent.visualDelta
+      ? [`visual_hint: ${intent.visualDelta.x}px horizontal, ${intent.visualDelta.y}px vertical`]
+      : []),
   ]
 
-  if (move.mode === 'position' && move.appliedLeft) {
-    lines.push(`applied_left: ${move.appliedLeft}`)
-  }
-  if (move.mode === 'position' && move.appliedTop) {
-    lines.push(`applied_top: ${move.appliedTop}`)
+  if (intent.layoutPrescription) {
+    lines.push(`recommended_layout: ${intent.layoutPrescription.recommendedSystem}`)
   }
 
+  lines.push('implementation_steps:')
+  for (const step of implementationSteps) {
+    lines.push(`  - ${step}`)
+  }
+
+  lines.push('guardrails:')
+  lines.push('  - Do not simulate movement with absolute positioning, left/top offsets, transform, or margin hacks.')
+  lines.push(`instruction: ${buildMoveInstructionFromIntent(intent)}`)
   return lines
 }
 
-export function buildSessionExport(edits: SessionEdit[], comments: Comment[] = []): string {
+interface SessionExportOptions {
+  movePlanContext?: MovePlanContext | null
+  includeMovePlanHeader?: boolean
+}
+
+interface ExportContentProfile {
+  hasCssEdits: boolean
+  hasTextEdits: boolean
+  hasMoves: boolean
+  hasComments: boolean
+}
+
+export function getExportContentProfile(
+  edits: SessionEdit[],
+  comments: Comment[],
+  movePlanOrContext?: MovePlan | MovePlanContext | null
+): ExportContentProfile {
+  const moveOpCount = movePlanOrContext
+    ? ('operations' in movePlanOrContext
+      ? movePlanOrContext.operations.length
+      : (movePlanOrContext.movePlan?.operations.length ?? 0))
+    : (buildMovePlanContext(edits).movePlan?.operations.length ?? 0)
+
+  return {
+    hasCssEdits: edits.some(e => Object.keys(e.pendingStyles).length > 0),
+    hasTextEdits: edits.some(e => e.textEdit != null),
+    hasMoves: moveOpCount > 0,
+    hasComments: comments.length > 0,
+  }
+}
+
+export function buildExportInstruction(profile: ExportContentProfile): string {
+  const { hasCssEdits, hasTextEdits, hasMoves, hasComments } = profile
+
+  if (!hasCssEdits && !hasTextEdits && !hasMoves && !hasComments) return ''
+
+  if (!hasCssEdits && !hasTextEdits && !hasMoves) {
+    return hasComments
+      ? 'Address this feedback on the UI. Use the provided source location and selector to find each element in the codebase.'
+      : ''
+  }
+
+  const parts: string[] = []
+  if (hasCssEdits) parts.push('Apply the CSS changes to the targeted elements using the project\'s existing styling approach (Tailwind, CSS modules, etc.).')
+  if (hasTextEdits) parts.push('Update the text content as specified.')
+  if (hasMoves) parts.push('Implement the move plan below directly in source code. For `structural_move`, reorder/reparent elements using the target anchors. For `layout_refactor`, apply the listed flex/grid refactor steps. Do NOT simulate movement with absolute positioning, left/top offsets, transform, or margin hacks.')
+  if (hasComments) parts.push('Address the comments on the relevant elements.')
+
+  return `${parts.join(' ')} Use the provided source locations, selectors, and context HTML to locate each element in the codebase.`
+}
+
+export function buildSessionExport(
+  edits: SessionEdit[],
+  comments: Comment[] = [],
+  options?: SessionExportOptions
+): string {
   const blocks: string[] = []
+  const planContext = options?.movePlanContext ?? buildMovePlanContext(edits)
+  const movePlan = planContext.movePlan
+  const includeMovePlanHeader = options?.includeMovePlanHeader !== false
+
+  if (includeMovePlanHeader && movePlan && movePlan.operations.length > 0) {
+    const planLines: string[] = [
+      '=== LAYOUT MOVE PLAN ===',
+      `operations: ${movePlan.operations.length}`,
+    ]
+    if (movePlan.affectedContainers.length > 0) {
+      planLines.push('containers:')
+      for (const container of movePlan.affectedContainers) {
+        planLines.push(`  - ${formatAnchorRef(container, '(unknown)')}`)
+      }
+    }
+    if (movePlan.orderingConstraints.length > 0) {
+      planLines.push('structural_constraints:')
+      for (const constraint of movePlan.orderingConstraints) {
+        planLines.push(`  - ${constraint}`)
+      }
+    }
+    if (movePlan.notes.length > 0) {
+      planLines.push('plan_notes:')
+      for (const note of movePlan.notes) {
+        planLines.push(`  - ${note}`)
+      }
+    }
+    blocks.push(planLines.join('\n'))
+  }
 
   for (const edit of edits) {
-    let block = buildEditExport(edit.locator, edit.pendingStyles, edit.textEdit)
-    if (edit.move) {
-      block += `\n${buildMoveExportLines(edit.move).join('\n')}`
+    const moveIntent = getMoveIntentForEdit(edit, planContext)
+    const hasMove = Boolean(moveIntent)
+    const hasStyleOrText = Object.keys(edit.pendingStyles).length > 0 || edit.textEdit != null
+    if (!hasMove && !hasStyleOrText) continue
+
+    const block = hasMove
+      ? buildEditExportWithOptions(edit.locator, edit.pendingStyles, edit.textEdit, { skipContext: true })
+      : buildEditExport(edit.locator, edit.pendingStyles, edit.textEdit)
+
+    let moveBlock = ''
+    if (moveIntent) {
+      moveBlock = `\n${buildMoveExportLines(moveIntent).join('\n')}`
     }
-    blocks.push(block)
+    blocks.push(block + moveBlock)
   }
 
   for (const comment of comments) {

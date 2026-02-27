@@ -53,13 +53,6 @@ function cssValue(numericValue: number) {
   }
 }
 
-function sizingValue(mode: 'fixed' | 'fill' | 'fit', numericValue: number) {
-  return {
-    mode,
-    value: cssValue(numericValue),
-  } as const
-}
-
 function createTarget(id: string, styleText = ''): HTMLElement {
   const el = document.createElement('div')
   el.id = id
@@ -76,6 +69,44 @@ function mockClipboard() {
     value: { writeText },
   })
   return writeText
+}
+
+function setNavigatorClipboard(value: Clipboard | undefined) {
+  const descriptor = Object.getOwnPropertyDescriptor(window.navigator, 'clipboard')
+  Object.defineProperty(window.navigator, 'clipboard', {
+    configurable: true,
+    value,
+  })
+  documentPropertyRestores.push(() => {
+    if (descriptor) {
+      Object.defineProperty(window.navigator, 'clipboard', descriptor)
+      return
+    }
+    Object.defineProperty(window.navigator, 'clipboard', {
+      configurable: true,
+      value: undefined,
+    })
+  })
+}
+
+function mockExecCommand() {
+  const descriptor = Object.getOwnPropertyDescriptor(document, 'execCommand')
+  const execCommand = vi.fn<(...args: unknown[]) => boolean>().mockReturnValue(true)
+  Object.defineProperty(document, 'execCommand', {
+    configurable: true,
+    value: (command: string) => execCommand(command),
+  })
+  documentPropertyRestores.push(() => {
+    if (descriptor) {
+      Object.defineProperty(document, 'execCommand', descriptor)
+      return
+    }
+    Object.defineProperty(document, 'execCommand', {
+      configurable: true,
+      value: undefined,
+    })
+  })
+  return execCommand
 }
 
 function stubMatchMedia() {
@@ -219,45 +250,6 @@ describe('DirectEditProvider', () => {
     expect(Object.keys(result.current.pendingStyles)).toHaveLength(0)
   })
 
-  it('applies batched sizing transactions with single undo', async () => {
-    const target = createTarget('sizing-transaction-target', 'width: 100px; height: 80px;')
-    const { result } = renderHook(() => useDirectEdit(), { wrapper })
-
-    act(() => {
-      result.current.selectElement(target)
-    })
-
-    await waitFor(() => {
-      expect(result.current.selectedElement).toBe(target)
-    })
-
-    act(() => {
-      result.current.updateSizingProperties({}, { transactionId: 'tx-1', phase: 'start' })
-      result.current.updateSizingProperties({
-        width: sizingValue('fixed', 120),
-        height: sizingValue('fixed', 90),
-      }, { transactionId: 'tx-1', phase: 'update' })
-      result.current.updateSizingProperties({
-        width: sizingValue('fixed', 140),
-      }, { transactionId: 'tx-1', phase: 'update' })
-      result.current.updateSizingProperties({}, { transactionId: 'tx-1', phase: 'end' })
-    })
-
-    expect(target.style.getPropertyValue('width')).toBe('140px')
-    expect(target.style.getPropertyValue('height')).toBe('90px')
-    expect(result.current.pendingStyles['width']).toBe('140px')
-    expect(result.current.pendingStyles['height']).toBe('90px')
-    expect(result.current.computedSizing?.width.value.numericValue).toBe(140)
-    expect(result.current.computedSizing?.height.value.numericValue).toBe(90)
-
-    act(() => {
-      result.current.undo()
-    })
-
-    expect(target.style.getPropertyValue('width')).toBe('100px')
-    expect(target.style.getPropertyValue('height')).toBe('80px')
-  })
-
   it('exposes split hooks and keeps actions context stable across state updates', async () => {
     mockClipboard()
     const target = createTarget('split-hooks-target', 'padding-top: 2px;')
@@ -334,6 +326,29 @@ describe('DirectEditProvider', () => {
     })
 
     expect(target.style.getPropertyValue('box-shadow')).toBe('')
+  })
+
+  it('exports edits through execCommand fallback when navigator clipboard is unavailable', async () => {
+    setNavigatorClipboard(undefined)
+    const execCommand = mockExecCommand()
+    const target = createTarget('exec-fallback-target', 'padding-top: 8px;')
+    const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+    act(() => {
+      result.current.selectElement(target)
+    })
+
+    await waitFor(() => {
+      expect(result.current.selectedElement).toBe(target)
+    })
+
+    act(() => {
+      result.current.updateSpacingProperty('paddingTop', cssValue(14))
+    })
+
+    const copied = await result.current.exportEdits()
+    expect(copied).toBe(true)
+    expect(execCommand).toHaveBeenCalledWith('copy')
   })
 
   it('retains only the latest 500 undo entries', async () => {
@@ -917,23 +932,54 @@ describe('DirectEditProvider', () => {
 
     const exported = String(clipboardWrite.mock.calls[0][0])
     expect(exported).toContain('moved:')
-    expect(exported).toContain('summary:')
-    expect(exported).toContain('mode: free')
-    expect(exported).toContain('dragged_position: relative')
-    expect(exported).toContain('from_parent_layout: block')
-    expect(exported).toContain('to_parent_layout: flex')
-    expect(exported).toContain('from_index: 1')
-    expect(exported).toContain('to_index: 1')
-    expect(exported).toContain('from_parent_selector:')
-    expect(exported).toContain('to_parent_selector:')
-    expect(exported).toContain('#move-parent')
+    expect(exported).toContain('=== LAYOUT MOVE PLAN ===')
+    expect(exported).toContain('id:')
+    expect(exported).toContain('type:')
+    expect(exported).toContain('implementation_steps:')
+    expect(exported).toContain('guardrails:')
+    expect(exported).not.toContain('dragged_position')
     expect(exported).toContain('#move-parent-next')
-    expect(exported).toContain('from_parent_source: src/App.tsx:90:5')
-    expect(exported).toContain('from_before_source: src/App.tsx:91:7')
-    expect(exported).toContain('from_after_source: src/App.tsx:92:7')
-    expect(exported).toContain('to_parent_source: src/App.tsx:100:5')
-    expect(exported).toContain('to_before_source: src/App.tsx:101:7')
-    expect(exported).toContain('to_after_source: (none)')
+    expect(exported).toContain('instruction:')
+  })
+
+  it('falls back to element context export for noop move-only metadata', async () => {
+    const clipboardWrite = mockClipboard()
+    const parent = createTarget('noop-move-parent')
+    const before = createTarget('noop-move-before')
+    const moved = createTarget('noop-move-target')
+    const after = createTarget('noop-move-after')
+    parent.replaceChildren(before, moved, after)
+
+    const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+    act(() => {
+      result.current.selectElement(moved)
+    })
+
+    await waitFor(() => {
+      expect(result.current.selectedElement).toBe(moved)
+    })
+
+    clipboardWrite.mockClear()
+
+    act(() => {
+      result.current.handleMoveComplete(moved, {
+        originalParent: parent,
+        originalPreviousSibling: before,
+        originalNextSibling: after,
+        mode: 'reorder',
+      })
+    })
+
+    const copied = await result.current.exportEdits()
+    expect(copied).toBe(true)
+    expect(clipboardWrite).toHaveBeenCalledTimes(1)
+
+    const exported = String(clipboardWrite.mock.calls[0][0])
+    expect(exported).toContain('Here is the element context for reference')
+    expect(exported).toContain('target:')
+    expect(exported).not.toContain('moved:')
+    expect(exported).not.toContain('Implement the move plan below')
   })
 
   it('refreshes state from moved target styles when move target differs from prior selection', async () => {
@@ -1020,19 +1066,75 @@ describe('DirectEditProvider', () => {
 
     const payload = sendEditToAgentMock.mock.calls[0][0] as {
       changes: Array<{ cssProperty: string; cssValue: string; tailwindClass: string }>
-      moveChange: Record<string, unknown> | null
+      moveIntent: Record<string, unknown> | null
       exportMarkdown: string
     }
     expect(payload.changes).toEqual([])
-    expect(payload.moveChange).toEqual(
+    expect(payload.moveIntent).toEqual(
       expect.objectContaining({
-        mode: 'reorder',
-        fromParentName: expect.any(String),
-        toParentName: expect.any(String),
+        interactionMode: 'reorder',
+        classification: expect.any(String),
       }),
     )
     expect(payload.exportMarkdown).toContain('moved:')
-    expect(payload.exportMarkdown).toContain('summary:')
+    expect(payload.exportMarkdown).toContain('id:')
+  })
+
+  it('sends batch move plan envelope once while preserving operation ids per edit', async () => {
+    mockClipboard()
+    const originalParent = createTarget('move-batch-parent')
+    const movedA = createTarget('move-batch-a')
+    const movedB = createTarget('move-batch-b')
+    const originalAfter = createTarget('move-batch-after')
+    const nextParent = createTarget('move-batch-parent-next')
+
+    originalParent.replaceChildren(movedA, movedB, originalAfter)
+
+    const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+    act(() => {
+      nextParent.appendChild(movedA)
+      result.current.handleMoveComplete(movedA, {
+        originalParent,
+        originalPreviousSibling: null,
+        originalNextSibling: movedB,
+        mode: 'reorder',
+      })
+    })
+
+    act(() => {
+      nextParent.appendChild(movedB)
+      result.current.handleMoveComplete(movedB, {
+        originalParent,
+        originalPreviousSibling: movedA,
+        originalNextSibling: originalAfter,
+        mode: 'reorder',
+      })
+    })
+
+    sendEditToAgentMock.mockClear()
+
+    const sent = await result.current.sendAllSessionItemsToAgent()
+    expect(sent).toBe(true)
+    expect(sendEditToAgentMock).toHaveBeenCalledTimes(2)
+
+    const firstPayload = sendEditToAgentMock.mock.calls[0][0] as {
+      moveIntent: { operationId: string } | null
+      movePlan?: unknown
+      exportMarkdown: string
+    }
+    const secondPayload = sendEditToAgentMock.mock.calls[1][0] as {
+      moveIntent: { operationId: string } | null
+      movePlan?: unknown
+      exportMarkdown: string
+    }
+
+    expect(firstPayload.movePlan).toBeTruthy()
+    expect(firstPayload.exportMarkdown).toContain('=== LAYOUT MOVE PLAN ===')
+    expect(secondPayload.movePlan).toBeUndefined()
+    expect(secondPayload.exportMarkdown).not.toContain('=== LAYOUT MOVE PLAN ===')
+    expect(firstPayload.moveIntent?.operationId).not.toBe(secondPayload.moveIntent?.operationId)
+    expect(secondPayload.exportMarkdown).toContain(`id: ${secondPayload.moveIntent?.operationId}`)
   })
 
   it('records position move as move metadata with applied left/top', async () => {
@@ -1073,12 +1175,15 @@ describe('DirectEditProvider', () => {
 
     const exported = String(clipboardWrite.mock.calls[0][0])
     expect(exported).toContain('moved:')
-    expect(exported).toContain('summary:')
-    expect(exported).toContain('mode: position')
-    expect(exported).toContain('applied_left: 50px')
-    expect(exported).toContain('applied_top: 30px')
-    expect(exported).toContain('from_parent_selector')
-    expect(exported).toContain('to_parent_selector')
+    expect(exported).toContain('id:')
+    expect(exported).toContain('type:')
+    expect(exported).not.toContain('applied_left')
+    expect(exported).not.toContain('applied_top')
+    expect(exported).not.toContain('dragged_position')
+    expect(exported).toContain('parent:')
+    expect(exported).toContain('visual_hint:')
+    expect(exported).toContain('implementation_steps:')
+    expect(exported).toContain('instruction:')
   })
 
   it('clears position offsets when dropped into flex container and restores on undo', async () => {

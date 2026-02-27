@@ -15,6 +15,7 @@ export interface MoveInfo {
   originalNextSibling: HTMLElement | null
   mode?: MoveMode
   positionDelta?: { x: number; y: number }
+  visualDelta?: { x: number; y: number }
   /** When true, the element was reparented — clear any position/left/top inline styles from prior position-mode moves. */
   resetPositionOffsets?: boolean
 }
@@ -279,6 +280,7 @@ export function useMove({ onMoveComplete }: UseMoveOptions): UseMoveResult {
       return
     }
 
+    const initialPos = { x: initialRectRef.current.x, y: initialRectRef.current.y }
     const { scaleX, scaleY } = initialRectRef.current
     draggedElement.style.transform = originalTransformRef.current
     draggedElement.style.opacity = ''
@@ -288,12 +290,25 @@ export function useMove({ onMoveComplete }: UseMoveOptions): UseMoveResult {
     const dragMode = dragOptionsRef.current.mode
     dragOptionsRef.current = DEFAULT_DRAG_OPTIONS
 
+    const vd = {
+      x: Math.round(current.ghostPosition.x - initialPos.x),
+      y: Math.round(current.ghostPosition.y - initialPos.y),
+    }
+    const hasVisualDelta = vd.x !== 0 || vd.y !== 0
+
     let moveInfo: MoveInfo | null = null
 
     if (dragMode === 'position') {
       if (target && tryReparent(draggedElement, target, originalParent, originalNextSibling)) {
         if (originalParent) {
-          moveInfo = { originalParent, originalPreviousSibling, originalNextSibling, mode: 'free', resetPositionOffsets: true }
+          moveInfo = {
+            originalParent,
+            originalPreviousSibling,
+            originalNextSibling,
+            mode: 'free',
+            resetPositionOffsets: true,
+            visualDelta: hasVisualDelta ? vd : undefined,
+          }
         }
       }
       if (!moveInfo) {
@@ -306,7 +321,13 @@ export function useMove({ onMoveComplete }: UseMoveOptions): UseMoveResult {
       }
     } else if (target && tryReparent(draggedElement, target, originalParent, originalNextSibling)) {
       if (originalParent) {
-        moveInfo = { originalParent, originalPreviousSibling, originalNextSibling, mode: dragMode }
+        moveInfo = {
+          originalParent,
+          originalPreviousSibling,
+          originalNextSibling,
+          mode: dragMode,
+          visualDelta: hasVisualDelta ? vd : undefined,
+        }
       }
     }
 
