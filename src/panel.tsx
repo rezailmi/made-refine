@@ -194,7 +194,7 @@ export function DirectEditPanelInner({
       )}
       style={{
         width: PANEL_WIDTH,
-        ...(isDragging && { transform: 'rotate(0.5deg) scale(1.01)', transition: 'transform 150ms ease-out, box-shadow 150ms ease-out' }),
+        ...(isDragging && { transition: 'box-shadow 150ms ease-out' }),
         ...style,
       }}
     >

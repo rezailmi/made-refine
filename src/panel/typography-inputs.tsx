@@ -71,7 +71,7 @@ export function TypographyInputs({ typography, onUpdate }: TypographyInputsProps
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       <SimpleSelect
         value={typography.fontFamily}
         onValueChange={(val) => onUpdate('fontFamily', val)}
@@ -128,7 +128,7 @@ export function TypographyInputs({ typography, onUpdate }: TypographyInputsProps
         </Tip>
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2">
         <div className="flex gap-1">
           <Tip label="Align Left">
             <Button
@@ -137,7 +137,7 @@ export function TypographyInputs({ typography, onUpdate }: TypographyInputsProps
               className={typography.textAlign === 'left' || typography.textAlign === 'start' ? 'size-7 bg-muted text-foreground' : 'size-7 text-muted-foreground'}
               onClick={() => onUpdate('textAlign', 'left')}
             >
-              <AlignLeft className="size-3.5" />
+              <AlignLeft />
             </Button>
           </Tip>
           <Tip label="Align Center">
@@ -147,7 +147,7 @@ export function TypographyInputs({ typography, onUpdate }: TypographyInputsProps
               className={typography.textAlign === 'center' ? 'size-7 bg-muted text-foreground' : 'size-7 text-muted-foreground'}
               onClick={() => onUpdate('textAlign', 'center')}
             >
-              <AlignCenter className="size-3.5" />
+              <AlignCenter />
             </Button>
           </Tip>
           <Tip label="Align Right">
@@ -157,7 +157,7 @@ export function TypographyInputs({ typography, onUpdate }: TypographyInputsProps
               className={typography.textAlign === 'right' || typography.textAlign === 'end' ? 'size-7 bg-muted text-foreground' : 'size-7 text-muted-foreground'}
               onClick={() => onUpdate('textAlign', 'right')}
             >
-              <AlignRight className="size-3.5" />
+              <AlignRight />
             </Button>
           </Tip>
         </div>
@@ -170,7 +170,7 @@ export function TypographyInputs({ typography, onUpdate }: TypographyInputsProps
               className={typography.textVerticalAlign === 'flex-start' ? 'size-7 bg-muted text-foreground' : 'size-7 text-muted-foreground'}
               onClick={() => onUpdate('textVerticalAlign', 'flex-start')}
             >
-              <AlignVerticalJustifyStart className="size-3.5" />
+              <AlignVerticalJustifyStart />
             </Button>
           </Tip>
           <Tip label="Align Middle">
@@ -180,7 +180,7 @@ export function TypographyInputs({ typography, onUpdate }: TypographyInputsProps
               className={typography.textVerticalAlign === 'center' ? 'size-7 bg-muted text-foreground' : 'size-7 text-muted-foreground'}
               onClick={() => onUpdate('textVerticalAlign', 'center')}
             >
-              <AlignVerticalJustifyCenter className="size-3.5" />
+              <AlignVerticalJustifyCenter />
             </Button>
           </Tip>
           <Tip label="Align Bottom">
@@ -190,7 +190,7 @@ export function TypographyInputs({ typography, onUpdate }: TypographyInputsProps
               className={typography.textVerticalAlign === 'flex-end' ? 'size-7 bg-muted text-foreground' : 'size-7 text-muted-foreground'}
               onClick={() => onUpdate('textVerticalAlign', 'flex-end')}
             >
-              <AlignVerticalJustifyEnd className="size-3.5" />
+              <AlignVerticalJustifyEnd />
             </Button>
           </Tip>
         </div>

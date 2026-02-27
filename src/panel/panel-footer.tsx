@@ -4,7 +4,7 @@ import { Tip } from './shared'
 import { cn } from '../cn'
 import { X, Copy, Check, Send } from 'lucide-react'
 
-const panelBarBaseClass = 'flex h-11 shrink-0 items-center border-border/50 bg-background pl-3 pr-2'
+const panelBarBaseClass = 'flex h-11 shrink-0 items-center border-border/50 bg-background px-3'
 
 export interface PanelFooterProps {
   isDraggable: boolean
@@ -79,11 +79,11 @@ export function PanelFooter({
           className="size-7"
         >
           {copyError ? (
-            <X className="size-3.5 text-red-500" />
+            <X className="text-red-500" />
           ) : copied ? (
-            <Check className="size-3.5 text-green-500" />
+            <Check className="text-green-500" />
           ) : (
-            <Copy className="size-3.5" />
+            <Copy />
           )}
         </Button>
       </Tip>
@@ -98,13 +98,13 @@ export function PanelFooter({
             className="size-7"
           >
             {sendStatus === 'offline' ? (
-              <X className="size-3.5 text-red-500" />
+              <X className="text-red-500" />
             ) : sendStatus === 'sent' ? (
-              <Check className="size-3.5 text-green-500" />
+              <Check className="text-green-500" />
             ) : sendStatus === 'sending' ? (
-              <Send className="size-3.5 animate-pulse" />
+              <Send className="animate-pulse" />
             ) : (
-              <Send className="size-3.5" />
+              <Send />
             )}
           </Button>
         </Tip>

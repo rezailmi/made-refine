@@ -15,6 +15,7 @@ import { SpacingInputs } from './spacing-inputs'
 import { SizingInputs, SizingFixedInput, DISTRIBUTE_MODES, DISTRIBUTE_LABELS, type DistributeMode } from './sizing-inputs'
 import { AlignmentGrid } from './alignment-grid'
 import type { CSSPropertyValue, SpacingPropertyKey, SizingValue, SizingPropertyKey } from '../types'
+import { Button } from '../ui/button'
 import {
   Check,
   ArrowRight,
@@ -78,22 +79,23 @@ export function LayoutSection({
   return (
     <CollapsibleSection title="Layout" actions={
       <Tip label={elementInfo.isFlexContainer ? 'Remove flex (Shift+A)' : 'Add flex (Shift+A)'}>
-        <button
-          type="button"
-          className="flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-muted-foreground/10 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-7 text-muted-foreground"
           onClick={onToggleFlex}
         >
-          {elementInfo.isFlexContainer ? <Minus className="size-3.5" /> : <Plus className="size-3.5" />}
-        </button>
+          {elementInfo.isFlexContainer ? <Minus /> : <Plus />}
+        </Button>
       </Tip>
     }>
-      <div className="space-y-3" ref={sectionRef}>
+      <div className="space-y-2" ref={sectionRef}>
         {elementInfo.isFlexContainer && (
           <div>
             <div className="mb-2 text-xs font-medium text-muted-foreground">Flex</div>
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-2">
-                <div className="flex h-7 gap-0.5 rounded-lg bg-muted p-0.5">
+                <div className="flex h-7 gap-0.5 rounded-md bg-muted p-0.5">
                   <Tip label="Row">
                     <button
                       type="button"

@@ -4,6 +4,7 @@ import { formatColorValue } from '../ui/color-utils'
 import { ColorPickerPopover, ColorPickerGroup } from '../ui/color-picker'
 import { parseFillLayers, serializeFillLayers } from '../fill-utils'
 import { CollapsibleSection, Tip } from './shared'
+import { Button } from '../ui/button'
 import {
   Paintbrush,
   Square,
@@ -136,7 +137,7 @@ export function FillSection({
 
   return (
     <ColorPickerGroup>
-      <div className="space-y-3">
+      <div className="space-y-2">
         {selectionColors.length > 0 && (
           <div className="space-y-2">
             <div className="space-y-2">
@@ -152,15 +153,16 @@ export function FillSection({
                     />
                   </div>
                   {onSelectionColorTarget && (
-                    <button
-                      type="button"
-                      className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-7 shrink-0 text-muted-foreground"
                       onClick={() => onSelectionColorTarget(color)}
                       aria-label={`Select element with #${color.hex}`}
                       title={`Select element with #${color.hex}`}
                     >
-                      <LocateFixed className="size-4" />
-                    </button>
+                      <LocateFixed />
+                    </Button>
                   )}
                 </div>
               ))}
@@ -243,15 +245,16 @@ export function BackgroundFillSection({ backgroundColor, onSetCSS, pendingStyles
   }
 
   const headerActions = (
-    <div className="flex items-center gap-1">
+    <div className="flex items-center gap-2">
       <Tip label={hasFill ? 'Add fill layer' : 'Add fill'}>
-        <button
-          type="button"
-          className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted-foreground/10 hover:text-foreground"
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-7 text-muted-foreground"
           onClick={addLayer}
         >
-          <Plus className="size-3.5" />
-        </button>
+          <Plus />
+        </Button>
       </Tip>
     </div>
   )
@@ -262,7 +265,7 @@ export function BackgroundFillSection({ backgroundColor, onSetCSS, pendingStyles
         <ColorPickerGroup>
           <div className="space-y-2">
             {layers.map((layer, index) => (
-              <div key={`fill-layer-${index}`} className="flex items-center gap-1">
+              <div key={`fill-layer-${index}`} className="flex items-center gap-2">
                 <div className="min-w-0 flex-1">
                   <ColorInput
                     id={`fill-bg-${index}`}
@@ -273,13 +276,14 @@ export function BackgroundFillSection({ backgroundColor, onSetCSS, pendingStyles
                   />
                 </div>
                 <Tip label="Remove fill layer">
-                  <button
-                    type="button"
-                    className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted-foreground/10 hover:text-foreground"
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-7 shrink-0 text-muted-foreground"
                     onClick={() => removeLayer(index)}
                   >
-                    <Minus className="size-3.5" />
-                  </button>
+                    <Minus />
+                  </Button>
                 </Tip>
               </div>
             ))}
