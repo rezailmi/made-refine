@@ -186,7 +186,7 @@ export default function App() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
 
           {/* Layout & Flex */}
-          <div style={{ ...card, minHeight: 360 }}>
+          <div style={card}>
             <div style={sectionLabel}>Layout & Flex</div>
             <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>Dashboard</div>
             <div style={{ display: 'flex', gap: 12 }}>

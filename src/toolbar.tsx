@@ -162,7 +162,7 @@ export function DirectEditToolbarInner({
           <Tooltip>
             <TooltipTrigger
               className={cn(
-                'flex cursor-pointer items-center justify-center rounded-[8px] p-2 transition-[color,background-color] duration-150 ease-out',
+                'flex cursor-pointer items-center justify-center rounded-[8px] p-2 transition-[color,background-color] duration-150 ease-out focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
                 editModeActive && activeTool !== 'comment'
                   ? 'bg-foreground text-background hover:bg-foreground/80'
                   : 'text-muted-foreground hover:bg-muted hover:text-foreground'
@@ -212,7 +212,7 @@ export function DirectEditToolbarInner({
               <Tooltip>
                 <TooltipTrigger
                   className={cn(
-                    'flex cursor-pointer items-center justify-center rounded-[8px] p-2 transition-colors',
+                    'flex cursor-pointer items-center justify-center rounded-[8px] p-2 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
                     activeTool === 'comment'
                       ? 'bg-foreground text-background hover:bg-foreground/80'
                       : 'text-muted-foreground hover:bg-muted hover:text-foreground'
@@ -232,7 +232,7 @@ export function DirectEditToolbarInner({
               <Tooltip>
                 <TooltipTrigger
                   className={cn(
-                    'flex cursor-pointer items-center justify-center rounded-[8px] p-2 transition-colors',
+                    'flex cursor-pointer items-center justify-center rounded-[8px] p-2 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
                     rulersVisible
                       ? 'bg-muted text-foreground'
                       : 'text-muted-foreground hover:bg-muted hover:text-foreground'
@@ -295,7 +295,7 @@ export function DirectEditToolbarInner({
 
               <Tooltip>
                 <TooltipTrigger
-                  className="flex cursor-pointer items-center justify-center rounded-[8px] p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  className="flex cursor-pointer items-center justify-center rounded-[8px] p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                   onPointerDown={(e) => e.stopPropagation()}
                   onClick={onToggleEditMode}
                 >

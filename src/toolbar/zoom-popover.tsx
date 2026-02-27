@@ -68,7 +68,7 @@ export function ZoomPopover({
               ref={triggerRef}
               type="button"
               className={cn(
-                'flex cursor-pointer items-center justify-center rounded-[8px] p-2 transition-colors',
+                'flex cursor-pointer items-center justify-center rounded-[8px] p-2 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
                 isOpen
                   ? 'bg-muted text-foreground'
                   : canvasActive

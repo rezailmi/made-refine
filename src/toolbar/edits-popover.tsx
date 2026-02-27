@@ -166,7 +166,7 @@ export function EditsPopover({
               ref={editsTriggerRef}
               type="button"
               className={cn(
-                'flex cursor-pointer items-center justify-center rounded-[8px] p-2 transition-colors',
+                'flex cursor-pointer items-center justify-center rounded-[8px] p-2 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
                 sessionEditCount > 0 || isOpen
                   ? 'bg-muted text-foreground'
                   : 'text-muted-foreground hover:bg-muted hover:text-foreground'
