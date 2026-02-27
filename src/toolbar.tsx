@@ -16,6 +16,7 @@ import {
 import { EditsPopover } from './toolbar/edits-popover'
 import { SettingsPopover } from './toolbar/settings-popover'
 import { ZoomPopover } from './toolbar/zoom-popover'
+import { toolbarBtnClass } from './toolbar/shared'
 
 export interface DirectEditToolbarInnerProps {
   editModeActive: boolean
@@ -162,7 +163,7 @@ export function DirectEditToolbarInner({
           <Tooltip>
             <TooltipTrigger
               className={cn(
-                'flex cursor-pointer items-center justify-center rounded-[8px] p-2 transition-[color,background-color] duration-150 ease-out focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
+                toolbarBtnClass, 'transition-[color,background-color] duration-150 ease-out',
                 editModeActive && activeTool !== 'comment'
                   ? 'bg-foreground text-background hover:bg-foreground/80'
                   : 'text-muted-foreground hover:bg-muted hover:text-foreground'
@@ -212,7 +213,7 @@ export function DirectEditToolbarInner({
               <Tooltip>
                 <TooltipTrigger
                   className={cn(
-                    'flex cursor-pointer items-center justify-center rounded-[8px] p-2 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
+                    toolbarBtnClass,
                     activeTool === 'comment'
                       ? 'bg-foreground text-background hover:bg-foreground/80'
                       : 'text-muted-foreground hover:bg-muted hover:text-foreground'
@@ -232,7 +233,7 @@ export function DirectEditToolbarInner({
               <Tooltip>
                 <TooltipTrigger
                   className={cn(
-                    'flex cursor-pointer items-center justify-center rounded-[8px] p-2 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
+                    toolbarBtnClass,
                     rulersVisible
                       ? 'bg-muted text-foreground'
                       : 'text-muted-foreground hover:bg-muted hover:text-foreground'
@@ -295,7 +296,7 @@ export function DirectEditToolbarInner({
 
               <Tooltip>
                 <TooltipTrigger
-                  className="flex cursor-pointer items-center justify-center rounded-[8px] p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  className={cn(toolbarBtnClass, 'text-muted-foreground hover:bg-muted hover:text-foreground')}
                   onPointerDown={(e) => e.stopPropagation()}
                   onClick={onToggleEditMode}
                 >

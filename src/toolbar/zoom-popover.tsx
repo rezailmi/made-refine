@@ -5,6 +5,7 @@ import { Popover } from '@base-ui/react/popover'
 import { Scan, Minimize2, Maximize2, Check, ArrowBigUp } from 'lucide-react'
 import { cn } from '../cn'
 import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
+import { toolbarBtnClass } from './shared'
 
 function ZoomPopoverPortal(props: React.ComponentPropsWithoutRef<typeof Popover.Portal>) {
   const container = usePortalContainer()
@@ -68,7 +69,7 @@ export function ZoomPopover({
               ref={triggerRef}
               type="button"
               className={cn(
-                'flex cursor-pointer items-center justify-center rounded-[8px] p-2 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
+                toolbarBtnClass,
                 isOpen
                   ? 'bg-muted text-foreground'
                   : canvasActive

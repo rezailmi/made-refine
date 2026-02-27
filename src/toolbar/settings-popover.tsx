@@ -9,6 +9,7 @@ import {
   TooltipTrigger,
   TooltipContent,
 } from '../ui/tooltip'
+import { toolbarBtnClass } from './shared'
 
 function SettingsMenuPortal(props: React.ComponentPropsWithoutRef<typeof Menu.Portal>) {
   const container = usePortalContainer()
@@ -52,7 +53,7 @@ export function SettingsPopover({
               ref={settingsTriggerRef}
               type="button"
               className={cn(
-                'flex cursor-pointer items-center justify-center rounded-[8px] p-2 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
+                toolbarBtnClass,
                 isOpen
                   ? 'bg-muted text-foreground'
                   : 'text-muted-foreground hover:bg-muted hover:text-foreground'
