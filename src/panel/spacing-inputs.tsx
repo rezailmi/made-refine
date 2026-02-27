@@ -53,8 +53,8 @@ export function SpacingInputs({ prefix, values, onChange }: SpacingInputsProps) 
 
   if (individual) {
     return (
-      <div className="space-y-1.5">
-        <div className="flex items-center gap-1.5">
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
           <Tip label="Left">
             <div className="relative flex-1">
               <ArrowLeft className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
@@ -82,11 +82,11 @@ export function SpacingInputs({ prefix, values, onChange }: SpacingInputsProps) 
               className="size-7 shrink-0"
               onClick={() => setIndividual(false)}
             >
-              <Columns2 className="size-3.5" />
+              <Columns2 />
             </Button>
           </Tip>
         </div>
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-2">
           <Tip label="Right">
             <div className="relative flex-1">
               <ArrowRight className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
@@ -114,7 +114,7 @@ export function SpacingInputs({ prefix, values, onChange }: SpacingInputsProps) 
   }
 
   return (
-    <div className="flex items-center gap-1.5">
+    <div className="flex items-center gap-2">
       <Tip label="Horizontal (left & right)">
         <div className="relative flex-1">
           <MoveHorizontal className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
@@ -144,7 +144,7 @@ export function SpacingInputs({ prefix, values, onChange }: SpacingInputsProps) 
           className="size-7 shrink-0 text-muted-foreground"
           onClick={() => setIndividual(true)}
         >
-          <Grid2x2 className="size-3.5" />
+          <Grid2x2 />
         </Button>
       </Tip>
     </div>

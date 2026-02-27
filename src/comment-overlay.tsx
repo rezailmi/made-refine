@@ -1,6 +1,7 @@
 import * as React from 'react'
 import type { Comment, ElementLocator } from './types'
 import { cn } from './cn'
+import { Button } from './ui/button'
 import { ChevronLeft, Check, Copy, Trash2, ArrowUp, Send, X } from 'lucide-react'
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from './ui/tooltip'
 
@@ -283,7 +284,7 @@ function NewCommentInput({
       role="presentation"
       data-direct-edit="comment-card"
       className={cn(
-        'fixed z-[99999] flex items-center gap-1.5 rounded-xl outline outline-1 outline-foreground/10 bg-background p-1.5 shadow-lg',
+        'fixed z-[99999] flex items-center gap-2 rounded-xl outline outline-1 outline-foreground/10 bg-background p-1.5 shadow-lg',
         showError && 'outline-red-500/70'
       )}
       style={{
@@ -317,10 +318,11 @@ function NewCommentInput({
           }
         }}
       />
-      <button
-        type="button"
+      <Button
+        variant="ghost"
+        size="icon"
         className={cn(
-          'flex size-6 shrink-0 items-center justify-center rounded-md transition-colors',
+          'size-7 shrink-0',
           text.trim()
             ? 'bg-blue-500 text-white hover:bg-blue-600'
             : 'bg-muted text-muted-foreground'
@@ -330,8 +332,8 @@ function NewCommentInput({
           if (text.trim()) onSubmit(text.trim())
         }}
       >
-        <ArrowUp className="size-3.5" />
-      </button>
+        <ArrowUp />
+      </Button>
     </div>
   )
 }
@@ -429,40 +431,42 @@ function CommentThread({
       {/* Header */}
       <TooltipProvider delayDuration={300} closeDelay={0}>
         <div className="flex items-center justify-between border-b border-border/50 px-2 py-1.5">
-          <div className="flex min-w-0 items-center gap-1">
+          <div className="flex min-w-0 items-center gap-2">
             <Tooltip>
               <TooltipTrigger
                 render={
-                  <button
-                    type="button"
-                    className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-7 text-muted-foreground"
                     onClick={onClose}
                   />
                 }
               >
-                <ChevronLeft className="size-3.5" />
+                <ChevronLeft />
               </TooltipTrigger>
               <TooltipContent side="bottom">Back</TooltipContent>
             </Tooltip>
             <ElementLabel locator={comment.locator} />
           </div>
-          <div className="flex shrink-0 items-center gap-0.5">
+          <div className="flex shrink-0 items-center gap-1">
             {onExport && (
               <Tooltip>
                 <TooltipTrigger
                   render={
-                    <button
-                      type="button"
+                    <Button
+                      variant="ghost"
+                      size="icon"
                       aria-label={copied ? 'Copied' : 'Copy comment export'}
-                      className="flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                      className="size-7 text-muted-foreground"
                       onClick={handleCopy}
                     />
                   }
                 >
                   {copied ? (
-                    <Check className="size-3.5 text-green-500" />
+                    <Check className="text-green-500" />
                   ) : (
-                    <Copy className="size-3.5" />
+                    <Copy />
                   )}
                 </TooltipTrigger>
                 <TooltipContent side="bottom">{copied ? 'Copied' : 'Copy'}</TooltipContent>
@@ -471,19 +475,20 @@ function CommentThread({
             <Tooltip>
               <TooltipTrigger
                 render={
-                  <button
-                    type="button"
-                    className="flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-7 text-muted-foreground"
                     onClick={handleSendToAgent}
                   />
                 }
               >
                 {sendStatus === 'sent' ? (
-                  <Check className="size-3.5 text-green-500" />
+                  <Check className="text-green-500" />
                 ) : sendStatus === 'offline' ? (
-                  <X className="size-3.5 text-red-500" />
+                  <X className="text-red-500" />
                 ) : (
-                  <Send className="size-3.5" />
+                  <Send />
                 )}
               </TooltipTrigger>
               <TooltipContent side="bottom">
@@ -493,14 +498,15 @@ function CommentThread({
             <Tooltip>
               <TooltipTrigger
                 render={
-                  <button
-                    type="button"
-                    className="flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-7 text-muted-foreground"
                     onClick={onDelete}
                   />
                 }
               >
-                <Trash2 className="size-3.5" />
+                <Trash2 />
               </TooltipTrigger>
               <TooltipContent side="bottom">Delete</TooltipContent>
             </Tooltip>
@@ -537,7 +543,7 @@ function CommentThread({
       </div>
 
       {/* Footer */}
-      <div className="flex items-center gap-1.5 border-t border-border/50 px-2 py-1.5">
+      <div className="flex items-center gap-2 border-t border-border/50 px-2 py-1.5">
         <input
           ref={inputRef}
           type="text"
@@ -554,10 +560,11 @@ function CommentThread({
             }
           }}
         />
-        <button
-          type="button"
+        <Button
+          variant="ghost"
+          size="icon"
           className={cn(
-            'flex size-6 shrink-0 items-center justify-center rounded-md transition-colors',
+            'size-7 shrink-0',
             replyText.trim()
               ? 'bg-blue-500 text-white hover:bg-blue-600'
               : 'bg-muted text-muted-foreground'
@@ -565,8 +572,8 @@ function CommentThread({
           disabled={!replyText.trim()}
           onClick={handleSubmitReply}
         >
-          <ArrowUp className="size-3.5" />
-        </button>
+          <ArrowUp />
+        </Button>
       </div>
     </div>
   )

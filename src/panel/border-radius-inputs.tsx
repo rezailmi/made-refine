@@ -85,8 +85,8 @@ export function BorderRadiusInputs({ values, onChange }: BorderRadiusInputsProps
 
   if (individual) {
     return (
-      <div className="space-y-1.5">
-        <div className="flex items-center gap-1.5">
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
           <Tip label="Top Left">
             <div className="relative flex-1">
               <RadiusCornerIcon corner="topLeft" className="absolute left-1.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
@@ -114,11 +114,11 @@ export function BorderRadiusInputs({ values, onChange }: BorderRadiusInputsProps
               className="size-7 shrink-0"
               onClick={() => setIndividual(false)}
             >
-              <Columns2 className="size-3.5" />
+              <Columns2 />
             </Button>
           </Tip>
         </div>
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-2">
           <Tip label="Bottom Left">
             <div className="relative flex-1">
               <RadiusCornerIcon corner="bottomLeft" className="absolute left-1.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
@@ -151,7 +151,7 @@ export function BorderRadiusInputs({ values, onChange }: BorderRadiusInputsProps
   const sliderValue = valueToSlider(combinedValue)
 
   return (
-    <div className="flex items-center gap-1.5">
+    <div className="flex items-center gap-2">
       <Slider
         value={sliderValue}
         onValueChange={(val) => {
@@ -184,7 +184,7 @@ export function BorderRadiusInputs({ values, onChange }: BorderRadiusInputsProps
           className="size-7 shrink-0 text-muted-foreground"
           onClick={() => setIndividual(true)}
         >
-          <Grid2x2 className="size-3.5" />
+          <Grid2x2 />
         </Button>
       </Tip>
     </div>

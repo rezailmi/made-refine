@@ -59,7 +59,7 @@ interface CollapsibleSectionProps {
 export function CollapsibleSection({ title, actions, children }: CollapsibleSectionProps) {
   return (
     <div>
-      <div className="flex w-full items-center justify-between border-b border-border/50 pl-3 pr-2 py-2.5 text-xs font-medium text-foreground">
+      <div className="flex w-full items-center justify-between border-b border-border/50 px-3 py-2.5 text-xs font-medium text-foreground">
         <span>{title}</span>
         {actions}
       </div>

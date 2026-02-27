@@ -3,6 +3,7 @@ import { formatColorValue } from '../ui/color-utils'
 import { ColorPickerPopover } from '../ui/color-picker'
 import { createDefaultShadowLayer, parseShadowLayers, serializeShadowLayers, type EditableShadowLayer } from '../shadow-utils'
 import { NumberInput, Tip, CollapsibleSection } from './shared'
+import { Button } from '../ui/button'
 import {
   Plus,
   Minus,
@@ -50,7 +51,7 @@ export function ShadowLayerEditor({
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-2">
         <div className="grid flex-1 grid-cols-4 gap-2">
           <ShadowField label="X" value={layer.x} onChange={(x) => onChange({ ...layer, x })} />
           <ShadowField label="Y" value={layer.y} onChange={(y) => onChange({ ...layer, y })} />
@@ -66,17 +67,18 @@ export function ShadowLayerEditor({
           </Tip>
         </div>
         <Tip label="Remove shadow layer">
-          <button
-            type="button"
-            className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted-foreground/10 hover:text-foreground"
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-7 shrink-0 text-muted-foreground"
             onClick={onRemoveLayer}
           >
-            <Minus className="size-3.5" />
-          </button>
+            <Minus />
+          </Button>
         </Tip>
       </div>
 
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-2">
         <div className="flex h-7 flex-1 items-center rounded-md border-0 bg-muted">
           <div className="ml-1">
             <ColorPickerPopover id={`shadow-color-${index}`} value={layer.color} onChange={(color) => onChange({ ...layer, color })}>
@@ -178,15 +180,16 @@ export function ShadowSection({ boxShadow, onSetCSS, pendingStyles }: ShadowSect
   }
 
   const headerActions = (
-    <div className="flex items-center gap-1">
+    <div className="flex items-center gap-2">
       <Tip label={hasShadow ? 'Add shadow layer' : 'Add shadow'}>
-        <button
-          type="button"
-          className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted-foreground/10 hover:text-foreground"
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-7 text-muted-foreground"
           onClick={addLayer}
         >
-          <Plus className="size-3.5" />
-        </button>
+          <Plus />
+        </Button>
       </Tip>
     </div>
   )
@@ -194,7 +197,7 @@ export function ShadowSection({ boxShadow, onSetCSS, pendingStyles }: ShadowSect
   return (
     <CollapsibleSection title="Shadow" actions={headerActions}>
       {hasShadow ? (
-        <div className="space-y-4">
+        <div className="space-y-2">
           {layers.map((layer, index) => (
             <ShadowLayerEditor
               key={`shadow-layer-${index}`}

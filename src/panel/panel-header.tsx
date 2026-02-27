@@ -4,7 +4,7 @@ import { Tip } from './shared'
 import { cn } from '../cn'
 import { X, ChevronUp, ChevronDown } from 'lucide-react'
 
-const panelBarBaseClass = 'flex h-11 shrink-0 items-center border-border/50 bg-background pl-3 pr-2'
+const panelBarBaseClass = 'flex h-11 shrink-0 items-center border-border/50 bg-background px-3'
 
 export interface PanelHeaderProps {
   elementInfo: {
@@ -66,7 +66,7 @@ export function PanelHeader({
                 aria-label="Select parent element"
                 className="size-7"
               >
-                <ChevronUp className="size-3.5" />
+                <ChevronUp />
               </Button>
             </Tip>
           </span>
@@ -82,7 +82,7 @@ export function PanelHeader({
                 aria-label="Select child element"
                 className="size-7"
               >
-                <ChevronDown className="size-3.5" />
+                <ChevronDown />
               </Button>
             </Tip>
           </span>
@@ -91,7 +91,7 @@ export function PanelHeader({
           <>
             <div className="mx-0.5 h-4 w-px bg-border" />
             <Button variant="ghost" size="icon" aria-label="Close panel" className="size-7" onClick={onClose}>
-              <X className="size-3.5" />
+              <X />
             </Button>
           </>
         )}

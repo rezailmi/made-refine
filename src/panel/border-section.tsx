@@ -9,6 +9,7 @@ import type { BorderPropertyKey, BorderProperties, BorderStyle, CSSPropertyValue
 import { ColorPickerGroup } from '../ui/color-picker'
 import { NumberInput, Tip, CollapsibleSection } from './shared'
 import { ColorInput } from './fill-section'
+import { Button } from '../ui/button'
 import {
   ChevronDown,
   Square,
@@ -194,7 +195,7 @@ export function BorderInputs({ border, borderColor, outlineColor, onChange, onBa
   return (
     <div className="space-y-2">
       {/* Row 1: Position + Style + Width + Side */}
-      <div className="flex items-center gap-1.5">
+      <div className="flex items-center gap-2">
         <SimpleSelect
           value={borderPosition}
           onValueChange={(val) => onPositionChange(val as BorderPosition)}
@@ -236,7 +237,7 @@ export function BorderInputs({ border, borderColor, outlineColor, onChange, onBa
             </Tip>
           ) : (
             <SelectTrigger className="flex h-7 flex-1 items-center justify-between rounded-md border-0 bg-muted px-2 text-xs hover:bg-muted-foreground/10 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
-              <span className="flex items-center gap-1.5">
+              <span className="flex items-center gap-2">
                 <Square className="size-3.5 text-muted-foreground" />
                 <span>{currentStyleLabel}</span>
               </span>
@@ -270,7 +271,7 @@ export function BorderInputs({ border, borderColor, outlineColor, onChange, onBa
       </div>
 
       {!isOutline && selectedSide === 'Custom' && (
-        <div className="grid grid-cols-2 gap-1.5">
+        <div className="grid grid-cols-2 gap-2">
           {BORDER_SIDES.map((side) => {
             const w = border[`border${side}Width` as keyof BorderProperties] as CSSPropertyValue
             return (
@@ -293,7 +294,7 @@ export function BorderInputs({ border, borderColor, outlineColor, onChange, onBa
 
       {/* Row 2: Color */}
       {activeColor && activeColorChange && (
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-2">
           <div className="min-w-0 flex-1">
             <ColorInput
               id={isOutline ? 'outline-color' : 'border-color'}
@@ -433,13 +434,14 @@ export function BorderSection({ border, borderColor, outlineColor, borderStyleCo
 
   const headerActions = (
     <Tip label={hasBorder ? 'Remove border' : 'Add border'}>
-      <button
-        type="button"
-        className="flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-muted-foreground/10 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+      <Button
+        variant="ghost"
+        size="icon"
+        className="size-7 text-muted-foreground"
         onClick={hasBorder ? handleRemoveBorder : handleAddBorder}
       >
-        {hasBorder ? <Minus className="size-3.5" /> : <Plus className="size-3.5" />}
-      </button>
+        {hasBorder ? <Minus /> : <Plus />}
+      </Button>
     </Tip>
   )
 

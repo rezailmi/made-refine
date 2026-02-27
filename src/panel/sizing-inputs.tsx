@@ -180,7 +180,7 @@ export function SizingInputs({ width, height, onWidthChange, onHeightChange }: S
           onClick={handleLockToggle}
           disabled={!canLock}
         >
-          {locked ? <Link className="size-3.5" /> : <Unlink className="size-3.5" />}
+          {locked ? <Link /> : <Unlink />}
         </Button>
       </Tip>
     </div>
