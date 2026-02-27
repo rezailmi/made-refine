@@ -29,7 +29,7 @@ function createMouseEvent(): React.MouseEvent<HTMLElement> {
 }
 
 function getLastUpdate(
-  calls: Array<[Partial<Record<SizingPropertyKey, SizingValue>>, SizingChangeOptions | undefined]>
+  calls: Array<[Partial<Record<SizingPropertyKey, SizingValue>>, SizingChangeOptions?]>
 ) {
   return [...calls].reverse().find(([changes, options]) => (
     options?.phase === 'update' && Object.keys(changes).length > 0
