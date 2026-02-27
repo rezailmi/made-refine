@@ -284,7 +284,7 @@ function NewCommentInput({
       role="presentation"
       data-direct-edit="comment-card"
       className={cn(
-        'fixed z-[99999] flex items-center gap-1.5 rounded-xl outline outline-1 outline-foreground/10 bg-background p-1.5 shadow-lg',
+        'fixed z-[99999] flex items-center gap-2 rounded-xl outline outline-1 outline-foreground/10 bg-background p-1.5 shadow-lg',
         showError && 'outline-red-500/70'
       )}
       style={{
@@ -318,10 +318,11 @@ function NewCommentInput({
           }
         }}
       />
-      <button
-        type="button"
+      <Button
+        variant="ghost"
+        size="icon"
         className={cn(
-          'flex size-6 shrink-0 items-center justify-center rounded-md transition-colors',
+          'size-7 shrink-0',
           text.trim()
             ? 'bg-blue-500 text-white hover:bg-blue-600'
             : 'bg-muted text-muted-foreground'
@@ -331,8 +332,8 @@ function NewCommentInput({
           if (text.trim()) onSubmit(text.trim())
         }}
       >
-        <ArrowUp className="size-3.5" />
-      </button>
+        <ArrowUp />
+      </Button>
     </div>
   )
 }
@@ -437,7 +438,7 @@ function CommentThread({
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="size-6 text-muted-foreground"
+                    className="size-7 text-muted-foreground"
                     onClick={onClose}
                   />
                 }
@@ -457,7 +458,7 @@ function CommentThread({
                       variant="ghost"
                       size="icon"
                       aria-label={copied ? 'Copied' : 'Copy comment export'}
-                      className="size-6 text-muted-foreground"
+                      className="size-7 text-muted-foreground"
                       onClick={handleCopy}
                     />
                   }
@@ -477,7 +478,7 @@ function CommentThread({
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="size-6 text-muted-foreground"
+                    className="size-7 text-muted-foreground"
                     onClick={handleSendToAgent}
                   />
                 }
@@ -500,7 +501,7 @@ function CommentThread({
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="size-6 text-muted-foreground"
+                    className="size-7 text-muted-foreground"
                     onClick={onDelete}
                   />
                 }
@@ -559,10 +560,11 @@ function CommentThread({
             }
           }}
         />
-        <button
-          type="button"
+        <Button
+          variant="ghost"
+          size="icon"
           className={cn(
-            'flex size-6 shrink-0 items-center justify-center rounded-md transition-colors',
+            'size-7 shrink-0',
             replyText.trim()
               ? 'bg-blue-500 text-white hover:bg-blue-600'
               : 'bg-muted text-muted-foreground'
@@ -570,8 +572,8 @@ function CommentThread({
           disabled={!replyText.trim()}
           onClick={handleSubmitReply}
         >
-          <ArrowUp className="size-3.5" />
-        </button>
+          <ArrowUp />
+        </Button>
       </div>
     </div>
   )
