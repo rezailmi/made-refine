@@ -142,8 +142,27 @@ export function SectionNav({
     scrollEl.scrollTo({ top, behavior: 'smooth' })
   }
 
+  const handleNavWheelCapture = (e: React.WheelEvent<HTMLDivElement>) => {
+    const navEl = e.currentTarget
+    const maxScrollLeft = navEl.scrollWidth - navEl.clientWidth
+    if (maxScrollLeft <= 0) return
+
+    // Keep wheel interaction within the jump-links strip so canvas mode
+    // doesn't pan the page while the user is scrolling these tabs.
+    e.stopPropagation()
+
+    const delta = Math.abs(e.deltaX) > 0 ? e.deltaX : e.deltaY
+    if (delta === 0) return
+    e.preventDefault()
+    navEl.scrollLeft += delta
+  }
+
   return (
-    <div className="flex shrink-0 gap-0.5 overflow-x-auto overflow-y-hidden whitespace-nowrap border-b border-border/50 bg-background px-2 py-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+    <div
+      data-direct-edit="section-nav"
+      className="flex shrink-0 gap-0.5 overflow-x-auto overflow-y-hidden whitespace-nowrap border-b border-border/50 bg-background px-2 py-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+      onWheelCapture={handleNavWheelCapture}
+    >
       {sections.map((key) => (
         <button
           key={key}

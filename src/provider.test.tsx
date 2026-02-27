@@ -702,6 +702,128 @@ describe('DirectEditProvider', () => {
     expect(result.current.editModeActive).toBe(false)
   })
 
+  it('blocks native dragstart outside editor chrome while design mode is active', async () => {
+    const target = createTarget('dragstart-block-target')
+    const editorTarget = document.createElement('div')
+    editorTarget.setAttribute('data-direct-edit', 'panel')
+    document.body.appendChild(editorTarget)
+    const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+    act(() => {
+      result.current.toggleEditMode()
+    })
+
+    await waitFor(() => {
+      expect(result.current.editModeActive).toBe(true)
+    })
+
+    const outsideEvent = new Event('dragstart', { bubbles: true, cancelable: true })
+    target.dispatchEvent(outsideEvent)
+    expect(outsideEvent.defaultPrevented).toBe(true)
+
+    const insideEvent = new Event('dragstart', { bubbles: true, cancelable: true })
+    editorTarget.dispatchEvent(insideEvent)
+    expect(insideEvent.defaultPrevented).toBe(false)
+  })
+
+  it('blocks horizontal history-swipe gestures in non-canvas design mode when no scroller can consume them', async () => {
+    const target = createTarget('wheel-block-target')
+    const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+    act(() => {
+      result.current.toggleEditMode()
+    })
+    await waitFor(() => {
+      expect(result.current.editModeActive).toBe(true)
+      expect(result.current.canvas.active).toBe(true)
+    })
+
+    act(() => {
+      result.current.toggleCanvas()
+    })
+    await waitFor(() => {
+      expect(result.current.canvas.active).toBe(false)
+    })
+
+    const wheelEvent = new WheelEvent('wheel', {
+      deltaX: 64,
+      deltaY: 0,
+      bubbles: true,
+      cancelable: true,
+    })
+    target.dispatchEvent(wheelEvent)
+
+    expect(wheelEvent.defaultPrevented).toBe(true)
+  })
+
+  it('routes horizontal wheel to nearest horizontal scroller in non-canvas design mode', async () => {
+    const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+    const scroller = document.createElement('div')
+    scroller.style.overflowX = 'auto'
+    const inner = document.createElement('div')
+    scroller.appendChild(inner)
+    document.body.appendChild(scroller)
+
+    Object.defineProperty(scroller, 'scrollWidth', { configurable: true, value: 300 })
+    Object.defineProperty(scroller, 'clientWidth', { configurable: true, value: 100 })
+    Object.defineProperty(scroller, 'scrollLeft', { configurable: true, writable: true, value: 0 })
+
+    act(() => {
+      result.current.toggleEditMode()
+    })
+    await waitFor(() => {
+      expect(result.current.editModeActive).toBe(true)
+      expect(result.current.canvas.active).toBe(true)
+    })
+
+    act(() => {
+      result.current.toggleCanvas()
+    })
+    await waitFor(() => {
+      expect(result.current.canvas.active).toBe(false)
+    })
+
+    const wheelEvent = new WheelEvent('wheel', {
+      deltaX: 40,
+      deltaY: 0,
+      bubbles: true,
+      cancelable: true,
+    })
+    inner.dispatchEvent(wheelEvent)
+
+    expect(wheelEvent.defaultPrevented).toBe(true)
+    expect(scroller.scrollLeft).toBeGreaterThan(0)
+  })
+
+  it('keeps canvas horizontal pan active in canvas mode', async () => {
+    const target = createTarget('canvas-wheel-target')
+    const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+    act(() => {
+      result.current.toggleEditMode()
+    })
+    await waitFor(() => {
+      expect(result.current.editModeActive).toBe(true)
+      expect(result.current.canvas.active).toBe(true)
+    })
+
+    const beforePanX = result.current.canvas.panX
+    const wheelEvent = new WheelEvent('wheel', {
+      deltaX: 50,
+      deltaY: 0,
+      bubbles: true,
+      cancelable: true,
+    })
+    target.dispatchEvent(wheelEvent)
+
+    await act(async () => {
+      await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)))
+    })
+
+    expect(result.current.canvas.panX).not.toBe(beforePanX)
+  })
+
   it('exports and sends edits for a selected element', async () => {
     const clipboardWrite = mockClipboard()
     const target = createTarget('button', 'padding-top: 4px;')

@@ -226,7 +226,11 @@ export function BorderInputs({ border, borderColor, outlineColor, onChange, onBa
         >
           {borderStyleControlPreference === 'icon' ? (
             <Tip label={`Border style: ${currentStyleLabel}`}>
-              <SelectTrigger className="flex h-7 w-auto shrink-0 items-center justify-center rounded-md border-0 px-2 text-xs text-muted-foreground hover:bg-muted-foreground/10 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
+              <SelectTrigger
+                className={cn(
+                  'flex size-7 shrink-0 items-center justify-center rounded-md border-0 text-xs text-muted-foreground hover:bg-muted-foreground/10 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
+                )}
+              >
                 <Settings2 className="size-3.5" />
               </SelectTrigger>
             </Tip>
@@ -251,7 +255,7 @@ export function BorderInputs({ border, borderColor, outlineColor, onChange, onBa
             popupMinWidth="90px"
           >
             <Tip label={`Sides: ${selectedSide}`}>
-              <SelectTrigger className="flex h-7 w-auto shrink-0 items-center justify-center rounded-md border-0 px-2 text-xs text-muted-foreground hover:bg-muted-foreground/10 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
+              <SelectTrigger className="flex size-7 shrink-0 items-center justify-center rounded-md border-0 text-xs text-muted-foreground hover:bg-muted-foreground/10 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
                 {selectedSide === 'Custom' ? (
                   <Grid2x2 className="size-3.5 text-muted-foreground" strokeWidth={1} />
                 ) : selectedSide === 'All' ? (
@@ -299,8 +303,8 @@ export function BorderInputs({ border, borderColor, outlineColor, onChange, onBa
               onChange={activeColorChange}
             />
           </div>
-          {borderStyleControlPreference === 'icon' && <div className="w-[30px] shrink-0" />}
-          {!isOutline && <div className="w-[30px] shrink-0" />}
+          {borderStyleControlPreference === 'icon' && <div className="size-7 shrink-0" />}
+          {!isOutline && <div className="size-7 shrink-0" />}
         </div>
       )}
     </div>

@@ -182,7 +182,7 @@ export function ShadowSection({ boxShadow, onSetCSS, pendingStyles }: ShadowSect
       <Tip label={hasShadow ? 'Add shadow layer' : 'Add shadow'}>
         <button
           type="button"
-          className="flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-muted-foreground/10 hover:text-foreground"
+          className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted-foreground/10 hover:text-foreground"
           onClick={addLayer}
         >
           <Plus className="size-3.5" />
