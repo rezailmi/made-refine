@@ -771,4 +771,129 @@ describe('useMove', () => {
       positionDelta: expect.any(Object),
     })
   })
+
+  it('makes way for reorder inside original container and restores transforms on drop', () => {
+    const onMoveComplete = vi.fn()
+    const parent = document.createElement('div')
+    const siblingA = document.createElement('div')
+    const dragged = document.createElement('div')
+    const siblingB = document.createElement('div')
+    const siblingC = document.createElement('div')
+    parent.appendChild(siblingA)
+    parent.appendChild(dragged)
+    parent.appendChild(siblingB)
+    parent.appendChild(siblingC)
+    document.body.appendChild(parent)
+
+    siblingB.style.transform = 'rotate(5deg)'
+    siblingB.style.transition = 'opacity 80ms linear'
+
+    dragged.getBoundingClientRect = () => ({
+      left: 0, top: 0, width: 80, height: 20,
+      right: 80, bottom: 20, x: 0, y: 0,
+      toJSON: () => ({}),
+    }) as DOMRect
+
+    findContainerAtPointMock.mockReturnValue(parent)
+    calculateDropPositionMock.mockReturnValue({
+      insertBefore: siblingC,
+      indicator: { x: 0, y: 0, width: 100, height: 2 },
+    })
+
+    const { result } = renderHook(() => useMove({ onMoveComplete }))
+
+    act(() => {
+      result.current.startDrag(pointerEvent(10, 10), dragged, { mode: 'reorder' })
+    })
+
+    act(() => {
+      dispatchPointer('pointermove', 50, 60)
+    })
+
+    expect(siblingA.style.transform).toBe('')
+    expect(siblingB.style.transform).toBe('rotate(5deg) translateY(-20px)')
+    expect(siblingC.style.transform).toBe('')
+    expect(siblingB.style.transition).toContain('opacity 80ms linear')
+    expect(siblingB.style.transition).toContain('transform 140ms')
+
+    act(() => {
+      dispatchPointer('pointerup', 50, 60)
+    })
+
+    expect(siblingA.style.transform).toBe('')
+    expect(siblingB.style.transform).toBe('rotate(5deg)')
+    expect(siblingB.style.transition).toBe('opacity 80ms linear')
+    expect(siblingC.style.transform).toBe('')
+    expect(onMoveComplete).toHaveBeenCalledTimes(1)
+    expect(onMoveComplete.mock.calls[0]?.[1]).toMatchObject({
+      originalParent: parent,
+      mode: 'reorder',
+    })
+  })
+
+  it('makes way in target container and clears preview when leaving drop target', () => {
+    const onMoveComplete = vi.fn()
+    const originalParent = document.createElement('div')
+    const dragged = document.createElement('div')
+    originalParent.appendChild(dragged)
+
+    const targetContainer = document.createElement('div')
+    const targetA = document.createElement('div')
+    const targetB = document.createElement('div')
+    const targetC = document.createElement('div')
+    targetContainer.appendChild(targetA)
+    targetContainer.appendChild(targetB)
+    targetContainer.appendChild(targetC)
+
+    document.body.appendChild(originalParent)
+    document.body.appendChild(targetContainer)
+
+    dragged.getBoundingClientRect = () => ({
+      left: 0, top: 0, width: 80, height: 20,
+      right: 80, bottom: 20, x: 0, y: 0,
+      toJSON: () => ({}),
+    }) as DOMRect
+
+    findContainerAtPointMock.mockReturnValue(targetContainer)
+    calculateDropPositionMock.mockReturnValue({
+      insertBefore: targetB,
+      indicator: { x: 0, y: 0, width: 100, height: 2 },
+    })
+
+    const { result } = renderHook(() => useMove({ onMoveComplete }))
+
+    act(() => {
+      result.current.startDrag(pointerEvent(10, 10), dragged)
+    })
+
+    act(() => {
+      dispatchPointer('pointermove', 50, 60)
+    })
+
+    expect(targetA.style.transform).toBe('')
+    expect(targetB.style.transform).toBe('translateY(20px)')
+    expect(targetC.style.transform).toBe('translateY(20px)')
+    expect(targetB.style.transition).toContain('transform 140ms')
+    expect(targetC.style.transition).toContain('transform 140ms')
+
+    findContainerAtPointMock.mockReturnValue(null)
+
+    act(() => {
+      dispatchPointer('pointermove', 400, 400)
+    })
+
+    expect(result.current.dropTarget).toBeNull()
+    expect(targetA.style.transform).toBe('')
+    expect(targetB.style.transform).toBe('')
+    expect(targetC.style.transform).toBe('')
+    expect(targetB.style.transition).toBe('')
+    expect(targetC.style.transition).toBe('')
+
+    act(() => {
+      dispatchPointer('pointerup', 400, 400)
+    })
+
+    expect(onMoveComplete).toHaveBeenCalledTimes(1)
+    expect(onMoveComplete.mock.calls[0]?.[1]).toBeNull()
+  })
 })

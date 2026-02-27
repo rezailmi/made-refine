@@ -1,19 +1,28 @@
 import * as React from 'react'
 import type { ActiveTool } from './types'
+import type { SizingPropertyKey, SizingValue, SizingChangeOptions } from './types'
 import type { StartDragOptions } from './use-move'
 import { elementFromPointWithoutOverlays } from './utils'
+import { useSelectionResize, type ResizeHandle } from './use-selection-resize'
 
 const BLUE = '#0D99FF'
 const MAGENTA = '#E11BB6'
 const DRAG_THRESHOLD = 4
 const DBLCLICK_DELAY = 300
 const HANDLE_SIZE = 12
+const RESIZE_CORNER_SIZE = 8
+const RESIZE_EDGE_HIT_SIZE = 10
+const RESIZE_CORNER_INSET = 1
+
+function isFlexDisplay(display: string): boolean {
+  return display === 'flex' || display === 'inline-flex'
+}
 
 function isInLayoutContainer(element: HTMLElement): boolean {
   const parent = element.parentElement
   if (!parent) return false
   const display = window.getComputedStyle(parent).display
-  return display === 'flex' || display === 'inline-flex'
+  return isFlexDisplay(display)
     || display === 'grid' || display === 'inline-grid'
 }
 
@@ -33,6 +42,11 @@ export interface SelectionOverlayProps {
   onDoubleClick?: (clientX: number, clientY: number) => void
   onHoverElement?: (element: HTMLElement | null) => void
   onClickThrough?: (clientX: number, clientY: number) => void
+  enableResizeHandles?: boolean
+  onResizeSizingChange?: (
+    changes: Partial<Record<SizingPropertyKey, SizingValue>>,
+    options?: SizingChangeOptions
+  ) => void
 }
 
 export function SelectionOverlay({
@@ -47,6 +61,8 @@ export function SelectionOverlay({
   onDoubleClick,
   onHoverElement,
   onClickThrough,
+  enableResizeHandles = false,
+  onResizeSizingChange,
 }: SelectionOverlayProps) {
   const rectElement = isDragging && draggedElement ? draggedElement : selectedElement
   const [rect, setRect] = React.useState(() => rectElement.getBoundingClientRect())
@@ -61,6 +77,18 @@ export function SelectionOverlay({
   const clickThroughTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
   const isDraggingRef = React.useRef(isDragging)
   isDraggingRef.current = isDragging
+  const showResizeHandles = enableResizeHandles && !isDragging && !isTextEditing && activeTool === 'select'
+  const edgeHandleWidth = Math.max(0, rect.width - RESIZE_CORNER_SIZE * 2)
+  const edgeHandleHeight = Math.max(0, rect.height - RESIZE_CORNER_SIZE * 2)
+
+  const {
+    getResizeHandlePointerDown,
+    getResizeHandleDoubleClick,
+  } = useSelectionResize({
+    selectedElement,
+    enabled: showResizeHandles,
+    onResizeSizingChange,
+  })
 
   React.useLayoutEffect(() => {
     if (!isDragging) {
@@ -172,33 +200,25 @@ export function SelectionOverlay({
 
   const getMoveHandleTargets = React.useCallback(() => {
     if (!showMoveHandle) return []
-    const selectedDisplay = window.getComputedStyle(selectedElement).display
-    const selectedIsFlexContainer = selectedDisplay === 'flex' || selectedDisplay === 'inline-flex'
+    const htmlChildren = (parent: HTMLElement) =>
+      Array.from(parent.children).filter((child): child is HTMLElement => child instanceof HTMLElement)
 
-    if (selectedIsFlexContainer && selectedElement.children.length > 1) {
-      return Array.from(selectedElement.children).filter((child): child is HTMLElement => child instanceof HTMLElement)
-    }
-
+    // When selecting a flex item (or any nested descendant), expose move handles for all siblings.
     let flexParent: HTMLElement | null = selectedElement.parentElement
     while (flexParent) {
       const display = window.getComputedStyle(flexParent).display
-      const isFlex = display === 'flex' || display === 'inline-flex'
-      if (isFlex && flexParent.children.length > 1) {
-        break
+      if (isFlexDisplay(display) && flexParent.children.length > 1) {
+        return htmlChildren(flexParent)
       }
       flexParent = flexParent.parentElement
     }
 
-    if (!flexParent) {
-      return []
+    const selectedDisplay = window.getComputedStyle(selectedElement).display
+    if (isFlexDisplay(selectedDisplay) && selectedElement.children.length > 1) {
+      return htmlChildren(selectedElement)
     }
 
-    let target: HTMLElement = selectedElement
-    while (target.parentElement && target.parentElement !== flexParent) {
-      target = target.parentElement
-    }
-
-    return [target]
+    return []
   }, [selectedElement, showMoveHandle])
 
   React.useEffect(() => {
@@ -243,6 +263,82 @@ export function SelectionOverlay({
 
   const displayX = isDragging && ghostPosition ? ghostPosition.x : rect.left
   const displayY = isDragging && ghostPosition ? ghostPosition.y : rect.top
+  const edgeHandles: Array<{ handle: ResizeHandle; style: React.CSSProperties; cursor: string }> = [
+    {
+      handle: 'top',
+      cursor: 'ns-resize',
+      style: {
+        left: RESIZE_CORNER_SIZE,
+        top: -RESIZE_EDGE_HIT_SIZE / 2,
+        width: edgeHandleWidth,
+        height: RESIZE_EDGE_HIT_SIZE,
+      },
+    },
+    {
+      handle: 'right',
+      cursor: 'ew-resize',
+      style: {
+        right: -RESIZE_EDGE_HIT_SIZE / 2,
+        top: RESIZE_CORNER_SIZE,
+        width: RESIZE_EDGE_HIT_SIZE,
+        height: edgeHandleHeight,
+      },
+    },
+    {
+      handle: 'bottom',
+      cursor: 'ns-resize',
+      style: {
+        left: RESIZE_CORNER_SIZE,
+        bottom: -RESIZE_EDGE_HIT_SIZE / 2,
+        width: edgeHandleWidth,
+        height: RESIZE_EDGE_HIT_SIZE,
+      },
+    },
+    {
+      handle: 'left',
+      cursor: 'ew-resize',
+      style: {
+        left: -RESIZE_EDGE_HIT_SIZE / 2,
+        top: RESIZE_CORNER_SIZE,
+        width: RESIZE_EDGE_HIT_SIZE,
+        height: edgeHandleHeight,
+      },
+    },
+  ]
+  const cornerHandles: Array<{ handle: ResizeHandle; style: React.CSSProperties; cursor: string }> = [
+    {
+      handle: 'top-left',
+      cursor: 'nwse-resize',
+      style: {
+        left: -RESIZE_CORNER_SIZE / 2 + RESIZE_CORNER_INSET,
+        top: -RESIZE_CORNER_SIZE / 2 + RESIZE_CORNER_INSET,
+      },
+    },
+    {
+      handle: 'top-right',
+      cursor: 'nesw-resize',
+      style: {
+        right: -RESIZE_CORNER_SIZE / 2 + RESIZE_CORNER_INSET,
+        top: -RESIZE_CORNER_SIZE / 2 + RESIZE_CORNER_INSET,
+      },
+    },
+    {
+      handle: 'bottom-right',
+      cursor: 'nwse-resize',
+      style: {
+        right: -RESIZE_CORNER_SIZE / 2 + RESIZE_CORNER_INSET,
+        bottom: -RESIZE_CORNER_SIZE / 2 + RESIZE_CORNER_INSET,
+      },
+    },
+    {
+      handle: 'bottom-left',
+      cursor: 'nesw-resize',
+      style: {
+        left: -RESIZE_CORNER_SIZE / 2 + RESIZE_CORNER_INSET,
+        bottom: -RESIZE_CORNER_SIZE / 2 + RESIZE_CORNER_INSET,
+      },
+    },
+  ]
 
   return (
     <>
@@ -282,6 +378,53 @@ export function SelectionOverlay({
           onMouseMove={handleMouseMove}
           onMouseLeave={handleMouseLeave}
         >
+          {showResizeHandles && edgeHandles.map(({ handle, style, cursor }) => (
+            <button
+              key={handle}
+              type="button"
+              data-direct-edit="resize-handle"
+              data-resize-handle={handle}
+              aria-label={`Resize ${handle}`}
+              title={`Resize ${handle}`}
+              style={{
+                position: 'absolute',
+                border: 'none',
+                background: 'transparent',
+                padding: 0,
+                pointerEvents: 'auto',
+                cursor,
+                ...style,
+              }}
+              onPointerDown={getResizeHandlePointerDown(handle)}
+              onDoubleClick={getResizeHandleDoubleClick(handle)}
+            />
+          ))}
+
+          {showResizeHandles && cornerHandles.map(({ handle, style, cursor }) => (
+            <button
+              key={handle}
+              type="button"
+              data-direct-edit="resize-handle"
+              data-resize-handle={handle}
+              aria-label={`Resize ${handle}`}
+              title={`Resize ${handle}`}
+              style={{
+                position: 'absolute',
+                width: RESIZE_CORNER_SIZE,
+                height: RESIZE_CORNER_SIZE,
+                border: `1px solid ${BLUE}`,
+                background: '#fff',
+                borderRadius: 1,
+                boxSizing: 'border-box',
+                padding: 0,
+                pointerEvents: 'auto',
+                cursor,
+                ...style,
+              }}
+              onPointerDown={getResizeHandlePointerDown(handle)}
+            />
+          ))}
+
           {moveHandleRects.map((targetRect) => {
             return (
               <button

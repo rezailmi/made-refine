@@ -53,6 +53,13 @@ function cssValue(numericValue: number) {
   }
 }
 
+function sizingValue(mode: 'fixed' | 'fill' | 'fit', numericValue: number) {
+  return {
+    mode,
+    value: cssValue(numericValue),
+  } as const
+}
+
 function createTarget(id: string, styleText = ''): HTMLElement {
   const el = document.createElement('div')
   el.id = id
@@ -210,6 +217,45 @@ describe('DirectEditProvider', () => {
 
     expect(target.style.getPropertyValue('padding-top')).toBe('8px')
     expect(Object.keys(result.current.pendingStyles)).toHaveLength(0)
+  })
+
+  it('applies batched sizing transactions with single undo', async () => {
+    const target = createTarget('sizing-transaction-target', 'width: 100px; height: 80px;')
+    const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+    act(() => {
+      result.current.selectElement(target)
+    })
+
+    await waitFor(() => {
+      expect(result.current.selectedElement).toBe(target)
+    })
+
+    act(() => {
+      result.current.updateSizingProperties({}, { transactionId: 'tx-1', phase: 'start' })
+      result.current.updateSizingProperties({
+        width: sizingValue('fixed', 120),
+        height: sizingValue('fixed', 90),
+      }, { transactionId: 'tx-1', phase: 'update' })
+      result.current.updateSizingProperties({
+        width: sizingValue('fixed', 140),
+      }, { transactionId: 'tx-1', phase: 'update' })
+      result.current.updateSizingProperties({}, { transactionId: 'tx-1', phase: 'end' })
+    })
+
+    expect(target.style.getPropertyValue('width')).toBe('140px')
+    expect(target.style.getPropertyValue('height')).toBe('90px')
+    expect(result.current.pendingStyles['width']).toBe('140px')
+    expect(result.current.pendingStyles['height']).toBe('90px')
+    expect(result.current.computedSizing?.width.value.numericValue).toBe(140)
+    expect(result.current.computedSizing?.height.value.numericValue).toBe(90)
+
+    act(() => {
+      result.current.undo()
+    })
+
+    expect(target.style.getPropertyValue('width')).toBe('100px')
+    expect(target.style.getPropertyValue('height')).toBe('80px')
   })
 
   it('exposes split hooks and keeps actions context stable across state updates', async () => {
