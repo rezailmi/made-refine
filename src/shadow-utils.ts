@@ -28,7 +28,7 @@ export function createDefaultShadowLayer(index: number): EditableShadowLayer {
   }
 }
 
-function splitPreservingParens(input: string, isSeparator: (char: string) => boolean): string[] {
+export function splitPreservingParens(input: string, isSeparator: (char: string) => boolean): string[] {
   const parts: string[] = []
   let current = ''
   let depth = 0

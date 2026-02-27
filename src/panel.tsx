@@ -28,7 +28,7 @@ import { BorderRadiusInputs } from './panel/border-radius-inputs'
 import { BorderSection } from './panel/border-section'
 import { ShadowSection } from './panel/shadow-section'
 import { TypographyInputs } from './panel/typography-inputs'
-import { FillSection } from './panel/fill-section'
+import { FillSection, BackgroundFillSection } from './panel/fill-section'
 import { PanelHeader } from './panel/panel-header'
 import { PanelFooter } from './panel/panel-footer'
 import { LayoutSection } from './panel/layout-section'
@@ -43,7 +43,7 @@ export { BorderSection, BorderInputs, BorderSideIcon, BORDER_STYLE_OPTIONS, BORD
 export type { BorderPosition, BorderSideOption } from './panel/border-section'
 export { ShadowSection, ShadowLayerEditor, ShadowField } from './panel/shadow-section'
 export { TypographyInputs, FONT_FAMILIES, FONT_WEIGHTS } from './panel/typography-inputs'
-export { FillSection, ColorInput } from './panel/fill-section'
+export { FillSection, BackgroundFillSection, ColorInput } from './panel/fill-section'
 export { SizingInputs, SizingDropdown, SizingFixedInput, SIZING_OPTIONS, DISTRIBUTE_MODES, DISTRIBUTE_LABELS } from './panel/sizing-inputs'
 export type { DistributeMode } from './panel/sizing-inputs'
 export { AlignmentGrid } from './panel/alignment-grid'
@@ -176,6 +176,7 @@ export function DirectEditPanelInner({
     radius: React.useRef<HTMLDivElement>(null),
     border: React.useRef<HTMLDivElement>(null),
     shadow: React.useRef<HTMLDivElement>(null),
+    fill: React.useRef<HTMLDivElement>(null),
     colors: React.useRef<HTMLDivElement>(null),
     text: React.useRef<HTMLDivElement>(null),
   }
@@ -244,6 +245,16 @@ export function DirectEditPanelInner({
           </CollapsibleSection>
         </div>
 
+        {computedColor && (
+          <div ref={sectionRefs.fill}>
+            <BackgroundFillSection
+              backgroundColor={computedColor.backgroundColor}
+              onSetCSS={onSetCSS}
+              pendingStyles={pendingStyles}
+            />
+          </div>
+        )}
+
         <div ref={sectionRefs.border}>
           <BorderSection
             border={computedBorder}
@@ -282,19 +293,16 @@ export function DirectEditPanelInner({
           <div ref={sectionRefs.colors}>
             <CollapsibleSection title="Selection colors">
               <FillSection
-                backgroundColor={computedColor.backgroundColor}
                 textColor={computedColor.color}
                 borderColor={computedColor.borderColor}
                 outlineColor={computedColor.outlineColor}
                 selectionColors={selectionColors}
-                onBackgroundChange={(value) => onUpdateColor('backgroundColor', value)}
                 onTextChange={(value) => onUpdateColor('color', value)}
                 onBorderColorChange={(value) => onUpdateColor('borderColor', value)}
                 onOutlineColorChange={(value) => onUpdateColor('outlineColor', value)}
                 onSelectionColorChange={onReplaceSelectionColor}
                 onSelectionColorTarget={onSelectSelectionColorTarget}
                 hasTextContent={elementInfo.isTextElement}
-                showBackgroundColor={computedColor.backgroundColor.alpha > 0}
                 showBorderColor={computedColor.borderColor.alpha > 0}
                 showOutlineColor={computedColor.outlineColor.alpha > 0}
               />

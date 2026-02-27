@@ -2,12 +2,16 @@ import * as React from 'react'
 import type { ColorValue } from '../types'
 import { formatColorValue } from '../ui/color-utils'
 import { ColorPickerPopover, ColorPickerGroup } from '../ui/color-picker'
+import { parseFillLayers, serializeFillLayers } from '../fill-utils'
+import { CollapsibleSection, Tip } from './shared'
 import {
   Paintbrush,
   Square,
   Focus,
   Type,
   LocateFixed,
+  Plus,
+  Minus,
 } from 'lucide-react'
 
 interface ColorInputProps {
@@ -100,37 +104,31 @@ export function ColorInput({ id, label, icon, value, onChange }: ColorInputProps
 }
 
 interface FillSectionProps {
-  backgroundColor: ColorValue
   textColor: ColorValue
   borderColor?: ColorValue
   outlineColor?: ColorValue
   selectionColors?: ColorValue[]
   onSelectionColorChange?: (from: ColorValue, to: ColorValue) => void
   onSelectionColorTarget?: (color: ColorValue) => void
-  onBackgroundChange: (value: ColorValue) => void
   onTextChange: (value: ColorValue) => void
   onBorderColorChange?: (value: ColorValue) => void
   onOutlineColorChange?: (value: ColorValue) => void
   hasTextContent: boolean
-  showBackgroundColor?: boolean
   showBorderColor?: boolean
   showOutlineColor?: boolean
 }
 
 export function FillSection({
-  backgroundColor,
   textColor,
   borderColor,
   outlineColor,
   selectionColors = [],
   onSelectionColorChange,
   onSelectionColorTarget,
-  onBackgroundChange,
   onTextChange,
   onBorderColorChange,
   onOutlineColorChange,
   hasTextContent,
-  showBackgroundColor,
   showBorderColor,
   showOutlineColor,
 }: FillSectionProps) {
@@ -170,16 +168,6 @@ export function FillSection({
           </div>
         )}
 
-        {!showDetectedColorInputs && showBackgroundColor && (
-          <ColorInput
-            id="fill-bg"
-            label="Fill"
-            icon={<Paintbrush className="size-3.5" />}
-            value={backgroundColor}
-            onChange={onBackgroundChange}
-          />
-        )}
-
         {!showDetectedColorInputs && hasTextContent && (
           <ColorInput
             id="fill-text"
@@ -211,5 +199,93 @@ export function FillSection({
         )}
       </div>
     </ColorPickerGroup>
+  )
+}
+
+const DEFAULT_FILL: ColorValue = { hex: 'DDDDDD', alpha: 100, raw: '#DDDDDD' }
+
+interface BackgroundFillSectionProps {
+  backgroundColor: ColorValue
+  onSetCSS: (properties: Record<string, string>) => void
+  pendingStyles: Record<string, string>
+}
+
+export function BackgroundFillSection({ backgroundColor, onSetCSS, pendingStyles }: BackgroundFillSectionProps) {
+  const effectiveBgColor = pendingStyles['background-color'] ?? backgroundColor.raw
+  const effectiveBgShorthand = pendingStyles['background'] ?? ''
+  const parsedLayers = React.useMemo(
+    () => parseFillLayers(effectiveBgColor, effectiveBgShorthand),
+    [effectiveBgColor, effectiveBgShorthand],
+  )
+  const [layers, setLayers] = React.useState<ColorValue[]>(parsedLayers)
+  const hasFill = layers.length > 0
+
+  React.useEffect(() => {
+    setLayers(parsedLayers)
+  }, [parsedLayers])
+
+  const commitLayers = (nextLayers: ColorValue[]) => {
+    setLayers(nextLayers)
+    const { properties } = serializeFillLayers(nextLayers)
+    onSetCSS(properties)
+  }
+
+  const addLayer = () => {
+    commitLayers([...layers, DEFAULT_FILL])
+  }
+
+  const removeLayer = (index: number) => {
+    commitLayers(layers.filter((_, i) => i !== index))
+  }
+
+  const updateLayer = (index: number, color: ColorValue) => {
+    commitLayers(layers.map((l, i) => (i === index ? color : l)))
+  }
+
+  const headerActions = (
+    <div className="flex items-center gap-1">
+      <Tip label={hasFill ? 'Add fill layer' : 'Add fill'}>
+        <button
+          type="button"
+          className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted-foreground/10 hover:text-foreground"
+          onClick={addLayer}
+        >
+          <Plus className="size-3.5" />
+        </button>
+      </Tip>
+    </div>
+  )
+
+  return (
+    <CollapsibleSection title="Fill" actions={headerActions}>
+      {hasFill ? (
+        <ColorPickerGroup>
+          <div className="space-y-2">
+            {layers.map((layer, index) => (
+              <div key={`fill-layer-${index}`} className="flex items-center gap-1">
+                <div className="min-w-0 flex-1">
+                  <ColorInput
+                    id={`fill-bg-${index}`}
+                    label="Fill"
+                    icon={<Paintbrush className="size-3.5" />}
+                    value={layer}
+                    onChange={(next) => updateLayer(index, next)}
+                  />
+                </div>
+                <Tip label="Remove fill layer">
+                  <button
+                    type="button"
+                    className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted-foreground/10 hover:text-foreground"
+                    onClick={() => removeLayer(index)}
+                  >
+                    <Minus className="size-3.5" />
+                  </button>
+                </Tip>
+              </div>
+            ))}
+          </div>
+        </ColorPickerGroup>
+      ) : null}
+    </CollapsibleSection>
   )
 }
