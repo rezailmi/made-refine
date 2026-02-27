@@ -13,6 +13,7 @@ const HANDLE_SIZE = 12
 const RESIZE_CORNER_SIZE = 8
 const RESIZE_EDGE_HIT_SIZE = 10
 const RESIZE_CORNER_INSET = 1
+const MIN_SIZE_PX = 1
 
 function isFlexDisplay(display: string): boolean {
   return display === 'flex' || display === 'inline-flex'
@@ -24,6 +25,26 @@ function isInLayoutContainer(element: HTMLElement): boolean {
   const display = window.getComputedStyle(parent).display
   return isFlexDisplay(display)
     || display === 'grid' || display === 'inline-grid'
+}
+
+function getEdgeHandleAtPoint(
+  clientX: number,
+  clientY: number,
+  rect: DOMRect
+): 'top' | 'right' | 'bottom' | 'left' | null {
+  const localX = clientX - rect.left
+  const localY = clientY - rect.top
+  const halfHit = RESIZE_EDGE_HIT_SIZE / 2
+
+  const withinHorizontalSpan = localX >= RESIZE_CORNER_SIZE && localX <= rect.width - RESIZE_CORNER_SIZE
+  const withinVerticalSpan = localY >= RESIZE_CORNER_SIZE && localY <= rect.height - RESIZE_CORNER_SIZE
+
+  if (withinHorizontalSpan && localY >= -halfHit && localY <= halfHit) return 'top'
+  if (withinHorizontalSpan && localY >= rect.height - halfHit && localY <= rect.height + halfHit) return 'bottom'
+  if (withinVerticalSpan && localX >= -halfHit && localX <= halfHit) return 'left'
+  if (withinVerticalSpan && localX >= rect.width - halfHit && localX <= rect.width + halfHit) return 'right'
+
+  return null
 }
 
 export interface SelectionOverlayProps {
@@ -178,6 +199,41 @@ export function SelectionOverlay({
   }
 
   const handleDoubleClick = (e: React.MouseEvent) => {
+    if (showResizeHandles && onResizeSizingChange) {
+      const selectedRect = selectedElement.getBoundingClientRect()
+      const edgeHandle = getEdgeHandleAtPoint(e.clientX, e.clientY, selectedRect)
+      if (edgeHandle) {
+        const hasElementChildren = selectedElement.children.length > 0
+        const hasTextContent = Boolean(selectedElement.textContent?.trim())
+        const isEligibleElement = hasElementChildren || hasTextContent
+
+        if (isEligibleElement) {
+          e.preventDefault()
+          e.stopPropagation()
+
+          const width = Math.max(MIN_SIZE_PX, Math.round(selectedRect.width))
+          const height = Math.max(MIN_SIZE_PX, Math.round(selectedRect.height))
+
+          if (edgeHandle === 'left' || edgeHandle === 'right') {
+            onResizeSizingChange({
+              width: {
+                mode: 'fit',
+                value: { numericValue: width, unit: 'px', raw: `${width}px` },
+              },
+            })
+          } else {
+            onResizeSizingChange({
+              height: {
+                mode: 'fit',
+                value: { numericValue: height, unit: 'px', raw: `${height}px` },
+              },
+            })
+          }
+          return
+        }
+      }
+    }
+
     e.preventDefault()
     e.stopPropagation()
     cleanupRef.current?.()

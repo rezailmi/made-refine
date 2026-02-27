@@ -201,9 +201,8 @@ export function useSelectionResize({
       if (!isEdgeHandle(handle)) return
       const hasElementChildren = selectedElement.children.length > 0
       const hasTextContent = Boolean(selectedElement.textContent?.trim())
-      const isEligibleDiv =
-        selectedElement.tagName.toLowerCase() === 'div' && (hasElementChildren || hasTextContent)
-      if (!isEligibleDiv) return
+      const isEligibleElement = hasElementChildren || hasTextContent
+      if (!isEligibleElement) return
 
       e.preventDefault()
       e.stopPropagation()

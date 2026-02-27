@@ -289,4 +289,35 @@ describe('useSelectionResize', () => {
       undefined
     )
   })
+
+  it('applies fit on edge double-click for button with text content', () => {
+    const element = document.createElement('button')
+    element.textContent = 'Click me'
+    element.getBoundingClientRect = () => ({
+      left: 0, top: 0, width: 180, height: 90,
+      right: 180, bottom: 90, x: 0, y: 0,
+      toJSON: () => ({}),
+    }) as DOMRect
+    document.body.appendChild(element)
+
+    const onResize = vi.fn<(
+      changes: Partial<Record<SizingPropertyKey, SizingValue>>,
+      options?: SizingChangeOptions
+    ) => void>()
+
+    const { result } = renderHook(() => useSelectionResize({
+      selectedElement: element,
+      enabled: true,
+      onResizeSizingChange: onResize,
+    }))
+
+    act(() => {
+      result.current.getResizeHandleDoubleClick('right')(createMouseEvent())
+    })
+
+    expect(onResize).toHaveBeenCalledWith(
+      expect.objectContaining({ width: expect.objectContaining({ mode: 'fit' }) }),
+      undefined
+    )
+  })
 })

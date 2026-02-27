@@ -627,6 +627,72 @@ describe('SelectionOverlay', () => {
     expect(onDoubleClick).not.toHaveBeenCalled()
   })
 
+  it('selection handle edge double-click applies fit sizing and does not trigger text double-click', () => {
+    const onDoubleClick = vi.fn()
+    const onResizeSizingChange = vi.fn()
+    selectedElement.textContent = 'Editable container text'
+
+    const { container } = render(
+      <SelectionOverlay
+        selectedElement={selectedElement}
+        isDragging={false}
+        onMoveStart={vi.fn()}
+        onDoubleClick={onDoubleClick}
+        enableResizeHandles={true}
+        onResizeSizingChange={onResizeSizingChange}
+      />
+    )
+
+    const handle = container.querySelector('[data-direct-edit="selection-handle"]') as HTMLElement
+    expect(handle).not.toBeNull()
+
+    act(() => {
+      handle.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, clientX: 101, clientY: 100 }))
+    })
+
+    expect(onResizeSizingChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        width: expect.objectContaining({ mode: 'fit' }),
+      })
+    )
+    expect(onDoubleClick).not.toHaveBeenCalled()
+  })
+
+  it('selection handle edge double-click on button text applies fit sizing and does not trigger text double-click', () => {
+    const onDoubleClick = vi.fn()
+    const onResizeSizingChange = vi.fn()
+
+    selectedElement = document.createElement('button')
+    selectedElement.textContent = 'Go to canvas playground page'
+    selectedElement.getBoundingClientRect = () => defaultRect
+    document.body.appendChild(selectedElement)
+
+    const { container } = render(
+      <SelectionOverlay
+        selectedElement={selectedElement}
+        isDragging={false}
+        onMoveStart={vi.fn()}
+        onDoubleClick={onDoubleClick}
+        enableResizeHandles={true}
+        onResizeSizingChange={onResizeSizingChange}
+      />
+    )
+
+    const handle = container.querySelector('[data-direct-edit="selection-handle"]') as HTMLElement
+    expect(handle).not.toBeNull()
+
+    act(() => {
+      handle.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, clientX: 101, clientY: 100 }))
+    })
+
+    expect(onResizeSizingChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        width: expect.objectContaining({ mode: 'fit' }),
+      })
+    )
+    expect(onDoubleClick).not.toHaveBeenCalled()
+  })
+
   it('renders move handle when enabled and starts drag immediately', () => {
     const onMoveStart = vi.fn()
     const onClickThrough = vi.fn()
@@ -1262,8 +1328,10 @@ describe('SelectionOverlay', () => {
     expect(rect).toBeNull()
   })
 
-  it('calls onDoubleClick on double-click', () => {
+  it('calls onDoubleClick on content double-click (not edge)', () => {
     const onDoubleClick = vi.fn()
+    const onResizeSizingChange = vi.fn()
+    selectedElement.textContent = 'Editable container text'
 
     const { container } = render(
       <SelectionOverlay
@@ -1271,6 +1339,8 @@ describe('SelectionOverlay', () => {
         isDragging={false}
         onMoveStart={vi.fn()}
         onDoubleClick={onDoubleClick}
+        enableResizeHandles={true}
+        onResizeSizingChange={onResizeSizingChange}
       />
     )
 
@@ -1281,5 +1351,6 @@ describe('SelectionOverlay', () => {
     })
 
     expect(onDoubleClick).toHaveBeenCalledWith(140, 77)
+    expect(onResizeSizingChange).not.toHaveBeenCalled()
   })
 })
