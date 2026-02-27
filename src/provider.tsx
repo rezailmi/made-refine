@@ -287,18 +287,24 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
   // The interaction overlay normally intercepts clicks, but in rare timing gaps
   // (e.g. between renders) a click can leak through to the underlying page.
   React.useEffect(() => {
-    if (!state.editModeActive || state.textEditingElement) return
+    if (!state.editModeActive) return
 
     function blockClick(e: MouseEvent) {
+      const target = e.target
+      if (!(target instanceof Node)) return
+
       const host = document.querySelector('[data-direct-edit-host]')
-      if (host && e.target === host) return
+      if (host && target === host) return
+
+      if (target instanceof Element && target.closest('[data-direct-edit]')) return
+
       e.preventDefault()
       e.stopPropagation()
     }
 
     document.addEventListener('click', blockClick, true)
     return () => document.removeEventListener('click', blockClick, true)
-  }, [state.editModeActive, state.textEditingElement])
+  }, [state.editModeActive])
 
   // While design mode is active, block native browser navigation/drag behaviors
   // that can interrupt visual editing (history swipe + URL/tab drag).

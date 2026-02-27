@@ -1642,4 +1642,111 @@ describe('DirectEditProvider', () => {
     })
     expect(target.textContent).toBe('After')
   })
+
+  it('blocks app element clicks while text editing is active in design mode', async () => {
+    const editable = document.createElement('a')
+    editable.id = 'editable-link'
+    editable.href = 'https://example.com'
+    editable.textContent = 'Editable text'
+    document.body.appendChild(editable)
+
+    const outsideButton = document.createElement('button')
+    outsideButton.id = 'outside-click-target'
+    outsideButton.textContent = 'Click me'
+    document.body.appendChild(outsideButton)
+    const outsideClickSpy = vi.fn()
+    outsideButton.addEventListener('click', outsideClickSpy)
+
+    const editableClickSpy = vi.fn()
+    editable.addEventListener('click', editableClickSpy)
+
+    const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+    act(() => {
+      result.current.selectElement(editable)
+      result.current.toggleEditMode()
+    })
+
+    await waitFor(() => {
+      expect(result.current.editModeActive).toBe(true)
+    })
+
+    act(() => {
+      result.current.startTextEditing(editable)
+    })
+
+    await waitFor(() => {
+      expect(result.current.textEditingElement).toBe(editable)
+      expect(editable.getAttribute('contenteditable')).toBe('true')
+    })
+
+    const outsideClick = new MouseEvent('click', { bubbles: true, cancelable: true, composed: true })
+    outsideButton.dispatchEvent(outsideClick)
+
+    expect(outsideClick.defaultPrevented).toBe(true)
+    expect(outsideClickSpy).not.toHaveBeenCalled()
+
+    const editableClick = new MouseEvent('click', { bubbles: true, cancelable: true, composed: true })
+    editable.dispatchEvent(editableClick)
+
+    expect(editableClick.defaultPrevented).toBe(true)
+    expect(editableClickSpy).not.toHaveBeenCalled()
+    expect(result.current.textEditingElement).toBe(editable)
+  })
+
+  it('uses text cursor while editing text on links and buttons, then restores cursor', async () => {
+    const link = document.createElement('a')
+    link.id = 'cursor-link'
+    link.href = 'https://example.com'
+    link.textContent = 'Edit link text'
+    link.style.cursor = 'pointer'
+    document.body.appendChild(link)
+
+    const button = document.createElement('button')
+    button.id = 'cursor-button'
+    button.textContent = 'Edit button text'
+    button.style.cursor = 'pointer'
+    document.body.appendChild(button)
+
+    const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+    act(() => {
+      result.current.selectElement(link)
+      result.current.toggleEditMode()
+      result.current.startTextEditing(link)
+    })
+
+    await waitFor(() => {
+      expect(result.current.textEditingElement).toBe(link)
+      expect(link.style.cursor).toBe('text')
+    })
+
+    act(() => {
+      result.current.commitTextEditing()
+    })
+
+    await waitFor(() => {
+      expect(result.current.textEditingElement).toBeNull()
+      expect(link.style.cursor).toBe('pointer')
+    })
+
+    act(() => {
+      result.current.selectElement(button)
+      result.current.startTextEditing(button)
+    })
+
+    await waitFor(() => {
+      expect(result.current.textEditingElement).toBe(button)
+      expect(button.style.cursor).toBe('text')
+    })
+
+    act(() => {
+      result.current.commitTextEditing()
+    })
+
+    await waitFor(() => {
+      expect(result.current.textEditingElement).toBeNull()
+      expect(button.style.cursor).toBe('pointer')
+    })
+  })
 })

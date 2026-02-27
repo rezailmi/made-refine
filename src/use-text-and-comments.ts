@@ -46,8 +46,11 @@ export function useTextAndComments({
 
     editingElement.removeAttribute('contenteditable')
     editingElement.removeAttribute('data-direct-edit-original-text')
+    const originalCursor = editingElement.getAttribute('data-direct-edit-original-cursor') ?? ''
+    editingElement.removeAttribute('data-direct-edit-original-cursor')
     editingElement.style.outline = ''
     editingElement.style.outlineOffset = ''
+    editingElement.style.cursor = originalCursor
     editingElement.blur()
 
     if (newText !== previousText) {
@@ -191,10 +194,12 @@ export function useTextAndComments({
     const existing = sessionEditsRef.current.get(element)
     const originalText = existing?.textEdit?.originalText ?? (element.textContent ?? '')
     element.setAttribute('data-direct-edit-original-text', originalText)
+    element.setAttribute('data-direct-edit-original-cursor', element.style.cursor)
 
     element.setAttribute('contenteditable', 'true')
     element.style.outline = '1px solid #0D99FF'
     element.style.outlineOffset = '0px'
+    element.style.cursor = 'text'
     element.focus()
 
     // Select all text for easy replacement
