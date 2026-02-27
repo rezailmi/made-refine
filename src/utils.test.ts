@@ -629,7 +629,6 @@ describe('export context quality', () => {
         domSelector: '#card',
         domContextHtml: '<section><div id="card" data-direct-edit-target="true"></div></section>',
         targetHtml: '<div id="card">',
-        domContextHtml: '<div id="card"></div>',
         textPreview: '',
         reactStack: [],
         domSource: { file: 'src/App.tsx', line: 10, column: 5 },
