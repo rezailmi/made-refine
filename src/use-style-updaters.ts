@@ -14,12 +14,15 @@ import type {
   ColorPropertyKey,
   ColorValue,
   UndoEntry,
+  SessionEdit,
 } from './types'
 import {
   getAllComputedStyles,
   getComputedBorderStyles,
   getComputedColorStyles,
   getComputedBoxShadow,
+  getOriginalInlineStyles,
+  getElementLocator,
   getElementInfo,
   formatPropertyValue,
   propertyToCSSMap,
@@ -30,6 +33,7 @@ import {
   typographyPropertyToCSSMap,
   sizingValueToCSS,
   colorPropertyToCSSMap,
+  parseColorValue,
 } from './utils'
 import { formatColorValue } from './ui/color-utils'
 
@@ -37,9 +41,104 @@ export interface StyleUpdaterOptions {
   stateRef: React.MutableRefObject<DirectEditState>
   pushUndo: (entry: UndoEntry) => void
   setState: React.Dispatch<React.SetStateAction<DirectEditState>>
+  sessionEditsRef?: React.MutableRefObject<Map<HTMLElement, SessionEdit>>
+  removedSessionEditsRef?: React.MutableRefObject<WeakSet<HTMLElement>>
+  syncSessionItemCount?: () => void
 }
 
-export function useStyleUpdaters({ stateRef, pushUndo, setState }: StyleUpdaterOptions) {
+const BORDER_SIDE_PROPS = [
+  { cssProperty: 'border-top-color', styleKey: 'borderTopStyle', widthKey: 'borderTopWidth', colorKey: 'borderTopColor' },
+  { cssProperty: 'border-right-color', styleKey: 'borderRightStyle', widthKey: 'borderRightWidth', colorKey: 'borderRightColor' },
+  { cssProperty: 'border-bottom-color', styleKey: 'borderBottomStyle', widthKey: 'borderBottomWidth', colorKey: 'borderBottomColor' },
+  { cssProperty: 'border-left-color', styleKey: 'borderLeftStyle', widthKey: 'borderLeftWidth', colorKey: 'borderLeftColor' },
+] as const
+
+function toColorKey(color: ColorValue): string {
+  return `${color.hex.toUpperCase()}:${Math.round(color.alpha)}`
+}
+
+function parseVisibleColor(raw: string, fallbackCurrentColor?: string): ColorValue | null {
+  const trimmed = raw.trim()
+  if (!trimmed || trimmed === 'transparent' || trimmed === 'none') return null
+  const resolved = trimmed.toLowerCase() === 'currentcolor'
+    ? (fallbackCurrentColor ?? trimmed)
+    : trimmed
+  const parsed = parseColorValue(resolved)
+  return parsed.alpha > 0 ? parsed : null
+}
+
+function hasOwnText(node: Element): boolean {
+  return Array.from(node.childNodes).some((child) => (
+    child.nodeType === Node.TEXT_NODE && (child.textContent ?? '').trim().length > 0
+  ))
+}
+
+function collectMatchingColorProperties(root: HTMLElement, target: ColorValue): Map<HTMLElement, Set<string>> {
+  const matches = new Map<HTMLElement, Set<string>>()
+  const targetKey = toColorKey(target)
+  const nodes = [root, ...Array.from(root.querySelectorAll('*'))]
+
+  for (const node of nodes) {
+    if (!(node instanceof Element) || !node.isConnected) continue
+
+    const computed = window.getComputedStyle(node)
+    const currentTextColor = computed.color
+    const nodeMatches = new Set<string>()
+    const addIfMatch = (cssProperty: string, raw: string, fallbackCurrentColor?: string) => {
+      const parsed = parseVisibleColor(raw, fallbackCurrentColor)
+      if (parsed && toColorKey(parsed) === targetKey) {
+        nodeMatches.add(cssProperty)
+      }
+    }
+
+    addIfMatch('background-color', computed.backgroundColor)
+
+    if (hasOwnText(node)) {
+      addIfMatch('color', currentTextColor)
+    }
+
+    for (const side of BORDER_SIDE_PROPS) {
+      const borderStyle = computed[side.styleKey]
+      const borderWidth = parseFloat(computed[side.widthKey])
+      if (borderStyle !== 'none' && borderWidth > 0) {
+        addIfMatch(side.cssProperty, computed[side.colorKey], currentTextColor)
+      }
+    }
+
+    if (computed.outlineStyle !== 'none' && parseFloat(computed.outlineWidth) > 0) {
+      addIfMatch('outline-color', computed.outlineColor, currentTextColor)
+    }
+
+    if (node instanceof SVGGraphicsElement) {
+      const fillColor = parseVisibleColor(computed.getPropertyValue('fill'), currentTextColor)
+        ?? parseVisibleColor(node.getAttribute('fill') ?? '', currentTextColor)
+      const strokeColor = parseVisibleColor(computed.getPropertyValue('stroke'), currentTextColor)
+        ?? parseVisibleColor(node.getAttribute('stroke') ?? '', currentTextColor)
+
+      if (fillColor && toColorKey(fillColor) === targetKey) {
+        nodeMatches.add('fill')
+      }
+      if (strokeColor && toColorKey(strokeColor) === targetKey) {
+        nodeMatches.add('stroke')
+      }
+    }
+
+    if (nodeMatches.size > 0) {
+      matches.set(node as HTMLElement, nodeMatches)
+    }
+  }
+
+  return matches
+}
+
+export function useStyleUpdaters({
+  stateRef,
+  pushUndo,
+  setState,
+  sessionEditsRef,
+  removedSessionEditsRef,
+  syncSessionItemCount,
+}: StyleUpdaterOptions) {
   const sizingTransactionRef = React.useRef<{
     id: string
     element: HTMLElement
@@ -434,6 +533,79 @@ export function useStyleUpdaters({ stateRef, pushUndo, setState }: StyleUpdaterO
     [pushUndo]
   )
 
+  const replaceSelectionColor = React.useCallback(
+    (from: ColorValue, to: ColorValue) => {
+      const root = stateRef.current.selectedElement
+      if (!root) return
+
+      const matches = collectMatchingColorProperties(root, from)
+      if (matches.size === 0) return
+
+      const cssValue = formatColorValue(to)
+      const rootPendingUpdates: Record<string, string> = {}
+      let hasSessionChanges = false
+
+      for (const [element, properties] of matches.entries()) {
+        const undoProperties: Array<{ cssProperty: string; previousValue: string | null }> = []
+        const pendingUpdates: Record<string, string> = {}
+
+        for (const cssProperty of properties) {
+          const previousValue = element.style.getPropertyValue(cssProperty) || null
+          if (previousValue === cssValue) continue
+          undoProperties.push({ cssProperty, previousValue })
+          element.style.setProperty(cssProperty, cssValue)
+          pendingUpdates[cssProperty] = cssValue
+        }
+
+        if (undoProperties.length === 0) continue
+        pushUndo({ type: 'edit', element, properties: undoProperties })
+
+        if (element === root) {
+          Object.assign(rootPendingUpdates, pendingUpdates)
+        }
+
+        if (sessionEditsRef) {
+          removedSessionEditsRef?.current.delete(element)
+          const existing = sessionEditsRef.current.get(element)
+          const mergedPending = {
+            ...(existing?.pendingStyles ?? {}),
+            ...pendingUpdates,
+          }
+
+          sessionEditsRef.current.set(element, {
+            element,
+            locator: existing?.locator ?? getElementLocator(element),
+            originalStyles: existing?.originalStyles ?? getOriginalInlineStyles(element),
+            pendingStyles: mergedPending,
+            move: existing?.move ?? null,
+            textEdit: existing?.textEdit ?? null,
+          })
+          hasSessionChanges = true
+        }
+      }
+
+      const border = getComputedBorderStyles(root)
+      const color = getComputedColorStyles(root)
+      const boxShadow = getComputedBoxShadow(root)
+
+      setState((prev) => ({
+        ...prev,
+        computedBorder: border,
+        computedColor: color,
+        computedBoxShadow: boxShadow,
+        pendingStyles: {
+          ...prev.pendingStyles,
+          ...rootPendingUpdates,
+        },
+      }))
+
+      if (hasSessionChanges) {
+        syncSessionItemCount?.()
+      }
+    },
+    [pushUndo, removedSessionEditsRef, sessionEditsRef, setState, stateRef, syncSessionItemCount]
+  )
+
   const updateTypographyProperty = React.useCallback(
     (key: TypographyPropertyKey, value: CSSPropertyValue | string) => {
       const el = stateRef.current.selectedElement
@@ -505,6 +677,7 @@ export function useStyleUpdaters({ stateRef, pushUndo, setState }: StyleUpdaterO
     updateSizingProperties,
     updateSizingProperty,
     updateColorProperty,
+    replaceSelectionColor,
     updateTypographyProperty,
   }
 }

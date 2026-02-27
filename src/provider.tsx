@@ -47,6 +47,7 @@ export interface DirectEditActionsContextValue {
   ) => void
   updateSizingProperty: (key: SizingPropertyKey, value: SizingValue) => void
   updateColorProperty: (key: ColorPropertyKey, value: ColorValue) => void
+  replaceSelectionColor: (from: ColorValue, to: ColorValue) => void
   updateTypographyProperty: (key: TypographyPropertyKey, value: CSSPropertyValue | string) => void
   resetToOriginal: () => void
   exportEdits: () => Promise<boolean>
@@ -188,18 +189,25 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
   }, [])
 
   const {
-    updateSpacingProperty, updateBorderRadiusProperty, updateBorderProperty,
-    updateBorderProperties, updateRawCSS, updateFlexProperty, toggleFlexLayout,
-    updateSizingProperties, updateSizingProperty, updateColorProperty, updateTypographyProperty,
-  } = useStyleUpdaters({ stateRef, pushUndo, setState })
-
-  const {
     syncSessionItemCount, saveCurrentToSession, selectElement, selectParent, selectChild,
     resetToOriginal, undo, handleMoveComplete, getSessionEdits, getSessionItems,
     exportAllEdits, exportEdits, removeSessionEdit, clearSessionEdits,
   } = useSessionManager({
     stateRef, sessionEditsRef, removedSessionEditsRef, undoStackRef,
     pushUndo, setState, setSessionEditCount,
+  })
+
+  const {
+    updateSpacingProperty, updateBorderRadiusProperty, updateBorderProperty,
+    updateBorderProperties, updateRawCSS, updateFlexProperty, toggleFlexLayout,
+    updateSizingProperties, updateSizingProperty, updateColorProperty, replaceSelectionColor, updateTypographyProperty,
+  } = useStyleUpdaters({
+    stateRef,
+    pushUndo,
+    setState,
+    sessionEditsRef,
+    removedSessionEditsRef,
+    syncSessionItemCount,
   })
 
   // Save current element to session when selected element or pending styles change
@@ -292,6 +300,100 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     return () => document.removeEventListener('click', blockClick, true)
   }, [state.editModeActive, state.textEditingElement])
 
+  // While design mode is active, block native browser navigation/drag behaviors
+  // that can interrupt visual editing (history swipe + URL/tab drag).
+  React.useEffect(() => {
+    if (!state.editModeActive) return
+
+    const docEl = document.documentElement
+    const body = document.body
+    const previousDocOverscroll = docEl.style.overscrollBehavior
+    const previousDocOverscrollX = docEl.style.overscrollBehaviorX
+    const previousBodyOverscroll = body.style.overscrollBehavior
+    const previousBodyOverscrollX = body.style.overscrollBehaviorX
+
+    docEl.style.overscrollBehavior = 'none'
+    docEl.style.overscrollBehaviorX = 'none'
+    body.style.overscrollBehavior = 'none'
+    body.style.overscrollBehaviorX = 'none'
+
+    function blockNativeDragStart(e: DragEvent) {
+      const target = e.target
+      if (target instanceof Element && target.closest('[data-direct-edit]')) return
+      e.preventDefault()
+      e.stopPropagation()
+    }
+
+    function getParentAcrossShadowTree(node: Element | null): Element | null {
+      if (!node) return null
+      if (node.parentElement) return node.parentElement
+      const root = node.getRootNode()
+      if (root instanceof ShadowRoot) return root.host
+      return null
+    }
+
+    function findHorizontalScroller(start: Element): HTMLElement | null {
+      let current: Element | null = start
+      while (current) {
+        if (current instanceof HTMLElement) {
+          const style = window.getComputedStyle(current)
+          const overflowX = style.overflowX || style.overflow
+          const scrollableX =
+            overflowX === 'auto'
+            || overflowX === 'scroll'
+            || overflowX === 'overlay'
+          const hasHorizontalOverflow = current.scrollWidth > current.clientWidth + 1
+          if (scrollableX && hasHorizontalOverflow) return current
+        }
+        current = getParentAcrossShadowTree(current)
+      }
+      return null
+    }
+
+    function blockHistorySwipeWheel(e: WheelEvent) {
+      const target = e.target
+      if (!(target instanceof Element)) return
+
+      const absX = Math.abs(e.deltaX)
+      const absY = Math.abs(e.deltaY)
+      const horizontalIntent = absX > absY || (e.shiftKey && absY > 0)
+      if (!horizontalIntent) return
+
+      // Canvas mode should still pan normally.
+      if (stateRef.current.canvas.active) return
+
+      // SectionNav owns its own horizontal-only wheel behavior.
+      if (target.closest('[data-direct-edit="section-nav"]')) return
+
+      const scroller = findHorizontalScroller(target)
+      if (scroller) {
+        // Route horizontal intent into the nearest horizontal scroller and
+        // prevent browser history-swipe navigation at scroll boundaries.
+        const delta = absX > 0 ? e.deltaX : e.deltaY
+        if (delta !== 0) {
+          e.preventDefault()
+          scroller.scrollLeft += delta
+        }
+        return
+      }
+
+      // No horizontal scroller to consume the gesture: block back/forward swipe.
+      e.preventDefault()
+    }
+
+    document.addEventListener('dragstart', blockNativeDragStart, true)
+    window.addEventListener('wheel', blockHistorySwipeWheel, { capture: true, passive: false })
+
+    return () => {
+      document.removeEventListener('dragstart', blockNativeDragStart, true)
+      window.removeEventListener('wheel', blockHistorySwipeWheel, true)
+      docEl.style.overscrollBehavior = previousDocOverscroll
+      docEl.style.overscrollBehaviorX = previousDocOverscrollX
+      body.style.overscrollBehavior = previousBodyOverscroll
+      body.style.overscrollBehaviorX = previousBodyOverscrollX
+    }
+  }, [state.editModeActive])
+
   const {
     canSendEditToAgent, sendEditToAgent, sendCommentToAgent, sendAllSessionItemsToAgent,
   } = useAgentComms({ stateRef, sessionEditsRef, getSessionItems })
@@ -329,7 +431,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     selectElement, selectParent, selectChild, closePanel,
     updateSpacingProperty, updateBorderRadiusProperty, updateBorderProperty,
     updateBorderProperties, updateRawCSS, updateFlexProperty, toggleFlexLayout,
-    updateSizingProperties, updateSizingProperty, updateColorProperty, updateTypographyProperty,
+    updateSizingProperties, updateSizingProperty, updateColorProperty, replaceSelectionColor, updateTypographyProperty,
     resetToOriginal, exportEdits, canSendEditToAgent, sendEditToAgent,
     sendAllSessionItemsToAgent, sendCommentToAgent, toggleEditMode, undo,
     handleMoveComplete, setActiveTool, setTheme, setBorderStyleControlPreference,
@@ -341,7 +443,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     selectElement, selectParent, selectChild, closePanel,
     updateSpacingProperty, updateBorderRadiusProperty, updateBorderProperty,
     updateBorderProperties, updateRawCSS, updateFlexProperty, toggleFlexLayout,
-    updateSizingProperties, updateSizingProperty, updateColorProperty, updateTypographyProperty,
+    updateSizingProperties, updateSizingProperty, updateColorProperty, replaceSelectionColor, updateTypographyProperty,
     resetToOriginal, exportEdits, canSendEditToAgent, sendEditToAgent,
     sendAllSessionItemsToAgent, sendCommentToAgent, toggleEditMode, undo,
     handleMoveComplete, setActiveTool, setTheme, setBorderStyleControlPreference,

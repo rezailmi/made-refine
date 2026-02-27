@@ -876,6 +876,70 @@ export function parseColorValue(cssValue: string): ColorValue {
 
 const TRANSPARENT_COLOR: ColorValue = { hex: '000000', alpha: 0, raw: 'transparent' }
 
+function isVisibleBorderSide(side: { style: string; width: string }): boolean {
+  return side.style !== 'none' && side.style !== 'hidden' && parseFloat(side.width) > 0
+}
+
+function hasVisibleOutline(computed: CSSStyleDeclaration): boolean {
+  return computed.outlineStyle !== 'none' && parseFloat(computed.outlineWidth) > 0
+}
+
+function parseVisibleColor(
+  value: string,
+  fallbackCurrentColor?: string
+): ColorValue | null {
+  const raw = value.trim()
+  const lowered = raw.toLowerCase()
+  if (!raw || lowered === 'none' || lowered === 'transparent') {
+    return null
+  }
+
+  const resolved = /^currentcolor$/i.test(raw)
+    ? (fallbackCurrentColor ?? raw)
+    : raw
+  const parsed = parseColorValue(resolved)
+  if (parsed.alpha <= 0) {
+    return null
+  }
+  return parsed
+}
+
+function addUniqueColor(
+  colors: Map<string, ColorValue>,
+  color: ColorValue | null
+): void {
+  if (!color) return
+  colors.set(`${color.hex}:${color.alpha}`, color)
+}
+
+function isTextRenderingFormControl(element: HTMLElement): boolean {
+  if (element instanceof HTMLTextAreaElement) return true
+  if (element instanceof HTMLSelectElement) return true
+  if (element instanceof HTMLButtonElement) return true
+  if (element instanceof HTMLInputElement) {
+    const textlessInputTypes = new Set([
+      'hidden',
+      'checkbox',
+      'radio',
+      'range',
+      'color',
+      'file',
+      'image',
+    ])
+    return !textlessInputTypes.has(element.type.toLowerCase())
+  }
+  return false
+}
+
+function hasRenderableTextNode(element: HTMLElement): boolean {
+  if (element.isContentEditable) return true
+  if (isTextRenderingFormControl(element)) return true
+  if (!element.textContent?.trim()) return false
+  if (hasDirectNonWhitespaceText(element)) return true
+  const tagName = element.tagName.toLowerCase()
+  return TEXT_ELEMENT_TAGS.has(tagName) || element.children.length === 0
+}
+
 export function getComputedBoxShadow(element: HTMLElement): string {
   const computed = window.getComputedStyle(element)
   const value = computed.boxShadow.trim()
@@ -891,12 +955,9 @@ export function getComputedColorStyles(element: HTMLElement): ColorProperties {
     { style: computed.borderBottomStyle, width: computed.borderBottomWidth, color: computed.borderBottomColor },
     { style: computed.borderLeftStyle, width: computed.borderLeftWidth, color: computed.borderLeftColor },
   ]
-  const visibleBorderSide = borderSides.find(
-    (side) => side.style !== 'none' && side.style !== 'hidden' && parseFloat(side.width) > 0
-  )
+  const visibleBorderSide = borderSides.find((side) => isVisibleBorderSide(side))
   const hasBorder = Boolean(visibleBorderSide)
-  const hasOutline =
-    computed.outlineStyle !== 'none' && parseFloat(computed.outlineWidth) > 0
+  const hasOutline = hasVisibleOutline(computed)
 
   return {
     backgroundColor: parseColorValue(computed.backgroundColor),
@@ -904,6 +965,65 @@ export function getComputedColorStyles(element: HTMLElement): ColorProperties {
     borderColor: hasBorder && visibleBorderSide ? parseColorValue(visibleBorderSide.color) : TRANSPARENT_COLOR,
     outlineColor: hasOutline ? parseColorValue(computed.outlineColor) : TRANSPARENT_COLOR,
   }
+}
+
+export function getSelectionColors(element: HTMLElement): ColorValue[] {
+  const uniqueColors = new Map<string, ColorValue>()
+  const queue: Element[] = [element]
+
+  for (let index = 0; index < queue.length; index++) {
+    const node = queue[index]
+    const computed = window.getComputedStyle(node)
+
+    if (computed.display === 'none') {
+      // Entire subtree is not rendered; skip traversal for performance.
+      continue
+    }
+
+    const isVisibilityHidden =
+      computed.visibility === 'hidden' || computed.visibility === 'collapse'
+    const currentTextColor = computed.color
+
+    if (!isVisibilityHidden) {
+      addUniqueColor(uniqueColors, parseVisibleColor(computed.backgroundColor))
+
+      if (node instanceof HTMLElement && hasRenderableTextNode(node)) {
+        addUniqueColor(uniqueColors, parseVisibleColor(currentTextColor))
+      }
+
+      const borderSides = [
+        { style: computed.borderTopStyle, width: computed.borderTopWidth, color: computed.borderTopColor },
+        { style: computed.borderRightStyle, width: computed.borderRightWidth, color: computed.borderRightColor },
+        { style: computed.borderBottomStyle, width: computed.borderBottomWidth, color: computed.borderBottomColor },
+        { style: computed.borderLeftStyle, width: computed.borderLeftWidth, color: computed.borderLeftColor },
+      ]
+      for (const side of borderSides) {
+        if (!isVisibleBorderSide(side)) continue
+        addUniqueColor(uniqueColors, parseVisibleColor(side.color, currentTextColor))
+      }
+
+      if (hasVisibleOutline(computed)) {
+        addUniqueColor(uniqueColors, parseVisibleColor(computed.outlineColor, currentTextColor))
+      }
+
+      if (node instanceof SVGElement) {
+        const fillColor =
+          parseVisibleColor(computed.getPropertyValue('fill'), currentTextColor)
+          ?? parseVisibleColor(node.getAttribute('fill') ?? '', currentTextColor)
+        const strokeColor =
+          parseVisibleColor(computed.getPropertyValue('stroke'), currentTextColor)
+          ?? parseVisibleColor(node.getAttribute('stroke') ?? '', currentTextColor)
+        addUniqueColor(uniqueColors, fillColor)
+        addUniqueColor(uniqueColors, strokeColor)
+      }
+    }
+
+    for (const child of node.children) {
+      queue.push(child)
+    }
+  }
+
+  return Array.from(uniqueColors.values())
 }
 
 export interface AllComputedStyles {

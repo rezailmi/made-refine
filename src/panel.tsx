@@ -15,7 +15,7 @@ import { getStoredGuidelines } from './use-guidelines'
 import {
   calculateGuidelineMeasurements, isFlexContainer, isTextElement,
   resolveElementTarget, computeHoverHighlight,
-  elementFromPointWithoutOverlays, findChildAtPoint,
+  elementFromPointWithoutOverlays, findChildAtPoint, getSelectionColors, parseColorValue,
 } from './utils'
 import { InteractionOverlay } from './panel/interaction-overlay'
 import { MoveOverlay } from './move-overlay'
@@ -92,6 +92,7 @@ export interface DirectEditPanelInnerProps {
     borderColor: ColorValue
     outlineColor: ColorValue
   } | null
+  selectionColors?: ColorValue[]
   computedBoxShadow?: string
   borderStyleControlPreference?: BorderStyleControlPreference
   computedTypography: TypographyProperties | null
@@ -108,6 +109,8 @@ export interface DirectEditPanelInnerProps {
   onToggleFlex: () => void
   onUpdateSizing: (key: SizingPropertyKey, value: SizingValue) => void
   onUpdateColor: (key: ColorPropertyKey, value: ColorValue) => void
+  onReplaceSelectionColor: (from: ColorValue, to: ColorValue) => void
+  onSelectSelectionColorTarget?: (color: ColorValue) => void
   onUpdateTypography: (key: TypographyPropertyKey, value: CSSPropertyValue | string) => void
   onReset: () => void
   onExportEdits: () => Promise<boolean>
@@ -131,6 +134,7 @@ export function DirectEditPanelInner({
   computedFlex,
   computedSizing,
   computedColor,
+  selectionColors = [],
   computedBoxShadow = 'none',
   borderStyleControlPreference = 'icon',
   computedTypography,
@@ -147,6 +151,8 @@ export function DirectEditPanelInner({
   onToggleFlex,
   onUpdateSizing,
   onUpdateColor,
+  onReplaceSelectionColor,
+  onSelectSelectionColorTarget,
   onUpdateTypography,
   onReset,
   onExportEdits,
@@ -280,13 +286,16 @@ export function DirectEditPanelInner({
                 textColor={computedColor.color}
                 borderColor={computedColor.borderColor}
                 outlineColor={computedColor.outlineColor}
+                selectionColors={selectionColors}
                 onBackgroundChange={(value) => onUpdateColor('backgroundColor', value)}
                 onTextChange={(value) => onUpdateColor('color', value)}
                 onBorderColorChange={(value) => onUpdateColor('borderColor', value)}
                 onOutlineColorChange={(value) => onUpdateColor('outlineColor', value)}
+                onSelectionColorChange={onReplaceSelectionColor}
+                onSelectionColorTarget={onSelectSelectionColorTarget}
                 hasTextContent={elementInfo.isTextElement}
                 showBackgroundColor={computedColor.backgroundColor.alpha > 0}
-                showBorderColor={false}
+                showBorderColor={computedColor.borderColor.alpha > 0}
                 showOutlineColor={computedColor.outlineColor.alpha > 0}
               />
             </CollapsibleSection>
@@ -324,7 +333,7 @@ function DirectEditPanelContent() {
     updateSpacingProperty, updateBorderRadiusProperty,
     updateBorderProperty, updateBorderProperties, updateRawCSS,
     updateFlexProperty, toggleFlexLayout,
-    updateSizingProperties, updateSizingProperty, updateColorProperty, updateTypographyProperty,
+    updateSizingProperties, updateSizingProperty, updateColorProperty, replaceSelectionColor, updateTypographyProperty,
     resetToOriginal, exportEdits, sendEditToAgent,
     handleMoveComplete, setActiveTool,
     addComment, updateCommentText, addCommentReply, deleteComment, exportComment,
@@ -431,6 +440,82 @@ function DirectEditPanelContent() {
     />,
     container
   ) : null
+
+  const selectionColors = React.useMemo(() => {
+    if (!selectedElement) return []
+    return getSelectionColors(selectedElement)
+  }, [selectedElement, computedColor, computedBorder])
+
+  const handleSelectSelectionColorTarget = React.useCallback((targetColor: ColorValue) => {
+    if (!selectedElement) return
+
+    const toKey = (color: ColorValue) => `${color.hex.toUpperCase()}:${Math.round(color.alpha)}`
+    const targetKey = toKey(targetColor)
+    const hasOwnText = (node: Element) => (
+      Array.from(node.childNodes).some((child) => (
+        child.nodeType === Node.TEXT_NODE && (child.textContent ?? '').trim().length > 0
+      ))
+    )
+    const parseVisibleColor = (raw: string, fallbackCurrentColor?: string): ColorValue | null => {
+      const trimmed = raw.trim()
+      if (!trimmed || trimmed === 'none' || trimmed === 'transparent') return null
+      const resolved = trimmed.toLowerCase() === 'currentcolor' ? (fallbackCurrentColor ?? trimmed) : trimmed
+      const parsed = parseColorValue(resolved)
+      return parsed.alpha > 0 ? parsed : null
+    }
+    const hasMatchingColor = (node: Element): boolean => {
+      const computed = window.getComputedStyle(node)
+      const currentTextColor = computed.color
+
+      const matches = (raw: string, fallback?: string): boolean => {
+        const parsed = parseVisibleColor(raw, fallback)
+        return Boolean(parsed && toKey(parsed) === targetKey)
+      }
+
+      if (matches(computed.backgroundColor)) return true
+      if (hasOwnText(node) && matches(currentTextColor)) return true
+
+      const borderSides = [
+        { style: computed.borderTopStyle, width: computed.borderTopWidth, color: computed.borderTopColor },
+        { style: computed.borderRightStyle, width: computed.borderRightWidth, color: computed.borderRightColor },
+        { style: computed.borderBottomStyle, width: computed.borderBottomWidth, color: computed.borderBottomColor },
+        { style: computed.borderLeftStyle, width: computed.borderLeftWidth, color: computed.borderLeftColor },
+      ]
+      for (const side of borderSides) {
+        if (side.style !== 'none' && parseFloat(side.width) > 0 && matches(side.color, currentTextColor)) {
+          return true
+        }
+      }
+
+      if (computed.outlineStyle !== 'none' && parseFloat(computed.outlineWidth) > 0 && matches(computed.outlineColor, currentTextColor)) {
+        return true
+      }
+
+      if (node instanceof SVGGraphicsElement) {
+        const fillMatch = matches(computed.getPropertyValue('fill'), currentTextColor)
+          || matches(node.getAttribute('fill') ?? '', currentTextColor)
+        const strokeMatch = matches(computed.getPropertyValue('stroke'), currentTextColor)
+          || matches(node.getAttribute('stroke') ?? '', currentTextColor)
+        if (fillMatch || strokeMatch) return true
+      }
+
+      return false
+    }
+
+    const descendants = Array.from(selectedElement.querySelectorAll('*'))
+    const firstDescendantMatch = descendants.find((node) => (
+      node instanceof HTMLElement && hasMatchingColor(node)
+    )) as HTMLElement | undefined
+
+    if (firstDescendantMatch) {
+      selectElement(firstDescendantMatch)
+      return
+    }
+
+    if (hasMatchingColor(selectedElement)) {
+      selectElement(selectedElement)
+    }
+  }, [selectedElement, selectElement])
 
   if (!isOpen || !computedSpacing || !elementInfo || !computedBorderRadius || !computedBorder || !computedFlex || !computedSizing || !computedColor || computedBoxShadow === null || !computedTypography || !container) return <>{overlay}{commentOverlay}</>
 
@@ -542,6 +627,7 @@ function DirectEditPanelContent() {
         computedFlex={computedFlex}
         computedSizing={computedSizing}
         computedColor={computedColor}
+        selectionColors={selectionColors}
         computedBoxShadow={computedBoxShadow}
         borderStyleControlPreference={borderStyleControlPreference}
         computedTypography={computedTypography}
@@ -558,6 +644,8 @@ function DirectEditPanelContent() {
         onToggleFlex={toggleFlexLayout}
         onUpdateSizing={updateSizingProperty}
         onUpdateColor={updateColorProperty}
+        onReplaceSelectionColor={replaceSelectionColor}
+        onSelectSelectionColorTarget={handleSelectSelectionColorTarget}
         onUpdateTypography={updateTypographyProperty}
         onReset={resetToOriginal}
         onExportEdits={exportEdits}

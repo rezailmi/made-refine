@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   ensureDirectTextSpanAtPoint,
   getComputedColorStyles,
+  getSelectionColors,
   ORIGINAL_STYLE_PROPS,
   propertyToCSSMap,
   borderRadiusPropertyToCSSMap,
@@ -62,6 +63,120 @@ describe('getComputedColorStyles', () => {
 
     expect(color.borderColor.alpha).toBe(0)
     el.remove()
+  })
+})
+
+describe('getSelectionColors', () => {
+  it('collects unique visible colors from selected descendants', () => {
+    const root = document.createElement('div')
+
+    const fillNode = document.createElement('div')
+    fillNode.style.backgroundColor = 'rgb(10, 20, 30)'
+
+    const borderNode = document.createElement('div')
+    borderNode.style.borderTopStyle = 'solid'
+    borderNode.style.borderTopWidth = '2px'
+    borderNode.style.borderTopColor = 'rgb(200, 100, 50)'
+    borderNode.style.borderRightStyle = 'solid'
+    borderNode.style.borderRightWidth = '2px'
+    borderNode.style.borderRightColor = 'rgb(200, 100, 50)'
+
+    const textNode = document.createElement('p')
+    textNode.textContent = 'Hello'
+    textNode.style.color = 'rgb(4, 5, 6)'
+
+    const duplicateFillNode = document.createElement('div')
+    duplicateFillNode.style.backgroundColor = 'rgb(10, 20, 30)'
+
+    root.append(fillNode, borderNode, textNode, duplicateFillNode)
+    document.body.appendChild(root)
+
+    const colors = getSelectionColors(root)
+    const keys = new Set(colors.map((value) => `${value.hex}:${value.alpha}`))
+
+    expect(keys.has('0A141E:100')).toBe(true)
+    expect(keys.has('C86432:100')).toBe(true)
+    expect(keys.has('040506:100')).toBe(true)
+    expect(colors.filter((value) => value.hex === '0A141E').length).toBe(1)
+
+    root.remove()
+  })
+
+  it('collects currentColor-derived border and outline colors', () => {
+    const root = document.createElement('div')
+
+    const bordered = document.createElement('div')
+    bordered.style.color = 'rgb(15, 25, 35)'
+    bordered.style.borderTopStyle = 'solid'
+    bordered.style.borderTopWidth = '2px'
+    bordered.style.borderTopColor = 'currentColor'
+    bordered.style.outlineStyle = 'solid'
+    bordered.style.outlineWidth = '1px'
+    bordered.style.outlineColor = 'currentColor'
+
+    root.appendChild(bordered)
+    document.body.appendChild(root)
+
+    const keys = new Set(getSelectionColors(root).map((value) => `${value.hex}:${value.alpha}`))
+
+    expect(keys.has('0F1923:100')).toBe(true)
+
+    root.remove()
+  })
+
+  it('includes text color for text-rendering form controls', () => {
+    const root = document.createElement('div')
+    const input = document.createElement('input')
+    input.type = 'text'
+    input.style.color = 'rgb(9, 8, 7)'
+    root.appendChild(input)
+    document.body.appendChild(root)
+
+    const keys = new Set(getSelectionColors(root).map((value) => `${value.hex}:${value.alpha}`))
+    expect(keys.has('090807:100')).toBe(true)
+
+    root.remove()
+  })
+
+  it('skips non-rendered descendants', () => {
+    const root = document.createElement('div')
+
+    const visible = document.createElement('div')
+    visible.style.backgroundColor = 'rgb(1, 2, 3)'
+
+    const hiddenParent = document.createElement('div')
+    hiddenParent.style.display = 'none'
+    const hiddenChild = document.createElement('div')
+    hiddenChild.style.backgroundColor = 'rgb(120, 130, 140)'
+    hiddenParent.appendChild(hiddenChild)
+
+    root.append(visible, hiddenParent)
+    document.body.appendChild(root)
+
+    const keys = new Set(getSelectionColors(root).map((value) => `${value.hex}:${value.alpha}`))
+    expect(keys.has('010203:100')).toBe(true)
+    expect(keys.has('78828C:100')).toBe(false)
+
+    root.remove()
+  })
+
+  it('collects svg fill and stroke colors', () => {
+    const root = document.createElement('div')
+    const ns = 'http://www.w3.org/2000/svg'
+    const svg = document.createElementNS(ns, 'svg')
+    const path = document.createElementNS(ns, 'path')
+    path.setAttribute('fill', 'rgb(11, 22, 33)')
+    path.setAttribute('stroke', 'rgb(44, 55, 66)')
+    svg.appendChild(path)
+    root.appendChild(svg)
+    document.body.appendChild(root)
+
+    const keys = new Set(getSelectionColors(root).map((value) => `${value.hex}:${value.alpha}`))
+
+    expect(keys.has('0B1621:100')).toBe(true)
+    expect(keys.has('2C3742:100')).toBe(true)
+
+    root.remove()
   })
 })
 

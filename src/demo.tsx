@@ -258,6 +258,7 @@ export function DirectEditDemo() {
             onToggleFlex={() => {}}
             onUpdateSizing={handleUpdateSizing}
             onUpdateColor={handleUpdateColor}
+            onReplaceSelectionColor={() => {}}
             onUpdateTypography={handleUpdateTypography}
             onReset={handleReset}
             onExportEdits={handleExportEdits}

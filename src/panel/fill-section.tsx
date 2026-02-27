@@ -7,6 +7,7 @@ import {
   Square,
   Focus,
   Type,
+  LocateFixed,
 } from 'lucide-react'
 
 interface ColorInputProps {
@@ -103,6 +104,9 @@ interface FillSectionProps {
   textColor: ColorValue
   borderColor?: ColorValue
   outlineColor?: ColorValue
+  selectionColors?: ColorValue[]
+  onSelectionColorChange?: (from: ColorValue, to: ColorValue) => void
+  onSelectionColorTarget?: (color: ColorValue) => void
   onBackgroundChange: (value: ColorValue) => void
   onTextChange: (value: ColorValue) => void
   onBorderColorChange?: (value: ColorValue) => void
@@ -118,6 +122,9 @@ export function FillSection({
   textColor,
   borderColor,
   outlineColor,
+  selectionColors = [],
+  onSelectionColorChange,
+  onSelectionColorTarget,
   onBackgroundChange,
   onTextChange,
   onBorderColorChange,
@@ -127,10 +134,43 @@ export function FillSection({
   showBorderColor,
   showOutlineColor,
 }: FillSectionProps) {
+  const showDetectedColorInputs = selectionColors.length > 0 && onSelectionColorChange
+
   return (
     <ColorPickerGroup>
       <div className="space-y-3">
-        {showBackgroundColor && (
+        {selectionColors.length > 0 && (
+          <div className="space-y-2">
+            <div className="space-y-2">
+              {selectionColors.map((color, index) => (
+                <div key={`${color.hex}-${color.alpha}-${index}`} className="flex items-center gap-2">
+                  <div className="min-w-0 flex-1">
+                    <ColorInput
+                      id={`selection-color-${index}`}
+                      label={`Selection color ${index + 1}`}
+                      icon={<Paintbrush className="size-3.5" />}
+                      value={color}
+                      onChange={(next) => onSelectionColorChange?.(color, next)}
+                    />
+                  </div>
+                  {onSelectionColorTarget && (
+                    <button
+                      type="button"
+                      className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                      onClick={() => onSelectionColorTarget(color)}
+                      aria-label={`Select element with #${color.hex}`}
+                      title={`Select element with #${color.hex}`}
+                    >
+                      <LocateFixed className="size-4" />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {!showDetectedColorInputs && showBackgroundColor && (
           <ColorInput
             id="fill-bg"
             label="Fill"
@@ -140,7 +180,7 @@ export function FillSection({
           />
         )}
 
-        {hasTextContent && (
+        {!showDetectedColorInputs && hasTextContent && (
           <ColorInput
             id="fill-text"
             label="Text"
@@ -150,7 +190,7 @@ export function FillSection({
           />
         )}
 
-        {showBorderColor && borderColor && onBorderColorChange && (
+        {!showDetectedColorInputs && showBorderColor && borderColor && onBorderColorChange && (
           <ColorInput
             id="fill-border"
             label="Border"
@@ -160,7 +200,7 @@ export function FillSection({
           />
         )}
 
-        {showOutlineColor && outlineColor && onOutlineColorChange && (
+        {!showDetectedColorInputs && showOutlineColor && outlineColor && onOutlineColorChange && (
           <ColorInput
             id="fill-outline"
             label="Outline"
