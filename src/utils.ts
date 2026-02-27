@@ -38,6 +38,12 @@ import type {
 
 export { parsePropertyValue, formatPropertyValue } from './utils/css-value'
 import { parsePropertyValue } from './utils/css-value'
+import { getCanvasSnapshot, getBodyOffset } from './canvas-store'
+
+function getZoomScale(): number {
+  const snap = getCanvasSnapshot()
+  return snap.active ? snap.zoom : 1
+}
 
 export function clamp(value: number, min: number, max: number): number {
   if (!Number.isFinite(value)) return min
@@ -1155,9 +1161,8 @@ function isFitSizing(element: HTMLElement, dimension: 'width' | 'height'): boole
 }
 
 export function getDimensionDisplay(element: HTMLElement): DimensionDisplay {
-  const rect = element.getBoundingClientRect()
-  const width = Math.round(rect.width)
-  const height = Math.round(rect.height)
+  const width = Math.round(element.offsetWidth)
+  const height = Math.round(element.offsetHeight)
 
   const widthIsFit = isFitSizing(element, 'width')
   const heightIsFit = isFitSizing(element, 'height')
@@ -1206,9 +1211,10 @@ export function calculateParentMeasurements(element: HTMLElement, container?: HT
     parentInnerBottom = paddingBoxBottom - (parseFloat(parentStyles.paddingBottom) || 0)
   }
 
+  const zoom = getZoomScale()
   const measurements: MeasurementLine[] = []
 
-  const topDistance = Math.round(elementRect.top - parentInnerTop)
+  const topDistance = Math.round((elementRect.top - parentInnerTop) / zoom)
   if (topDistance > 0) {
     const midX = elementRect.left + elementRect.width / 2
     measurements.push({
@@ -1222,7 +1228,7 @@ export function calculateParentMeasurements(element: HTMLElement, container?: HT
     })
   }
 
-  const bottomDistance = Math.round(parentInnerBottom - elementRect.bottom)
+  const bottomDistance = Math.round((parentInnerBottom - elementRect.bottom) / zoom)
   if (bottomDistance > 0) {
     const midX = elementRect.left + elementRect.width / 2
     measurements.push({
@@ -1236,7 +1242,7 @@ export function calculateParentMeasurements(element: HTMLElement, container?: HT
     })
   }
 
-  const leftDistance = Math.round(elementRect.left - parentInnerLeft)
+  const leftDistance = Math.round((elementRect.left - parentInnerLeft) / zoom)
   if (leftDistance > 0) {
     const midY = elementRect.top + elementRect.height / 2
     measurements.push({
@@ -1250,7 +1256,7 @@ export function calculateParentMeasurements(element: HTMLElement, container?: HT
     })
   }
 
-  const rightDistance = Math.round(parentInnerRight - elementRect.right)
+  const rightDistance = Math.round((parentInnerRight - elementRect.right) / zoom)
   if (rightDistance > 0) {
     const midY = elementRect.top + elementRect.height / 2
     measurements.push({
@@ -1273,6 +1279,7 @@ export function calculateElementMeasurements(
 ): MeasurementLine[] {
   const fromRect = from.getBoundingClientRect()
   const toRect = to.getBoundingClientRect()
+  const zoom = getZoomScale()
   const measurements: MeasurementLine[] = []
 
   const horizontalOverlap =
@@ -1286,7 +1293,7 @@ export function calculateElementMeasurements(
     const midY = (overlapTop + overlapBottom) / 2
 
     if (fromRect.right <= toRect.left) {
-      const distance = Math.round(toRect.left - fromRect.right)
+      const distance = Math.round((toRect.left - fromRect.right) / zoom)
       measurements.push({
         direction: 'horizontal',
         x1: fromRect.right,
@@ -1297,7 +1304,7 @@ export function calculateElementMeasurements(
         labelPosition: { x: (fromRect.right + toRect.left) / 2, y: midY },
       })
     } else if (fromRect.left >= toRect.right) {
-      const distance = Math.round(fromRect.left - toRect.right)
+      const distance = Math.round((fromRect.left - toRect.right) / zoom)
       measurements.push({
         direction: 'horizontal',
         x1: toRect.right,
@@ -1316,7 +1323,7 @@ export function calculateElementMeasurements(
     const midX = (overlapLeft + overlapRight) / 2
 
     if (fromRect.bottom <= toRect.top) {
-      const distance = Math.round(toRect.top - fromRect.bottom)
+      const distance = Math.round((toRect.top - fromRect.bottom) / zoom)
       measurements.push({
         direction: 'vertical',
         x1: midX,
@@ -1327,7 +1334,7 @@ export function calculateElementMeasurements(
         labelPosition: { x: midX, y: (fromRect.bottom + toRect.top) / 2 },
       })
     } else if (fromRect.top >= toRect.bottom) {
-      const distance = Math.round(fromRect.top - toRect.bottom)
+      const distance = Math.round((fromRect.top - toRect.bottom) / zoom)
       measurements.push({
         direction: 'vertical',
         x1: midX,
@@ -1347,8 +1354,8 @@ export function calculateElementMeasurements(
     const toCenterY = toRect.top + toRect.height / 2
 
     const hDistance = toCenterX > fromCenterX
-      ? Math.round(toRect.left - fromRect.right)
-      : Math.round(fromRect.left - toRect.right)
+      ? Math.round((toRect.left - fromRect.right) / zoom)
+      : Math.round((fromRect.left - toRect.right) / zoom)
 
     if (hDistance > 0) {
       const startX = toCenterX > fromCenterX ? fromRect.right : fromRect.left
@@ -1366,8 +1373,8 @@ export function calculateElementMeasurements(
     }
 
     const vDistance = toCenterY > fromCenterY
-      ? Math.round(toRect.top - fromRect.bottom)
-      : Math.round(fromRect.top - toRect.bottom)
+      ? Math.round((toRect.top - fromRect.bottom) / zoom)
+      : Math.round((fromRect.top - toRect.bottom) / zoom)
 
     if (vDistance > 0) {
       const x = (fromCenterX + toCenterX) / 2
@@ -1397,77 +1404,83 @@ export function calculateGuidelineMeasurements(
 ): MeasurementLine[] {
   if (guidelines.length === 0) return []
 
+  const snap = getCanvasSnapshot()
+  const zoom = snap.active ? snap.zoom : 1
   const rect = element.getBoundingClientRect()
-  const scrollX = window.scrollX
-  const scrollY = window.scrollY
   const measurements: MeasurementLine[] = []
 
   for (const g of guidelines) {
+    let viewportPos: number
+    if (snap.active) {
+      const pan = g.orientation === 'horizontal' ? snap.panY : snap.panX
+      const bo = g.orientation === 'horizontal' ? getBodyOffset().y : getBodyOffset().x
+      viewportPos = bo + (g.position - bo + pan) * zoom
+    } else {
+      const scroll = g.orientation === 'horizontal' ? window.scrollY : window.scrollX
+      viewportPos = g.position - scroll
+    }
+
     if (g.orientation === 'horizontal') {
-      const gy = g.position - scrollY
       const midX = rect.left + rect.width / 2
 
-      // Only show when mouse is near this guideline's Y position
-      if (mousePosition && Math.abs(mousePosition.y - gy) > GUIDELINE_PROXIMITY) continue
+      if (mousePosition && Math.abs(mousePosition.y - viewportPos) > GUIDELINE_PROXIMITY) continue
 
-      if (gy < rect.top) {
-        const distance = Math.round(rect.top - gy)
+      if (viewportPos < rect.top) {
+        const distance = Math.round((rect.top - viewportPos) / zoom)
         if (distance > 0) {
           measurements.push({
             direction: 'vertical',
             x1: midX,
-            y1: gy,
+            y1: viewportPos,
             x2: midX,
             y2: rect.top,
             distance,
-            labelPosition: { x: midX, y: (gy + rect.top) / 2 },
+            labelPosition: { x: midX, y: (viewportPos + rect.top) / 2 },
           })
         }
-      } else if (gy > rect.bottom) {
-        const distance = Math.round(gy - rect.bottom)
+      } else if (viewportPos > rect.bottom) {
+        const distance = Math.round((viewportPos - rect.bottom) / zoom)
         if (distance > 0) {
           measurements.push({
             direction: 'vertical',
             x1: midX,
             y1: rect.bottom,
             x2: midX,
-            y2: gy,
+            y2: viewportPos,
             distance,
-            labelPosition: { x: midX, y: (rect.bottom + gy) / 2 },
+            labelPosition: { x: midX, y: (rect.bottom + viewportPos) / 2 },
           })
         }
       }
     } else {
-      const gx = g.position - scrollX
       const midY = rect.top + rect.height / 2
 
-      // Only show when mouse is near this guideline's X position
-      if (mousePosition && Math.abs(mousePosition.x - gx) > GUIDELINE_PROXIMITY) continue
+      if (mousePosition && Math.abs(mousePosition.x - viewportPos) > GUIDELINE_PROXIMITY) continue
 
-      if (gx < rect.left) {
-        const distance = Math.round(rect.left - gx)
+      if (viewportPos < rect.left) {
+        const distance = Math.round((rect.left - viewportPos) / zoom)
         if (distance > 0) {
           measurements.push({
             direction: 'horizontal',
-            x1: gx,
+            x1: viewportPos,
             y1: midY,
             x2: rect.left,
             y2: midY,
             distance,
-            labelPosition: { x: (gx + rect.left) / 2, y: midY },
+            labelPosition: { x: (viewportPos + rect.left) / 2, y: midY },
           })
         }
-      } else if (gx > rect.right) {
-        const distance = Math.round(gx - rect.right)
+      } else if (viewportPos > rect.right) {
+        const distance = Math.round((viewportPos - rect.right) / zoom)
         if (distance > 0) {
           measurements.push({
             direction: 'horizontal',
             x1: rect.right,
             y1: midY,
-            x2: gx,
+            x2: viewportPos,
             y2: midY,
             distance,
-            labelPosition: { x: (rect.right + gx) / 2, y: midY },
+            labelPosition: { x: (rect.right + viewportPos) / 2, y: midY },
           })
         }
       }
