@@ -10,6 +10,7 @@ import type {
   TypographyPropertyKey,
   CSSPropertyValue,
   SizingValue,
+  SizingChangeOptions,
   ColorPropertyKey,
   ColorValue,
   UndoEntry,
@@ -39,6 +40,34 @@ export interface StyleUpdaterOptions {
 }
 
 export function useStyleUpdaters({ stateRef, pushUndo, setState }: StyleUpdaterOptions) {
+  const sizingTransactionRef = React.useRef<{
+    id: string
+    element: HTMLElement
+    undoPushed: boolean
+    snapshot: Array<{ cssProperty: string; previousValue: string | null }>
+  } | null>(null)
+
+  const beginSizingTransaction = React.useCallback((element: HTMLElement, transactionId: string) => {
+    sizingTransactionRef.current = {
+      id: transactionId,
+      element,
+      undoPushed: false,
+      snapshot: (['width', 'height'] as const).map((key) => {
+        const cssProperty = sizingPropertyToCSSMap[key]
+        return {
+          cssProperty,
+          previousValue: element.style.getPropertyValue(cssProperty) || null,
+        }
+      }),
+    }
+  }, [])
+
+  const endSizingTransaction = React.useCallback((transactionId?: string) => {
+    const current = sizingTransactionRef.current
+    if (!current) return
+    if (transactionId && current.id !== transactionId) return
+    sizingTransactionRef.current = null
+  }, [])
 
   const updateSpacingProperty = React.useCallback(
     (key: SpacingPropertyKey, value: CSSPropertyValue) => {
@@ -278,34 +307,101 @@ export function useStyleUpdaters({ stateRef, pushUndo, setState }: StyleUpdaterO
     }))
   }, [pushUndo])
 
-  const updateSizingProperty = React.useCallback(
-    (key: SizingPropertyKey, value: SizingValue) => {
+  const updateSizingProperties = React.useCallback(
+    (
+      changes: Partial<Record<SizingPropertyKey, SizingValue>>,
+      options?: SizingChangeOptions
+    ) => {
       const el = stateRef.current.selectedElement
       if (!el) return
 
-      const cssProperty = sizingPropertyToCSSMap[key]
-      const cssValue = sizingValueToCSS(value)
+      if (sizingTransactionRef.current && sizingTransactionRef.current.element !== el) {
+        sizingTransactionRef.current = null
+      }
 
-      const previousValue = el.style.getPropertyValue(cssProperty) || null
-      pushUndo({ type: 'edit', element: el, properties: [{ cssProperty, previousValue }] })
+      const transactionId = options?.transactionId
+      const phase = options?.phase
 
-      el.style.setProperty(cssProperty, cssValue)
+      if (phase === 'start' && transactionId) {
+        beginSizingTransaction(el, transactionId)
+      }
 
-      setState((prev) => ({
-        ...prev,
-        computedSizing: prev.computedSizing
-          ? {
-              ...prev.computedSizing,
-              [key]: value,
-            }
-          : null,
-        pendingStyles: {
-          ...prev.pendingStyles,
-          [cssProperty]: cssValue,
-        },
-      }))
+      const requestedKeys = (Object.keys(changes) as SizingPropertyKey[]).filter((key) => changes[key] !== undefined)
+
+      const effectiveChanges: Array<{
+        key: SizingPropertyKey
+        value: SizingValue
+        cssProperty: string
+        cssValue: string
+      }> = []
+
+      const undoProperties: Array<{ cssProperty: string; previousValue: string | null }> = []
+
+      for (const key of requestedKeys) {
+        const value = changes[key]
+        if (!value) continue
+
+        const cssProperty = sizingPropertyToCSSMap[key]
+        const cssValue = sizingValueToCSS(value)
+        const previousValue = el.style.getPropertyValue(cssProperty) || null
+        if (previousValue === cssValue) continue
+
+        effectiveChanges.push({ key, value, cssProperty, cssValue })
+        undoProperties.push({ cssProperty, previousValue })
+      }
+
+      if (effectiveChanges.length > 0) {
+        if (transactionId) {
+          const current = sizingTransactionRef.current
+          if (!current || current.id !== transactionId || current.element !== el) {
+            beginSizingTransaction(el, transactionId)
+          }
+
+          const transaction = sizingTransactionRef.current
+          if (transaction && !transaction.undoPushed) {
+            pushUndo({ type: 'edit', element: el, properties: transaction.snapshot })
+            transaction.undoPushed = true
+          }
+        } else {
+          pushUndo({ type: 'edit', element: el, properties: undoProperties })
+        }
+
+        const computedSizingPatch: Partial<Record<SizingPropertyKey, SizingValue>> = {}
+        const pendingUpdates: Record<string, string> = {}
+
+        for (const change of effectiveChanges) {
+          el.style.setProperty(change.cssProperty, change.cssValue)
+          computedSizingPatch[change.key] = change.value
+          pendingUpdates[change.cssProperty] = change.cssValue
+        }
+
+        setState((prev) => ({
+          ...prev,
+          computedSizing: prev.computedSizing
+            ? {
+                ...prev.computedSizing,
+                ...computedSizingPatch,
+              }
+            : null,
+          pendingStyles: {
+            ...prev.pendingStyles,
+            ...pendingUpdates,
+          },
+        }))
+      }
+
+      if (phase === 'end') {
+        endSizingTransaction(transactionId)
+      }
     },
-    [pushUndo]
+    [beginSizingTransaction, endSizingTransaction, pushUndo]
+  )
+
+  const updateSizingProperty = React.useCallback(
+    (key: SizingPropertyKey, value: SizingValue) => {
+      updateSizingProperties({ [key]: value })
+    },
+    [updateSizingProperties]
   )
 
   const updateColorProperty = React.useCallback(
@@ -406,6 +502,7 @@ export function useStyleUpdaters({ stateRef, pushUndo, setState }: StyleUpdaterO
     updateRawCSS,
     updateFlexProperty,
     toggleFlexLayout,
+    updateSizingProperties,
     updateSizingProperty,
     updateColorProperty,
     updateTypographyProperty,

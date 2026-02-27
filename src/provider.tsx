@@ -11,6 +11,7 @@ import type {
   TypographyPropertyKey,
   CSSPropertyValue,
   SizingValue,
+  SizingChangeOptions,
   ColorPropertyKey,
   ColorValue,
   UndoEntry,
@@ -40,6 +41,10 @@ export interface DirectEditActionsContextValue {
   updateRawCSS: (properties: Record<string, string>) => void
   updateFlexProperty: (key: FlexPropertyKey, value: string) => void
   toggleFlexLayout: () => void
+  updateSizingProperties: (
+    changes: Partial<Record<SizingPropertyKey, SizingValue>>,
+    options?: SizingChangeOptions
+  ) => void
   updateSizingProperty: (key: SizingPropertyKey, value: SizingValue) => void
   updateColorProperty: (key: ColorPropertyKey, value: ColorValue) => void
   updateTypographyProperty: (key: TypographyPropertyKey, value: CSSPropertyValue | string) => void
@@ -185,7 +190,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
   const {
     updateSpacingProperty, updateBorderRadiusProperty, updateBorderProperty,
     updateBorderProperties, updateRawCSS, updateFlexProperty, toggleFlexLayout,
-    updateSizingProperty, updateColorProperty, updateTypographyProperty,
+    updateSizingProperties, updateSizingProperty, updateColorProperty, updateTypographyProperty,
   } = useStyleUpdaters({ stateRef, pushUndo, setState })
 
   const {
@@ -324,7 +329,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     selectElement, selectParent, selectChild, closePanel,
     updateSpacingProperty, updateBorderRadiusProperty, updateBorderProperty,
     updateBorderProperties, updateRawCSS, updateFlexProperty, toggleFlexLayout,
-    updateSizingProperty, updateColorProperty, updateTypographyProperty,
+    updateSizingProperties, updateSizingProperty, updateColorProperty, updateTypographyProperty,
     resetToOriginal, exportEdits, canSendEditToAgent, sendEditToAgent,
     sendAllSessionItemsToAgent, sendCommentToAgent, toggleEditMode, undo,
     handleMoveComplete, setActiveTool, setTheme, setBorderStyleControlPreference,
@@ -336,7 +341,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     selectElement, selectParent, selectChild, closePanel,
     updateSpacingProperty, updateBorderRadiusProperty, updateBorderProperty,
     updateBorderProperties, updateRawCSS, updateFlexProperty, toggleFlexLayout,
-    updateSizingProperty, updateColorProperty, updateTypographyProperty,
+    updateSizingProperties, updateSizingProperty, updateColorProperty, updateTypographyProperty,
     resetToOriginal, exportEdits, canSendEditToAgent, sendEditToAgent,
     sendAllSessionItemsToAgent, sendCommentToAgent, toggleEditMode, undo,
     handleMoveComplete, setActiveTool, setTheme, setBorderStyleControlPreference,

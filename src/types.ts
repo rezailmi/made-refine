@@ -171,6 +171,13 @@ export interface SizingProperties {
   height: SizingValue
 }
 
+export type SizingChangePhase = 'start' | 'update' | 'end'
+
+export interface SizingChangeOptions {
+  transactionId?: string
+  phase?: SizingChangePhase
+}
+
 export type SpacingPropertyKey = keyof SpacingProperties
 export type BorderRadiusPropertyKey = keyof BorderRadiusProperties
 export type BorderPropertyKey = keyof BorderProperties

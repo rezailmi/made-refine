@@ -324,7 +324,7 @@ function DirectEditPanelContent() {
     updateSpacingProperty, updateBorderRadiusProperty,
     updateBorderProperty, updateBorderProperties, updateRawCSS,
     updateFlexProperty, toggleFlexLayout,
-    updateSizingProperty, updateColorProperty, updateTypographyProperty,
+    updateSizingProperties, updateSizingProperty, updateColorProperty, updateTypographyProperty,
     resetToOriginal, exportEdits, sendEditToAgent,
     handleMoveComplete, setActiveTool,
     addComment, updateCommentText, addCommentReply, deleteComment, exportComment,
@@ -514,6 +514,8 @@ function DirectEditPanelContent() {
               selectElement(child)
             }
           }}
+          enableResizeHandles={true}
+          onResizeSizingChange={updateSizingProperties}
         />
       )}
 

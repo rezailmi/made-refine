@@ -57,10 +57,16 @@ interface ActiveDragOptions {
   mode: MoveMode
 }
 
+interface ReorderPreviewSnapshot {
+  transform: string
+  transition: string
+}
+
 const DEFAULT_DRAG_OPTIONS: ActiveDragOptions = {
   constrainToOriginalParent: false,
   mode: 'free',
 }
+const REORDER_PREVIEW_TRANSITION = 'transform 140ms cubic-bezier(0.2, 0, 0, 1)'
 
 function normalizeStartDragOptions(options?: StartDragOptions): ActiveDragOptions {
   const mode = options?.mode ?? (options?.constrainToOriginalParent ? 'reorder' : 'free')
@@ -77,6 +83,39 @@ function resolveFlexDirection(
   const { axis, reversed } = detectChildrenDirection(container, draggedElement)
   if (axis === 'horizontal') return reversed ? 'row-reverse' : 'row'
   return reversed ? 'column-reverse' : 'column'
+}
+
+function isHorizontalDirection(direction: UseMoveDropTarget['flexDirection']): boolean {
+  return direction === 'row' || direction === 'row-reverse'
+}
+
+function forwardVisualSign(direction: UseMoveDropTarget['flexDirection']): 1 | -1 {
+  return direction === 'row-reverse' || direction === 'column-reverse' ? -1 : 1
+}
+
+function getInsertIndex(
+  siblings: HTMLElement[],
+  insertBefore: HTMLElement | null,
+): number | null {
+  if (!insertBefore) return siblings.length
+  const index = siblings.indexOf(insertBefore)
+  return index >= 0 ? index : null
+}
+
+function withAxisTranslate(baseTransform: string, axis: 'x' | 'y', value: number): string {
+  const translate = axis === 'x'
+    ? `translateX(${value}px)`
+    : `translateY(${value}px)`
+  return baseTransform ? `${baseTransform} ${translate}` : translate
+}
+
+function withTransformTransition(baseTransition: string): string {
+  if (!baseTransition) return REORDER_PREVIEW_TRANSITION
+  const hasTransformTransition = baseTransition
+    .split(',')
+    .some((part) => /(^|\s)(transform|all)(\s|$)/.test(part))
+  if (hasTransformTransition) return baseTransition
+  return `${baseTransition}, ${REORDER_PREVIEW_TRANSITION}`
 }
 
 function tryReparent(
@@ -114,6 +153,7 @@ export function useMove({ onMoveComplete }: UseMoveOptions): UseMoveResult {
     { x: 0, y: 0, scaleX: 1, scaleY: 1 }
   )
   const originalTransformRef = React.useRef('')
+  const reorderPreviewRef = React.useRef(new Map<HTMLElement, ReorderPreviewSnapshot>())
 
   React.useEffect(() => {
     dragStateRef.current = dragState
@@ -121,19 +161,114 @@ export function useMove({ onMoveComplete }: UseMoveOptions): UseMoveResult {
     onMoveCompleteRef.current = onMoveComplete
   })
 
+  const clearReorderPreview = React.useCallback(() => {
+    for (const [element, snapshot] of reorderPreviewRef.current) {
+      element.style.transform = snapshot.transform
+      element.style.transition = snapshot.transition
+    }
+    reorderPreviewRef.current.clear()
+  }, [])
+
+  const setReorderPreviewTransform = React.useCallback((element: HTMLElement, transform: string) => {
+    const existing = reorderPreviewRef.current.get(element)
+    if (!existing) {
+      reorderPreviewRef.current.set(element, {
+        transform: element.style.transform,
+        transition: element.style.transition,
+      })
+    }
+    const originalTransition = reorderPreviewRef.current.get(element)?.transition ?? element.style.transition
+    element.style.transition = withTransformTransition(originalTransition)
+    element.style.transform = transform
+  }, [])
+
+  const applyReorderPreview = React.useCallback((
+    target: UseMoveDropTarget | null,
+    draggedElement: HTMLElement | null,
+    originalParent: HTMLElement | null,
+  ) => {
+    if (!target || !draggedElement) {
+      clearReorderPreview()
+      return
+    }
+
+    const container = target.container
+    const containerChildren = Array.from(container.children).filter(
+      (child): child is HTMLElement => child instanceof HTMLElement
+    )
+    const siblings = containerChildren.filter((child) => child !== draggedElement)
+    const insertIndex = getInsertIndex(siblings, target.insertBefore)
+    if (insertIndex === null) {
+      clearReorderPreview()
+      return
+    }
+
+    const draggedRect = draggedElement.getBoundingClientRect()
+    const isHorizontal = isHorizontalDirection(target.flexDirection)
+    const dragSize = isHorizontal ? draggedRect.width : draggedRect.height
+    if (!Number.isFinite(dragSize) || dragSize <= 0) {
+      clearReorderPreview()
+      return
+    }
+
+    const sign = forwardVisualSign(target.flexDirection)
+    const shiftedElements = new Map<HTMLElement, number>()
+
+    if (container === originalParent) {
+      const originalIndex = containerChildren.indexOf(draggedElement)
+      if (originalIndex >= 0) {
+        if (insertIndex > originalIndex) {
+          const shift = -sign * dragSize
+          for (let i = originalIndex; i < insertIndex; i++) {
+            const sibling = siblings[i]
+            if (sibling) shiftedElements.set(sibling, shift)
+          }
+        } else if (insertIndex < originalIndex) {
+          const shift = sign * dragSize
+          for (let i = insertIndex; i < originalIndex; i++) {
+            const sibling = siblings[i]
+            if (sibling) shiftedElements.set(sibling, shift)
+          }
+        }
+      }
+    } else {
+      const shift = sign * dragSize
+      for (let i = insertIndex; i < siblings.length; i++) {
+        shiftedElements.set(siblings[i], shift)
+      }
+    }
+
+    const axis: 'x' | 'y' = isHorizontal ? 'x' : 'y'
+    const keep = new Set(shiftedElements.keys())
+
+    for (const [element, snapshot] of reorderPreviewRef.current) {
+      if (!keep.has(element)) {
+        element.style.transform = snapshot.transform
+        element.style.transition = snapshot.transition
+        reorderPreviewRef.current.delete(element)
+      }
+    }
+
+    for (const [element, shift] of shiftedElements) {
+      const baseTransform = reorderPreviewRef.current.get(element)?.transform ?? element.style.transform
+      setReorderPreviewTransform(element, withAxisTranslate(baseTransform, axis, shift))
+    }
+  }, [clearReorderPreview, setReorderPreviewTransform])
+
   const cancelDrag = React.useCallback(() => {
     const current = dragStateRef.current
     if (current.draggedElement) {
       current.draggedElement.style.opacity = ''
       current.draggedElement.style.transform = originalTransformRef.current
     }
+    clearReorderPreview()
     originalTransformRef.current = ''
     initialRectRef.current = { x: 0, y: 0, scaleX: 1, scaleY: 1 }
     dragOptionsRef.current = DEFAULT_DRAG_OPTIONS
     setDragState(INITIAL_DRAG_STATE)
     setDropTarget(null)
     setDropIndicator(null)
-  }, [])
+  }, [clearReorderPreview])
 
   const completeDrag = React.useCallback(() => {
     const current = dragStateRef.current
@@ -149,6 +284,7 @@ export function useMove({ onMoveComplete }: UseMoveOptions): UseMoveResult {
     const { scaleX, scaleY } = initialRectRef.current
     draggedElement.style.transform = originalTransformRef.current
     draggedElement.style.opacity = ''
+    clearReorderPreview()
     originalTransformRef.current = ''
     initialRectRef.current = { x: 0, y: 0, scaleX: 1, scaleY: 1 }
     const dragMode = dragOptionsRef.current.mode
@@ -165,7 +301,14 @@ export function useMove({ onMoveComplete }: UseMoveOptions): UseMoveResult {
     if (dragMode === 'position') {
       if (target && tryReparent(draggedElement, target, originalParent, originalNextSibling)) {
         if (originalParent) {
-          moveInfo = { originalParent, originalPreviousSibling, originalNextSibling, mode: 'free', resetPositionOffsets: true, visualDelta: hasVisualDelta ? vd : undefined }
+          moveInfo = {
+            originalParent,
+            originalPreviousSibling,
+            originalNextSibling,
+            mode: 'free',
+            resetPositionOffsets: true,
+            visualDelta: hasVisualDelta ? vd : undefined,
+          }
         }
       }
       if (!moveInfo) {
@@ -178,7 +321,13 @@ export function useMove({ onMoveComplete }: UseMoveOptions): UseMoveResult {
       }
     } else if (target && tryReparent(draggedElement, target, originalParent, originalNextSibling)) {
       if (originalParent) {
-        moveInfo = { originalParent, originalPreviousSibling, originalNextSibling, mode: dragMode, visualDelta: hasVisualDelta ? vd : undefined }
+        moveInfo = {
+          originalParent,
+          originalPreviousSibling,
+          originalNextSibling,
+          mode: dragMode,
+          visualDelta: hasVisualDelta ? vd : undefined,
+        }
       }
     }
 
@@ -187,7 +336,7 @@ export function useMove({ onMoveComplete }: UseMoveOptions): UseMoveResult {
     setDropIndicator(null)
 
     onMoveCompleteRef.current?.(draggedElement, moveInfo)
-  }, [cancelDrag])
+  }, [cancelDrag, clearReorderPreview])
 
   const startDrag = React.useCallback(
     (e: React.PointerEvent, element: HTMLElement, options?: StartDragOptions) => {
@@ -263,16 +412,23 @@ export function useMove({ onMoveComplete }: UseMoveOptions): UseMoveResult {
         if (container && draggedElement) {
           const dropPos = calculateDropPosition(container, e.clientX, e.clientY, draggedElement)
           if (dropPos) {
-            setDropTarget({
+            const nextTarget = {
               container,
               insertBefore: dropPos.insertBefore,
               flexDirection: resolveFlexDirection(container, draggedElement),
-            })
+            }
+            setDropTarget(nextTarget)
             setDropIndicator(dropPos.indicator)
+            applyReorderPreview(nextTarget, draggedElement, originalParent)
+          } else {
+            setDropTarget(null)
+            setDropIndicator(null)
+            clearReorderPreview()
           }
         } else {
           setDropTarget(null)
           setDropIndicator(null)
+          clearReorderPreview()
         }
         return
       }
@@ -295,16 +451,23 @@ export function useMove({ onMoveComplete }: UseMoveOptions): UseMoveResult {
         )
 
         if (dropPos) {
-          setDropTarget({
+          const nextTarget = {
             container,
             insertBefore: dropPos.insertBefore,
             flexDirection: resolveFlexDirection(container, draggedElement),
-          })
+          }
+          setDropTarget(nextTarget)
           setDropIndicator(dropPos.indicator)
+          applyReorderPreview(nextTarget, draggedElement, originalParent)
+        } else {
+          setDropTarget(null)
+          setDropIndicator(null)
+          clearReorderPreview()
         }
       } else {
         setDropTarget(null)
         setDropIndicator(null)
+        clearReorderPreview()
       }
     }
 
@@ -327,7 +490,7 @@ export function useMove({ onMoveComplete }: UseMoveOptions): UseMoveResult {
       window.removeEventListener('pointerup', handlePointerUp)
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [dragState.isDragging, completeDrag, cancelDrag])
+  }, [dragState.isDragging, completeDrag, cancelDrag, applyReorderPreview, clearReorderPreview])
 
   return {
     dragState,

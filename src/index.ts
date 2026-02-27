@@ -42,6 +42,8 @@ export type {
   SizingMode,
   SizingValue,
   SizingProperties,
+  SizingChangePhase,
+  SizingChangeOptions,
   SizingPropertyKey,
   TypographyProperties,
   TypographyPropertyKey,
