@@ -161,6 +161,7 @@ export const ORIGINAL_STYLE_PROPS = [
     'width',
     'height',
     'background-color',
+    'background',
     'color',
     'border-color',
     'outline-color',

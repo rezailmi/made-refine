@@ -2,6 +2,15 @@ import type { ColorPropertyKey, SizingValue } from '../types'
 import { parsePropertyValue } from './css-value'
 import { parseColorValue } from './color'
 
+function findClosingParen(s: string): number {
+  let depth = 1
+  for (let i = 0; i < s.length; i++) {
+    if (s[i] === '(') depth++
+    else if (s[i] === ')') { depth--; if (depth === 0) return i }
+  }
+  return s.length
+}
+
 const tailwindClassMap: Record<string, { prefix: string; scale: Record<number, string> }> = {
   'padding-top': {
     prefix: 'pt',
@@ -200,6 +209,30 @@ export function stylesToTailwind(styles: Record<string, string>): string {
       else if (value === 'fit-content') classes.push('h-fit')
       else if (value === 'auto') classes.push('h-auto')
       else classes.push(`h-[${value}]`)
+      continue
+    }
+
+    if (prop === 'background') {
+      if (value.includes('linear-gradient')) {
+        const match = value.match(/linear-gradient\(/)
+        if (match) {
+          // Extract the first gradient's color using paren-aware splitting
+          const inner = value.slice(match.index! + match[0].length)
+          const closeParen = findClosingParen(inner)
+          const gradientContent = inner.slice(0, closeParen)
+          const firstArg = gradientContent.split(/,(?![^(]*\))/)[0]
+          if (firstArg) {
+            const colorValue = parseColorValue(firstArg.trim())
+            classes.push(colorToTailwind('backgroundColor', colorValue))
+          } else {
+            classes.push(`bg-[${value.replace(/\s+/g, '_')}]`)
+          }
+        } else {
+          classes.push(`bg-[${value.replace(/\s+/g, '_')}]`)
+        }
+      } else if (value) {
+        classes.push(`bg-[${value.replace(/\s+/g, '_')}]`)
+      }
       continue
     }
 

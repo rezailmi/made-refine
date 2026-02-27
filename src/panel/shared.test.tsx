@@ -9,6 +9,7 @@ function createSectionRefs(): Record<SectionKey, React.RefObject<HTMLDivElement 
     radius: React.createRef<HTMLDivElement>(),
     border: React.createRef<HTMLDivElement>(),
     shadow: React.createRef<HTMLDivElement>(),
+    fill: React.createRef<HTMLDivElement>(),
     colors: React.createRef<HTMLDivElement>(),
     text: React.createRef<HTMLDivElement>(),
   }
