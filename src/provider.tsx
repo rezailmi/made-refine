@@ -304,8 +304,10 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
   }, [state.textEditingElement, commitTextEditing])
 
   // Block clicks from reaching user app elements during design mode.
-  // The interaction overlay normally intercepts clicks, but in rare timing gaps
-  // (e.g. between renders) a click can leak through to the underlying page.
+  // This is the fallback click guard: when the capture-phase interaction hook
+  // (in interaction-overlay.tsx) is active, it stopPropagation's first so this
+  // listener never fires. When the hook is inactive (during text editing), this
+  // takes over to prevent clicks from reaching the underlying page.
   React.useEffect(() => {
     if (!state.editModeActive) return
 
