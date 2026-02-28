@@ -6,6 +6,7 @@ import { Scan, Minimize2, Maximize2, Check, ArrowBigUp } from 'lucide-react'
 import { cn } from '../cn'
 import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import { toolbarBtnClass } from './shared'
+import { useOutsideClickDismiss } from '../hooks/use-outside-click-dismiss'
 
 function ZoomPopoverPortal(props: React.ComponentPropsWithoutRef<typeof Popover.Portal>) {
   const container = usePortalContainer()
@@ -40,25 +41,7 @@ export function ZoomPopover({
   const kbdClass = 'inline-flex items-center justify-center rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground min-w-[20px] min-h-[18px]'
 
   // Close on outside click (Shadow DOM breaks base-ui's dismiss)
-  React.useEffect(() => {
-    if (!isOpen) return
-
-    function handlePointerDown(e: PointerEvent) {
-      const path = e.composedPath()
-      if (popupRef.current && path.includes(popupRef.current)) return
-      if (triggerRef.current && path.includes(triggerRef.current)) return
-      onOpenChange(false)
-    }
-
-    const raf = requestAnimationFrame(() => {
-      document.addEventListener('pointerdown', handlePointerDown)
-    })
-
-    return () => {
-      cancelAnimationFrame(raf)
-      document.removeEventListener('pointerdown', handlePointerDown)
-    }
-  }, [isOpen, onOpenChange])
+  useOutsideClickDismiss(isOpen, () => onOpenChange(false), [popupRef, triggerRef])
 
   return (
     <Popover.Root open={isOpen} onOpenChange={onOpenChange}>

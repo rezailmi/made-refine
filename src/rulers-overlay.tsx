@@ -312,6 +312,7 @@ function GuidelineLine({
   dragPosition,
   onStartDrag,
   onDelete,
+  guidelineNodeMapRef,
 }: {
   guideline: Guideline
   isActive: boolean
@@ -319,6 +320,7 @@ function GuidelineLine({
   dragPosition: number | null
   onStartDrag: (id: string) => void
   onDelete: (id: string) => void
+  guidelineNodeMapRef: React.RefObject<Map<string, HTMLElement>>
 }) {
   const isHorizontal = guideline.orientation === 'horizontal'
   const lineColor = isActive && isSnapped ? SNAPPED_COLOR : GUIDELINE_COLOR
@@ -335,6 +337,18 @@ function GuidelineLine({
     onDelete(guideline.id)
   }
 
+  const nodeRef = React.useCallback(
+    (node: HTMLElement | null) => {
+      const map = guidelineNodeMapRef.current!
+      if (node) {
+        map.set(guideline.id, node)
+      } else {
+        map.delete(guideline.id)
+      }
+    },
+    [guideline.id, guidelineNodeMapRef],
+  )
+
   const isDragging = isActive && dragPosition !== null
   // Compute viewport position from the latest canvas snapshot. This provides a
   // correct initial value; the imperative updateGuidelinePositions() callback
@@ -349,6 +363,7 @@ function GuidelineLine({
   if (isHorizontal) {
     return (
       <div
+        ref={nodeRef}
         data-gl-pos={guideline.position}
         data-gl-orient="h"
         {...(isDragging ? { 'data-gl-dragging': '' } : {})}
@@ -408,6 +423,7 @@ function GuidelineLine({
   // Vertical guideline
   return (
     <div
+      ref={nodeRef}
       data-gl-pos={guideline.position}
       data-gl-orient="v"
       {...(isDragging ? { 'data-gl-dragging': '' } : {})}
@@ -490,6 +506,7 @@ function useViewportHeight() {
 export function RulersOverlay({ enabled }: { enabled: boolean }) {
   const container = usePortalContainer()
   const canvas = useCanvasSnapshot()
+  const guidelineNodeMapRef = React.useRef<Map<string, HTMLElement>>(new Map())
 
   const hostElement = React.useMemo(() => {
     if (!container) return null
@@ -516,7 +533,6 @@ export function RulersOverlay({ enabled }: { enabled: boolean }) {
   // positions are out of sync.
   React.useLayoutEffect(() => {
     if (!container || !enabled) return
-    const el = container
 
     function updateGuidelinePositions() {
       const snap = getCanvasSnapshot()
@@ -525,7 +541,7 @@ export function RulersOverlay({ enabled }: { enabled: boolean }) {
       const panY = snap.active ? snap.panY : -window.scrollY
       const bo = getBodyOffset()
 
-      el.querySelectorAll<HTMLElement>('[data-gl-pos]').forEach((node) => {
+      guidelineNodeMapRef.current.forEach((node) => {
         // Skip guidelines being dragged — React controls their transform
         if (node.hasAttribute('data-gl-dragging')) return
         const pos = Number(node.dataset.glPos)
@@ -592,6 +608,7 @@ export function RulersOverlay({ enabled }: { enabled: boolean }) {
           dragPosition={activeGuideline?.id === g.id ? dragPosition : null}
           onStartDrag={startDrag}
           onDelete={deleteGuideline}
+          guidelineNodeMapRef={guidelineNodeMapRef}
         />
       ))}
     </>,

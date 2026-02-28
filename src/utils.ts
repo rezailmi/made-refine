@@ -39,11 +39,7 @@ import type {
 export { parsePropertyValue, formatPropertyValue } from './utils/css-value'
 import { parsePropertyValue } from './utils/css-value'
 import { getCanvasSnapshot, getBodyOffset } from './canvas-store'
-
-function getZoomScale(): number {
-  const snap = getCanvasSnapshot()
-  return snap.active ? snap.zoom : 1
-}
+import { getZoomScale } from './utils/measurements'
 
 export function clamp(value: number, min: number, max: number): number {
   if (!Number.isFinite(value)) return min

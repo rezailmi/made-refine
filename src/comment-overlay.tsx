@@ -1,5 +1,6 @@
 import * as React from 'react'
 import type { Comment, ElementLocator } from './types'
+import { useViewportEvents } from './hooks/use-viewport-events'
 import { cn } from './cn'
 import { Button } from './ui/button'
 import { ChevronLeft, Check, Copy, Trash2, ArrowUp, Send, X } from 'lucide-react'
@@ -117,29 +118,23 @@ function CommentPin({
   const [flipHorizontal, setFlipHorizontal] = React.useState(false)
   const [flipVertical, setFlipVertical] = React.useState(false)
 
-  React.useEffect(() => {
-    function updatePosition() {
-      if (!comment.element.isConnected) return
-      const rect = comment.element.getBoundingClientRect()
-      const relativeX = clampUnit(comment.relativePosition.x)
-      const relativeY = clampUnit(comment.relativePosition.y)
-      setPosition({
-        x: rect.left + relativeX * rect.width,
-        y: rect.top + relativeY * rect.height,
-      })
-      setElementRect(rect)
-    }
-
-    updatePosition()
-    window.addEventListener('scroll', updatePosition, true)
-    window.addEventListener('resize', updatePosition)
-    window.addEventListener('direct-edit-canvas-change', updatePosition)
-    return () => {
-      window.removeEventListener('scroll', updatePosition, true)
-      window.removeEventListener('resize', updatePosition)
-      window.removeEventListener('direct-edit-canvas-change', updatePosition)
-    }
+  const updatePosition = React.useCallback(() => {
+    if (!comment.element.isConnected) return
+    const rect = comment.element.getBoundingClientRect()
+    const relativeX = clampUnit(comment.relativePosition.x)
+    const relativeY = clampUnit(comment.relativePosition.y)
+    setPosition({
+      x: rect.left + relativeX * rect.width,
+      y: rect.top + relativeY * rect.height,
+    })
+    setElementRect(rect)
   }, [comment.element, comment.relativePosition])
+
+  useViewportEvents(updatePosition)
+
+  React.useEffect(() => {
+    updatePosition()
+  }, [updatePosition])
 
   React.useEffect(() => {
     if (isActive) {

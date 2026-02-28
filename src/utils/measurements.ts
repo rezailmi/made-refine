@@ -2,7 +2,7 @@ import type { ElementInfo, MeasurementLine, Guideline } from '../types'
 import { isTextElement } from './element-selection'
 import { getCanvasSnapshot, getBodyOffset } from '../canvas-store'
 
-function getZoomScale(): number {
+export function getZoomScale(): number {
   const snap = getCanvasSnapshot()
   return snap.active ? snap.zoom : 1
 }
