@@ -157,7 +157,7 @@ function HorizontalRuler({
         background: 'var(--color-background)',
         borderBottom: '1px solid var(--color-border)',
         color: 'var(--color-muted-foreground)',
-        zIndex: 99994,
+        zIndex: 100000,
         cursor: 's-resize',
         pointerEvents: 'auto',
         overflow: 'hidden',
@@ -254,7 +254,7 @@ function VerticalRuler({
         background: 'var(--color-background)',
         borderRight: '1px solid var(--color-border)',
         color: 'var(--color-muted-foreground)',
-        zIndex: 99994,
+        zIndex: 100000,
         cursor: 'e-resize',
         pointerEvents: 'auto',
         overflow: 'hidden',
@@ -281,7 +281,7 @@ function CornerSquare() {
         background: 'var(--color-background)',
         borderRight: '1px solid var(--color-border)',
         borderBottom: '1px solid var(--color-border)',
-        zIndex: 99994,
+        zIndex: 100000,
         pointerEvents: 'auto',
       }}
     />
@@ -359,7 +359,7 @@ function GuidelineLine({
           right: 0,
           height: 0,
           transform: translate,
-          zIndex: 99993,
+          zIndex: 99999,
           pointerEvents: 'none',
         }}
       >
@@ -393,7 +393,7 @@ function GuidelineLine({
               color: '#fff',
               padding: '1px 4px',
               borderRadius: 2,
-              zIndex: 99995,
+              zIndex: 100001,
               pointerEvents: 'none',
               ...rulerFont,
             }}
@@ -418,7 +418,7 @@ function GuidelineLine({
         bottom: 0,
         width: 0,
         transform: translate,
-        zIndex: 99993,
+        zIndex: 99999,
         pointerEvents: 'none',
       }}
     >
@@ -449,7 +449,7 @@ function GuidelineLine({
             color: '#fff',
             padding: '1px 4px',
             borderRadius: 2,
-            zIndex: 99995,
+            zIndex: 100001,
             pointerEvents: 'none',
             ...rulerFont,
           }}
