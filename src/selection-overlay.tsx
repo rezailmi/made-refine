@@ -4,6 +4,7 @@ import type { SizingPropertyKey, SizingValue, SizingChangeOptions } from './type
 import type { StartDragOptions } from './use-move'
 import { elementFromPointWithoutOverlays, detectSizingMode } from './utils'
 import { useSelectionResize, type ResizeHandle } from './use-selection-resize'
+import { useViewportEvents } from './hooks/use-viewport-events'
 
 const BLUE = '#0D99FF'
 const MAGENTA = '#E11BB6'
@@ -117,17 +118,16 @@ export function SelectionOverlay({
     }
   }, [isDragging, rectElement])
 
+  useViewportEvents(() => {
+    if (isDraggingRef.current) return
+    setRect(rectElement.getBoundingClientRect())
+  })
+
   React.useEffect(() => {
     function updateRect() {
       if (isDraggingRef.current) return
       setRect(rectElement.getBoundingClientRect())
     }
-
-    updateRect()
-
-    window.addEventListener('scroll', updateRect, true)
-    window.addEventListener('resize', updateRect)
-    window.addEventListener('direct-edit-canvas-change', updateRect)
 
     const observer = new MutationObserver(updateRect)
     observer.observe(rectElement, {
@@ -137,9 +137,6 @@ export function SelectionOverlay({
     })
 
     return () => {
-      window.removeEventListener('scroll', updateRect, true)
-      window.removeEventListener('resize', updateRect)
-      window.removeEventListener('direct-edit-canvas-change', updateRect)
       observer.disconnect()
     }
   }, [rectElement])
@@ -277,14 +274,32 @@ export function SelectionOverlay({
     return []
   }, [selectedElement, showMoveHandle])
 
+  const [moveHandleTargets, setMoveHandleTargets] = React.useState<HTMLElement[]>([])
+
+  // Effect 1: Compute which elements are move targets (calls getComputedStyle — infrequent)
   React.useEffect(() => {
     if (!showMoveHandle || isDragging || isTextEditing) {
+      setMoveHandleTargets([])
+      return
+    }
+    setMoveHandleTargets(getMoveHandleTargets())
+  }, [
+    selectedElement,
+    selectedElement.parentElement,
+    selectedElement.childElementCount,
+    showMoveHandle,
+    isDragging,
+    isTextEditing,
+    getMoveHandleTargets,
+  ])
+
+  // Effect 2: Compute screen rects from cached targets (only getBoundingClientRect, no getComputedStyle)
+  React.useEffect(() => {
+    if (moveHandleTargets.length === 0) {
       setMoveHandleRects([])
       return
     }
-
-    const targets = getMoveHandleTargets()
-    setMoveHandleRects(targets.map((target) => {
+    setMoveHandleRects(moveHandleTargets.map((target) => {
       const targetRect = target.getBoundingClientRect()
       return {
         target,
@@ -294,16 +309,7 @@ export function SelectionOverlay({
         height: targetRect.height,
       }
     }))
-  }, [
-    rect,
-    selectedElement,
-    selectedElement.parentElement,
-    selectedElement.childElementCount,
-    showMoveHandle,
-    isDragging,
-    isTextEditing,
-    getMoveHandleTargets,
-  ])
+  }, [rect, moveHandleTargets])
 
   const handleMoveHandlePointerDown = (target: HTMLElement) => (e: React.PointerEvent<HTMLButtonElement>) => {
     if (e.button !== 0) return

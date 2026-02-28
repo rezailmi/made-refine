@@ -120,6 +120,19 @@ interface DirectEditProviderProps {
 }
 
 const BORDER_STYLE_CONTROL_PREFERENCE_KEY = 'direct-edit-border-style-control'
+const CANVAS_ACTIVE_KEY = 'direct-edit-canvas-active'
+
+function getCanvasPreference(): boolean {
+  if (typeof window === 'undefined') return true
+  try {
+    return localStorage.getItem(CANVAS_ACTIVE_KEY) !== 'false'
+  } catch {}
+  return true
+}
+
+function saveCanvasPreference(active: boolean) {
+  try { localStorage.setItem(CANVAS_ACTIVE_KEY, String(active)) } catch {}
+}
 const useIsomorphicLayoutEffect = typeof window === 'undefined' ? React.useEffect : React.useLayoutEffect
 
 function getInitialTheme(): Theme {
@@ -245,13 +258,20 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     toggleEditModeBase()
     if (wasActive && stateRef.current.canvas?.active) {
       exitCanvas()
-    } else if (!wasActive) {
+    } else if (!wasActive && getCanvasPreference()) {
       enterCanvas()
     }
     if (wasActive) {
       closePanel()
     }
   }, [toggleEditModeBase, stateRef, exitCanvas, enterCanvas, closePanel])
+
+  // Wrap toggleCanvas to persist the preference in localStorage.
+  const toggleCanvasWithPreference = React.useCallback(() => {
+    const willBeActive = !stateRef.current.canvas.active
+    toggleCanvas()
+    saveCanvasPreference(willBeActive)
+  }, [toggleCanvas, stateRef])
 
   // Sync session item count when comments change
   React.useEffect(() => {
@@ -425,7 +445,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
   useKeyboardShortcuts({
     stateRef, toggleEditMode, toggleFlexLayout, undo,
     commitTextEditing, startTextEditing, closePanel, setState,
-    toggleCanvas, setCanvasZoom, fitCanvasToViewport, zoomCanvasTo100,
+    toggleCanvas: toggleCanvasWithPreference, setCanvasZoom, fitCanvasToViewport, zoomCanvasTo100,
   })
 
   const stateContextValue = React.useMemo<DirectEditStateContextValue>(() => ({
@@ -444,7 +464,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     addComment, updateCommentText, addCommentReply, deleteComment, exportComment,
     setActiveCommentId, getSessionEdits, getSessionItems, exportAllEdits,
     clearSessionEdits, removeSessionEdit, startTextEditing, commitTextEditing,
-    toggleCanvas, setCanvasZoom, fitCanvasToViewport, zoomCanvasTo100,
+    toggleCanvas: toggleCanvasWithPreference, setCanvasZoom, fitCanvasToViewport, zoomCanvasTo100,
   }), [
     selectElement, selectParent, selectChild, closePanel,
     updateSpacingProperty, updateBorderRadiusProperty, updateBorderProperty,
@@ -456,7 +476,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     addComment, updateCommentText, addCommentReply, deleteComment, exportComment,
     setActiveCommentId, getSessionEdits, getSessionItems, exportAllEdits,
     clearSessionEdits, removeSessionEdit, startTextEditing, commitTextEditing,
-    toggleCanvas, setCanvasZoom, fitCanvasToViewport, zoomCanvasTo100,
+    toggleCanvasWithPreference, setCanvasZoom, fitCanvasToViewport, zoomCanvasTo100,
   ])
 
   return (

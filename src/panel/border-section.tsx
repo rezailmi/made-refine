@@ -13,7 +13,6 @@ import { Button } from '../ui/button'
 import {
   ChevronDown,
   Square,
-  Focus,
   Settings2,
   Grid2x2,
   Plus,
@@ -298,8 +297,6 @@ export function BorderInputs({ border, borderColor, outlineColor, onChange, onBa
           <div className="min-w-0 flex-1">
             <ColorInput
               id={isOutline ? 'outline-color' : 'border-color'}
-              label={isOutline ? 'Outline' : 'Border'}
-              icon={isOutline ? <Focus className="size-3.5" /> : <Square className="size-3.5" />}
               value={activeColor}
               onChange={activeColorChange}
             />

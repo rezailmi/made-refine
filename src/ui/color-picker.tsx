@@ -11,6 +11,7 @@ import {
   hslToRgb,
   formatColorValue,
 } from './color-utils'
+import { useOutsideClickDismiss } from '../hooks/use-outside-click-dismiss'
 
 function ColorPickerPortal(props: React.ComponentPropsWithoutRef<typeof Popover.Portal>) {
   const container = usePortalContainer()
@@ -303,28 +304,12 @@ export function ColorPickerPopover({ id, value, onChange, children }: ColorPicke
   // Close on outside click — Shadow DOM breaks base-ui's built-in dismiss
   const popupRef = React.useRef<HTMLDivElement>(null)
   const triggerRef = React.useRef<HTMLButtonElement>(null)
-  const onCloseRef = React.useRef<() => void>()
-  onCloseRef.current = () => group?.setActivePickerId(null)
 
-  React.useEffect(() => {
-    if (!isOpen) return
-
-    function handlePointerDown(e: PointerEvent) {
-      const path = e.composedPath()
-      if (popupRef.current && path.includes(popupRef.current)) return
-      if (triggerRef.current && path.includes(triggerRef.current)) return
-      onCloseRef.current?.()
-    }
-
-    const raf = requestAnimationFrame(() => {
-      document.addEventListener('pointerdown', handlePointerDown)
-    })
-
-    return () => {
-      cancelAnimationFrame(raf)
-      document.removeEventListener('pointerdown', handlePointerDown)
-    }
-  }, [isOpen])
+  useOutsideClickDismiss(
+    Boolean(isOpen),
+    () => group?.setActivePickerId(null),
+    [popupRef, triggerRef],
+  )
 
   return (
     <Popover.Root open={isOpen} onOpenChange={handleOpenChange}>

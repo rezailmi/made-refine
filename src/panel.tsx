@@ -452,7 +452,7 @@ function DirectEditPanelContent() {
   const selectionColors = React.useMemo(() => {
     if (!selectedElement) return []
     return getSelectionColors(selectedElement)
-  }, [selectedElement, computedColor, computedBorder])
+  }, [selectedElement, pendingStyles])
 
   const handleSelectSelectionColorTarget = React.useCallback((targetColor: ColorValue) => {
     if (!selectedElement) return

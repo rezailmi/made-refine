@@ -6,10 +6,6 @@ import { parseFillLayers, serializeFillLayers } from '../fill-utils'
 import { CollapsibleSection, Tip } from './shared'
 import { Button } from '../ui/button'
 import {
-  Paintbrush,
-  Square,
-  Focus,
-  Type,
   LocateFixed,
   Plus,
   Minus,
@@ -17,13 +13,12 @@ import {
 
 interface ColorInputProps {
   id?: string
-  label: string
-  icon: React.ReactNode
   value: ColorValue
   onChange: (value: ColorValue) => void
+  className?: string
 }
 
-export function ColorInput({ id, label, icon, value, onChange }: ColorInputProps) {
+export function ColorInput({ id, value, onChange, className }: ColorInputProps) {
   const [hexInput, setHexInput] = React.useState(value.hex)
   const [alphaInput, setAlphaInput] = React.useState(value.alpha.toString())
 
@@ -62,7 +57,7 @@ export function ColorInput({ id, label, icon, value, onChange }: ColorInputProps
   }
 
   return (
-    <div>
+    <div className={className}>
       <div className="flex h-7 items-center rounded-md border-0 bg-muted">
         {/* Color swatch with popover picker */}
         <div className="ml-1">
@@ -146,8 +141,6 @@ export function FillSection({
                   <div className="min-w-0 flex-1">
                     <ColorInput
                       id={`selection-color-${index}`}
-                      label={`Selection color ${index + 1}`}
-                      icon={<Paintbrush className="size-3.5" />}
                       value={color}
                       onChange={(next) => onSelectionColorChange?.(color, next)}
                     />
@@ -173,8 +166,6 @@ export function FillSection({
         {!showDetectedColorInputs && hasTextContent && (
           <ColorInput
             id="fill-text"
-            label="Text"
-            icon={<Type className="size-3.5" />}
             value={textColor}
             onChange={onTextChange}
           />
@@ -183,8 +174,6 @@ export function FillSection({
         {!showDetectedColorInputs && showBorderColor && borderColor && onBorderColorChange && (
           <ColorInput
             id="fill-border"
-            label="Border"
-            icon={<Square className="size-3.5" />}
             value={borderColor}
             onChange={onBorderColorChange}
           />
@@ -193,8 +182,6 @@ export function FillSection({
         {!showDetectedColorInputs && showOutlineColor && outlineColor && onOutlineColorChange && (
           <ColorInput
             id="fill-outline"
-            label="Outline"
-            icon={<Focus className="size-3.5" />}
             value={outlineColor}
             onChange={onOutlineColorChange}
           />
@@ -269,8 +256,6 @@ export function BackgroundFillSection({ backgroundColor, onSetCSS, pendingStyles
                 <div className="min-w-0 flex-1">
                   <ColorInput
                     id={`fill-bg-${index}`}
-                    label="Fill"
-                    icon={<Paintbrush className="size-3.5" />}
                     value={layer}
                     onChange={(next) => updateLayer(index, next)}
                   />

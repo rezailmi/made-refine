@@ -1,5 +1,6 @@
 import * as React from 'react'
 import type { MeasurementLine } from './types'
+import { useViewportEvents } from './hooks/use-viewport-events'
 
 const TOMATO = '#E54D2E'
 const BLUE = '#0D99FF'
@@ -99,20 +100,10 @@ export function MeasurementOverlay({
 }: MeasurementOverlayProps) {
   const [, forceUpdate] = React.useReducer((x) => x + 1, 0)
 
+  useViewportEvents(forceUpdate)
+
   React.useEffect(() => {
-    function handleUpdate() {
-      requestAnimationFrame(forceUpdate)
-    }
-
-    window.addEventListener('scroll', handleUpdate, true)
-    window.addEventListener('resize', handleUpdate)
-    window.addEventListener('direct-edit-canvas-change', handleUpdate)
-
-    return () => {
-      window.removeEventListener('scroll', handleUpdate, true)
-      window.removeEventListener('resize', handleUpdate)
-      window.removeEventListener('direct-edit-canvas-change', handleUpdate)
-    }
+    forceUpdate()
   }, [selectedElement])
 
   return (

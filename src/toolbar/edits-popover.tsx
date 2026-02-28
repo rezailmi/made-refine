@@ -20,6 +20,7 @@ import {
   TooltipContent,
 } from '../ui/tooltip'
 import { toolbarBtnClass } from './shared'
+import { useOutsideClickDismiss } from '../hooks/use-outside-click-dismiss'
 
 function EditsPopoverPortal(props: React.ComponentPropsWithoutRef<typeof Popover.Portal>) {
   const container = usePortalContainer()
@@ -84,25 +85,7 @@ export function EditsPopover({
   }, [editsSnapshot, movePlanContext])
 
   // Close on outside click (Shadow DOM breaks base-ui's dismiss)
-  React.useEffect(() => {
-    if (!isOpen) return
-
-    function handlePointerDown(e: PointerEvent) {
-      const path = e.composedPath()
-      if (editsPopupRef.current && path.includes(editsPopupRef.current)) return
-      if (editsTriggerRef.current && path.includes(editsTriggerRef.current)) return
-      onOpenChange(false)
-    }
-
-    const raf = requestAnimationFrame(() => {
-      document.addEventListener('pointerdown', handlePointerDown)
-    })
-
-    return () => {
-      cancelAnimationFrame(raf)
-      document.removeEventListener('pointerdown', handlePointerDown)
-    }
-  }, [isOpen, onOpenChange])
+  useOutsideClickDismiss(isOpen, () => onOpenChange(false), [editsPopupRef, editsTriggerRef])
 
   // Refresh snapshot when popover opens
   React.useEffect(() => {
