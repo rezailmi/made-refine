@@ -162,6 +162,8 @@ export function SelectionOverlay({
     const origin = { x: e.clientX, y: e.clientY }
     const savedEvent = e
 
+    const blockSelectStart = (se: Event) => se.preventDefault()
+
     const onMove = (moveEvent: PointerEvent) => {
       const dx = moveEvent.clientX - origin.x
       const dy = moveEvent.clientY - origin.y
@@ -187,11 +189,13 @@ export function SelectionOverlay({
     const cleanup = () => {
       window.removeEventListener('pointermove', onMove)
       window.removeEventListener('pointerup', onUp)
+      document.removeEventListener('selectstart', blockSelectStart)
       cleanupRef.current = null
     }
 
     window.addEventListener('pointermove', onMove)
     window.addEventListener('pointerup', onUp)
+    document.addEventListener('selectstart', blockSelectStart)
     cleanupRef.current = cleanup
   }
 

@@ -481,14 +481,20 @@ export function useMove({ onMoveComplete }: UseMoveOptions): UseMoveResult {
       }
     }
 
+    function blockSelectStart(e: Event) {
+      e.preventDefault()
+    }
+
     window.addEventListener('pointermove', handlePointerMove)
     window.addEventListener('pointerup', handlePointerUp)
     window.addEventListener('keydown', handleKeyDown)
+    document.addEventListener('selectstart', blockSelectStart)
 
     return () => {
       window.removeEventListener('pointermove', handlePointerMove)
       window.removeEventListener('pointerup', handlePointerUp)
       window.removeEventListener('keydown', handleKeyDown)
+      document.removeEventListener('selectstart', blockSelectStart)
     }
   }, [dragState.isDragging, completeDrag, cancelDrag, applyReorderPreview, clearReorderPreview])
 
