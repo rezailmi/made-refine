@@ -2,7 +2,7 @@ import * as React from 'react'
 import type { ActiveTool } from './types'
 import type { SizingPropertyKey, SizingValue, SizingChangeOptions } from './types'
 import type { StartDragOptions } from './use-move'
-import { elementFromPointWithoutOverlays } from './utils'
+import { elementFromPointWithoutOverlays, detectSizingMode } from './utils'
 import { useSelectionResize, type ResizeHandle } from './use-selection-resize'
 
 const BLUE = '#0D99FF'
@@ -396,6 +396,14 @@ export function SelectionOverlay({
     },
   ]
 
+  const w = Math.round(selectedElement.offsetWidth)
+  const h = Math.round(selectedElement.offsetHeight)
+  const wMode = detectSizingMode(selectedElement, 'width')
+  const hMode = detectSizingMode(selectedElement, 'height')
+  const wLabel = wMode === 'fixed' ? `${w}` : wMode === 'fill' ? `${w} Fill` : `${w} Fit`
+  const hLabel = hMode === 'fixed' ? `${h}` : hMode === 'fill' ? `${h} Fill` : `${h} Fit`
+  const dimensionText = `${wLabel} × ${hLabel}`
+
   return (
     <>
       {!isTextEditing && (
@@ -414,6 +422,32 @@ export function SelectionOverlay({
             boxSizing: 'border-box',
           }}
         />
+      )}
+
+      {!isTextEditing && (
+        <div
+          data-direct-edit="dimension-label"
+          style={{
+            position: 'fixed',
+            left: displayX + rect.width / 2,
+            top: displayY + rect.height + 4,
+            transform: 'translateX(-50%)',
+            pointerEvents: 'none',
+            zIndex: 99992,
+            background: BLUE,
+            color: 'white',
+            fontSize: '11px',
+            lineHeight: '20px',
+            padding: '0 6px',
+            borderRadius: '4px',
+            whiteSpace: 'nowrap',
+            fontFamily: 'system-ui, sans-serif',
+            fontWeight: 500,
+            letterSpacing: '-0.01em',
+          }}
+        >
+          {dimensionText}
+        </div>
       )}
 
       {!isDragging && !isTextEditing && (
