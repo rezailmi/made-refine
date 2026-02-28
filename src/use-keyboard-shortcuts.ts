@@ -152,5 +152,5 @@ export function useKeyboardShortcuts({
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [closePanel, toggleEditMode, toggleFlexLayout, undo, commitTextEditing, startTextEditing, toggleCanvas, setCanvasZoom, fitCanvasToViewport, zoomCanvasTo100])
+  }, [closePanel, toggleEditMode, toggleFlexLayout, undo, commitTextEditing, startTextEditing, toggleCanvas, setCanvasZoom, fitCanvasToViewport, zoomCanvasTo100, setState])
 }

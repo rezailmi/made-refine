@@ -115,6 +115,26 @@ export function useDirectEdit(): DirectEditContextValue {
   return React.useMemo(() => ({ ...state, ...actions }), [state, actions])
 }
 
+class DirectEditErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean }
+> {
+  state = { hasError: false }
+
+  static getDerivedStateFromError() {
+    return { hasError: true }
+  }
+
+  componentDidCatch(error: unknown) {
+    console.error('[made-refine] internal error:', error)
+  }
+
+  render() {
+    if (this.state.hasError) return null
+    return this.props.children
+  }
+}
+
 interface DirectEditProviderProps {
   children: React.ReactNode
 }
@@ -482,15 +502,17 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
   ])
 
   return (
-    <PortalContainerProvider>
-      <DirectEditStateContext.Provider value={stateContextValue}>
-        <DirectEditActionsContext.Provider value={actionsContextValue}>
-          <ThemeApplier />
-          {children}
+    <DirectEditErrorBoundary>
+      <PortalContainerProvider>
+        <DirectEditStateContext.Provider value={stateContextValue}>
+          <DirectEditActionsContext.Provider value={actionsContextValue}>
+            <ThemeApplier />
+            {children}
 
-        </DirectEditActionsContext.Provider>
-      </DirectEditStateContext.Provider>
-    </PortalContainerProvider>
+          </DirectEditActionsContext.Provider>
+        </DirectEditStateContext.Provider>
+      </PortalContainerProvider>
+    </DirectEditErrorBoundary>
   )
 }
 

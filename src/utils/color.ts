@@ -12,6 +12,14 @@ function parseHexColor(hex: string): ColorValue {
       .join('')
   }
 
+  // Expand 4-digit shorthand (#RGBA -> #RRGGBBAA)
+  if (h.length === 4) {
+    h = h
+      .split('')
+      .map((c) => c + c)
+      .join('')
+  }
+
   // Handle 8-digit hex with alpha
   if (h.length === 8) {
     const alpha = Math.round((parseInt(h.slice(6, 8), 16) / 255) * 100)
@@ -22,15 +30,40 @@ function parseHexColor(hex: string): ColorValue {
 }
 
 function parseRgbaColor(rgba: string): ColorValue {
-  const match = rgba.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/)
-  if (!match) {
+  // Modern space-separated syntax: rgb(R G B) or rgb(R G B / A)
+  const modernMatch = rgba.match(/rgba?\(\s*(\d+)\s+(\d+)\s+(\d+)(?:\s*\/\s*([\d.]+%?))?\s*\)/)
+  if (modernMatch) {
+    const r = parseInt(modernMatch[1])
+    const g = parseInt(modernMatch[2])
+    const b = parseInt(modernMatch[3])
+    let a = 1
+    if (modernMatch[4]) {
+      a = modernMatch[4].endsWith('%')
+        ? parseFloat(modernMatch[4]) / 100
+        : parseFloat(modernMatch[4])
+    }
+    const hex = [r, g, b]
+      .map((v) => v.toString(16).padStart(2, '0'))
+      .join('')
+      .toUpperCase()
+    return { hex, alpha: Math.round(a * 100), raw: rgba }
+  }
+
+  // Legacy comma-separated syntax: rgb(R, G, B) or rgba(R, G, B, A)
+  const legacyMatch = rgba.match(/rgba?\(\s*(\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+%?))?\s*\)/)
+  if (!legacyMatch) {
     return { hex: '000000', alpha: 100, raw: rgba }
   }
 
-  const r = parseInt(match[1])
-  const g = parseInt(match[2])
-  const b = parseInt(match[3])
-  const a = match[4] ? parseFloat(match[4]) : 1
+  const r = parseInt(legacyMatch[1])
+  const g = parseInt(legacyMatch[2])
+  const b = parseInt(legacyMatch[3])
+  let a = 1
+  if (legacyMatch[4]) {
+    a = legacyMatch[4].endsWith('%')
+      ? parseFloat(legacyMatch[4]) / 100
+      : parseFloat(legacyMatch[4])
+  }
 
   const hex = [r, g, b]
     .map((v) => v.toString(16).padStart(2, '0'))
@@ -41,9 +74,14 @@ function parseRgbaColor(rgba: string): ColorValue {
   return { hex, alpha, raw: rgba }
 }
 
+let cachedCanvasCtx: CanvasRenderingContext2D | null = null
+
 function parseNamedColor(name: string): ColorValue {
-  // Use a temporary canvas to convert named colors
-  const ctx = document.createElement('canvas').getContext('2d')
+  // Lazily create and reuse a canvas context for named color conversion
+  if (!cachedCanvasCtx) {
+    cachedCanvasCtx = document.createElement('canvas').getContext('2d')
+  }
+  const ctx = cachedCanvasCtx
   if (!ctx) {
     return { hex: '000000', alpha: 100, raw: name }
   }

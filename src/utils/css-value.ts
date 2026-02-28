@@ -2,7 +2,7 @@ import type { CSSPropertyValue } from '../types'
 
 export function parsePropertyValue(value: string): CSSPropertyValue {
   const raw = value.trim()
-  const match = raw.match(/^(-?\d*\.?\d+)(px|rem|em|%)?$/)
+  const match = raw.match(/^(-?\d*\.?\d+)(px|rem|em|vh|vw|%)?$/)
 
   if (match) {
     return {

@@ -146,6 +146,8 @@ export function useStyleUpdaters({
     snapshot: Array<{ cssProperty: string; previousValue: string | null }>
   } | null>(null)
 
+  React.useEffect(() => () => { sizingTransactionRef.current = null }, [])
+
   const beginSizingTransaction = React.useCallback((element: HTMLElement, transactionId: string) => {
     sizingTransactionRef.current = {
       id: transactionId,
@@ -304,10 +306,26 @@ export function useStyleUpdaters({
       const undoProperties: Array<{ cssProperty: string; previousValue: string | null }> = []
       const pendingUpdates: Record<string, string> = {}
 
-      for (const [cssProperty, cssValue] of Object.entries(properties)) {
+      const entries = Object.entries(properties)
+
+      // Snapshot all previous values before any mutations
+      for (const [cssProperty] of entries) {
         const previousValue = el.style.getPropertyValue(cssProperty) || null
         undoProperties.push({ cssProperty, previousValue })
-        el.style.setProperty(cssProperty, cssValue)
+      }
+
+      // Apply removals first: setting a shorthand (e.g. "background") to ""
+      // clears all its longhands, so removals must precede additions to avoid
+      // wiping out longhand values (e.g. "background-color") set in this batch.
+      for (const [cssProperty, cssValue] of entries) {
+        if (cssValue === '') {
+          el.style.removeProperty(cssProperty)
+        }
+      }
+      for (const [cssProperty, cssValue] of entries) {
+        if (cssValue !== '') {
+          el.style.setProperty(cssProperty, cssValue)
+        }
         pendingUpdates[cssProperty] = cssValue
       }
 

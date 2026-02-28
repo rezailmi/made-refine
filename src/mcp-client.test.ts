@@ -271,6 +271,8 @@ describe('mcp-client', () => {
         })
       )
       .mockResolvedValueOnce(jsonResponse(503, { ok: false }))
+      .mockResolvedValueOnce(jsonResponse(503, { ok: false }))
+      .mockResolvedValueOnce(jsonResponse(503, { ok: false }))
 
     window.__MADE_REFINE_CONFIG__ = {
       mcp: {
@@ -281,6 +283,7 @@ describe('mcp-client', () => {
     const { checkAgentConnection } = await import('./mcp-client')
     await expect(checkAgentConnection()).resolves.toBe(true)
     await expect(checkAgentConnection()).resolves.toBe(false)
-    expect(fetchMock).toHaveBeenCalledTimes(2)
+    // 1 for the first successful call + 3 for the second call (1 initial + 2 retries on 503)
+    expect(fetchMock).toHaveBeenCalledTimes(4)
   })
 })

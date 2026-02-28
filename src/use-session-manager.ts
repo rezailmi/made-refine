@@ -572,7 +572,7 @@ export function useSessionManager({
         break
       }
     }
-  }, [])
+  }, [syncSessionItemCount])
 
   const handleMoveComplete = React.useCallback(
     (element: HTMLElement, moveInfo: MoveInfo | null) => {
@@ -782,7 +782,7 @@ export function useSessionManager({
         textEditingElement: null,
       }))
     },
-    [pushUndo]
+    [pushUndo, syncSessionItemCount]
   )
 
   const getSessionEdits = React.useCallback((): SessionEdit[] => {

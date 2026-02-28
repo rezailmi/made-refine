@@ -12,8 +12,14 @@ function detectFramework(cwd: string): Framework | null {
   const pkgPath = path.join(cwd, 'package.json')
   if (!fs.existsSync(pkgPath)) return null
 
-  const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'))
-  const deps = { ...pkg.dependencies, ...pkg.devDependencies }
+  let pkg: Record<string, unknown>
+  try {
+    pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'))
+  } catch (err) {
+    console.error(pc.red(`Failed to parse package.json: ${err instanceof Error ? err.message : err}`))
+    return null
+  }
+  const deps = { ...(pkg.dependencies as Record<string, string> | undefined), ...(pkg.devDependencies as Record<string, string> | undefined) }
 
   if (deps['@tanstack/start'] || deps['@tanstack/react-start']) return 'tanstack'
   if (deps['next']) return 'next'
@@ -535,15 +541,6 @@ function printTanStackInstructions() {
   `))
 }
 
-// --- Helpers ---
-
-function getIndent(text: string, offset: number): string {
-  const lineStart = text.lastIndexOf('\n', offset) + 1
-  const line = text.slice(lineStart, offset)
-  const match = line.match(/^(\s*)/)
-  return match ? match[1] + '  ' : '  '
-}
-
 // --- Main ---
 
 async function init() {
@@ -588,7 +585,7 @@ async function init() {
   }
 
   // Install package
-  await installPackage(cwd)
+  installPackage(cwd)
 
   // Framework-specific setup
   switch (framework) {
@@ -607,10 +604,19 @@ async function init() {
   console.log(pc.dim('  Start your dev server and press Cmd+. (Ctrl+.) to toggle the editor.\n'))
 }
 
+function getPackageVersion(): string {
+  try {
+    const pkgJson = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf-8'))
+    return pkgJson.version ?? '0.0.0'
+  } catch {
+    return '0.0.0'
+  }
+}
+
 program
   .name('made-refine')
   .description('Visual CSS editor for React')
-  .version('0.1.0')
+  .version(getPackageVersion())
 
 program
   .command('init')

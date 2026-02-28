@@ -2,6 +2,10 @@ import { defineConfig } from 'tsup'
 import type { Plugin } from 'esbuild'
 import path from 'path'
 
+/**
+ * Strips `?raw` query suffixes from import specifiers so esbuild resolves the
+ * underlying file and applies the text loader (configured via `loader: { '.css': 'text' }`).
+ */
 function rawLoader(): Plugin {
   return {
     name: 'raw-loader',

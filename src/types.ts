@@ -36,7 +36,7 @@ export interface ElementLocator {
 
 export interface CSSPropertyValue {
   numericValue: number
-  unit: 'px' | 'rem' | '%' | 'em' | ''
+  unit: 'px' | 'rem' | '%' | 'em' | 'vh' | 'vw' | ''
   raw: string
 }
 
@@ -353,7 +353,7 @@ export interface MoveOperation {
   reasons: string[]
 }
 
-export interface MoveIntent extends MoveOperation {}
+export type MoveIntent = MoveOperation
 
 export interface MovePlan {
   operations: MoveOperation[]

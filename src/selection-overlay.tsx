@@ -311,8 +311,11 @@ export function SelectionOverlay({
     }))
   }, [rect, moveHandleTargets])
 
-  const handleMoveHandlePointerDown = (target: HTMLElement) => (e: React.PointerEvent<HTMLButtonElement>) => {
+  const handleMoveHandlePointerDown = React.useCallback((e: React.PointerEvent<HTMLButtonElement>) => {
     if (e.button !== 0) return
+    const index = Number(e.currentTarget.dataset.moveIndex)
+    const target = moveHandleTargets[index]
+    if (!target) return
     e.preventDefault()
     e.stopPropagation()
     cleanupRef.current?.()
@@ -321,7 +324,7 @@ export function SelectionOverlay({
       clickThroughTimerRef.current = null
     }
     onMoveStart(e, target, { constrainToOriginalParent: true, mode: 'reorder' })
-  }
+  }, [moveHandleTargets, onMoveStart])
 
   const displayX = isDragging && ghostPosition ? ghostPosition.x : rect.left
   const displayY = isDragging && ghostPosition ? ghostPosition.y : rect.top
@@ -521,12 +524,13 @@ export function SelectionOverlay({
             />
           ))}
 
-          {moveHandleRects.map((targetRect) => {
+          {moveHandleRects.map((targetRect, i) => {
             return (
               <button
                 key={`${targetRect.left}-${targetRect.top}-${targetRect.width}-${targetRect.height}`}
                 type="button"
                 data-direct-edit="move-handle"
+                data-move-index={i}
                 aria-label="Move element"
                 title="Drag to reorder"
                 style={{
@@ -546,7 +550,7 @@ export function SelectionOverlay({
                   pointerEvents: 'auto',
                   padding: 0,
                 }}
-                onPointerDown={handleMoveHandlePointerDown(targetRect.target)}
+                onPointerDown={handleMoveHandlePointerDown}
               />
             )
           })}
