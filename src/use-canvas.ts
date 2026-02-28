@@ -121,8 +121,8 @@ function enqueueChildren(el: HTMLElement, queue: HTMLElement[]): void {
 
 function measureContentBounds(el: HTMLElement): { width: number; height: number } {
   const rect = el.getBoundingClientRect()
-  const pageLeft = rect.left + (window.scrollX || window.pageXOffset || 0)
-  const pageTop = rect.top + (window.scrollY || window.pageYOffset || 0)
+  const pageLeft = rect.left + window.scrollX
+  const pageTop = rect.top + window.scrollY
   return {
     width: Math.max(0, pageLeft) + el.scrollWidth,
     height: Math.max(0, pageTop) + el.scrollHeight,
@@ -167,6 +167,111 @@ function clampPan(
   }
 }
 
+type ExpandedNodeSnapshot = Array<{
+  el: HTMLElement
+  height: string
+  maxHeight: string
+  overflowY: string
+}>
+
+function collectTraversalSeeds(): HTMLElement[] {
+  const out: HTMLElement[] = []
+  const seen = new Set<HTMLElement>()
+  const push = (el: Element | null): void => {
+    if (!(el instanceof HTMLElement)) return
+    if (!document.body.contains(el)) return
+    if (seen.has(el)) return
+    seen.add(el)
+    out.push(el)
+  }
+
+  for (const selector of CANVAS_PRIORITY_ROOT_SELECTORS) {
+    push(document.querySelector(selector))
+  }
+  for (const child of document.body.children) {
+    push(child)
+  }
+  return out
+}
+
+function expandScrollableRegionsAndMeasureBody(
+  savedExpandedNodesRef: React.MutableRefObject<ExpandedNodeSnapshot>,
+): { width: number; height: number } {
+  const snapshots = new Map<HTMLElement, { height: string; maxHeight: string; overflowY: string }>()
+  const expandedOrder: HTMLElement[] = []
+  const queue = collectTraversalSeeds()
+  const visited = new Set<HTMLElement>()
+  let visitedCount = 0
+  let fallbackWidth = 0
+  let fallbackHeight = 0
+
+  const expandNode = (el: HTMLElement): void => {
+    if (snapshots.has(el)) return
+    snapshots.set(el, {
+      height: el.style.height,
+      maxHeight: el.style.maxHeight,
+      overflowY: el.style.overflowY,
+    })
+    expandedOrder.push(el)
+    el.style.height = 'auto'
+    el.style.maxHeight = 'none'
+    el.style.overflowY = 'visible'
+  }
+
+  while (queue.length > 0 && visitedCount < CANVAS_MEASURE_NODE_BUDGET) {
+    const el = queue.shift()
+    if (!el || visited.has(el)) continue
+    visited.add(el)
+    visitedCount++
+
+    const hasVerticalOverflow = el.scrollHeight > el.clientHeight + 1
+    const style = getComputedStyle(el)
+    const overflowY = getResolvedOverflowY(style)
+    const isScrollable = hasVerticalOverflow && isScrollableOverflowY(overflowY)
+
+    if (isScrollable) {
+      expandNode(el)
+      // Relax clipped ancestors of detected scrollers so body dimensions can include full content.
+      let ancestor = getParentAcrossShadowTree(el)
+      while (ancestor && ancestor !== document.body) {
+        const ancestorStyle = getComputedStyle(ancestor)
+        if (isClippedOverflowY(getResolvedOverflowY(ancestorStyle))) {
+          expandNode(ancestor)
+        }
+        ancestor = getParentAcrossShadowTree(ancestor)
+      }
+    }
+
+    const canContributeFallback = hasVerticalOverflow && (isScrollable || (!isClippedOverflowY(overflowY) && !hasClippedAncestor(el)))
+    if (canContributeFallback) {
+      const bounds = measureContentBounds(el)
+      fallbackWidth = Math.max(fallbackWidth, bounds.width)
+      fallbackHeight = Math.max(fallbackHeight, bounds.height)
+    }
+
+    enqueueChildren(el, queue)
+  }
+
+  savedExpandedNodesRef.current = expandedOrder.map((el) => ({ el, ...snapshots.get(el)! }))
+
+  return {
+    width: Math.max(document.body.scrollWidth, document.documentElement.scrollWidth, fallbackWidth, window.innerWidth),
+    height: Math.max(document.body.scrollHeight, document.documentElement.scrollHeight, fallbackHeight, window.innerHeight),
+  }
+}
+
+function restoreExpandedNodes(
+  savedExpandedNodesRef: React.MutableRefObject<ExpandedNodeSnapshot>,
+): void {
+  for (let i = savedExpandedNodesRef.current.length - 1; i >= 0; i--) {
+    const { el, height, maxHeight, overflowY } = savedExpandedNodesRef.current[i]
+    el.style.height = height
+    el.style.maxHeight = maxHeight
+    el.style.overflowY = overflowY
+  }
+  savedExpandedNodesRef.current = []
+}
+
 export interface UseCanvasOptions {
   stateRef: React.MutableRefObject<DirectEditState>
   setState: React.Dispatch<React.SetStateAction<DirectEditState>>
@@ -195,12 +300,7 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
   const savedHtmlBgColorRef = React.useRef('')
   const domStateSavedRef = React.useRef(false)
   const savedBodyDimensionsRef = React.useRef({ width: 0, height: 0 })
-  const savedExpandedNodesRef = React.useRef<Array<{
-    el: HTMLElement
-    height: string
-    maxHeight: string
-    overflowY: string
-  }>>([])
+  const savedExpandedNodesRef = React.useRef<ExpandedNodeSnapshot>([])
 
   // rAF batching for setState: DOM transform is applied immediately for visual
   // smoothness; React state is deferred to avoid 60fps re-renders across all consumers.
@@ -277,104 +377,10 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
     }
   }, [applyTransform, dispatchCanvasChange, setState])
 
-  function collectTraversalSeeds(): HTMLElement[] {
-    const out: HTMLElement[] = []
-    const seen = new Set<HTMLElement>()
-    const push = (el: Element | null): void => {
-      if (!(el instanceof HTMLElement)) return
-      if (!document.body.contains(el)) return
-      if (seen.has(el)) return
-      seen.add(el)
-      out.push(el)
-    }
-
-    for (const selector of CANVAS_PRIORITY_ROOT_SELECTORS) {
-      push(document.querySelector(selector))
-    }
-    for (const child of document.body.children) {
-      push(child)
-    }
-    return out
-  }
-
-  function expandScrollableRegionsAndMeasureBody(): { width: number; height: number } {
-    const snapshots = new Map<HTMLElement, { height: string; maxHeight: string; overflowY: string }>()
-    const expandedOrder: HTMLElement[] = []
-    const queue = collectTraversalSeeds()
-    const visited = new Set<HTMLElement>()
-    let visitedCount = 0
-    let fallbackWidth = 0
-    let fallbackHeight = 0
-
-    const expandNode = (el: HTMLElement): void => {
-      if (snapshots.has(el)) return
-      snapshots.set(el, {
-        height: el.style.height,
-        maxHeight: el.style.maxHeight,
-        overflowY: el.style.overflowY,
-      })
-      expandedOrder.push(el)
-      el.style.height = 'auto'
-      el.style.maxHeight = 'none'
-      el.style.overflowY = 'visible'
-    }
-
-    while (queue.length > 0 && visitedCount < CANVAS_MEASURE_NODE_BUDGET) {
-      const el = queue.shift()
-      if (!el || visited.has(el)) continue
-      visited.add(el)
-      visitedCount++
-
-      const hasVerticalOverflow = el.scrollHeight > el.clientHeight + 1
-      const style = getComputedStyle(el)
-      const overflowY = getResolvedOverflowY(style)
-      const isScrollable = hasVerticalOverflow && isScrollableOverflowY(overflowY)
-
-      if (isScrollable) {
-        expandNode(el)
-        // Relax clipped ancestors of detected scrollers so body dimensions can include full content.
-        let ancestor = getParentAcrossShadowTree(el)
-        while (ancestor && ancestor !== document.body) {
-          const ancestorStyle = getComputedStyle(ancestor)
-          if (isClippedOverflowY(getResolvedOverflowY(ancestorStyle))) {
-            expandNode(ancestor)
-          }
-          ancestor = getParentAcrossShadowTree(ancestor)
-        }
-      }
-
-      const canContributeFallback = hasVerticalOverflow && (isScrollable || (!isClippedOverflowY(overflowY) && !hasClippedAncestor(el)))
-      if (canContributeFallback) {
-        const bounds = measureContentBounds(el)
-        fallbackWidth = Math.max(fallbackWidth, bounds.width)
-        fallbackHeight = Math.max(fallbackHeight, bounds.height)
-      }
-
-      enqueueChildren(el, queue)
-    }
-
-    savedExpandedNodesRef.current = expandedOrder.map((el) => ({ el, ...snapshots.get(el)! }))
-
-    return {
-      width: Math.max(document.body.scrollWidth, document.documentElement.scrollWidth, fallbackWidth, window.innerWidth),
-      height: Math.max(document.body.scrollHeight, document.documentElement.scrollHeight, fallbackHeight, window.innerHeight),
-    }
-  }
-
-  function restoreExpandedNodes(): void {
-    for (let i = savedExpandedNodesRef.current.length - 1; i >= 0; i--) {
-      const { el, height, maxHeight, overflowY } = savedExpandedNodesRef.current[i]
-      el.style.height = height
-      el.style.maxHeight = maxHeight
-      el.style.overflowY = overflowY
-    }
-    savedExpandedNodesRef.current = []
-  }
-
   const enterCanvas = React.useCallback(() => {
     if (canvasRef.current.active) return
     if (domStateSavedRef.current || savedExpandedNodesRef.current.length > 0) {
-      restoreExpandedNodes()
+      restoreExpandedNodes(savedExpandedNodesRef)
       domStateSavedRef.current = false
     }
 
@@ -402,7 +408,7 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
 
       if (canvasStrategyRef.current === 'body-transform') {
         // Expand scroll regions and clipped ancestors before measuring canvas bounds.
-        savedBodyDimensionsRef.current = expandScrollableRegionsAndMeasureBody()
+        savedBodyDimensionsRef.current = expandScrollableRegionsAndMeasureBody(savedExpandedNodesRef)
 
         // Measure body margin before applying transform — needed for guideline math.
         updateBodyOffset()
@@ -435,7 +441,7 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
       if (!entered) {
         document.body.style.transform = ''
         document.body.style.transformOrigin = ''
-        restoreExpandedNodes()
+        restoreExpandedNodes(savedExpandedNodesRef)
         document.body.style.overflow = savedBodyOverflowRef.current
         document.documentElement.style.overflow = savedHtmlOverflowRef.current
         document.documentElement.style.backgroundColor = savedHtmlBgColorRef.current
@@ -457,7 +463,7 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
 
     document.body.style.transform = ''
     document.body.style.transformOrigin = ''
-    restoreExpandedNodes()
+    restoreExpandedNodes(savedExpandedNodesRef)
     if (shouldRestoreDom) {
       document.body.style.overflow = savedBodyOverflowRef.current
       document.documentElement.style.overflow = savedHtmlOverflowRef.current
@@ -642,15 +648,21 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
     return () => window.removeEventListener('pointerdown', handlePointerDown, true)
   }, [updateCanvas])
 
+  // Store in refs so the unmount cleanup always calls the latest version
+  const exitCanvasRef = React.useRef(exitCanvas)
+  exitCanvasRef.current = exitCanvas
+  const cancelPendingRafRef = React.useRef(cancelPendingRaf)
+  cancelPendingRafRef.current = cancelPendingRaf
+
   // Cleanup on unmount: cancel pending rAF then restore DOM state
   React.useEffect(() => {
     return () => {
-      cancelPendingRaf()
+      cancelPendingRafRef.current()
       if (canvasRef.current.active || domStateSavedRef.current || savedExpandedNodesRef.current.length > 0) {
-        exitCanvas()
+        exitCanvasRef.current()
       }
     }
-  }, [cancelPendingRaf, exitCanvas])
+  }, [])
 
   return { toggleCanvas, enterCanvas, exitCanvas, setCanvasZoom, fitCanvasToViewport, zoomCanvasTo100 }
 }

@@ -82,6 +82,7 @@ declare global {
 }
 
 let cachedSession: SessionContext | null = null
+let inflightBootstrap: Promise<SessionContext | null> | null = null
 
 function getTimeoutSignal(timeoutMs: number): AbortSignal | undefined {
   const timeout = (AbortSignal as { timeout?: (delay: number) => AbortSignal }).timeout
@@ -290,20 +291,35 @@ async function readJsonRecord(response: Response): Promise<Record<string, unknow
   }
 }
 
-async function bootstrapSession(force = false): Promise<SessionContext | null> {
-  const bootstrapUrl = resolveBootstrapUrl()
-  if (!bootstrapUrl) {
-    cachedSession = null
-    return null
+async function fetchWithRetry(
+  url: string,
+  init: RequestInit,
+  maxRetries = 2,
+): Promise<Response> {
+  let lastError: unknown
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await fetch(url, init)
+      if (response.status >= 500 && attempt < maxRetries) {
+        await new Promise((r) => setTimeout(r, 500 * Math.pow(2, attempt)))
+        continue
+      }
+      return response
+    } catch (err) {
+      lastError = err
+      if (attempt < maxRetries) {
+        await new Promise((r) => setTimeout(r, 500 * Math.pow(2, attempt)))
+        continue
+      }
+    }
   }
+  throw lastError
+}
 
-  if (!force && isSessionUsable(cachedSession, bootstrapUrl)) {
-    return cachedSession
-  }
-
+async function doBootstrap(bootstrapUrl: string): Promise<SessionContext | null> {
   const runtimeConfig = getRuntimeMcpConfig()
   try {
-    const response = await fetch(bootstrapUrl, {
+    const response = await fetchWithRetry(bootstrapUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(buildBootstrapRequestBody(runtimeConfig)),
@@ -342,6 +358,27 @@ async function bootstrapSession(force = false): Promise<SessionContext | null> {
     cachedSession = null
     return null
   }
+}
+
+async function bootstrapSession(force = false): Promise<SessionContext | null> {
+  const bootstrapUrl = resolveBootstrapUrl()
+  if (!bootstrapUrl) {
+    cachedSession = null
+    return null
+  }
+
+  if (!force && isSessionUsable(cachedSession, bootstrapUrl)) {
+    return cachedSession
+  }
+
+  if (inflightBootstrap) {
+    return inflightBootstrap
+  }
+
+  inflightBootstrap = doBootstrap(bootstrapUrl).finally(() => {
+    inflightBootstrap = null
+  })
+  return inflightBootstrap
 }
 
 async function refreshSessionToken(session: SessionContext): Promise<SessionContext | null> {

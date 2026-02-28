@@ -116,7 +116,6 @@ function CommentPin({
   const [position, setPosition] = React.useState(comment.clickPosition)
   const [elementRect, setElementRect] = React.useState<DOMRect | null>(null)
   const [flipHorizontal, setFlipHorizontal] = React.useState(false)
-  const [flipVertical, setFlipVertical] = React.useState(false)
 
   const updatePosition = React.useCallback(() => {
     if (!comment.element.isConnected) return
@@ -196,7 +195,6 @@ function CommentPin({
           <NewCommentInput
             position={position}
             flipHorizontal={flipHorizontal}
-            flipVertical={flipVertical}
             onSubmit={(text) => {
               onUpdateText(text)
             }}
@@ -210,7 +208,6 @@ function CommentPin({
             index={index}
             position={position}
             flipHorizontal={flipHorizontal}
-            flipVertical={flipVertical}
             onClose={onClose}
             onAddReply={(text) => {
               onAddReply(text)
@@ -228,7 +225,6 @@ function CommentPin({
 interface NewCommentInputProps {
   position: { x: number; y: number }
   flipHorizontal: boolean
-  flipVertical: boolean
   onSubmit: (text: string) => void
   onCancel: () => void
   attentionNonce: number
@@ -238,7 +234,6 @@ interface NewCommentInputProps {
 function NewCommentInput({
   position,
   flipHorizontal,
-  flipVertical,
   onSubmit,
   onCancel,
   attentionNonce,
@@ -283,7 +278,7 @@ function NewCommentInput({
       style={{
         width: 220,
         left: flipHorizontal ? position.x - 220 - 8 : position.x + 14,
-        top: flipVertical ? position.y - 40 : position.y - 18,
+        top: position.y - 18,
         pointerEvents: 'auto',
       }}
       onClick={(e) => e.stopPropagation()}
@@ -336,7 +331,6 @@ interface CommentThreadProps {
   index: number
   position: { x: number; y: number }
   flipHorizontal: boolean
-  flipVertical: boolean
   onClose: () => void
   onAddReply: (text: string) => void
   onDelete: () => void
@@ -349,7 +343,6 @@ function CommentThread({
   index,
   position,
   flipHorizontal,
-  flipVertical,
   onClose,
   onAddReply,
   onDelete,
@@ -416,7 +409,7 @@ function CommentThread({
       className="fixed z-[99999] w-[280px] overflow-hidden rounded-xl outline outline-1 outline-foreground/10 bg-background shadow-lg"
       style={{
         left: flipHorizontal ? position.x - 280 - 8 : position.x + 14,
-        top: flipVertical ? position.y - 220 : position.y - 14,
+        top: position.y - 14,
         pointerEvents: 'auto',
       }}
       onClick={(e) => e.stopPropagation()}
@@ -522,8 +515,8 @@ function CommentThread({
         </div>
 
         {/* Replies */}
-        {comment.replies.map((reply) => (
-          <div key={reply.createdAt} className="border-t border-border/30 px-3 py-2.5">
+        {comment.replies.map((reply, index) => (
+          <div key={`${index}-${reply.createdAt}`} className="border-t border-border/30 px-3 py-2.5">
             <div className="mb-1 flex items-center gap-2">
               <div className="flex size-5 shrink-0 items-center justify-center rounded-full bg-blue-500 text-[10px] font-bold text-white">
                 {index}
