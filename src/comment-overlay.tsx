@@ -140,10 +140,8 @@ function CommentPin({
     if (isActive) {
       const hasText = comment.text !== ''
       const cardWidth = hasText ? 280 : 220
-      const cardHeight = hasText ? 220 : 40
       const pinSize = 12
       setFlipHorizontal(position.x + pinSize + cardWidth > window.innerWidth)
-      setFlipVertical(position.y + cardHeight > window.innerHeight)
     }
   }, [isActive, position, comment.text])
 

@@ -25,6 +25,9 @@ interface CanvasCard {
   color: string
 }
 
+const CANVAS_WIDTH = 3200
+const CANVAS_HEIGHT = 2400
+
 const INITIAL_CARDS: CanvasCard[] = [
   {
     id: 'card-a',
@@ -40,8 +43,8 @@ const INITIAL_CARDS: CanvasCard[] = [
     id: 'card-b',
     title: 'Insights',
     subtitle: 'Canvas test card',
-    x: 500,
-    y: 250,
+    x: 560,
+    y: 400,
     width: 350,
     height: 210,
     color: '#0f766e',
@@ -50,11 +53,61 @@ const INITIAL_CARDS: CanvasCard[] = [
     id: 'card-c',
     title: 'Quality Gate',
     subtitle: 'Pointer disabled in design mode',
-    x: 820,
+    x: 1020,
     y: 160,
     width: 360,
     height: 220,
     color: '#b45309',
+  },
+  {
+    id: 'card-d',
+    title: 'Pipeline',
+    subtitle: 'Far-right region',
+    x: 1800,
+    y: 300,
+    width: 340,
+    height: 200,
+    color: '#7c3aed',
+  },
+  {
+    id: 'card-e',
+    title: 'Metrics',
+    subtitle: 'Bottom-left region',
+    x: 200,
+    y: 900,
+    width: 380,
+    height: 240,
+    color: '#0369a1',
+  },
+  {
+    id: 'card-f',
+    title: 'Alerts',
+    subtitle: 'Deep canvas area',
+    x: 1400,
+    y: 1100,
+    width: 320,
+    height: 200,
+    color: '#be123c',
+  },
+  {
+    id: 'card-g',
+    title: 'Storage',
+    subtitle: 'Bottom-right corner',
+    x: 2200,
+    y: 800,
+    width: 360,
+    height: 220,
+    color: '#065f46',
+  },
+  {
+    id: 'card-h',
+    title: 'Network',
+    subtitle: 'Far bottom region',
+    x: 800,
+    y: 1500,
+    width: 340,
+    height: 210,
+    color: '#92400e',
   },
 ]
 
@@ -115,8 +168,8 @@ export function CanvasPlayground({ onBack }: CanvasPlaygroundProps) {
         if (card.id !== drag.cardId) return card
         return {
           ...card,
-          x: clamp(world.x - drag.offsetX, 0, viewport.width - card.width),
-          y: clamp(world.y - drag.offsetY, 0, viewport.height - card.height),
+          x: clamp(world.x - drag.offsetX, 0, CANVAS_WIDTH - card.width),
+          y: clamp(world.y - drag.offsetY, 0, CANVAS_HEIGHT - card.height),
         }
       }))
     }
@@ -141,9 +194,9 @@ export function CanvasPlayground({ onBack }: CanvasPlaygroundProps) {
     const canvas = canvasRef.current
     if (!canvas) return
     const dpr = window.devicePixelRatio || 1
-    canvas.width = Math.max(1, Math.floor(viewport.width * dpr))
-    canvas.height = Math.max(1, Math.floor(viewport.height * dpr))
-  }, [viewport])
+    canvas.width = Math.max(1, Math.floor(CANVAS_WIDTH * dpr))
+    canvas.height = Math.max(1, Math.floor(CANVAS_HEIGHT * dpr))
+  }, [])
 
   React.useEffect(() => {
     const canvas = canvasRef.current
@@ -155,29 +208,44 @@ export function CanvasPlayground({ onBack }: CanvasPlaygroundProps) {
     let raf = 0
     const draw = () => {
       const dpr = window.devicePixelRatio || 1
-      const width = viewport.width
-      const height = viewport.height
       const zoom = zoomRef.current
 
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-      ctx.clearRect(0, 0, width, height)
+      ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT)
       ctx.fillStyle = '#0b1220'
-      ctx.fillRect(0, 0, width, height)
+      ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT)
+
+      // Draw dot grid
+      ctx.fillStyle = 'rgba(255,255,255,0.06)'
+      const gridStep = 80
+      for (let gx = gridStep; gx < CANVAS_WIDTH; gx += gridStep) {
+        for (let gy = gridStep; gy < CANVAS_HEIGHT; gy += gridStep) {
+          ctx.beginPath()
+          ctx.arc(gx, gy, 1.5, 0, Math.PI * 2)
+          ctx.fill()
+        }
+      }
+
+      // Draw canvas boundary
+      ctx.strokeStyle = 'rgba(255,255,255,0.08)'
+      ctx.lineWidth = 1
+      ctx.strokeRect(0.5, 0.5, CANVAS_WIDTH - 1, CANVAS_HEIGHT - 1)
 
       ctx.fillStyle = '#f8fafc'
       ctx.font = '600 14px system-ui'
       ctx.fillText(`Native canvas zoom: ${zoom.toFixed(2)}x`, 20, 28)
       ctx.fillText(`Native click count: ${nativeClicks}`, 20, 52)
+      ctx.fillText(`Canvas: ${CANVAS_WIDTH} × ${CANVAS_HEIGHT}`, 20, 76)
 
       raf = requestAnimationFrame(draw)
     }
 
     raf = requestAnimationFrame(draw)
     return () => cancelAnimationFrame(raf)
-  }, [nativeClicks, viewport])
+  }, [nativeClicks])
 
   return (
-    <div style={{ position: 'fixed', inset: 0, fontFamily: 'system-ui, sans-serif', backgroundColor: '#0b1220' }}>
+    <div style={{ position: 'relative', fontFamily: 'system-ui, sans-serif', backgroundColor: '#0b1220', minWidth: CANVAS_WIDTH, minHeight: CANVAS_HEIGHT }}>
       <canvas
         ref={canvasRef}
         onWheel={(event) => {
@@ -187,16 +255,19 @@ export function CanvasPlayground({ onBack }: CanvasPlaygroundProps) {
         onClick={() => setNativeClicks((current) => current + 1)}
         style={{
           display: 'block',
-          width: '100vw',
-          height: '100vh',
+          width: CANVAS_WIDTH,
+          height: CANVAS_HEIGHT,
           cursor: 'crosshair',
         }}
       />
 
       <div
         style={{
-          position: 'fixed',
-          inset: 0,
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: CANVAS_WIDTH,
+          height: CANVAS_HEIGHT,
           pointerEvents: 'none',
           zIndex: 1,
           transform: `translate(${viewport.width / 2}px, ${viewport.height / 2}px) scale(${nativeZoom}) translate(${-viewport.width / 2}px, ${-viewport.height / 2}px)`,
