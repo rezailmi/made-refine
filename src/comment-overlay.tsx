@@ -1,5 +1,7 @@
 import * as React from 'react'
 import type { Comment, ElementLocator } from './types'
+import { buildCommentExport, buildExportInstruction } from './utils'
+import { copyText } from './clipboard'
 import { useViewportEvents } from './hooks/use-viewport-events'
 import { cn } from './cn'
 import { Button } from './ui/button'
@@ -197,6 +199,9 @@ function CommentPin({
             flipHorizontal={flipHorizontal}
             onSubmit={(text) => {
               onUpdateText(text)
+              const md = buildCommentExport(comment.locator, text, [])
+              const instruction = buildExportInstruction({ hasCssEdits: false, hasTextEdits: false, hasMoves: false, hasComments: true })
+              copyText(`${instruction}\n\n${md}`)
             }}
             onCancel={onClose}
             attentionNonce={attentionNonce}
