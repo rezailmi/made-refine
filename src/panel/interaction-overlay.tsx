@@ -128,19 +128,44 @@ function useInteractionCapture(props: InteractionOverlayProps) {
       }
     }
 
+    let lastMouseX = 0
+    let lastMouseY = 0
+
     function handleMouseMove(e: MouseEvent) {
       if (isStale() || isOwnUIEvent(e)) return
+
+      lastMouseX = e.clientX
+      lastMouseY = e.clientY
 
       const p = propsRef.current
       const elementUnder = safeElementFromPoint(e.clientX, e.clientY)
       p.onSetHoverHighlight(computeHoverHighlight(elementUnder, p.selectedElement))
     }
 
+    function handleScroll() {
+      if (isStale()) return
+      const p = propsRef.current
+      const elementUnder = safeElementFromPoint(lastMouseX, lastMouseY)
+      p.onSetHoverHighlight(computeHoverHighlight(elementUnder, p.selectedElement))
+    }
+
+    function handlePointerDown(e: PointerEvent) {
+      if (isStale() || isOwnUIEvent(e)) return
+
+      // Block consumer app from receiving pointer events (e.g. React onPointerDown
+      // on buttons) which can trigger navigation or state changes before our click
+      // handler fires.
+      // Only preventDefault for mouse — doing so on touch would kill scroll.
+      if (e.pointerType === 'mouse') e.preventDefault()
+      e.stopPropagation()
+    }
+
     function handleMouseDown(e: MouseEvent) {
       if (isStale() || isOwnUIEvent(e)) return
 
-      // Block text selection drag on page elements
+      // Block text selection drag and prevent consumer app mousedown handlers
       e.preventDefault()
+      e.stopPropagation()
     }
 
     function handleContextMenu(e: MouseEvent) {
@@ -157,36 +182,40 @@ function useInteractionCapture(props: InteractionOverlayProps) {
     // Cursor override: inject a <style> into the document head
     const cursorStyle = document.createElement('style')
     cursorStyle.setAttribute('data-direct-edit-cursor', '')
-    const cursorValue = propsRef.current.activeTool === 'comment' ? 'crosshair' : 'default'
+    const cursorValue = 'default'
     cursorStyle.textContent = `* { cursor: ${cursorValue} !important; }`
     document.head.appendChild(cursorStyle)
 
+    window.addEventListener('pointerdown', handlePointerDown, true)
     window.addEventListener('click', handleClick, true)
     window.addEventListener('dblclick', handleDblClick, true)
     document.addEventListener('mousemove', handleMouseMove, true)
     window.addEventListener('mousedown', handleMouseDown, true)
     document.addEventListener('contextmenu', handleContextMenu, true)
     document.documentElement.addEventListener('mouseleave', handleMouseLeave)
+    window.addEventListener('scroll', handleScroll, true)
 
     return () => {
+      window.removeEventListener('pointerdown', handlePointerDown, true)
       window.removeEventListener('click', handleClick, true)
       window.removeEventListener('dblclick', handleDblClick, true)
       document.removeEventListener('mousemove', handleMouseMove, true)
       window.removeEventListener('mousedown', handleMouseDown, true)
       document.removeEventListener('contextmenu', handleContextMenu, true)
       document.documentElement.removeEventListener('mouseleave', handleMouseLeave)
+      window.removeEventListener('scroll', handleScroll, true)
       cursorStyle.remove()
     }
   }, [active])
 
-  // Keep cursor style in sync with activeTool changes while hook is active
+  // Keep cursor style in sync while hook is active (no-op if unchanged,
+  // but keeps the style present if React re-mounts the effect).
   React.useEffect(() => {
     if (!active) return
     const existing = document.querySelector('style[data-direct-edit-cursor]')
     if (!existing) return
-    const cursorValue = props.activeTool === 'comment' ? 'crosshair' : 'default'
-    existing.textContent = `* { cursor: ${cursorValue} !important; }`
-  }, [active, props.activeTool])
+    existing.textContent = `* { cursor: default !important; }`
+  }, [active])
 }
 
 export function InteractionOverlay(props: InteractionOverlayProps) {
