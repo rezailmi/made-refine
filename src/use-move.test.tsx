@@ -26,7 +26,7 @@ function pointerEvent(x: number, y: number): React.PointerEvent {
   return { clientX: x, clientY: y } as React.PointerEvent
 }
 
-function dispatchPointer(type: 'pointermove' | 'pointerup', x = 0, y = 0) {
+function dispatchPointer(type: 'pointermove' | 'pointerup' | 'pointercancel', x = 0, y = 0) {
   const event = new Event(type) as PointerEvent
   Object.defineProperty(event, 'clientX', { value: x })
   Object.defineProperty(event, 'clientY', { value: y })
@@ -44,6 +44,9 @@ describe('useMove', () => {
 
   afterEach(() => {
     document.body.innerHTML = ''
+    document.documentElement.style.userSelect = ''
+    document.body.style.userSelect = ''
+    document.body.style.cursor = ''
   })
 
   it('starts dragging and cancels with Escape', () => {
@@ -92,6 +95,129 @@ describe('useMove', () => {
     expect(dragged.style.opacity).toBe('')
     expect(dragged.style.transform).toBe('')
     expect(onMoveComplete).not.toHaveBeenCalled()
+  })
+
+  it('suppresses selectstart and restores document styles when dragging completes', () => {
+    const parent = document.createElement('div')
+    const dragged = document.createElement('div')
+    parent.appendChild(dragged)
+    document.body.appendChild(parent)
+    document.documentElement.style.userSelect = 'text'
+    document.body.style.userSelect = 'text'
+    document.body.style.cursor = 'crosshair'
+
+    dragged.getBoundingClientRect = () => ({
+      left: 10,
+      top: 20,
+      width: 100,
+      height: 40,
+      right: 110,
+      bottom: 60,
+      x: 10,
+      y: 20,
+      toJSON: () => ({}),
+    }) as DOMRect
+
+    const { result } = renderHook(() => useMove({ onMoveComplete: vi.fn() }))
+
+    act(() => {
+      result.current.startDrag(pointerEvent(30, 40), dragged)
+    })
+
+    const activeSelectStart = new Event('selectstart', { bubbles: true, cancelable: true })
+    document.dispatchEvent(activeSelectStart)
+
+    expect(activeSelectStart.defaultPrevented).toBe(true)
+    expect(document.documentElement.style.userSelect).toBe('none')
+    expect(document.body.style.userSelect).toBe('none')
+    expect(document.body.style.cursor).toBe('grabbing')
+
+    act(() => {
+      dispatchPointer('pointerup', 30, 40)
+    })
+
+    const releasedSelectStart = new Event('selectstart', { bubbles: true, cancelable: true })
+    document.dispatchEvent(releasedSelectStart)
+
+    expect(releasedSelectStart.defaultPrevented).toBe(false)
+    expect(document.documentElement.style.userSelect).toBe('text')
+    expect(document.body.style.userSelect).toBe('text')
+    expect(document.body.style.cursor).toBe('crosshair')
+  })
+
+  it('cancels drag and restores styles on pointercancel', () => {
+    const parent = document.createElement('div')
+    const dragged = document.createElement('div')
+    parent.appendChild(dragged)
+    document.body.appendChild(parent)
+
+    dragged.getBoundingClientRect = () => ({
+      left: 10,
+      top: 20,
+      width: 100,
+      height: 40,
+      right: 110,
+      bottom: 60,
+      x: 10,
+      y: 20,
+      toJSON: () => ({}),
+    }) as DOMRect
+
+    const { result } = renderHook(() => useMove({ onMoveComplete: vi.fn() }))
+
+    act(() => {
+      result.current.startDrag(pointerEvent(30, 40), dragged)
+    })
+
+    expect(result.current.dragState.isDragging).toBe(true)
+    expect(document.body.style.cursor).toBe('grabbing')
+
+    act(() => {
+      dispatchPointer('pointercancel', 30, 40)
+    })
+
+    expect(result.current.dragState.isDragging).toBe(false)
+    expect(dragged.style.opacity).toBe('')
+    expect(dragged.style.transform).toBe('')
+    expect(document.body.style.cursor).toBe('')
+    expect(document.documentElement.style.userSelect).toBe('')
+    expect(document.body.style.userSelect).toBe('')
+  })
+
+  it('cancels drag and restores styles on window blur', () => {
+    const parent = document.createElement('div')
+    const dragged = document.createElement('div')
+    parent.appendChild(dragged)
+    document.body.appendChild(parent)
+
+    dragged.getBoundingClientRect = () => ({
+      left: 10,
+      top: 20,
+      width: 100,
+      height: 40,
+      right: 110,
+      bottom: 60,
+      x: 10,
+      y: 20,
+      toJSON: () => ({}),
+    }) as DOMRect
+
+    const { result } = renderHook(() => useMove({ onMoveComplete: vi.fn() }))
+
+    act(() => {
+      result.current.startDrag(pointerEvent(30, 40), dragged)
+    })
+
+    expect(result.current.dragState.isDragging).toBe(true)
+
+    act(() => {
+      window.dispatchEvent(new Event('blur'))
+    })
+
+    expect(result.current.dragState.isDragging).toBe(false)
+    expect(document.body.style.cursor).toBe('')
+    expect(document.documentElement.style.userSelect).toBe('')
+    expect(document.body.style.userSelect).toBe('')
   })
 
   it('moves element to drop target and reports move info on pointer up', () => {

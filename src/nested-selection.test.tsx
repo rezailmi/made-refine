@@ -24,7 +24,7 @@ function el(tag = 'div', style = ''): HTMLElement {
   return e
 }
 
-function dispatchPointer(type: 'pointermove' | 'pointerup', x = 0, y = 0) {
+function dispatchPointer(type: 'pointermove' | 'pointerup' | 'pointercancel', x = 0, y = 0) {
   const event = new Event(type) as PointerEvent
   Object.defineProperty(event, 'clientX', { value: x })
   Object.defineProperty(event, 'clientY', { value: y })
@@ -34,6 +34,9 @@ function dispatchPointer(type: 'pointermove' | 'pointerup', x = 0, y = 0) {
 describe('computeHoverHighlight', () => {
   afterEach(() => {
     document.body.innerHTML = ''
+    document.documentElement.style.userSelect = ''
+    document.body.style.userSelect = ''
+    document.body.style.cursor = ''
   })
 
   it('returns null for null element', () => {
@@ -465,6 +468,44 @@ describe('SelectionOverlay', () => {
     expect(onMoveStart).toHaveBeenCalled()
     expect(onMoveStart.mock.calls[0]?.[2]).toEqual({ mode: 'position' })
     expect(onClickThrough).not.toHaveBeenCalled()
+  })
+
+  it('suppresses selectstart while a selection drag gesture is pending and restores it on pointerup', () => {
+    const { container } = render(
+      <SelectionOverlay
+        selectedElement={selectedElement}
+        isDragging={false}
+        onMoveStart={vi.fn()}
+      />
+    )
+
+    const handle = container.querySelector('[data-direct-edit="selection-handle"]') as HTMLElement
+
+    act(() => {
+      handle.dispatchEvent(new PointerEvent('pointerdown', {
+        clientX: 100,
+        clientY: 50,
+        bubbles: true,
+      }))
+    })
+
+    const pendingSelectStart = new Event('selectstart', { bubbles: true, cancelable: true })
+    document.dispatchEvent(pendingSelectStart)
+
+    expect(pendingSelectStart.defaultPrevented).toBe(true)
+    expect(document.documentElement.style.userSelect).toBe('none')
+    expect(document.body.style.userSelect).toBe('none')
+
+    act(() => {
+      dispatchPointer('pointerup', 100, 50)
+    })
+
+    const releasedSelectStart = new Event('selectstart', { bubbles: true, cancelable: true })
+    document.dispatchEvent(releasedSelectStart)
+
+    expect(releasedSelectStart.defaultPrevented).toBe(false)
+    expect(document.documentElement.style.userSelect).toBe('')
+    expect(document.body.style.userSelect).toBe('')
   })
 
   it('hides handle div when isDragging is true', () => {

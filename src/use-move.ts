@@ -1,5 +1,6 @@
 import * as React from 'react'
 import type { DragState, DropIndicator } from './types'
+import { createDragInteractionGuard } from './drag-interaction-guard'
 import {
   findContainerAtPoint,
   findLayoutContainerAtPoint,
@@ -149,6 +150,7 @@ export function useMove({ onMoveComplete }: UseMoveOptions): UseMoveResult {
   const dropTargetRef = React.useRef(dropTarget)
   const onMoveCompleteRef = React.useRef(onMoveComplete)
   const dragOptionsRef = React.useRef<ActiveDragOptions>(DEFAULT_DRAG_OPTIONS)
+  const dragGuardRef = React.useRef(createDragInteractionGuard())
   const initialRectRef = React.useRef<{ x: number; y: number; scaleX: number; scaleY: number }>(
     { x: 0, y: 0, scaleX: 1, scaleY: 1 }
   )
@@ -265,6 +267,7 @@ export function useMove({ onMoveComplete }: UseMoveOptions): UseMoveResult {
     originalTransformRef.current = ''
     initialRectRef.current = { x: 0, y: 0, scaleX: 1, scaleY: 1 }
     dragOptionsRef.current = DEFAULT_DRAG_OPTIONS
+    dragGuardRef.current.deactivate()
     setDragState(INITIAL_DRAG_STATE)
     setDropTarget(null)
     setDropIndicator(null)
@@ -289,6 +292,7 @@ export function useMove({ onMoveComplete }: UseMoveOptions): UseMoveResult {
     initialRectRef.current = { x: 0, y: 0, scaleX: 1, scaleY: 1 }
     const dragMode = dragOptionsRef.current.mode
     dragOptionsRef.current = DEFAULT_DRAG_OPTIONS
+    dragGuardRef.current.deactivate()
 
     const vd = {
       x: Math.round(current.ghostPosition.x - initialPos.x),
@@ -352,6 +356,7 @@ export function useMove({ onMoveComplete }: UseMoveOptions): UseMoveResult {
         scaleY: element.offsetHeight > 0 ? rect.height / element.offsetHeight : 1,
       }
       originalTransformRef.current = element.style.transform
+      dragGuardRef.current.activate({ cursor: 'grabbing' })
 
       setDragState({
         isDragging: true,
@@ -475,28 +480,40 @@ export function useMove({ onMoveComplete }: UseMoveOptions): UseMoveResult {
       completeDrag()
     }
 
+    function handlePointerCancel() {
+      cancelDrag()
+    }
+
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === 'Escape') {
         cancelDrag()
       }
     }
 
-    function blockSelectStart(e: Event) {
-      e.preventDefault()
+    function handleBlur() {
+      cancelDrag()
     }
 
     window.addEventListener('pointermove', handlePointerMove)
     window.addEventListener('pointerup', handlePointerUp)
+    window.addEventListener('pointercancel', handlePointerCancel)
     window.addEventListener('keydown', handleKeyDown)
-    document.addEventListener('selectstart', blockSelectStart)
+    window.addEventListener('blur', handleBlur)
 
     return () => {
       window.removeEventListener('pointermove', handlePointerMove)
       window.removeEventListener('pointerup', handlePointerUp)
+      window.removeEventListener('pointercancel', handlePointerCancel)
       window.removeEventListener('keydown', handleKeyDown)
-      document.removeEventListener('selectstart', blockSelectStart)
+      window.removeEventListener('blur', handleBlur)
     }
   }, [dragState.isDragging, completeDrag, cancelDrag, applyReorderPreview, clearReorderPreview])
+
+  React.useEffect(() => {
+    return () => {
+      dragGuardRef.current.deactivate()
+    }
+  }, [])
 
   return {
     dragState,
