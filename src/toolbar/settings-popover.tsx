@@ -214,6 +214,11 @@ export function SettingsPopover({
                         {([
                           { label: 'Toggle design mode', keys: isMac ? [<Command key="cmd" className="size-2.5" />, '.'] : ['Ctrl', '.'] },
                           { label: 'Undo', keys: isMac ? [<Command key="cmd" className="size-2.5" />, 'Z'] : ['Ctrl', 'Z'] },
+                          { label: 'Group selection', keys: isMac ? [<Command key="cmd" className="size-2.5" />, 'G'] : ['Ctrl', 'G'] },
+                          { label: 'Add frame', keys: ['F'] },
+                          { label: 'Add div', keys: ['D'] },
+                          { label: 'Add to selection', keys: [<ArrowBigUp key="shift" className="size-3" />, 'Click'] },
+                          { label: 'Marquee select', keys: ['Drag'] },
                           { label: 'Toggle rulers', keys: [<ArrowBigUp key="shift" className="size-3" />, 'R'] },
                           { label: 'Toggle canvas mode', keys: [<ArrowBigUp key="shift" className="size-3" />, 'Z'] },
                           { label: 'Hover to measure', keys: isMac ? ['Hold', <Option key="opt" className="size-2.5" />] : ['Hold', 'Alt'] },

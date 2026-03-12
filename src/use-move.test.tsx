@@ -130,7 +130,7 @@ describe('useMove', () => {
     expect(activeSelectStart.defaultPrevented).toBe(true)
     expect(document.documentElement.style.userSelect).toBe('none')
     expect(document.body.style.userSelect).toBe('none')
-    expect(document.body.style.cursor).toBe('grabbing')
+    expect(document.body.style.cursor).toBe('crosshair')
 
     act(() => {
       dispatchPointer('pointerup', 30, 40)
@@ -170,7 +170,7 @@ describe('useMove', () => {
     })
 
     expect(result.current.dragState.isDragging).toBe(true)
-    expect(document.body.style.cursor).toBe('grabbing')
+    expect(document.body.style.cursor).toBe('')
 
     act(() => {
       dispatchPointer('pointercancel', 30, 40)

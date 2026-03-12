@@ -22,6 +22,7 @@ import { InteractionOverlay } from './panel/interaction-overlay'
 import { SelectedCommentComposer } from './panel/selected-comment-composer'
 import { MoveOverlay } from './move-overlay'
 import { SelectionOverlay } from './selection-overlay'
+import { MultiSelectionOverlay } from './multi-selection-overlay'
 import { CommentOverlay } from './comment-overlay'
 // Panel module imports
 import { NumberInput, Tip, CollapsibleSection, SectionNav, useSectionNav } from './panel/shared'
@@ -353,11 +354,12 @@ function DirectEditPanelContent() {
     computedSpacing, computedBorderRadius, computedBorder, computedFlex,
     computedSizing, computedColor, computedBoxShadow, computedTypography,
     borderStyleControlPreference, pendingStyles,
-    editModeActive, selectedElement, canvas,
+    editModeActive, selectedElement, selectedElements, selectionAnchorElement, canvas,
     comments, activeCommentId, textEditingElement, agentAvailable,
   } = useDirectEditState()
   const {
-    closePanel, selectParent, selectChild, selectElement,
+    selectParent, selectChild, selectElement, selectElements: setSelectedElements,
+    toggleElementSelection, clearSelection,
     updateSpacingProperty, updateBorderRadiusProperty,
     updateBorderProperty, updateBorderProperties, updateRawCSS,
     updateFlexProperty, toggleFlexLayout,
@@ -386,12 +388,13 @@ function DirectEditPanelContent() {
   } | null>(null)
   const [commentInputAttention, setCommentInputAttention] = React.useState<{ commentId: string; nonce: number } | null>(null)
   const commentDraftRef = React.useRef('')
+  const commentTargetElement = selectedElement ?? selectionAnchorElement
   const previousCommentTriggerRef = React.useRef<{
     editModeActive: boolean
-    selectedElement: HTMLElement | null
+    commentTargetElement: HTMLElement | null
   }>({
     editModeActive,
-    selectedElement,
+    commentTargetElement,
   })
 
   React.useEffect(() => {
@@ -399,11 +402,11 @@ function DirectEditPanelContent() {
   }, [activeCommentId])
 
   const activeDraftComment = React.useMemo(() => {
-    if (!selectedElement || !activeCommentId) return null
+    if (!commentTargetElement || !activeCommentId) return null
     const active = comments.find((comment) => comment.id === activeCommentId)
-    if (!active || active.text.trim().length > 0 || active.element !== selectedElement) return null
+    if (!active || active.text.trim().length > 0 || active.element !== commentTargetElement) return null
     return active
-  }, [activeCommentId, comments, selectedElement])
+  }, [activeCommentId, commentTargetElement, comments])
 
   const { isActive: measurementActive, hoveredElement, measurements, mousePosition } = useMeasurement(
     isOpen ? selectedElement : null
@@ -451,15 +454,15 @@ function DirectEditPanelContent() {
 
   React.useEffect(() => {
     const previous = previousCommentTriggerRef.current
-    previousCommentTriggerRef.current = { editModeActive, selectedElement }
+    previousCommentTriggerRef.current = { editModeActive, commentTargetElement }
 
     if (!editModeActive || textEditingElement) return
 
-    const changedSelection = previous.selectedElement !== selectedElement
+    const changedSelection = previous.commentTargetElement !== commentTargetElement
 
     if (!changedSelection) return
 
-    if (!selectedElement) {
+    if (!commentTargetElement) {
       if (!activeCommentId) return
       const active = comments.find((comment) => comment.id === activeCommentId)
       if (active && active.text.trim().length === 0) {
@@ -472,7 +475,7 @@ function DirectEditPanelContent() {
     if (activeCommentId) return
 
     const existingDraft = comments.find((comment) => (
-      comment.element === selectedElement && comment.text.trim().length === 0
+      comment.element === commentTargetElement && comment.text.trim().length === 0
     ))
 
     if (existingDraft) {
@@ -480,13 +483,13 @@ function DirectEditPanelContent() {
       return
     }
 
-    addComment(selectedElement, getElementCommentAnchor(selectedElement))
+    addComment(commentTargetElement, getElementCommentAnchor(commentTargetElement))
   }, [
     activeCommentId,
     addComment,
+    commentTargetElement,
     comments,
     editModeActive,
-    selectedElement,
     setActiveCommentId,
     textEditingElement,
   ])
@@ -494,10 +497,14 @@ function DirectEditPanelContent() {
   const overlay = editModeActive && container ? createPortal(
     <InteractionOverlay
       selectedElement={selectedElement}
+      selectedElements={selectedElements}
       textEditingElement={textEditingElement}
       activeCommentId={activeCommentId}
       hoverHighlight={hoverHighlight}
       onSelectElement={selectElement}
+      onSelectElements={setSelectedElements}
+      onToggleElementSelection={toggleElementSelection}
+      onClearSelection={clearSelection}
       onStartTextEditing={startTextEditing}
       onAddComment={addComment}
       onSetActiveCommentId={handleSetActiveComment}
@@ -619,8 +626,6 @@ function DirectEditPanelContent() {
     }
   }, [selectedElement, selectElement])
 
-  if (!isOpen || !computedSpacing || !elementInfo || !computedBorderRadius || !computedBorder || !computedFlex || !computedSizing || !computedColor || computedBoxShadow === null || !computedTypography || !container) return <>{overlay}{commentOverlay}{selectedCommentComposer}</>
-
   const handleMoveStart = (
     e: React.PointerEvent,
     targetElement?: HTMLElement,
@@ -654,13 +659,8 @@ function DirectEditPanelContent() {
     )
   )
 
-  return createPortal(
-    <>
-      {overlay}
-      {commentOverlay}
-      {selectedCommentComposer}
-
-      {selectedElement && (
+  const selectionChromeContent = selectedElement
+    ? (
         <SelectionOverlay
           selectedElement={selectedElement}
           pageFrameElement={pageFrameElement}
@@ -712,13 +712,21 @@ function DirectEditPanelContent() {
           enableResizeHandles={true}
           onResizeSizingChange={updateSizingProperties}
         />
-      )}
+      )
+    : selectedElements.length > 1
+      ? <MultiSelectionOverlay selectedElements={selectedElements} />
+      : null
 
-      {dragState.isDragging && (
-        <MoveOverlay dropIndicator={dropIndicator} />
-      )}
+  const selectionChrome = selectionChromeContent && container
+    ? createPortal(selectionChromeContent, container)
+    : null
 
-      {measurementActive && selectedElement && (
+  const moveChrome = dragState.isDragging && container
+    ? createPortal(<MoveOverlay dropIndicator={dropIndicator} />, container)
+    : null
+
+  const measurementChrome = measurementActive && selectedElement && container
+    ? createPortal(
         <MeasurementOverlay
           selectedElement={selectedElement}
           hoveredElement={hoveredElement}
@@ -726,8 +734,23 @@ function DirectEditPanelContent() {
             ...measurements,
             ...calculateGuidelineMeasurements(selectedElement, getStoredGuidelines(), mousePosition),
           ]}
-        />
-      )}
+        />,
+        container,
+      )
+    : null
+
+  if (!isOpen || !computedSpacing || !elementInfo || !computedBorderRadius || !computedBorder || !computedFlex || !computedSizing || !computedColor || computedBoxShadow === null || !computedTypography || !container) {
+    return <>{overlay}{commentOverlay}{selectedCommentComposer}{selectionChrome}{moveChrome}{measurementChrome}</>
+  }
+
+  return createPortal(
+    <>
+      {overlay}
+      {commentOverlay}
+      {selectedCommentComposer}
+      {selectionChrome}
+      {moveChrome}
+      {measurementChrome}
 
       <DirectEditPanelInner
         elementInfo={elementInfo}

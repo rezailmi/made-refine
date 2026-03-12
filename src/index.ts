@@ -65,9 +65,12 @@ export type {
   Guideline,
   ActiveTool,
   Theme,
+  CanvasElementKind,
   Comment,
   CommentReply,
   SessionEdit,
+  SelectElementOptions,
+  SelectElementsOptions,
 } from './types'
 
 export {

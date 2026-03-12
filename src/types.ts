@@ -118,6 +118,16 @@ export type ActiveTool = 'select' | 'comment'
 
 export type Theme = 'light' | 'dark' | 'system'
 export type BorderStyleControlPreference = 'label' | 'icon'
+export type CanvasElementKind = 'div' | 'frame'
+
+export interface SelectElementOptions {
+  additive?: boolean
+}
+
+export interface SelectElementsOptions {
+  additive?: boolean
+  primaryElement?: HTMLElement | null
+}
 
 export interface CommentReply {
   text: string
@@ -138,6 +148,8 @@ export interface Comment {
 export interface DirectEditState {
   isOpen: boolean
   selectedElement: HTMLElement | null
+  selectedElements: HTMLElement[]
+  selectionAnchorElement: HTMLElement | null
   elementInfo: ElementInfo | null
   computedSpacing: SpacingProperties | null
   computedBorderRadius: BorderRadiusProperties | null
@@ -233,7 +245,10 @@ export interface UndoEditEntry {
 
 export interface UndoSelectionEntry {
   type: 'selection'
+  previousIsOpen: boolean
   previousElement: HTMLElement | null
+  previousElements: HTMLElement[]
+  previousAnchorElement: HTMLElement | null
   previousOriginalStyles: Record<string, string>
   previousPendingStyles: Record<string, string>
 }
@@ -254,7 +269,25 @@ export interface UndoTextEditEntry {
   previousText: string
 }
 
-export type UndoEntry = UndoEditEntry | UndoSelectionEntry | UndoMoveEntry | UndoTextEditEntry
+export interface UndoStructureEntry {
+  type: 'structure'
+  restoreSelection: {
+    isOpen: boolean
+    selectedElement: HTMLElement | null
+    selectedElements: HTMLElement[]
+    selectionAnchorElement: HTMLElement | null
+    originalStyles: Record<string, string>
+    pendingStyles: Record<string, string>
+  }
+  undo: () => void
+}
+
+export type UndoEntry =
+  | UndoEditEntry
+  | UndoSelectionEntry
+  | UndoMoveEntry
+  | UndoTextEditEntry
+  | UndoStructureEntry
 
 export interface Guideline {
   id: string

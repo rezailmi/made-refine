@@ -7,6 +7,7 @@ import { SelectionOverlay } from './selection-overlay'
 import { DirectEditToolbar } from './toolbar'
 import { Rulers } from './rulers-overlay'
 import { parsePropertyValue } from './utils'
+import { PANEL_WIDTH } from './use-panel-position'
 
 const { checkAgentConnectionMock, sendEditToAgentMock, sendCommentToAgentMock } = vi.hoisted(() => ({
   checkAgentConnectionMock: vi.fn<() => Promise<boolean>>().mockResolvedValue(true),
@@ -144,8 +145,20 @@ function resetStorage() {
   }
 }
 
-function clickOverlay(overlay: HTMLElement, clientX: number, clientY: number) {
-  overlay.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, composed: true, clientX, clientY }))
+function clickOverlay(
+  overlay: HTMLElement,
+  clientX: number,
+  clientY: number,
+  init: MouseEventInit = {},
+) {
+  overlay.dispatchEvent(new MouseEvent('click', {
+    bubbles: true,
+    cancelable: true,
+    composed: true,
+    clientX,
+    clientY,
+    ...init,
+  }))
 }
 
 function mockElementFromPoint(returnElement: HTMLElement) {
@@ -699,6 +712,32 @@ describe('DirectEditProvider', () => {
     expect(panel.style.top).toBe('8px')
   })
 
+  it('defaults the panel to the top-right corner when no saved position exists', async () => {
+    stubMatchMedia()
+    localStorage.removeItem('direct-edit-panel-position')
+    const target = createTarget('panel-default-target', 'padding-top: 8px;')
+    const { result } = renderHook(() => useDirectEdit(), { wrapper: panelWrapper })
+
+    act(() => {
+      result.current.selectElement(target)
+    })
+
+    const host = await waitFor(() => {
+      const node = document.querySelector('[data-direct-edit-host]') as HTMLElement | null
+      expect(node).not.toBeNull()
+      return node as HTMLElement
+    })
+
+    const panel = await waitFor(() => {
+      const node = host.shadowRoot?.querySelector('[data-direct-edit="panel"]') as HTMLElement | null
+      expect(node).not.toBeNull()
+      return node as HTMLElement
+    })
+
+    expect(panel.style.left).toBe(`${window.innerWidth - PANEL_WIDTH - 8}px`)
+    expect(panel.style.top).toBe('8px')
+  })
+
   it('re-clamps panel position when viewport shrinks below panel size', async () => {
     stubMatchMedia()
     localStorage.setItem('direct-edit-panel-position', JSON.stringify({ x: 500, y: 300 }))
@@ -823,6 +862,163 @@ describe('DirectEditProvider', () => {
         Object.defineProperty(window.navigator, 'platform', platformDescriptor)
       }
     }
+  })
+
+  it('adds to the current selection on shift-click and renders multi-selection chrome', async () => {
+    const targetA = createTarget('shift-multi-a', 'width: 120px; height: 80px;')
+    const targetB = createTarget('shift-multi-b', 'width: 120px; height: 80px;')
+    mockElementFromPoint(targetB)
+
+    const { result } = renderHook(() => useDirectEdit(), { wrapper: panelWrapper })
+
+    act(() => {
+      result.current.toggleEditMode()
+      result.current.selectElement(targetA)
+    })
+
+    const overlay = await findOverlayElement()
+    act(() => {
+      clickOverlay(overlay, 80, 40, { shiftKey: true })
+    })
+
+    await waitFor(() => {
+      expect(result.current.selectedElement).toBeNull()
+      expect(result.current.selectedElements).toEqual([targetA, targetB])
+    })
+
+    const shadowRoot = await findHostShadowRoot()
+    await waitFor(() => {
+      expect(shadowRoot.querySelectorAll('[data-direct-edit="selection-overlay-box"]')).toHaveLength(2)
+      expect(shadowRoot.querySelector('[data-direct-edit="selection-count-label"]')).toBeNull()
+      expect(shadowRoot.querySelector('[data-direct-edit="selected-comment-composer"]')).not.toBeNull()
+    })
+  })
+
+  it('supports marquee multi-selection by dragging on the canvas overlay', async () => {
+    const targetA = createTarget('marquee-a')
+    const targetB = createTarget('marquee-b')
+    targetA.getBoundingClientRect = () => ({
+      left: 20,
+      top: 20,
+      width: 80,
+      height: 80,
+      right: 100,
+      bottom: 100,
+      x: 20,
+      y: 20,
+      toJSON: () => ({}),
+    }) as DOMRect
+    targetB.getBoundingClientRect = () => ({
+      left: 140,
+      top: 24,
+      width: 80,
+      height: 80,
+      right: 220,
+      bottom: 104,
+      x: 140,
+      y: 24,
+      toJSON: () => ({}),
+    }) as DOMRect
+
+    const { result } = renderHook(() => useDirectEdit(), { wrapper: panelWrapper })
+
+    act(() => {
+      result.current.toggleEditMode()
+    })
+
+    const overlay = await findOverlayElement()
+    act(() => {
+      fireEvent.pointerDown(overlay, { clientX: 0, clientY: 0, button: 0 })
+      fireEvent.pointerMove(window, { clientX: 240, clientY: 140 })
+    })
+
+    const shadowRoot = await findHostShadowRoot()
+    await waitFor(() => {
+      expect(shadowRoot.querySelector('[data-direct-edit="marquee-select"]')).not.toBeNull()
+    })
+
+    act(() => {
+      fireEvent.pointerUp(window, { clientX: 240, clientY: 140, button: 0 })
+    })
+
+    await waitFor(() => {
+      expect(result.current.selectedElement).toBeNull()
+      expect(result.current.selectedElements).toEqual([targetA, targetB])
+    })
+
+    await waitFor(() => {
+      expect(shadowRoot.querySelector('[data-direct-edit="selection-count-label"]')).toBeNull()
+      expect(shadowRoot.querySelector('[data-direct-edit="selected-comment-composer"]')).not.toBeNull()
+    })
+  })
+
+  it('adds canvas divs and frames from keyboard shortcuts', async () => {
+    const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+    act(() => {
+      result.current.toggleEditMode()
+    })
+
+    await waitFor(() => {
+      expect(result.current.editModeActive).toBe(true)
+    })
+
+    const frameCountBefore = document.querySelectorAll('[data-made-refine-canvas-node="frame"]').length
+    const divCountBefore = document.querySelectorAll('[data-made-refine-canvas-node="div"]').length
+
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'f', code: 'KeyF' }))
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'd', code: 'KeyD' }))
+    })
+
+    await waitFor(() => {
+      expect(document.querySelectorAll('[data-made-refine-canvas-node="frame"]').length).toBeGreaterThan(frameCountBefore)
+      expect(document.querySelectorAll('[data-made-refine-canvas-node="div"]').length).toBeGreaterThan(divCountBefore)
+      expect(result.current.selectedElement?.getAttribute('data-made-refine-canvas-node')).toBe('div')
+    })
+  })
+
+  it('groups multiple canvas nodes into a wrapper', async () => {
+    const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+    act(() => {
+      result.current.toggleEditMode()
+    })
+
+    await waitFor(() => {
+      expect(result.current.editModeActive).toBe(true)
+    })
+
+    const divCountBefore = document.querySelectorAll('[data-made-refine-canvas-node="div"]').length
+
+    act(() => {
+      result.current.insertElement('div')
+      result.current.insertElement('div')
+    })
+
+    const nodes = Array.from(
+      document.querySelectorAll('[data-made-refine-canvas-node="div"]')
+    ).slice(divCountBefore) as HTMLElement[]
+    expect(nodes).toHaveLength(2)
+
+    act(() => {
+      result.current.selectElements(nodes)
+    })
+
+    await waitFor(() => {
+      expect(result.current.selectedElements).toEqual(nodes)
+    })
+
+    act(() => {
+      result.current.groupSelection()
+    })
+
+    await waitFor(() => {
+      const group = document.querySelector('[data-made-refine-canvas-node="group"]') as HTMLElement | null
+      expect(group).not.toBeNull()
+      expect(group?.children).toHaveLength(2)
+      expect(result.current.selectedElement).toBe(group)
+    })
   })
 
   it('blocks native dragstart outside editor chrome while design mode is active', async () => {

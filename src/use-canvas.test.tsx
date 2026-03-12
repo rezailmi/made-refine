@@ -35,6 +35,8 @@ function createMockCanvasOptions() {
   const initialState: DirectEditState = {
     isOpen: false,
     selectedElement: null,
+    selectedElements: [],
+    selectionAnchorElement: null,
     elementInfo: null,
     computedSpacing: null,
     computedBorderRadius: null,
