@@ -41,7 +41,7 @@ function createComment(): Comment {
 }
 
 describe('SelectedCommentComposer', () => {
-  it('bottom-aligns the submit button and hides the textarea scrollbar', () => {
+  it('top-aligns the submit button and hides the textarea scrollbar', () => {
     const comment = createComment()
     const { container } = render(
       <SelectedCommentComposer
@@ -56,10 +56,13 @@ describe('SelectedCommentComposer', () => {
     const textarea = container.querySelector('[data-direct-edit="selected-comment-composer"] textarea') as HTMLTextAreaElement | null
     const button = container.querySelector('[data-direct-edit="selected-comment-composer"] button') as HTMLButtonElement | null
 
-    expect(composer?.className).toContain('items-end')
+    expect(composer?.className).toContain('items-start')
+    expect(composer?.style.width).toBe('200px')
+    expect(composer?.style.top).toBe('188px')
     expect(textarea?.className).toContain('overflow-hidden')
+    expect(textarea?.className).toContain('py-1.5')
     expect(textarea?.style.scrollbarWidth).toBe('none')
     expect(textarea?.getAttribute('style')).toContain('scrollbar-width: none;')
-    expect(button?.className).toContain('self-end')
+    expect(button?.className).toContain('self-start')
   })
 })

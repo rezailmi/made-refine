@@ -616,6 +616,63 @@ describe('DirectEditProvider', () => {
     })
   })
 
+  it('changes theme from the preferences theme submenu on click', async () => {
+    class ResizeObserverMock {
+      observe() {}
+      disconnect() {}
+      unobserve() {}
+    }
+    vi.stubGlobal('ResizeObserver', ResizeObserverMock)
+    stubMatchMedia()
+
+    const { result } = renderHook(() => useDirectEdit(), { wrapper: toolbarWrapper })
+
+    act(() => {
+      result.current.toggleEditMode()
+    })
+
+    const host = await waitFor(() => {
+      const node = document.querySelector('[data-direct-edit-host]') as HTMLElement | null
+      expect(node).not.toBeNull()
+      return node as HTMLElement
+    })
+
+    const root = await findHostShadowRoot()
+    const settingsTrigger = await findToolbarButtonByIcon(root, 'lucide-settings-2')
+
+    act(() => {
+      fireEvent.click(settingsTrigger)
+    })
+
+    const themeTrigger = await waitFor(() => {
+      const items = Array.from(root.querySelectorAll('[role="menuitem"]')) as HTMLElement[]
+      const item = items.find((el) => el.textContent?.trim() === 'Theme')
+      expect(item).not.toBeUndefined()
+      return item as HTMLElement
+    })
+
+    act(() => {
+      fireEvent.click(themeTrigger)
+    })
+
+    const darkThemeItem = await waitFor(() => {
+      const items = Array.from(root.querySelectorAll('[role="menuitem"]')) as HTMLElement[]
+      const item = items.find((el) => el.textContent?.trim() === 'Dark')
+      expect(item).not.toBeUndefined()
+      return item as HTMLElement
+    })
+
+    act(() => {
+      fireEvent.click(darkThemeItem)
+    })
+
+    await waitFor(() => {
+      expect(host.getAttribute('data-theme')).toBe('dark')
+      expect(localStorage.getItem('direct-edit-theme')).toBe('dark')
+      expect(root.textContent).not.toContain('Light')
+    })
+  })
+
   it('clamps persisted panel position to the viewport', async () => {
     stubMatchMedia()
     localStorage.setItem('direct-edit-panel-position', JSON.stringify({ x: -320, y: -180 }))
@@ -1540,7 +1597,7 @@ describe('DirectEditProvider', () => {
     expect(selectionOverlay).not.toBeNull()
     expect(dimensionLabel).not.toBeNull()
     expect(composer).not.toBeNull()
-    expect(composer?.style.width).toBe('280px')
+    expect(composer?.style.width).toBe('200px')
     expect(shadowRoot.querySelector('[data-direct-edit="comment-pin"]')).toBeNull()
     expect(Number.parseFloat(dimensionLabel?.style.top ?? '0')).toBeGreaterThan(Number.parseFloat(selectionOverlay?.style.top ?? '0'))
     expect(Number.parseFloat(composer?.style.top ?? '0')).toBeGreaterThan(Number.parseFloat(dimensionLabel?.style.top ?? '0'))
@@ -1817,7 +1874,7 @@ describe('DirectEditProvider', () => {
     document.title = previousTitle
   })
 
-  it('scales the page label spacing and text with canvas zoom', async () => {
+  it('keeps the page label spacing fixed and text unchanged across canvas zoom', async () => {
     const originalBodyRect = document.body.getBoundingClientRect.bind(document.body)
     documentPropertyRestores.push(() => {
       document.body.getBoundingClientRect = originalBodyRect
@@ -1847,7 +1904,7 @@ describe('DirectEditProvider', () => {
       toJSON: () => ({}),
     }) as DOMRect
 
-    const { container } = render(
+    const { container, rerender } = render(
       <SelectionOverlay
         selectedElement={inner}
         pageFrameElement={document.body}
@@ -1866,7 +1923,28 @@ describe('DirectEditProvider', () => {
 
     expect(pageLabel.style.fontSize).toBe('11px')
     expect(pageLabel.style.lineHeight).toBe('16px')
-    expect(pageLabel.style.top).toBe('40px')
+    expect(pageLabel.style.top).toBe('36px')
+
+    rerender(
+      <SelectionOverlay
+        selectedElement={inner}
+        pageFrameElement={document.body}
+        pageFrameLabel="Page name"
+        canvasZoom={2}
+        isDragging={false}
+        onMoveStart={() => {}}
+      />,
+    )
+
+    const zoomedInPageLabel = await waitFor(() => {
+      const label = container.querySelector('[data-direct-edit="page-frame-label"]') as HTMLButtonElement | null
+      expect(label).not.toBeNull()
+      return label as HTMLButtonElement
+    })
+
+    expect(zoomedInPageLabel.style.fontSize).toBe('11px')
+    expect(zoomedInPageLabel.style.lineHeight).toBe('16px')
+    expect(zoomedInPageLabel.style.top).toBe('36px')
   })
 
   it('stops parent and child selection at the body boundary', async () => {
