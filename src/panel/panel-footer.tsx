@@ -9,8 +9,9 @@ const panelBarBaseClass = 'flex h-11 shrink-0 items-center border-border/50 bg-b
 export interface PanelFooterProps {
   isDraggable: boolean
   canTriggerSend: boolean
-  onExportEdits: () => Promise<boolean>
-  onSendToAgent: () => Promise<boolean>
+  onExportEdits?: () => Promise<boolean>
+  onSendToAgent?: () => Promise<boolean>
+  showSendButton?: boolean
   onPointerDown?: (e: React.PointerEvent) => void
   onPointerMove?: (e: React.PointerEvent) => void
   onPointerUp?: (e: React.PointerEvent) => void
@@ -22,6 +23,7 @@ export function PanelFooter({
   canTriggerSend,
   onExportEdits,
   onSendToAgent,
+  showSendButton = true,
   onPointerDown,
   onPointerMove,
   onPointerUp,
@@ -32,6 +34,7 @@ export function PanelFooter({
   const [sendStatus, setSendStatus] = React.useState<'idle' | 'sending' | 'sent' | 'offline'>('idle')
 
   const handleCopy = async () => {
+    if (!onExportEdits) return
     const success = await onExportEdits()
     if (success) {
       setCopyError(false)
@@ -45,7 +48,7 @@ export function PanelFooter({
   }
 
   const handleSendToAgent = async () => {
-    if (sendStatus === 'sending') return
+    if (!onSendToAgent || sendStatus === 'sending') return
     setSendStatus('sending')
     const success = await onSendToAgent()
     if (success) {
@@ -62,7 +65,7 @@ export function PanelFooter({
       className={cn(
         panelBarBaseClass,
         'gap-1 border-t',
-        isDraggable && 'cursor-grab active:cursor-grabbing'
+        isDraggable && 'cursor-grab active:cursor-grabbing',
       )}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
@@ -70,45 +73,49 @@ export function PanelFooter({
       onPointerCancel={onPointerCancel}
     >
       <div className="flex-1" />
-      <Tip label="Copy edits">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={handleCopy}
-          aria-label={copyError ? 'Copy failed' : copied ? 'Copied' : 'Copy edits'}
-          className="size-7"
-        >
-          {copyError ? (
-            <X className="text-red-500" />
-          ) : copied ? (
-            <Check className="text-green-500" />
-          ) : (
-            <Copy />
-          )}
-        </Button>
-      </Tip>
-      <span className={!canTriggerSend || sendStatus === 'sending' ? 'cursor-not-allowed' : undefined}>
-        <Tip label="Apply changes via agent">
+      {onExportEdits && (
+        <Tip label="Copy edits">
           <Button
-            variant="outline"
+            variant="ghost"
             size="icon"
-            onClick={handleSendToAgent}
-            disabled={!canTriggerSend || sendStatus === 'sending'}
-            aria-label={sendStatus === 'offline' ? 'Send failed' : sendStatus === 'sent' ? 'Changes sent' : 'Apply changes via agent'}
+            onClick={handleCopy}
+            aria-label={copyError ? 'Copy failed' : copied ? 'Copied' : 'Copy edits'}
             className="size-7"
           >
-            {sendStatus === 'offline' ? (
+            {copyError ? (
               <X className="text-red-500" />
-            ) : sendStatus === 'sent' ? (
+            ) : copied ? (
               <Check className="text-green-500" />
-            ) : sendStatus === 'sending' ? (
-              <Send className="animate-pulse" />
             ) : (
-              <Send />
+              <Copy />
             )}
           </Button>
         </Tip>
-      </span>
+      )}
+      {showSendButton && onSendToAgent && (
+        <span className={!canTriggerSend || sendStatus === 'sending' ? 'cursor-not-allowed' : undefined}>
+          <Tip label="Apply changes via agent">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={handleSendToAgent}
+              disabled={!canTriggerSend || sendStatus === 'sending'}
+              aria-label={sendStatus === 'offline' ? 'Send failed' : sendStatus === 'sent' ? 'Changes sent' : 'Apply changes via agent'}
+              className="size-7"
+            >
+              {sendStatus === 'offline' ? (
+                <X className="text-red-500" />
+              ) : sendStatus === 'sent' ? (
+                <Check className="text-green-500" />
+              ) : sendStatus === 'sending' ? (
+                <Send className="animate-pulse" />
+              ) : (
+                <Send />
+              )}
+            </Button>
+          </Tip>
+        </span>
+      )}
     </div>
   )
 }

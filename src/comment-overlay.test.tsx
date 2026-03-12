@@ -91,6 +91,25 @@ describe('CommentOverlay', () => {
     expect(container.querySelector('svg.lucide-copy')).toBeNull()
   })
 
+  it('hides send button when the agent connection is unavailable', () => {
+    const comment = createComment('c-send-hidden')
+
+    const { container } = render(
+      <CommentOverlay
+        comments={[comment]}
+        activeCommentId={comment.id}
+        onSetActiveComment={() => {}}
+        onUpdateText={() => {}}
+        onAddReply={() => {}}
+        onDelete={() => {}}
+        onExport={vi.fn().mockResolvedValue(true)}
+      />,
+    )
+
+    expect(container.querySelector('svg.lucide-send')).toBeNull()
+    expect(container.querySelector('svg.lucide-copy')).not.toBeNull()
+  })
+
   it('extends copied state when copy is clicked repeatedly', async () => {
     vi.useFakeTimers()
     const comment = createComment('c3')
@@ -136,5 +155,121 @@ describe('CommentOverlay', () => {
       vi.advanceTimersByTime(1000)
     })
     expect(copyButton.getAttribute('aria-label')).toBe('Copy comment export')
+  })
+
+  it('positions the comment pin at the top-right of the target element', async () => {
+    const comment = createComment('c4')
+    comment.element.getBoundingClientRect = () => ({
+      left: 40,
+      top: 60,
+      width: 120,
+      height: 80,
+      right: 160,
+      bottom: 140,
+      x: 40,
+      y: 60,
+      toJSON: () => ({}),
+    }) as DOMRect
+
+    const { container } = render(
+      <CommentOverlay
+        comments={[comment]}
+        activeCommentId={null}
+        onSetActiveComment={() => {}}
+        onUpdateText={() => {}}
+        onAddReply={() => {}}
+        onDelete={() => {}}
+        onSendToAgent={vi.fn().mockResolvedValue(true)}
+      />,
+    )
+
+    await waitFor(() => {
+      const pin = container.querySelector('[data-direct-edit="comment-pin"]') as HTMLButtonElement | null
+      expect(pin).not.toBeNull()
+      expect(pin?.style.left).toBe('154px')
+      expect(pin?.style.top).toBe('54px')
+    })
+  })
+
+  it('uses a multiline reply composer inside the thread card', () => {
+    const comment = createComment('c5')
+
+    const { container } = render(
+      <CommentOverlay
+        comments={[comment]}
+        activeCommentId={comment.id}
+        onSetActiveComment={() => {}}
+        onUpdateText={() => {}}
+        onAddReply={() => {}}
+        onDelete={() => {}}
+        onSendToAgent={vi.fn().mockResolvedValue(true)}
+      />,
+    )
+
+    const card = container.querySelector('[data-direct-edit="comment-card"]') as HTMLElement | null
+    const replyField = container.querySelector('[data-direct-edit="comment-card"] textarea') as HTMLTextAreaElement | null
+
+    expect(card?.style.width).toBe('280px')
+    expect(replyField).not.toBeNull()
+    expect(replyField?.placeholder).toBe('Reply...')
+    expect(replyField?.rows).toBe(1)
+  })
+
+  it('renders the legacy draft input path for empty comments when onUpdateText is provided', async () => {
+    const comment = createComment('c-draft')
+    comment.text = ''
+    const onUpdateText = vi.fn()
+
+    const { container } = render(
+      <CommentOverlay
+        comments={[comment]}
+        activeCommentId={comment.id}
+        onSetActiveComment={() => {}}
+        onUpdateText={onUpdateText}
+        onAddReply={() => {}}
+        onDelete={() => {}}
+      />,
+    )
+
+    const input = container.querySelector('[data-direct-edit="comment-card"] input') as HTMLInputElement | null
+    expect(input).not.toBeNull()
+    expect(input?.placeholder).toBe('Add a comment...')
+
+    fireEvent.change(input as HTMLInputElement, { target: { value: 'Needs spacing update' } })
+    fireEvent.keyDown(input as HTMLInputElement, { key: 'Enter' })
+
+    await waitFor(() => {
+      expect(onUpdateText).toHaveBeenCalledWith(comment.id, 'Needs spacing update')
+    })
+  })
+
+  it('wraps long comment and reply text without horizontal scrolling', () => {
+    const comment = createComment('c-wrap')
+    comment.text = 'dadjasdhjkadhajddjasdkdjadajdjadajkdaj'
+    comment.replies = [
+      { text: 'daskdasldjakdjasjdhjjdhjsahdajkshdajkdhajdhasjc', createdAt: Date.now() },
+    ]
+
+    const { container } = render(
+      <CommentOverlay
+        comments={[comment]}
+        activeCommentId={comment.id}
+        onSetActiveComment={() => {}}
+        onUpdateText={() => {}}
+        onAddReply={() => {}}
+        onDelete={() => {}}
+      />,
+    )
+
+    const threadBody = container.querySelector('[data-direct-edit="comment-card"] .max-h-48') as HTMLElement | null
+    const textBlocks = Array.from(container.querySelectorAll('[data-direct-edit="comment-card"] p')) as HTMLParagraphElement[]
+
+    expect(threadBody?.className).toContain('overflow-x-hidden')
+    expect(textBlocks.length).toBeGreaterThanOrEqual(2)
+    for (const block of textBlocks) {
+      expect(block.className).toContain('whitespace-pre-wrap')
+      expect(block.className).toContain('break-words')
+      expect(block.className).toContain('[overflow-wrap:anywhere]')
+    }
   })
 })

@@ -18,6 +18,18 @@ function clampUnit(value: number): number {
   return Math.max(0, Math.min(1, value))
 }
 
+function findLatestSubmittedCommentOnElement(comments: Comment[], element: HTMLElement, excludeId: string): Comment | null {
+  for (let index = comments.length - 1; index >= 0; index -= 1) {
+    const comment = comments[index]
+    if (comment.id === excludeId) continue
+    if (comment.element !== element) continue
+    if (comment.text.trim().length === 0) continue
+    return comment
+  }
+
+  return null
+}
+
 export interface TextAndCommentsOptions {
   stateRef: React.MutableRefObject<DirectEditState>
   sessionEditsRef: React.MutableRefObject<Map<HTMLElement, SessionEdit>>
@@ -96,6 +108,9 @@ export function useTextAndComments({
 
     setState((prev) => ({
       ...prev,
+      comments: prev.editModeActive
+        ? prev.comments.filter((comment) => comment.text.trim().length > 0)
+        : prev.comments,
       editModeActive: !prev.editModeActive,
       activeTool: prev.editModeActive ? 'select' : prev.activeTool,
       activeCommentId: prev.editModeActive ? null : prev.activeCommentId,
@@ -139,6 +154,54 @@ export function useTextAndComments({
       comments: prev.comments.map((c) => (c.id === id ? { ...c, text } : c)),
     }))
   }, [])
+
+  const submitCommentDraft = React.useCallback((id: string, text: string) => {
+    const nextText = text.trim()
+    if (!nextText) return null
+
+    const draft = stateRef.current.comments.find((comment) => comment.id === id)
+    if (!draft || draft.text.trim().length > 0) return null
+
+    const replyTarget = findLatestSubmittedCommentOnElement(stateRef.current.comments, draft.element, draft.id)
+    const submittedAt = Date.now()
+
+    const exportMarkdown = replyTarget
+      ? buildCommentExport(replyTarget.locator, replyTarget.text, [
+          ...replyTarget.replies,
+          { text: nextText, createdAt: submittedAt },
+        ])
+      : buildCommentExport(draft.locator, nextText, [])
+
+    const instruction = buildExportInstruction({
+      hasCssEdits: false,
+      hasTextEdits: false,
+      hasMoves: false,
+      hasComments: true,
+    })
+
+    setState((prev) => ({
+      ...prev,
+      comments: replyTarget
+        ? prev.comments
+            .filter((comment) => comment.id !== draft.id)
+            .map((comment) => (
+              comment.id === replyTarget.id
+                ? {
+                    ...comment,
+                    replies: [...comment.replies, { text: nextText, createdAt: submittedAt }],
+                  }
+                : comment
+            ))
+        : prev.comments.map((comment) => (
+            comment.id === draft.id
+              ? { ...comment, text: nextText }
+              : comment
+          )),
+      activeCommentId: replyTarget?.id ?? draft.id,
+    }))
+
+    return `${instruction}\n\n${exportMarkdown}`
+  }, [setState, stateRef])
 
   const addCommentReply = React.useCallback((id: string, text: string) => {
     setState((prev) => ({
@@ -226,6 +289,7 @@ export function useTextAndComments({
     toggleEditMode,
     addComment,
     updateCommentText,
+    submitCommentDraft,
     addCommentReply,
     deleteComment,
     exportComment,

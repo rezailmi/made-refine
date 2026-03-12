@@ -1083,7 +1083,7 @@ export function colorToTailwind(
 
 export function getElementInfo(element: HTMLElement): ElementInfo {
   const computed = window.getComputedStyle(element)
-  const parentElement = element.parentElement
+  const parentElement = element === document.body ? null : element.parentElement
 
   const isFlexContainer = computed.display === 'flex' || computed.display === 'inline-flex'
 

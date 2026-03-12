@@ -261,8 +261,6 @@ export function DirectEditDemo() {
             onReplaceSelectionColor={() => {}}
             onUpdateTypography={handleUpdateTypography}
             onReset={handleReset}
-            onExportEdits={handleExportEdits}
-            onSendToAgent={async () => false}
           />
 
           <div className="space-y-6">

@@ -59,6 +59,7 @@ export interface DirectEditActionsContextValue {
   setBorderStyleControlPreference: (preference: BorderStyleControlPreference) => void
   addComment: (element: HTMLElement, clickPosition: { x: number; y: number }) => void
   updateCommentText: (id: string, text: string) => void
+  submitCommentDraft: (id: string, text: string) => string | null
   addCommentReply: (id: string, text: string) => void
   deleteComment: (id: string) => void
   exportComment: (id: string) => Promise<boolean>
@@ -85,6 +86,7 @@ export interface DirectEditActionsContextValue {
 }
 
 export interface DirectEditStateContextValue extends DirectEditState {
+  agentAvailable: boolean
   sessionEditCount: number
 }
 
@@ -251,7 +253,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
 
   const {
     finalizeTextEditing, toggleEditMode: toggleEditModeBase, startTextEditing, commitTextEditing,
-    addComment, updateCommentText, addCommentReply, deleteComment, exportComment, setActiveCommentId,
+    addComment, updateCommentText, submitCommentDraft, addCommentReply, deleteComment, exportComment, setActiveCommentId,
   } = useTextAndComments({
     stateRef, sessionEditsRef, removedSessionEditsRef,
     pushUndo, syncSessionItemCount, setState,
@@ -443,14 +445,14 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
   }, [state.editModeActive])
 
   const {
-    canSendEditToAgent, sendEditToAgent, sendCommentToAgent, sendAllSessionItemsToAgent,
+    agentAvailable, canSendEditToAgent, sendEditToAgent, sendCommentToAgent, sendAllSessionItemsToAgent,
   } = useAgentComms({ stateRef, sessionEditsRef, getSessionItems })
 
   const setActiveTool = React.useCallback((tool: ActiveTool) => {
+    const normalizedTool: ActiveTool = tool === 'comment' ? 'select' : tool
     setState((prev) => ({
       ...prev,
-      activeTool: tool,
-      activeCommentId: null,
+      activeTool: normalizedTool,
     }))
   }, [])
 
@@ -472,8 +474,9 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
 
   const stateContextValue = React.useMemo<DirectEditStateContextValue>(() => ({
     ...state,
+    agentAvailable,
     sessionEditCount,
-  }), [state, sessionEditCount])
+  }), [agentAvailable, state, sessionEditCount])
 
   const actionsContextValue = React.useMemo<DirectEditActionsContextValue>(() => ({
     selectElement, selectParent, selectChild, closePanel,
@@ -483,7 +486,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     resetToOriginal, exportEdits, canSendEditToAgent, sendEditToAgent,
     sendAllSessionItemsToAgent, sendCommentToAgent, toggleEditMode, undo,
     handleMoveComplete, setActiveTool, setTheme, setBorderStyleControlPreference,
-    addComment, updateCommentText, addCommentReply, deleteComment, exportComment,
+    addComment, updateCommentText, submitCommentDraft, addCommentReply, deleteComment, exportComment,
     setActiveCommentId, getSessionEdits, getSessionItems, exportAllEdits,
     clearSessionEdits, removeSessionEdit, startTextEditing, commitTextEditing,
     toggleCanvas: toggleCanvasWithPreference, setCanvasZoom, fitCanvasToViewport, zoomCanvasTo100,
@@ -495,7 +498,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     resetToOriginal, exportEdits, canSendEditToAgent, sendEditToAgent,
     sendAllSessionItemsToAgent, sendCommentToAgent, toggleEditMode, undo,
     handleMoveComplete, setActiveTool, setTheme, setBorderStyleControlPreference,
-    addComment, updateCommentText, addCommentReply, deleteComment, exportComment,
+    addComment, updateCommentText, submitCommentDraft, addCommentReply, deleteComment, exportComment,
     setActiveCommentId, getSessionEdits, getSessionItems, exportAllEdits,
     clearSessionEdits, removeSessionEdit, startTextEditing, commitTextEditing,
     toggleCanvasWithPreference, setCanvasZoom, fitCanvasToViewport, zoomCanvasTo100,

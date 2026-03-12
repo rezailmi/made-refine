@@ -1,17 +1,21 @@
 import * as React from 'react'
-import { act, fireEvent, renderHook, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DirectEditProvider, useDirectEdit, useDirectEditActions, useDirectEditState } from './provider'
 import { DirectEditPanel } from './panel'
+import { SelectionOverlay } from './selection-overlay'
 import { DirectEditToolbar } from './toolbar'
 import { Rulers } from './rulers-overlay'
+import { parsePropertyValue } from './utils'
 
-const { sendEditToAgentMock, sendCommentToAgentMock } = vi.hoisted(() => ({
+const { checkAgentConnectionMock, sendEditToAgentMock, sendCommentToAgentMock } = vi.hoisted(() => ({
+  checkAgentConnectionMock: vi.fn<() => Promise<boolean>>().mockResolvedValue(true),
   sendEditToAgentMock: vi.fn<(...args: unknown[]) => Promise<{ ok: boolean; id: string }>>().mockResolvedValue({ ok: true, id: 'edit-1' }),
   sendCommentToAgentMock: vi.fn<(...args: unknown[]) => Promise<{ ok: boolean; id: string }>>().mockResolvedValue({ ok: true, id: 'comment-1' }),
 }))
 
 vi.mock('./mcp-client', () => ({
+  checkAgentConnection: checkAgentConnectionMock,
   sendEditToAgent: sendEditToAgentMock,
   sendCommentToAgent: sendCommentToAgentMock,
 }))
@@ -176,6 +180,29 @@ async function findOverlayElement(): Promise<HTMLElement> {
   })
 }
 
+async function findHostShadowRoot(): Promise<ShadowRoot> {
+  const host = await waitFor(() => {
+    const node = document.querySelector('[data-direct-edit-host]') as HTMLElement | null
+    expect(node).not.toBeNull()
+    return node as HTMLElement
+  })
+
+  return waitFor(() => {
+    const shadowRoot = host.shadowRoot
+    expect(shadowRoot).not.toBeNull()
+    return shadowRoot as ShadowRoot
+  })
+}
+
+async function findSelectedCommentInput(): Promise<HTMLTextAreaElement> {
+  const shadowRoot = await findHostShadowRoot()
+  return waitFor(() => {
+    const input = shadowRoot.querySelector('[data-direct-edit="selected-comment-composer"] textarea') as HTMLTextAreaElement | null
+    expect(input).not.toBeNull()
+    return input as HTMLTextAreaElement
+  })
+}
+
 async function findToolbarButtonByIcon(shadowRoot: ShadowRoot, iconClass: string): Promise<HTMLButtonElement> {
   return waitFor(() => {
     const icon = shadowRoot.querySelector(`svg.${iconClass}`) as SVGElement | null
@@ -189,6 +216,7 @@ describe('DirectEditProvider', () => {
   beforeEach(() => {
     resetStorage()
     document.documentElement.removeAttribute('data-direct-edit-disable-styles')
+    checkAgentConnectionMock.mockResolvedValue(true)
   })
 
   afterEach(() => {
@@ -196,6 +224,7 @@ describe('DirectEditProvider', () => {
       const restore = documentPropertyRestores.pop()
       restore?.()
     }
+    checkAgentConnectionMock.mockClear()
     sendEditToAgentMock.mockClear()
     sendCommentToAgentMock.mockClear()
     vi.restoreAllMocks()
@@ -537,7 +566,7 @@ describe('DirectEditProvider', () => {
       expect(root.textContent).toContain('Copy to AI agents')
     })
 
-    const settingsTrigger = await findToolbarButtonByIcon(root, 'lucide-ellipsis-vertical')
+    const settingsTrigger = await findToolbarButtonByIcon(root, 'lucide-settings-2')
     act(() => {
       fireEvent.click(settingsTrigger)
     })
@@ -700,6 +729,43 @@ describe('DirectEditProvider', () => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: '.', code: 'Period', ctrlKey: true, altKey: true }))
     })
     expect(result.current.editModeActive).toBe(false)
+  })
+
+  it('uses Cmd+Z for undo on macOS and ignores Ctrl+Z', () => {
+    const platformDescriptor = Object.getOwnPropertyDescriptor(window.navigator, 'platform')
+    Object.defineProperty(window.navigator, 'platform', {
+      configurable: true,
+      value: 'MacIntel',
+    })
+
+    try {
+      const target = createTarget('mac-undo-target', 'padding-top: 4px;')
+      const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+      act(() => {
+        result.current.toggleEditMode()
+        result.current.selectElement(target)
+      })
+
+      act(() => {
+        result.current.updateSpacingProperty('paddingTop', parsePropertyValue('16px'))
+      })
+      expect(target.style.paddingTop).toBe('16px')
+
+      act(() => {
+        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', ctrlKey: true }))
+      })
+      expect(target.style.paddingTop).toBe('16px')
+
+      act(() => {
+        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', metaKey: true }))
+      })
+      expect(target.style.paddingTop).toBe('4px')
+    } finally {
+      if (platformDescriptor) {
+        Object.defineProperty(window.navigator, 'platform', platformDescriptor)
+      }
+    }
   })
 
   it('blocks native dragstart outside editor chrome while design mode is active', async () => {
@@ -1359,7 +1425,7 @@ describe('DirectEditProvider', () => {
     expect(moved.style.top).toBe('20px')
   })
 
-  it('starts a new comment in one click when the current comment is already submitted', async () => {
+  it('starts a new comment when selection changes and the current comment is already submitted', async () => {
     const targetA = createTarget('comment-first', 'padding-top: 8px;')
     const targetB = createTarget('comment-second', 'padding-top: 8px;')
     mockElementFromPoint(targetB)
@@ -1368,8 +1434,11 @@ describe('DirectEditProvider', () => {
 
     act(() => {
       result.current.toggleEditMode()
-      result.current.setActiveTool('comment')
-      result.current.addComment(targetA, { x: 16, y: 24 })
+      result.current.selectElement(targetA)
+    })
+
+    await waitFor(() => {
+      expect(result.current.activeCommentId).not.toBeNull()
     })
 
     const firstCommentId = result.current.activeCommentId
@@ -1387,15 +1456,17 @@ describe('DirectEditProvider', () => {
     await waitFor(() => {
       expect(result.current.comments).toHaveLength(2)
       expect(result.current.activeCommentId).not.toBe(firstCommentId)
+      expect(result.current.selectedElement).toBe(targetB)
     })
 
     const firstComment = result.current.comments.find((comment) => comment.id === firstCommentId)
     expect(firstComment?.text).toBe('Keep this comment')
     const activeComment = result.current.comments.find((comment) => comment.id === result.current.activeCommentId)
     expect(activeComment?.text).toBe('')
+    expect(activeComment?.element).toBe(targetB)
   })
 
-  it('blocks new comment creation for unsent drafts and marks the input as invalid', async () => {
+  it('blocks reselection for unsent drafts and marks the input as invalid', async () => {
     const targetA = createTarget('comment-draft', 'padding-top: 8px;')
     const targetB = createTarget('comment-draft-next', 'padding-top: 8px;')
     mockElementFromPoint(targetB)
@@ -1404,24 +1475,17 @@ describe('DirectEditProvider', () => {
 
     act(() => {
       result.current.toggleEditMode()
-      result.current.setActiveTool('comment')
-      result.current.addComment(targetA, { x: 20, y: 28 })
+      result.current.selectElement(targetA)
+    })
+
+    await waitFor(() => {
+      expect(result.current.activeCommentId).not.toBeNull()
     })
 
     const draftCommentId = result.current.activeCommentId
     expect(draftCommentId).not.toBeNull()
 
-    const host = await waitFor(() => {
-      const node = document.querySelector('[data-direct-edit-host]') as HTMLElement | null
-      expect(node).not.toBeNull()
-      return node as HTMLElement
-    })
-
-    const draftInput = await waitFor(() => {
-      const input = host.shadowRoot?.querySelector('input[placeholder="Add a comment..."]') as HTMLInputElement | null
-      expect(input).not.toBeNull()
-      return input as HTMLInputElement
-    })
+    const draftInput = await findSelectedCommentInput()
 
     act(() => {
       fireEvent.change(draftInput, { target: { value: 'Unsent draft' } })
@@ -1436,10 +1500,487 @@ describe('DirectEditProvider', () => {
     expect(result.current.activeCommentId).toBe(draftCommentId)
 
     await waitFor(() => {
-      const input = host.shadowRoot?.querySelector('input[placeholder="Add a comment..."]') as HTMLInputElement | null
-      expect(input).not.toBeNull()
-      expect(input?.getAttribute('aria-invalid')).toBe('true')
+      expect(draftInput.getAttribute('aria-invalid')).toBe('true')
     })
+  })
+
+  it('opens the selected-element composer on selection and positions it below the size label', async () => {
+    const target = createTarget('comment-selection-target', 'padding-top: 8px; width: 320px; height: 120px;')
+    target.getBoundingClientRect = () => ({
+      left: 40,
+      top: 60,
+      width: 320,
+      height: 120,
+      right: 360,
+      bottom: 180,
+      x: 40,
+      y: 60,
+      toJSON: () => ({}),
+    }) as DOMRect
+
+    const { result } = renderHook(() => useDirectEdit(), { wrapper: panelWrapper })
+
+    act(() => {
+      result.current.toggleEditMode()
+      result.current.selectElement(target)
+    })
+
+    await waitFor(() => {
+      expect(result.current.activeCommentId).not.toBeNull()
+    })
+
+    const shadowRoot = await findHostShadowRoot()
+    const input = await findSelectedCommentInput()
+    const selectionOverlay = shadowRoot.querySelector('[data-direct-edit="selection-overlay"]') as HTMLElement | null
+    const dimensionLabel = shadowRoot.querySelector('[data-direct-edit="dimension-label"]') as HTMLElement | null
+    const composer = shadowRoot.querySelector('[data-direct-edit="selected-comment-composer"]') as HTMLElement | null
+
+    expect(input.placeholder).toBe('Add a comment...')
+    expect(input.tagName).toBe('TEXTAREA')
+    expect(selectionOverlay).not.toBeNull()
+    expect(dimensionLabel).not.toBeNull()
+    expect(composer).not.toBeNull()
+    expect(composer?.style.width).toBe('280px')
+    expect(shadowRoot.querySelector('[data-direct-edit="comment-pin"]')).toBeNull()
+    expect(Number.parseFloat(dimensionLabel?.style.top ?? '0')).toBeGreaterThan(Number.parseFloat(selectionOverlay?.style.top ?? '0'))
+    expect(Number.parseFloat(composer?.style.top ?? '0')).toBeGreaterThan(Number.parseFloat(dimensionLabel?.style.top ?? '0'))
+  })
+
+  it('does not render copy or apply footer actions inside the panel', async () => {
+    const target = createTarget('panel-actions-target', 'padding-top: 8px; width: 320px; height: 120px;')
+    const { result } = renderHook(() => useDirectEdit(), { wrapper: panelWrapper })
+
+    act(() => {
+      result.current.toggleEditMode()
+      result.current.selectElement(target)
+    })
+
+    const shadowRoot = await findHostShadowRoot()
+    const panel = await waitFor(() => {
+      const node = shadowRoot.querySelector('[data-direct-edit="panel"]') as HTMLElement | null
+      expect(node).not.toBeNull()
+      return node as HTMLElement
+    })
+
+    expect(panel.querySelector('button[aria-label="Copy edits"]')).toBeNull()
+    expect(panel.querySelector('button[aria-label="Apply changes via agent"]')).toBeNull()
+  })
+
+  it('uses the panel close button to exit design mode', async () => {
+    const target = createTarget('panel-close-target', 'padding-top: 8px; width: 320px; height: 120px;')
+    const { result } = renderHook(() => useDirectEdit(), { wrapper: panelWrapper })
+
+    act(() => {
+      result.current.toggleEditMode()
+      result.current.selectElement(target)
+    })
+
+    const shadowRoot = await findHostShadowRoot()
+    const closeButton = await waitFor(() => {
+      const button = shadowRoot.querySelector('button[aria-label="Close panel"]') as HTMLButtonElement | null
+      expect(button).not.toBeNull()
+      return button as HTMLButtonElement
+    })
+
+    act(() => {
+      fireEvent.click(closeButton)
+    })
+
+    await waitFor(() => {
+      expect(result.current.editModeActive).toBe(false)
+    })
+  })
+
+  it('pushes the selected comment composer away when it would overlap the toolbar', async () => {
+    class ResizeObserverMock {
+      observe() {}
+      disconnect() {}
+      unobserve() {}
+    }
+    vi.stubGlobal('ResizeObserver', ResizeObserverMock)
+
+    const target = createTarget('comment-toolbar-collision-target', 'padding-top: 8px; width: 320px; height: 120px;')
+    target.getBoundingClientRect = () => ({
+      left: 40,
+      top: 60,
+      width: 320,
+      height: 120,
+      right: 360,
+      bottom: 180,
+      x: 40,
+      y: 60,
+      toJSON: () => ({}),
+    }) as DOMRect
+
+    const { result } = renderHook(() => useDirectEdit(), { wrapper: fullUiWrapper })
+
+    act(() => {
+      result.current.toggleEditMode()
+      result.current.selectElement(target)
+    })
+
+    const shadowRoot = await findHostShadowRoot()
+    const toolbar = await waitFor(() => {
+      const node = shadowRoot.querySelector('[data-direct-edit="toolbar"]') as HTMLElement | null
+      expect(node).not.toBeNull()
+      return node as HTMLElement
+    })
+    toolbar.getBoundingClientRect = () => ({
+      left: 70,
+      top: 200,
+      width: 240,
+      height: 56,
+      right: 310,
+      bottom: 256,
+      x: 70,
+      y: 200,
+      toJSON: () => ({}),
+    }) as DOMRect
+
+    act(() => {
+      window.dispatchEvent(new Event('resize'))
+    })
+
+    await waitFor(() => {
+      const composer = shadowRoot.querySelector('[data-direct-edit="selected-comment-composer"]') as HTMLElement | null
+      expect(composer).not.toBeNull()
+      expect(Number.parseFloat(composer?.style.top ?? '0')).toBeGreaterThanOrEqual(268)
+    })
+  })
+
+  it('shows a page label for the outer frame and selects it on click', async () => {
+    const previousTitle = document.title
+    document.title = 'Page name'
+    const originalBodyRect = document.body.getBoundingClientRect.bind(document.body)
+    documentPropertyRestores.push(() => {
+      document.body.getBoundingClientRect = originalBodyRect
+    })
+
+    const outer = createTarget('page-frame', 'padding-top: 8px; width: 420px; height: 240px;')
+    const inner = createTarget('page-frame-inner', 'padding-top: 8px; width: 160px; height: 80px;')
+    document.body.getBoundingClientRect = () => ({
+      left: 12,
+      top: 28,
+      width: 640,
+      height: 480,
+      right: 652,
+      bottom: 508,
+      x: 12,
+      y: 28,
+      toJSON: () => ({}),
+    }) as DOMRect
+    outer.getBoundingClientRect = () => ({
+      left: 24,
+      top: 40,
+      width: 420,
+      height: 240,
+      right: 444,
+      bottom: 280,
+      x: 24,
+      y: 40,
+      toJSON: () => ({}),
+    }) as DOMRect
+    inner.getBoundingClientRect = () => ({
+      left: 60,
+      top: 90,
+      width: 160,
+      height: 80,
+      right: 220,
+      bottom: 170,
+      x: 60,
+      y: 90,
+      toJSON: () => ({}),
+    }) as DOMRect
+    outer.appendChild(inner)
+
+    const { result } = renderHook(() => useDirectEdit(), { wrapper: panelWrapper })
+
+    act(() => {
+      result.current.toggleEditMode()
+      result.current.selectElement(inner)
+    })
+
+    const shadowRoot = await findHostShadowRoot()
+    const pageLabel = await waitFor(() => {
+      const label = shadowRoot.querySelector('[data-direct-edit="page-frame-label"]') as HTMLButtonElement | null
+      expect(label).not.toBeNull()
+      expect(label?.textContent).toBe('Page name')
+      return label as HTMLButtonElement
+    })
+
+    act(() => {
+      fireEvent.click(pageLabel)
+    })
+
+    await waitFor(() => {
+      expect(result.current.selectedElement).toBe(document.body)
+    })
+
+    document.title = previousTitle
+  })
+
+  it('does not auto-open the inline comment composer from a stale selection when turning edit mode on', async () => {
+    const { result } = renderHook(() => useDirectEdit(), { wrapper: panelWrapper })
+
+    act(() => {
+      result.current.selectElement(document.body)
+    })
+
+    expect(result.current.selectedElement).toBe(document.body)
+    expect(result.current.activeCommentId).toBeNull()
+
+    act(() => {
+      result.current.toggleEditMode()
+    })
+
+    const shadowRoot = await findHostShadowRoot()
+
+    await waitFor(() => {
+      expect(result.current.editModeActive).toBe(true)
+      expect(result.current.activeCommentId).toBeNull()
+    })
+
+    expect(shadowRoot.querySelector('[data-direct-edit="selected-comment-composer"]')).toBeNull()
+  })
+
+  it('shows the inline comment composer when the body-level page frame is explicitly selected', async () => {
+    const previousTitle = document.title
+    document.title = 'Page name'
+
+    const originalBodyRect = document.body.getBoundingClientRect.bind(document.body)
+    documentPropertyRestores.push(() => {
+      document.body.getBoundingClientRect = originalBodyRect
+      document.title = previousTitle
+    })
+
+    const outer = createTarget('page-frame-comment-outer', 'padding-top: 12px; width: 420px; height: 260px;')
+    const inner = createTarget('page-frame-comment-inner', 'padding-top: 8px; width: 160px; height: 80px;')
+    document.body.getBoundingClientRect = () => ({
+      left: 12,
+      top: 60,
+      width: 640,
+      height: 480,
+      right: 652,
+      bottom: 540,
+      x: 12,
+      y: 60,
+      toJSON: () => ({}),
+    }) as DOMRect
+    outer.getBoundingClientRect = () => ({
+      left: 40,
+      top: 80,
+      width: 420,
+      height: 260,
+      right: 460,
+      bottom: 340,
+      x: 40,
+      y: 80,
+      toJSON: () => ({}),
+    }) as DOMRect
+    inner.getBoundingClientRect = () => ({
+      left: 60,
+      top: 100,
+      width: 160,
+      height: 80,
+      right: 220,
+      bottom: 180,
+      x: 60,
+      y: 100,
+      toJSON: () => ({}),
+    }) as DOMRect
+    outer.appendChild(inner)
+
+    const { result } = renderHook(() => useDirectEdit(), { wrapper: panelWrapper })
+
+    act(() => {
+      result.current.toggleEditMode()
+      result.current.selectElement(inner)
+    })
+
+    const shadowRoot = await findHostShadowRoot()
+    const pageLabel = await waitFor(() => {
+      const label = shadowRoot.querySelector('[data-direct-edit="page-frame-label"]') as HTMLButtonElement | null
+      expect(label).not.toBeNull()
+      return label as HTMLButtonElement
+    })
+
+    act(() => {
+      fireEvent.click(pageLabel)
+    })
+
+    await waitFor(() => {
+      expect(result.current.selectedElement).toBe(document.body)
+      expect(result.current.activeCommentId).not.toBeNull()
+    })
+
+    expect(shadowRoot.querySelector('[data-direct-edit="selected-comment-composer"]')).not.toBeNull()
+    document.title = previousTitle
+  })
+
+  it('scales the page label spacing and text with canvas zoom', async () => {
+    const originalBodyRect = document.body.getBoundingClientRect.bind(document.body)
+    documentPropertyRestores.push(() => {
+      document.body.getBoundingClientRect = originalBodyRect
+    })
+
+    const inner = createTarget('zoom-page-frame-inner', 'padding-top: 8px; width: 160px; height: 80px;')
+    document.body.getBoundingClientRect = () => ({
+      left: 12,
+      top: 60,
+      width: 640,
+      height: 480,
+      right: 652,
+      bottom: 540,
+      x: 12,
+      y: 60,
+      toJSON: () => ({}),
+    }) as DOMRect
+    inner.getBoundingClientRect = () => ({
+      left: 60,
+      top: 90,
+      width: 160,
+      height: 80,
+      right: 220,
+      bottom: 170,
+      x: 60,
+      y: 90,
+      toJSON: () => ({}),
+    }) as DOMRect
+
+    const { container } = render(
+      <SelectionOverlay
+        selectedElement={inner}
+        pageFrameElement={document.body}
+        pageFrameLabel="Page name"
+        canvasZoom={0.5}
+        isDragging={false}
+        onMoveStart={() => {}}
+      />,
+    )
+
+    const pageLabel = await waitFor(() => {
+      const label = container.querySelector('[data-direct-edit="page-frame-label"]') as HTMLButtonElement | null
+      expect(label).not.toBeNull()
+      return label as HTMLButtonElement
+    })
+
+    expect(pageLabel.style.fontSize).toBe('11px')
+    expect(pageLabel.style.lineHeight).toBe('16px')
+    expect(pageLabel.style.top).toBe('40px')
+  })
+
+  it('stops parent and child selection at the body boundary', async () => {
+    const pageRoot = createTarget('page-root', 'padding-top: 8px; width: 420px; height: 240px;')
+    const child = createTarget('page-child', 'padding-top: 8px; width: 160px; height: 80px;')
+    pageRoot.appendChild(child)
+
+    const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+    act(() => {
+      result.current.selectElement(pageRoot)
+    })
+
+    await waitFor(() => {
+      expect(result.current.selectedElement).toBe(pageRoot)
+      expect(result.current.elementInfo?.parentElement).toBe(document.body)
+    })
+
+    act(() => {
+      result.current.selectParent()
+    })
+
+    await waitFor(() => {
+      expect(result.current.selectedElement).toBe(document.body)
+      expect(result.current.elementInfo?.parentElement).toBeNull()
+    })
+
+    act(() => {
+      result.current.selectParent()
+    })
+
+    expect(result.current.selectedElement).toBe(document.body)
+
+    act(() => {
+      result.current.selectChild()
+    })
+
+    await waitFor(() => {
+      expect(result.current.selectedElement).toBe(pageRoot)
+    })
+  })
+
+  it('hides apply buttons when agent connection is offline and keeps copy controls visible', async () => {
+    checkAgentConnectionMock.mockResolvedValue(false)
+    vi.stubGlobal('ResizeObserver', class ResizeObserver {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    })
+
+    const target = createTarget('offline-agent-target', 'padding-top: 8px; width: 320px; height: 120px;')
+    const { result } = renderHook(() => useDirectEdit(), { wrapper: fullUiWrapper })
+
+    act(() => {
+      result.current.toggleEditMode()
+      result.current.selectElement(target)
+    })
+
+    const shadowRoot = await findHostShadowRoot()
+
+    await waitFor(() => {
+      expect(result.current.agentAvailable).toBe(false)
+      expect(shadowRoot.querySelector('[data-direct-edit="apply-all-button"]')).toBeNull()
+      expect(shadowRoot.querySelector('button[aria-label="Apply changes via agent"]')).toBeNull()
+      expect(shadowRoot.querySelector('svg.lucide-copy')).not.toBeNull()
+    })
+  })
+
+  it('submits inline comments as replies when the element already has a submitted thread', async () => {
+    const clipboardWrite = mockClipboard()
+    const target = createTarget('comment-inline-reply-target', 'padding-top: 8px; width: 320px; height: 120px;')
+
+    const { result } = renderHook(() => useDirectEdit(), { wrapper: panelWrapper })
+
+    act(() => {
+      result.current.toggleEditMode()
+      result.current.selectElement(target)
+    })
+
+    const firstInput = await findSelectedCommentInput()
+    act(() => {
+      fireEvent.change(firstInput, { target: { value: 'First comment' } })
+      fireEvent.keyDown(firstInput, { key: 'Enter' })
+    })
+
+    await waitFor(() => {
+      expect(result.current.comments).toHaveLength(1)
+      expect(result.current.comments[0].text).toBe('First comment')
+    })
+
+    act(() => {
+      result.current.setActiveCommentId(null)
+      result.current.addComment(target, { x: 24, y: 28 })
+    })
+
+    const replyInput = await findSelectedCommentInput()
+    act(() => {
+      fireEvent.change(replyInput, { target: { value: 'Second comment' } })
+      fireEvent.keyDown(replyInput, { key: 'Enter' })
+    })
+
+    await waitFor(() => {
+      expect(result.current.comments).toHaveLength(1)
+      expect(result.current.comments[0].text).toBe('First comment')
+      expect(result.current.comments[0].replies).toEqual([
+        expect.objectContaining({ text: 'Second comment' }),
+      ])
+    })
+
+    const shadowRoot = await findHostShadowRoot()
+    const lastClipboardCall = clipboardWrite.mock.calls[clipboardWrite.mock.calls.length - 1]
+    expect(shadowRoot.querySelectorAll('[data-direct-edit="comment-pin"]')).toHaveLength(1)
+    expect(String(lastClipboardCall?.[0] ?? '')).toContain('reply: Second comment')
+    expect(result.current.activeCommentId).toBe(result.current.comments[0].id)
   })
 
   it('tracks session edits, exports all edits, and can clear them', async () => {

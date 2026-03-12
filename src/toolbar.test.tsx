@@ -4,6 +4,13 @@ import { describe, expect, it, vi } from 'vitest'
 import { DirectEditToolbarInner } from './toolbar'
 import type { SessionItem } from './types'
 
+const { handlePointerDownMock, handlePointerMoveMock, handlePointerUpMock, handlePointerCancelMock } = vi.hoisted(() => ({
+  handlePointerDownMock: vi.fn(),
+  handlePointerMoveMock: vi.fn(),
+  handlePointerUpMock: vi.fn(),
+  handlePointerCancelMock: vi.fn(),
+}))
+
 vi.mock('./use-toolbar-dock', () => ({
   useToolbarDock: () => ({
     dockedEdge: 'bottom',
@@ -11,12 +18,59 @@ vi.mock('./use-toolbar-dock', () => ({
     isSnapping: false,
     style: {},
     predictSize: vi.fn(),
-    handlePointerDown: vi.fn(),
-    handlePointerMove: vi.fn(),
-    handlePointerUp: vi.fn(),
-    handlePointerCancel: vi.fn(),
+    handlePointerDown: handlePointerDownMock,
+    handlePointerMove: handlePointerMoveMock,
+    handlePointerUp: handlePointerUpMock,
+    handlePointerCancel: handlePointerCancelMock,
   }),
 }))
+
+vi.mock('@base-ui/react/menu', () => {
+  const MenuContext = React.createContext<{ open: boolean; onOpenChange?: (open: boolean) => void }>({
+    open: false,
+  })
+
+  return {
+    Menu: {
+      Root: ({ children, open = false, onOpenChange }: { children: React.ReactNode; open?: boolean; onOpenChange?: (open: boolean) => void }) => (
+        <MenuContext.Provider value={{ open, onOpenChange }}>{children}</MenuContext.Provider>
+      ),
+      Trigger: React.forwardRef<HTMLButtonElement, { render?: React.ReactElement; children?: React.ReactNode }>(
+        ({ render, children }, ref) => {
+          const { open, onOpenChange } = React.useContext(MenuContext)
+          const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+            render?.props.onClick?.(event)
+            onOpenChange?.(!open)
+          }
+          if (render) {
+            return React.cloneElement(render, { ref, onClick: handleClick }, children)
+          }
+          return <button ref={ref} type="button" onClick={handleClick}>{children}</button>
+        },
+      ),
+      Portal: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+      Positioner: ({ children, sideOffset: _sideOffset, collisionAvoidance: _collisionAvoidance, ...props }: React.ComponentPropsWithoutRef<'div'> & { sideOffset?: number; collisionAvoidance?: unknown }) => (
+        <div {...props}>{children}</div>
+      ),
+      Popup: React.forwardRef<HTMLDivElement, React.ComponentPropsWithoutRef<'div'>>(
+        ({ children, ...props }, ref) => (
+          <div ref={ref} {...props}>{children}</div>
+        ),
+      ),
+      SubmenuRoot: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+      SubmenuTrigger: React.forwardRef<HTMLButtonElement, React.ComponentPropsWithoutRef<'button'> & { openOnHover?: boolean }>(
+        ({ children, openOnHover, ...props }, ref) => (
+          <button ref={ref} type="button" data-open-on-hover={openOnHover ? 'true' : 'false'} {...props}>{children}</button>
+        ),
+      ),
+      Item: React.forwardRef<HTMLButtonElement, React.ComponentPropsWithoutRef<'button'>>(
+        ({ children, ...props }, ref) => (
+          <button ref={ref} type="button" {...props}>{children}</button>
+        ),
+      ),
+    },
+  }
+})
 
 vi.mock('@base-ui/react/popover', () => ({
   Popover: {
@@ -58,27 +112,53 @@ vi.mock('./ui/tooltip', () => ({
 }))
 
 describe('DirectEditToolbarInner', () => {
-  it('opens zoom popover without toggling canvas mode from toolbar icon', async () => {
-    const onToggleCanvas = vi.fn()
+  it('allows dragging from divider gaps between toolbar buttons', () => {
+    handlePointerDownMock.mockClear()
+
     const { container } = render(
       <DirectEditToolbarInner
         editModeActive={true}
         onToggleEditMode={() => {}}
         rulersVisible={false}
         onToggleRulers={() => {}}
+      />,
+    )
+
+    const divider = container.querySelector('[data-direct-edit="toolbar-divider"]') as HTMLElement | null
+    expect(divider).not.toBeNull()
+
+    fireEvent.pointerDown(divider as HTMLElement, { clientX: 100, clientY: 20, pointerId: 1 })
+
+    expect(handlePointerDownMock).toHaveBeenCalled()
+  })
+
+  it('shows rulers and canvas mode directly in the settings menu', async () => {
+    const onToggleCanvas = vi.fn()
+    const onToggleRulers = vi.fn()
+    const { container } = render(
+      <DirectEditToolbarInner
+        editModeActive={true}
+        onToggleEditMode={() => {}}
+        rulersVisible={false}
+        onToggleRulers={onToggleRulers}
         canvasActive={false}
         onToggleCanvas={onToggleCanvas}
       />,
     )
 
-    const canvasTrigger = container.querySelector('svg.lucide-maximize-2')?.closest('button')
-    expect(canvasTrigger).not.toBeNull()
-    fireEvent.click(canvasTrigger as HTMLButtonElement)
+    const settingsTrigger = container.querySelector('svg.lucide-settings-2')?.closest('button')
+    expect(settingsTrigger).not.toBeNull()
+    fireEvent.click(settingsTrigger as HTMLButtonElement)
 
-    await waitFor(() => {
-      expect(canvasTrigger?.className).toContain('bg-muted')
-    })
     expect(onToggleCanvas).not.toHaveBeenCalled()
+    expect(onToggleRulers).not.toHaveBeenCalled()
+
+    const rulersButton = Array.from(container.querySelectorAll('button')).find((button) => (
+      button.textContent?.trim() === 'Rulers'
+    ))
+    expect(rulersButton).not.toBeNull()
+    fireEvent.click(rulersButton as HTMLButtonElement)
+    expect(onToggleRulers).toHaveBeenCalledTimes(1)
 
     const canvasModeButton = Array.from(container.querySelectorAll('button')).find((button) => (
       button.textContent?.trim() === 'Canvas mode'
@@ -86,6 +166,9 @@ describe('DirectEditToolbarInner', () => {
     expect(canvasModeButton).not.toBeNull()
     fireEvent.click(canvasModeButton as HTMLButtonElement)
     expect(onToggleCanvas).toHaveBeenCalledTimes(1)
+
+    expect(document.body.textContent).not.toContain('Actual size (100%)')
+    expect(document.body.textContent).not.toContain('Fit to viewport')
   })
 
   it('closes popovers when edit mode is turned off', async () => {
@@ -98,7 +181,7 @@ describe('DirectEditToolbarInner', () => {
       />,
     )
 
-    const settingsTrigger = container.querySelector('svg.lucide-ellipsis-vertical')?.closest('button')
+    const settingsTrigger = container.querySelector('svg.lucide-settings-2')?.closest('button')
     expect(settingsTrigger).not.toBeNull()
     fireEvent.click(settingsTrigger as HTMLButtonElement)
 
@@ -116,7 +199,7 @@ describe('DirectEditToolbarInner', () => {
     )
 
     await waitFor(() => {
-      const nextSettingsTrigger = container.querySelector('svg.lucide-ellipsis-vertical')?.closest('button')
+      const nextSettingsTrigger = container.querySelector('svg.lucide-settings-2')?.closest('button')
       expect(nextSettingsTrigger).not.toBeNull()
       expect(nextSettingsTrigger?.className).not.toContain('bg-muted text-foreground')
     })
@@ -140,6 +223,93 @@ describe('DirectEditToolbarInner', () => {
       expect(keycap.className).toContain('text-muted-foreground')
       expect(keycap.className).not.toContain('dark:')
     }
+  })
+
+  it('does not render the built-in comment toggle button', () => {
+    const { container } = render(
+      <DirectEditToolbarInner
+        editModeActive={true}
+        onToggleEditMode={() => {}}
+        rulersVisible={false}
+        onToggleRulers={() => {}}
+        activeTool="comment"
+      />,
+    )
+
+    expect(container.querySelector('svg.lucide-message-square')).toBeNull()
+  })
+
+  it('omits toggle-comments from the keyboard shortcuts menu', async () => {
+    const { container } = render(
+      <DirectEditToolbarInner
+        editModeActive={true}
+        onToggleEditMode={() => {}}
+        rulersVisible={false}
+        onToggleRulers={() => {}}
+      />,
+    )
+
+    const settingsTrigger = container.querySelector('svg.lucide-settings-2')?.closest('button')
+    expect(settingsTrigger).not.toBeNull()
+    fireEvent.click(settingsTrigger as HTMLButtonElement)
+
+    const shortcutsTrigger = await waitFor(() => {
+      const found = Array.from(document.body.querySelectorAll('*')).find((node) => (
+        node.textContent?.trim() === 'Keyboard shortcuts'
+      ))
+      expect(found).toBeTruthy()
+      return found as HTMLElement
+    })
+
+    fireEvent.click(shortcutsTrigger)
+
+    await waitFor(() => {
+      expect(document.body.textContent).toContain('Toggle design mode')
+      expect(document.body.textContent).not.toContain('Toggle comments')
+    })
+  })
+
+  it('configures settings submenus to open on hover', async () => {
+    const { container } = render(
+      <DirectEditToolbarInner
+        editModeActive={true}
+        onToggleEditMode={() => {}}
+        rulersVisible={false}
+        onToggleRulers={() => {}}
+      />,
+    )
+
+    const settingsTrigger = container.querySelector('svg.lucide-settings-2')?.closest('button')
+    expect(settingsTrigger).not.toBeNull()
+    fireEvent.click(settingsTrigger as HTMLButtonElement)
+
+    const themeTrigger = Array.from(container.querySelectorAll('button')).find((button) => (
+      button.textContent?.trim() === 'Theme'
+    ))
+    const shortcutsTrigger = Array.from(container.querySelectorAll('button')).find((button) => (
+      button.textContent?.trim() === 'Keyboard shortcuts'
+    ))
+
+    expect(themeTrigger?.getAttribute('data-open-on-hover')).toBe('true')
+    expect(shortcutsTrigger?.getAttribute('data-open-on-hover')).toBe('true')
+  })
+
+  it('marks settings popups as editor chrome so clicks do not fall through', async () => {
+    const { container } = render(
+      <DirectEditToolbarInner
+        editModeActive={true}
+        onToggleEditMode={() => {}}
+        rulersVisible={false}
+        onToggleRulers={() => {}}
+      />,
+    )
+
+    const settingsTrigger = container.querySelector('svg.lucide-settings-2')?.closest('button')
+    expect(settingsTrigger).not.toBeNull()
+    fireEvent.click(settingsTrigger as HTMLButtonElement)
+
+    const popups = Array.from(container.querySelectorAll('[data-direct-edit="settings-menu"], [data-direct-edit="settings-submenu"]'))
+    expect(popups.length).toBeGreaterThan(0)
   })
 
   it('ignores row keybind when key event originates from nested delete button', async () => {
@@ -205,7 +375,7 @@ describe('DirectEditToolbarInner', () => {
     })
   })
 
-  it('sends all items to agents from the copy popover', async () => {
+  it('renders an apply button next to copy and sends all items from the toolbar', async () => {
     const onSendAllToAgents = vi.fn<(...args: unknown[]) => Promise<boolean>>().mockResolvedValue(true)
     const commentItem: SessionItem = {
       type: 'comment',
@@ -244,20 +414,39 @@ describe('DirectEditToolbarInner', () => {
 
     const editsTrigger = container.querySelector('svg.lucide-copy')?.closest('button')
     expect(editsTrigger).not.toBeNull()
-    fireEvent.click(editsTrigger as HTMLButtonElement)
+    const applyButton = container.querySelector('[data-direct-edit="apply-all-button"]') as HTMLButtonElement | null
+    const settingsTrigger = container.querySelector('svg.lucide-settings-2')?.closest('button') as HTMLButtonElement | null
+    expect(applyButton).not.toBeNull()
+    expect(settingsTrigger).not.toBeNull()
+    const editsButton = editsTrigger as HTMLButtonElement
+    const applyAllButton = applyButton as HTMLButtonElement
+    const settingsButton = settingsTrigger as HTMLButtonElement
+    expect(editsButton.compareDocumentPosition(applyAllButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(applyAllButton.compareDocumentPosition(settingsButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(container.querySelectorAll('[data-direct-edit="toolbar-divider"]')).toHaveLength(2)
 
-    const sendAllButton = await waitFor(() => {
-      const found = Array.from(document.body.querySelectorAll('button')).find((button) => (
-        button.textContent?.trim().toLowerCase().startsWith('send all')
-      ))
-      expect(found).not.toBeNull()
-      return found as HTMLButtonElement
-    })
-
-    fireEvent.click(sendAllButton)
+    fireEvent.click(applyAllButton)
     await waitFor(() => {
       expect(onSendAllToAgents).toHaveBeenCalledTimes(1)
     })
+  })
+
+  it('hides the apply button when the agent connection is unavailable', () => {
+    const { container } = render(
+      <DirectEditToolbarInner
+        editModeActive={true}
+        onToggleEditMode={() => {}}
+        rulersVisible={false}
+        onToggleRulers={() => {}}
+        sessionEditCount={1}
+        onSendAllToAgents={vi.fn().mockResolvedValue(true)}
+        agentAvailable={false}
+      />,
+    )
+
+    expect(container.querySelector('[data-direct-edit="apply-all-button"]')).toBeNull()
+    expect(container.querySelector('svg.lucide-copy')?.closest('button')).not.toBeNull()
+    expect(container.querySelectorAll('[data-direct-edit="toolbar-divider"]')).toHaveLength(2)
   })
 
   it('keeps move operation id parity when copying a single moved item', async () => {

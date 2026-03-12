@@ -5,7 +5,7 @@ import { useDirectEditState, useDirectEditActions } from './provider'
 import { useRulersVisible } from './rulers-overlay'
 import { cn } from './cn'
 import { useToolbarDock } from './use-toolbar-dock'
-import { MousePointer2, Ruler, Command, ArrowBigUp, MessageSquare, X } from 'lucide-react'
+import { MousePointer2, Command, Send, Check, X } from 'lucide-react'
 import type { ActiveTool, Theme, SessionItem } from './types'
 import {
   Tooltip,
@@ -15,7 +15,6 @@ import {
 } from './ui/tooltip'
 import { EditsPopover } from './toolbar/edits-popover'
 import { SettingsPopover } from './toolbar/settings-popover'
-import { ZoomPopover } from './toolbar/zoom-popover'
 import { toolbarBtnClass } from './toolbar/shared'
 
 export interface DirectEditToolbarInnerProps {
@@ -31,6 +30,7 @@ export interface DirectEditToolbarInnerProps {
   onGetSessionItems?: () => SessionItem[]
   onExportAllEdits?: () => Promise<boolean>
   onSendAllToAgents?: () => Promise<boolean>
+  agentAvailable?: boolean
   onClearSessionEdits?: () => void
   onRemoveSessionEdit?: (element: HTMLElement) => void
   onDeleteComment?: (id: string) => void
@@ -48,14 +48,15 @@ export function DirectEditToolbarInner({
   onToggleEditMode,
   rulersVisible,
   onToggleRulers,
-  activeTool = 'select',
-  onSetActiveTool,
+  activeTool: _activeTool = 'select',
+  onSetActiveTool: _onSetActiveTool,
   theme = 'system',
   onSetTheme,
   sessionEditCount = 0,
   onGetSessionItems,
   onExportAllEdits,
   onSendAllToAgents,
+  agentAvailable = true,
   onClearSessionEdits,
   onRemoveSessionEdit,
   onDeleteComment,
@@ -71,7 +72,10 @@ export function DirectEditToolbarInner({
   const toolbarRef = React.useRef<HTMLDivElement>(null)
   const { dockedEdge, isDragging, isSnapping, style: dockStyle, predictSize, handlePointerDown, handlePointerMove, handlePointerUp, handlePointerCancel } = useToolbarDock(toolbarRef)
   const isVertical = dockedEdge === 'left' || dockedEdge === 'right'
-  const [activePopover, setActivePopover] = React.useState<'edits' | 'settings' | 'zoom' | null>(null)
+  const [activePopover, setActivePopover] = React.useState<'edits' | 'settings' | null>(null)
+  const [applyStatus, setApplyStatus] = React.useState<'idle' | 'sending' | 'sent' | 'offline'>('idle')
+  const applyTimerRef = React.useRef<number | null>(null)
+  const showApplyButton = agentAvailable && Boolean(onSendAllToAgents)
 
   // Cache toolbar sizes per edge + state so prediction stays accurate after re-docking.
   const sizeCacheRef = React.useRef<Record<string, { w: number; h: number }>>({})
@@ -109,6 +113,14 @@ export function DirectEditToolbarInner({
     if (!editModeActive) setActivePopover(null)
   }, [editModeActive])
 
+  React.useEffect(() => {
+    return () => {
+      if (applyTimerRef.current) {
+        window.clearTimeout(applyTimerRef.current)
+      }
+    }
+  }, [])
+
   const tooltipSide = dockedEdge === 'bottom' ? 'top'
     : dockedEdge === 'top' ? 'bottom'
     : dockedEdge === 'left' ? 'right' : 'left'
@@ -129,6 +141,38 @@ export function DirectEditToolbarInner({
       <kbd className={kbdClass}>.</kbd>
     </>
   )
+
+  const scheduleApplyReset = React.useCallback(() => {
+    if (applyTimerRef.current) {
+      window.clearTimeout(applyTimerRef.current)
+    }
+    applyTimerRef.current = window.setTimeout(() => {
+      applyTimerRef.current = null
+      setApplyStatus('idle')
+    }, 2000)
+  }, [])
+
+  const handleApplyAll = React.useCallback(async () => {
+    if (!onSendAllToAgents || sessionEditCount === 0 || applyStatus === 'sending') return
+
+    setApplyStatus('sending')
+    let success = false
+    try {
+      success = await onSendAllToAgents()
+    } catch {
+      success = false
+    }
+
+    setApplyStatus(success ? 'sent' : 'offline')
+    scheduleApplyReset()
+  }, [applyStatus, onSendAllToAgents, scheduleApplyReset, sessionEditCount])
+
+  const dragHandlers = React.useMemo(() => ({
+    onPointerDown: handlePointerDown,
+    onPointerMove: handlePointerMove,
+    onPointerUp: handlePointerUp,
+    onPointerCancel: handlePointerCancel,
+  }), [handlePointerCancel, handlePointerDown, handlePointerMove, handlePointerUp])
 
   const toolbar = (
     <>
@@ -152,7 +196,7 @@ export function DirectEditToolbarInner({
         <div className={cn(
           'flex shrink-0 cursor-grab items-center justify-center',
           isVertical ? 'w-full pt-0 pb-1.5' : 'h-full pl-0 pr-1.5'
-        )}>
+        )} {...dragHandlers}>
           <div className={cn(
             'shrink-0 rounded-full bg-foreground/25',
             isVertical ? 'h-0.5 w-4' : 'h-4 w-0.5'
@@ -164,30 +208,24 @@ export function DirectEditToolbarInner({
             <TooltipTrigger
               className={cn(
                 toolbarBtnClass, 'transition-[color,background-color] duration-150 ease-out',
-                editModeActive && activeTool !== 'comment'
+                editModeActive
                   ? 'bg-foreground text-background hover:bg-foreground/80'
                   : 'text-muted-foreground hover:bg-muted hover:text-foreground'
               )}
               onPointerDown={(e: React.PointerEvent) => e.stopPropagation()}
-              onClick={() => {
-                if (editModeActive && activeTool === 'comment') {
-                  onSetActiveTool?.('select')
-                } else {
-                  onToggleEditMode()
-                }
-              }}
+              onClick={onToggleEditMode}
             >
               <MousePointer2 className="size-4" />
             </TooltipTrigger>
             <TooltipContent side={tooltipSide} className="inline-flex items-center gap-1.5">
-              <span>{editModeActive ? 'Select' : 'Activate design mode'}</span>
+              <span>{editModeActive ? 'Deactivate design mode' : 'Activate design mode'}</span>
               {shortcutContent}
             </TooltipContent>
           </Tooltip>
 
           <div
             className={cn(
-              'grid place-items-center overflow-hidden',
+              'grid cursor-grab place-items-center overflow-hidden',
               isVertical
                 ? (editModeActive ? 'mt-1 grid-rows-[1fr]' : 'mt-0 grid-rows-[0fr]')
                 : (editModeActive ? 'ml-1 grid-cols-[1fr]' : 'ml-0 grid-cols-[0fr]')
@@ -198,9 +236,10 @@ export function DirectEditToolbarInner({
               transitionTimingFunction: 'cubic-bezier(0.25, 1, 0.5, 1)',
               transitionDelay: editModeActive ? '0ms' : '80ms',
             }}
+            {...dragHandlers}
           >
             <div
-              className={cn('flex gap-1 overflow-hidden', isVertical ? 'min-h-0 flex-col items-center' : 'min-w-0 flex-row items-center')}
+              className={cn('flex cursor-grab gap-1 overflow-hidden', isVertical ? 'min-h-0 flex-col items-center' : 'min-w-0 flex-row items-center')}
               style={{
                 filter: editModeActive ? 'blur(0px)' : 'blur(5px)',
                 opacity: editModeActive ? 1 : 0,
@@ -209,64 +248,8 @@ export function DirectEditToolbarInner({
                 transitionTimingFunction: 'cubic-bezier(0.33, 1, 0.68, 1)',
                 transitionDelay: editModeActive ? '80ms' : '0ms',
               }}
+              {...dragHandlers}
             >
-              <Tooltip>
-                <TooltipTrigger
-                  className={cn(
-                    toolbarBtnClass,
-                    activeTool === 'comment'
-                      ? 'bg-foreground text-background hover:bg-foreground/80'
-                      : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                  )}
-                  onPointerDown={(e) => e.stopPropagation()}
-                  onClick={() => onSetActiveTool?.(activeTool === 'comment' ? 'select' : 'comment')}
-                >
-                  <MessageSquare className="size-4" />
-                </TooltipTrigger>
-                <TooltipContent side={tooltipSide} className="inline-flex items-center gap-1.5">
-                  <span>{activeTool === 'comment' ? 'Exit comment mode' : 'Comment'}</span>
-                  <kbd className={kbdClass}><ArrowBigUp className="size-3" /></kbd>
-                  <kbd className={kbdClass}>C</kbd>
-                </TooltipContent>
-              </Tooltip>
-
-              <Tooltip>
-                <TooltipTrigger
-                  className={cn(
-                    toolbarBtnClass,
-                    rulersVisible
-                      ? 'bg-muted text-foreground'
-                      : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                  )}
-                  onPointerDown={(e) => e.stopPropagation()}
-                  onClick={onToggleRulers}
-                >
-                  <Ruler className="size-4" />
-                </TooltipTrigger>
-                <TooltipContent side={tooltipSide} className="inline-flex items-center gap-1.5">
-                  <span>{rulersVisible ? 'Hide rulers' : 'Show rulers'}</span>
-                  <kbd className={kbdClass}><ArrowBigUp className="size-2.5" /></kbd>
-                  <kbd className={kbdClass}>R</kbd>
-                </TooltipContent>
-              </Tooltip>
-
-              <ZoomPopover
-                tooltipSide={tooltipSide}
-                canvasActive={canvasActive}
-                canvasZoom={canvasZoom}
-                isOpen={activePopover === 'zoom'}
-                onOpenChange={(open) => setActivePopover(open ? 'zoom' : null)}
-                onToggleCanvas={onToggleCanvas}
-                onSetCanvasZoom={onSetCanvasZoom}
-                onZoomTo100={onZoomTo100}
-                onFitToViewport={onFitToViewport}
-              />
-
-              <div className={cn(
-                'border-foreground/10',
-                isVertical ? 'my-0.5 w-5 border-t' : 'mx-0.5 h-5 border-l'
-              )} />
-
               <EditsPopover
                 tooltipSide={tooltipSide}
                 sessionEditCount={sessionEditCount}
@@ -274,10 +257,58 @@ export function DirectEditToolbarInner({
                 onOpenChange={(open) => setActivePopover(open ? 'edits' : null)}
                 onGetSessionItems={onGetSessionItems}
                 onExportAllEdits={onExportAllEdits}
-                onSendAllToAgents={onSendAllToAgents}
                 onClearSessionEdits={onClearSessionEdits}
                 onRemoveSessionEdit={onRemoveSessionEdit}
                 onDeleteComment={onDeleteComment}
+              />
+
+              {showApplyButton && (
+                <Tooltip>
+                  <TooltipTrigger
+                    className={cn(
+                      toolbarBtnClass,
+                      'h-8 gap-1.5 px-2.5 py-0 text-xs font-medium',
+                      sessionEditCount > 0 || applyStatus !== 'idle'
+                        ? 'bg-muted text-foreground hover:bg-muted/80'
+                        : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                    )}
+                    data-direct-edit="apply-all-button"
+                    disabled={sessionEditCount === 0 || applyStatus === 'sending'}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onClick={() => {
+                      void handleApplyAll()
+                    }}
+                  >
+                    {applyStatus === 'offline' ? (
+                      <X className="size-3.5 text-red-500" />
+                    ) : applyStatus === 'sent' ? (
+                      <Check className="size-3.5 text-green-500" />
+                    ) : (
+                      <Send className={cn('size-3.5', applyStatus === 'sending' && 'animate-pulse')} />
+                    )}
+                    <span>
+                      {applyStatus === 'sending'
+                        ? 'Applying'
+                        : applyStatus === 'sent'
+                          ? 'Applied'
+                          : applyStatus === 'offline'
+                            ? 'Offline'
+                            : 'Apply'}
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side={tooltipSide}>
+                    <span>Apply all changes via agent</span>
+                  </TooltipContent>
+                </Tooltip>
+              )}
+
+              <div
+                data-direct-edit="toolbar-divider"
+                className={cn(
+                  'cursor-grab border-foreground/10',
+                  isVertical ? 'my-0.5 w-5 border-t' : 'mx-0.5 h-5 border-l'
+                )}
+                {...dragHandlers}
               />
 
               <SettingsPopover
@@ -286,13 +317,17 @@ export function DirectEditToolbarInner({
                 isMac={isMac}
                 isOpen={activePopover === 'settings'}
                 onOpenChange={(open) => setActivePopover(open ? 'settings' : null)}
+                rulersVisible={rulersVisible}
+                canvasActive={canvasActive}
+                onToggleRulers={onToggleRulers}
+                onToggleCanvas={onToggleCanvas}
                 onSetTheme={onSetTheme}
               />
 
               <div className={cn(
-                'border-foreground/10',
+                'cursor-grab border-foreground/10',
                 isVertical ? 'my-0.5 w-5 border-t' : 'mx-0.5 h-5 border-l'
-              )} />
+              )} data-direct-edit="toolbar-divider" {...dragHandlers} />
 
               <Tooltip>
                 <TooltipTrigger
@@ -322,9 +357,9 @@ export function DirectEditToolbarInner({
 }
 
 function DirectEditToolbarContent() {
-  const { editModeActive, activeTool, theme, sessionEditCount, canvas } = useDirectEditState()
+  const { editModeActive, theme, sessionEditCount, canvas, agentAvailable } = useDirectEditState()
   const {
-    toggleEditMode, setActiveTool, setTheme,
+    toggleEditMode, setTheme,
     getSessionItems, exportAllEdits, sendAllSessionItemsToAgent, clearSessionEdits, removeSessionEdit, deleteComment,
     toggleCanvas, setCanvasZoom, zoomCanvasTo100, fitCanvasToViewport,
   } = useDirectEditActions()
@@ -336,14 +371,13 @@ function DirectEditToolbarContent() {
       onToggleEditMode={toggleEditMode}
       rulersVisible={rulersVisible}
       onToggleRulers={toggleRulers}
-      activeTool={activeTool}
-      onSetActiveTool={setActiveTool}
       theme={theme}
       onSetTheme={setTheme}
       sessionEditCount={sessionEditCount}
       onGetSessionItems={getSessionItems}
       onExportAllEdits={exportAllEdits}
       onSendAllToAgents={sendAllSessionItemsToAgent}
+      agentAvailable={agentAvailable}
       onClearSessionEdits={clearSessionEdits}
       onRemoveSessionEdit={removeSessionEdit}
       onDeleteComment={deleteComment}
