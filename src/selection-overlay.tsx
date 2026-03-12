@@ -2,6 +2,7 @@ import * as React from 'react'
 import type { ActiveTool } from './types'
 import type { SizingPropertyKey, SizingValue, SizingChangeOptions } from './types'
 import type { StartDragOptions } from './use-move'
+import { createDragInteractionGuard } from './drag-interaction-guard'
 import { elementFromPointWithoutOverlays, detectSizingMode } from './utils'
 import { useSelectionResize, type ResizeHandle } from './use-selection-resize'
 import { useViewportEvents } from './hooks/use-viewport-events'
@@ -108,6 +109,8 @@ export function SelectionOverlay({
   const cleanupRef = React.useRef<(() => void) | null>(null)
   const clickThroughTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
   const isDraggingRef = React.useRef(isDragging)
+  const dragGuardRef = React.useRef(createDragInteractionGuard())
+  const [isPendingMoveGesture, setIsPendingMoveGesture] = React.useState(false)
   isDraggingRef.current = isDragging
   const showResizeHandles = enableResizeHandles && !isDragging && !isTextEditing
   const edgeHandleWidth = Math.max(0, rect.width - RESIZE_CORNER_SIZE * 2)
@@ -160,6 +163,7 @@ export function SelectionOverlay({
   React.useEffect(() => {
     return () => {
       cleanupRef.current?.()
+      dragGuardRef.current.deactivate()
       if (clickThroughTimerRef.current) clearTimeout(clickThroughTimerRef.current)
     }
   }, [])
@@ -177,8 +181,8 @@ export function SelectionOverlay({
 
     const origin = { x: e.clientX, y: e.clientY }
     const savedEvent = e
-
-    const blockSelectStart = (se: Event) => se.preventDefault()
+    setIsPendingMoveGesture(true)
+    dragGuardRef.current.activate()
 
     const onMove = (moveEvent: PointerEvent) => {
       const dx = moveEvent.clientX - origin.x
@@ -202,16 +206,32 @@ export function SelectionOverlay({
       }
     }
 
+    const onCancel = () => {
+      cleanup()
+    }
+
+    const onKeyDown = (keyEvent: KeyboardEvent) => {
+      if (keyEvent.key === 'Escape') {
+        cleanup()
+      }
+    }
+
     const cleanup = () => {
       window.removeEventListener('pointermove', onMove)
       window.removeEventListener('pointerup', onUp)
-      document.removeEventListener('selectstart', blockSelectStart)
+      window.removeEventListener('pointercancel', onCancel)
+      window.removeEventListener('blur', onCancel)
+      window.removeEventListener('keydown', onKeyDown)
+      dragGuardRef.current.deactivate()
+      setIsPendingMoveGesture(false)
       cleanupRef.current = null
     }
 
     window.addEventListener('pointermove', onMove)
     window.addEventListener('pointerup', onUp)
-    document.addEventListener('selectstart', blockSelectStart)
+    window.addEventListener('pointercancel', onCancel)
+    window.addEventListener('blur', onCancel)
+    window.addEventListener('keydown', onKeyDown)
     cleanupRef.current = cleanup
   }
 
@@ -525,7 +545,7 @@ export function SelectionOverlay({
             width: rect.width,
             height: rect.height,
             zIndex: 99996,
-            cursor: 'default',
+            cursor: isDragging || isPendingMoveGesture ? 'grabbing' : 'grab',
             pointerEvents: 'auto',
           }}
           onPointerDown={handlePointerDown}
