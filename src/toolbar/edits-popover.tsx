@@ -2,7 +2,7 @@ import * as React from 'react'
 import { Button as BaseButton } from '@base-ui/react/button'
 import { usePortalContainer } from '../portal-container'
 import { Popover } from '@base-ui/react/popover'
-import { X, Check, Copy, Send, Trash2 } from 'lucide-react'
+import { X, Check, Copy, Trash2 } from 'lucide-react'
 import type { SessionItem, SessionEdit, MoveIntent } from '../types'
 import { Badge } from '../ui/badge'
 import {
@@ -45,7 +45,6 @@ export interface EditsPopoverProps {
   onOpenChange: (open: boolean) => void
   onGetSessionItems?: () => SessionItem[]
   onExportAllEdits?: () => Promise<boolean>
-  onSendAllToAgents?: () => Promise<boolean>
   onClearSessionEdits?: () => void
   onRemoveSessionEdit?: (element: HTMLElement) => void
   onDeleteComment?: (id: string) => void
@@ -58,13 +57,11 @@ export function EditsPopover({
   onOpenChange,
   onGetSessionItems,
   onExportAllEdits,
-  onSendAllToAgents,
   onClearSessionEdits,
   onRemoveSessionEdit,
   onDeleteComment,
 }: EditsPopoverProps) {
   const [copied, setCopied] = React.useState(false)
-  const [sendStatus, setSendStatus] = React.useState<'idle' | 'sending' | 'sent' | 'offline'>('idle')
   const editsPopupRef = React.useRef<HTMLDivElement>(null)
   const editsTriggerRef = React.useRef<HTMLButtonElement>(null)
   const [editsSnapshot, setEditsSnapshot] = React.useState<SessionItem[]>([])
@@ -100,26 +97,6 @@ export function EditsPopover({
     setCopied(true)
     window.setTimeout(() => setCopied(false), 2000)
   }, [onExportAllEdits])
-
-  const handleSendAll = React.useCallback(async () => {
-    if (!onSendAllToAgents || sendStatus === 'sending') return
-
-    setSendStatus('sending')
-    let success = false
-    try {
-      success = await onSendAllToAgents()
-    } catch {
-      success = false
-    }
-    if (success) {
-      setSendStatus('sent')
-      window.setTimeout(() => setSendStatus('idle'), 2000)
-      return
-    }
-
-    setSendStatus('offline')
-    window.setTimeout(() => setSendStatus('idle'), 2000)
-  }, [onSendAllToAgents, sendStatus])
 
   const handleCopyItem = React.useCallback(async (item: SessionItem) => {
     const text = item.type === 'edit'
@@ -174,7 +151,7 @@ export function EditsPopover({
         <Popover.Positioner side={tooltipSide} sideOffset={12} className="fixed z-[99999]" style={{ pointerEvents: 'auto' }}>
           <Popover.Popup
             ref={editsPopupRef}
-            className="w-[340px] rounded-xl bg-background text-xs outline outline-1 outline-foreground/10 shadow-lg"
+            className="w-[240px] rounded-xl bg-background text-xs outline outline-1 outline-foreground/10 shadow-lg"
             onPointerDown={(e: React.PointerEvent) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between px-3 pb-1 pt-2.5">
@@ -194,30 +171,6 @@ export function EditsPopover({
                     )}
                     {copied ? 'Copied' : 'Copy all'}
                   </BaseButton>
-                  {onSendAllToAgents && (
-                    <BaseButton
-                      className="inline-flex h-6 items-center gap-1 rounded-md px-2 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
-                      onClick={() => {
-                        void handleSendAll()
-                      }}
-                      disabled={sendStatus === 'sending'}
-                    >
-                      {sendStatus === 'offline' ? (
-                        <X className="size-3 text-red-500" />
-                      ) : sendStatus === 'sent' ? (
-                        <Check className="size-3 text-green-400" />
-                      ) : (
-                        <Send className={cn('size-3', sendStatus === 'sending' && 'animate-pulse')} />
-                      )}
-                      {sendStatus === 'sending'
-                        ? 'Sending'
-                        : sendStatus === 'sent'
-                          ? 'Sent'
-                          : sendStatus === 'offline'
-                            ? 'Offline'
-                            : 'Send all'}
-                    </BaseButton>
-                  )}
                   <Tooltip>
                     <TooltipTrigger render={
                       <BaseButton

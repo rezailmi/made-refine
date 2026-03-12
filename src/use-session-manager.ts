@@ -251,6 +251,14 @@ export function useSessionManager({
   setState,
   setSessionEditCount,
 }: SessionManagerOptions) {
+  const getSelectableChild = React.useCallback((element: HTMLElement): HTMLElement | null => {
+    return Array.from(element.children).find((child): child is HTMLElement => {
+      if (!(child instanceof HTMLElement)) return false
+      if (child.matches('script, style, link, meta, noscript')) return false
+      if (child.matches('[data-direct-edit], [data-direct-edit-host]')) return false
+      return true
+    }) ?? null
+  }, [])
 
   const getExportableComments = React.useCallback((comments: Comment[]): Comment[] => {
     return comments.filter((comment) => comment.text.trim().length > 0)
@@ -310,6 +318,12 @@ export function useSessionManager({
     const elementInfo = getElementInfo(element)
 
     setState((prev) => ({
+      comments: prev.activeCommentId
+        ? prev.comments.filter((comment) => {
+          if (comment.id !== prev.activeCommentId) return true
+          return comment.element === element || comment.text.trim().length > 0
+        })
+        : prev.comments,
       isOpen: true,
       selectedElement: element,
       elementInfo,
@@ -327,8 +341,11 @@ export function useSessionManager({
       activeTool: prev.activeTool,
       theme: prev.theme,
       borderStyleControlPreference: prev.borderStyleControlPreference,
-      comments: prev.comments,
-      activeCommentId: prev.activeCommentId,
+      activeCommentId: prev.activeCommentId && prev.comments.some((comment) => (
+        comment.id === prev.activeCommentId && comment.element === element
+      ))
+        ? prev.activeCommentId
+        : null,
       canvas: prev.canvas,
       textEditingElement: null,
     }))
@@ -337,17 +354,18 @@ export function useSessionManager({
 
   const selectParent = React.useCallback(() => {
     const el = stateRef.current.selectedElement
-    if (el?.parentElement) {
+    if (el && el !== document.body && el.parentElement) {
       selectElement(el.parentElement)
     }
   }, [selectElement])
 
   const selectChild = React.useCallback(() => {
-    const firstChild = stateRef.current.selectedElement?.firstElementChild as HTMLElement | null
+    const selectedElement = stateRef.current.selectedElement
+    const firstChild = selectedElement ? getSelectableChild(selectedElement) : null
     if (firstChild) {
       selectElement(firstChild)
     }
-  }, [selectElement])
+  }, [getSelectableChild, selectElement])
 
   const resetToOriginal = React.useCallback(() => {
     const current = stateRef.current

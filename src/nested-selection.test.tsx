@@ -540,7 +540,7 @@ describe('SelectionOverlay', () => {
     expect(resizeHandles).toHaveLength(8)
   })
 
-  it('hides resize handles when active tool is comment', () => {
+  it('keeps resize handles visible when active tool is the comment alias', () => {
     const { container } = render(
       <SelectionOverlay
         selectedElement={selectedElement}
@@ -551,7 +551,7 @@ describe('SelectionOverlay', () => {
       />
     )
 
-    expect(container.querySelector('[data-direct-edit="resize-handle"]')).toBeNull()
+    expect(container.querySelectorAll('[data-direct-edit="resize-handle"]')).toHaveLength(8)
   })
 
   it('resize handles do not trigger move-start or click-through', () => {

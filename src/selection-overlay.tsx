@@ -50,6 +50,9 @@ function getEdgeHandleAtPoint(
 
 export interface SelectionOverlayProps {
   selectedElement: HTMLElement
+  pageFrameElement?: HTMLElement | null
+  pageFrameLabel?: string | null
+  canvasZoom?: number
   draggedElement?: HTMLElement | null
   isDragging: boolean
   ghostPosition?: { x: number; y: number }
@@ -64,6 +67,7 @@ export interface SelectionOverlayProps {
   onDoubleClick?: (clientX: number, clientY: number) => void
   onHoverElement?: (element: HTMLElement | null) => void
   onClickThrough?: (clientX: number, clientY: number) => void
+  onSelectPageFrame?: (element: HTMLElement) => void
   enableResizeHandles?: boolean
   onResizeSizingChange?: (
     changes: Partial<Record<SizingPropertyKey, SizingValue>>,
@@ -73,21 +77,27 @@ export interface SelectionOverlayProps {
 
 export function SelectionOverlay({
   selectedElement,
+  pageFrameElement = null,
+  pageFrameLabel = null,
+  canvasZoom = 1,
   draggedElement,
   isDragging,
   ghostPosition,
   onMoveStart,
   showMoveHandle = false,
-  activeTool = 'select',
   isTextEditing,
   onDoubleClick,
   onHoverElement,
   onClickThrough,
+  onSelectPageFrame,
   enableResizeHandles = false,
   onResizeSizingChange,
 }: SelectionOverlayProps) {
   const rectElement = isDragging && draggedElement ? draggedElement : selectedElement
   const [rect, setRect] = React.useState(() => rectElement.getBoundingClientRect())
+  const [pageFrameRect, setPageFrameRect] = React.useState<DOMRect | null>(() => (
+    pageFrameElement ? pageFrameElement.getBoundingClientRect() : null
+  ))
   const [moveHandleRects, setMoveHandleRects] = React.useState<Array<{
     target: HTMLElement
     left: number
@@ -99,7 +109,7 @@ export function SelectionOverlay({
   const clickThroughTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
   const isDraggingRef = React.useRef(isDragging)
   isDraggingRef.current = isDragging
-  const showResizeHandles = enableResizeHandles && !isDragging && !isTextEditing && activeTool === 'select'
+  const showResizeHandles = enableResizeHandles && !isDragging && !isTextEditing
   const edgeHandleWidth = Math.max(0, rect.width - RESIZE_CORNER_SIZE * 2)
   const edgeHandleHeight = Math.max(0, rect.height - RESIZE_CORNER_SIZE * 2)
 
@@ -112,34 +122,40 @@ export function SelectionOverlay({
     onResizeSizingChange,
   })
 
-  React.useLayoutEffect(() => {
-    if (!isDragging) {
+  const updateRects = React.useCallback(() => {
+    if (!isDraggingRef.current) {
       setRect(rectElement.getBoundingClientRect())
     }
-  }, [isDragging, rectElement])
+    setPageFrameRect(pageFrameElement ? pageFrameElement.getBoundingClientRect() : null)
+  }, [pageFrameElement, rectElement])
+
+  React.useLayoutEffect(() => {
+    updateRects()
+  }, [updateRects])
 
   useViewportEvents(() => {
-    if (isDraggingRef.current) return
-    setRect(rectElement.getBoundingClientRect())
+    updateRects()
   })
 
   React.useEffect(() => {
-    function updateRect() {
-      if (isDraggingRef.current) return
-      setRect(rectElement.getBoundingClientRect())
-    }
-
-    const observer = new MutationObserver(updateRect)
+    const observer = new MutationObserver(updateRects)
     observer.observe(rectElement, {
       attributes: true,
       childList: true,
       subtree: true,
     })
+    if (pageFrameElement && pageFrameElement !== rectElement) {
+      observer.observe(pageFrameElement, {
+        attributes: true,
+        childList: true,
+        subtree: true,
+      })
+    }
 
     return () => {
       observer.disconnect()
     }
-  }, [rectElement])
+  }, [pageFrameElement, rectElement, updateRects])
 
   React.useEffect(() => {
     return () => {
@@ -416,9 +432,45 @@ export function SelectionOverlay({
   const wLabel = wMode === 'fixed' ? `${w}` : wMode === 'fill' ? `${w} Fill` : `${w} Fit`
   const hLabel = hMode === 'fixed' ? `${h}` : hMode === 'fill' ? `${h} Fill` : `${h} Fit`
   const dimensionText = `${wLabel} × ${hLabel}`
+  const pageLabelFontSize = 11
+  const pageLabelLineHeight = 16
+  const pageLabelGap = 8 * canvasZoom
+  const pageLabelOffset = pageLabelLineHeight + pageLabelGap
 
   return (
     <>
+      {!isTextEditing && (
+        pageFrameElement && pageFrameRect && pageFrameLabel && (
+          <button
+            type="button"
+            data-direct-edit="page-frame-label"
+            style={{
+              position: 'fixed',
+              left: pageFrameRect.left,
+              top: Math.max(8, pageFrameRect.top - pageLabelOffset),
+              pointerEvents: 'auto',
+              zIndex: 99997,
+              background: 'transparent',
+              border: 'none',
+              color: BLUE,
+              fontSize: `${pageLabelFontSize}px`,
+              lineHeight: `${pageLabelLineHeight}px`,
+              padding: 0,
+              fontFamily: 'system-ui, sans-serif',
+              fontWeight: 500,
+              letterSpacing: '-0.01em',
+              cursor: 'pointer',
+            }}
+            onClick={(e) => {
+              e.stopPropagation()
+              onSelectPageFrame?.(pageFrameElement)
+            }}
+          >
+            {pageFrameLabel}
+          </button>
+        )
+      )}
+
       {!isTextEditing && (
         <div
           data-direct-edit="selection-overlay"
@@ -474,7 +526,7 @@ export function SelectionOverlay({
             height: rect.height,
             zIndex: 99996,
             cursor: 'default',
-            pointerEvents: activeTool === 'comment' ? 'none' : 'auto',
+            pointerEvents: 'auto',
           }}
           onPointerDown={handlePointerDown}
           onDoubleClick={handleDoubleClick}

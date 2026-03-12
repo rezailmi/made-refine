@@ -16,8 +16,10 @@ import {
   calculateGuidelineMeasurements, isFlexContainer, isTextElement,
   resolveElementTarget, computeHoverHighlight,
   elementFromPointWithoutOverlays, findChildAtPoint, getSelectionColors, parseColorValue,
+  getElementDisplayName,
 } from './utils'
 import { InteractionOverlay } from './panel/interaction-overlay'
+import { SelectedCommentComposer } from './panel/selected-comment-composer'
 import { MoveOverlay } from './move-overlay'
 import { SelectionOverlay } from './selection-overlay'
 import { CommentOverlay } from './comment-overlay'
@@ -47,6 +49,18 @@ export { FillSection, BackgroundFillSection, ColorInput } from './panel/fill-sec
 export { SizingInputs, SizingDropdown, SizingFixedInput, SIZING_OPTIONS, DISTRIBUTE_MODES, DISTRIBUTE_LABELS } from './panel/sizing-inputs'
 export type { DistributeMode } from './panel/sizing-inputs'
 export { AlignmentGrid } from './panel/alignment-grid'
+
+function getElementCommentAnchor(element: HTMLElement): { x: number; y: number } {
+  const rect = element.getBoundingClientRect()
+  return {
+    x: rect.left + rect.width / 2,
+    y: rect.top + Math.min(16, Math.max(8, rect.height * 0.15)),
+  }
+}
+
+function getPageFrameElement(element: HTMLElement): HTMLElement {
+  return document.body.contains(element) ? document.body : element
+}
 
 export interface DirectEditPanelInnerProps {
   elementInfo: {
@@ -113,9 +127,10 @@ export interface DirectEditPanelInnerProps {
   onSelectSelectionColorTarget?: (color: ColorValue) => void
   onUpdateTypography: (key: TypographyPropertyKey, value: CSSPropertyValue | string) => void
   onReset: () => void
-  onExportEdits: () => Promise<boolean>
-  onSendToAgent: () => Promise<boolean>
+  onExportEdits?: () => Promise<boolean>
+  onSendToAgent?: () => Promise<boolean>
   canSendToAgent?: boolean
+  showSendButton?: boolean
   className?: string
   style?: React.CSSProperties
   panelRef?: React.RefObject<HTMLDivElement>
@@ -158,6 +173,7 @@ export function DirectEditPanelInner({
   onExportEdits,
   onSendToAgent,
   canSendToAgent = false,
+  showSendButton = true,
   className,
   style,
   panelRef,
@@ -311,16 +327,20 @@ export function DirectEditPanelInner({
         )}
       </div>
 
-      <PanelFooter
-        isDraggable={isDraggable}
-        canTriggerSend={canTriggerSend}
-        onExportEdits={onExportEdits}
-        onSendToAgent={onSendToAgent}
-        onPointerDown={onHeaderPointerDown}
-        onPointerMove={onHeaderPointerMove}
-        onPointerUp={onHeaderPointerUp}
-        onPointerCancel={onHeaderPointerCancel}
-      />
+      {(onExportEdits || (showSendButton && onSendToAgent)) && (
+        <PanelFooter
+          isDraggable={isDraggable}
+          canTriggerSend={canTriggerSend}
+          onExportEdits={onExportEdits}
+          onSendToAgent={onSendToAgent}
+          showSendButton={showSendButton}
+          onPointerDown={onHeaderPointerDown}
+          onPointerMove={onHeaderPointerMove}
+          onPointerUp={onHeaderPointerUp}
+          onPointerCancel={onHeaderPointerCancel}
+        />
+      )}
+
     </div>
     </TooltipProvider>
   )
@@ -333,8 +353,8 @@ function DirectEditPanelContent() {
     computedSpacing, computedBorderRadius, computedBorder, computedFlex,
     computedSizing, computedColor, computedBoxShadow, computedTypography,
     borderStyleControlPreference, pendingStyles,
-    editModeActive, selectedElement, activeTool,
-    comments, activeCommentId, textEditingElement,
+    editModeActive, selectedElement, canvas,
+    comments, activeCommentId, textEditingElement, agentAvailable,
   } = useDirectEditState()
   const {
     closePanel, selectParent, selectChild, selectElement,
@@ -342,12 +362,11 @@ function DirectEditPanelContent() {
     updateBorderProperty, updateBorderProperties, updateRawCSS,
     updateFlexProperty, toggleFlexLayout,
     updateSizingProperties, updateSizingProperty, updateColorProperty, replaceSelectionColor, updateTypographyProperty,
-    resetToOriginal, exportEdits, sendEditToAgent,
-    handleMoveComplete, setActiveTool,
-    addComment, updateCommentText, addCommentReply, deleteComment, exportComment,
+    resetToOriginal,
+    handleMoveComplete,
+    addComment, submitCommentDraft, addCommentReply, deleteComment, exportComment,
     sendCommentToAgent, setActiveCommentId,
-    startTextEditing, commitTextEditing,
-    canSendEditToAgent,
+    startTextEditing, toggleEditMode,
   } = useDirectEditActions()
 
   const {
@@ -367,10 +386,24 @@ function DirectEditPanelContent() {
   } | null>(null)
   const [commentInputAttention, setCommentInputAttention] = React.useState<{ commentId: string; nonce: number } | null>(null)
   const commentDraftRef = React.useRef('')
+  const previousCommentTriggerRef = React.useRef<{
+    editModeActive: boolean
+    selectedElement: HTMLElement | null
+  }>({
+    editModeActive,
+    selectedElement,
+  })
 
   React.useEffect(() => {
     commentDraftRef.current = ''
   }, [activeCommentId])
+
+  const activeDraftComment = React.useMemo(() => {
+    if (!selectedElement || !activeCommentId) return null
+    const active = comments.find((comment) => comment.id === activeCommentId)
+    if (!active || active.text.trim().length > 0 || active.element !== selectedElement) return null
+    return active
+  }, [activeCommentId, comments, selectedElement])
 
   const { isActive: measurementActive, hoveredElement, measurements, mousePosition } = useMeasurement(
     isOpen ? selectedElement : null
@@ -416,9 +449,50 @@ function DirectEditPanelContent() {
     setActiveCommentId(id)
   }, [activeCommentId, comments, hasPendingCommentDraft, deleteComment, setActiveCommentId])
 
+  React.useEffect(() => {
+    const previous = previousCommentTriggerRef.current
+    previousCommentTriggerRef.current = { editModeActive, selectedElement }
+
+    if (!editModeActive || textEditingElement) return
+
+    const changedSelection = previous.selectedElement !== selectedElement
+
+    if (!changedSelection) return
+
+    if (!selectedElement) {
+      if (!activeCommentId) return
+      const active = comments.find((comment) => comment.id === activeCommentId)
+      if (active && active.text.trim().length === 0) {
+        deleteComment(active.id)
+      }
+      setActiveCommentId(null)
+      return
+    }
+
+    if (activeCommentId) return
+
+    const existingDraft = comments.find((comment) => (
+      comment.element === selectedElement && comment.text.trim().length === 0
+    ))
+
+    if (existingDraft) {
+      setActiveCommentId(existingDraft.id)
+      return
+    }
+
+    addComment(selectedElement, getElementCommentAnchor(selectedElement))
+  }, [
+    activeCommentId,
+    addComment,
+    comments,
+    editModeActive,
+    selectedElement,
+    setActiveCommentId,
+    textEditingElement,
+  ])
+
   const overlay = editModeActive && container ? createPortal(
     <InteractionOverlay
-      activeTool={activeTool}
       selectedElement={selectedElement}
       textEditingElement={textEditingElement}
       activeCommentId={activeCommentId}
@@ -435,16 +509,24 @@ function DirectEditPanelContent() {
 
   const commentOverlay = editModeActive && comments.length > 0 && container ? createPortal(
     <CommentOverlay
-      comments={comments}
+      comments={comments.filter((comment) => comment.text.trim().length > 0)}
       activeCommentId={activeCommentId}
       onSetActiveComment={handleSetActiveComment}
-      onUpdateText={updateCommentText}
       onAddReply={addCommentReply}
       onDelete={deleteComment}
       onExport={exportComment}
-      onSendToAgent={sendCommentToAgent}
-      attentionRequest={commentInputAttention}
+      onSendToAgent={agentAvailable ? sendCommentToAgent : undefined}
+    />,
+    container
+  ) : null
+
+  const selectedCommentComposer = editModeActive && activeDraftComment && container ? createPortal(
+    <SelectedCommentComposer
+      comment={activeDraftComment}
+      attentionNonce={commentInputAttention?.commentId === activeDraftComment.id ? commentInputAttention.nonce : 0}
       draftRef={commentDraftRef}
+      onSubmit={(text) => submitCommentDraft(activeDraftComment.id, text)}
+      onCancel={() => handleSetActiveComment(null)}
     />,
     container
   ) : null
@@ -453,6 +535,18 @@ function DirectEditPanelContent() {
     if (!selectedElement) return []
     return getSelectionColors(selectedElement)
   }, [selectedElement, pendingStyles])
+
+  const pageFrameElement = React.useMemo(() => {
+    if (!selectedElement) return null
+    return getPageFrameElement(selectedElement)
+  }, [selectedElement])
+
+  const pageFrameLabel = React.useMemo(() => {
+    if (!pageFrameElement) return null
+    const pageTitle = document.title.trim()
+    if (pageTitle.length > 0) return pageTitle
+    return getElementDisplayName(pageFrameElement)
+  }, [pageFrameElement])
 
   const handleSelectSelectionColorTarget = React.useCallback((targetColor: ColorValue) => {
     if (!selectedElement) return
@@ -525,7 +619,7 @@ function DirectEditPanelContent() {
     }
   }, [selectedElement, selectElement])
 
-  if (!isOpen || !computedSpacing || !elementInfo || !computedBorderRadius || !computedBorder || !computedFlex || !computedSizing || !computedColor || computedBoxShadow === null || !computedTypography || !container) return <>{overlay}{commentOverlay}</>
+  if (!isOpen || !computedSpacing || !elementInfo || !computedBorderRadius || !computedBorder || !computedFlex || !computedSizing || !computedColor || computedBoxShadow === null || !computedTypography || !container) return <>{overlay}{commentOverlay}{selectedCommentComposer}</>
 
   const handleMoveStart = (
     e: React.PointerEvent,
@@ -564,16 +658,19 @@ function DirectEditPanelContent() {
     <>
       {overlay}
       {commentOverlay}
+      {selectedCommentComposer}
 
       {selectedElement && (
         <SelectionOverlay
           selectedElement={selectedElement}
+          pageFrameElement={pageFrameElement}
+          pageFrameLabel={pageFrameLabel}
+          canvasZoom={canvas?.zoom ?? 1}
           draggedElement={dragState.draggedElement}
           isDragging={dragState.isDragging}
           ghostPosition={dragState.ghostPosition}
           onMoveStart={handleMoveStart}
           showMoveHandle={showMoveHandle}
-          activeTool={activeTool}
           isTextEditing={Boolean(textEditingElement)}
           onDoubleClick={(clientX, clientY) => {
             if (!selectedElement) return
@@ -593,8 +690,13 @@ function DirectEditPanelContent() {
           onHoverElement={(element) => {
             setHoverHighlight(computeHoverHighlight(element, selectedElement))
           }}
+          onSelectPageFrame={selectElement}
           onClickThrough={(clientX, clientY) => {
             if (!selectedElement) return
+            if (hasPendingCommentDraft()) return
+            if (activeCommentId) {
+              handleSetActiveComment(null)
+            }
             const elementUnder = elementFromPointWithoutOverlays(clientX, clientY)
             if (!elementUnder) return
             if (elementUnder !== selectedElement && selectedElement.contains(elementUnder)) {
@@ -640,7 +742,7 @@ function DirectEditPanelContent() {
         borderStyleControlPreference={borderStyleControlPreference}
         computedTypography={computedTypography}
         pendingStyles={pendingStyles}
-        onClose={closePanel}
+        onClose={toggleEditMode}
         onSelectParent={selectParent}
         onSelectChild={selectChild}
         onUpdateSpacing={updateSpacingProperty}
@@ -656,13 +758,6 @@ function DirectEditPanelContent() {
         onSelectSelectionColorTarget={handleSelectSelectionColorTarget}
         onUpdateTypography={updateTypographyProperty}
         onReset={resetToOriginal}
-        onExportEdits={exportEdits}
-        onSendToAgent={sendEditToAgent}
-        canSendToAgent={canSendEditToAgent({
-          selectedElement,
-          elementInfo,
-          pendingStyles,
-        })}
         className="fixed z-[99999]"
         style={{
           left: position.x,

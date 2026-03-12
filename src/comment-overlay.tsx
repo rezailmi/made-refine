@@ -1,5 +1,6 @@
 import * as React from 'react'
 import type { Comment, ElementLocator } from './types'
+import { useAutosizeTextarea } from './hooks/use-autosize-textarea'
 import { buildCommentExport, buildExportInstruction } from './utils'
 import { copyText } from './clipboard'
 import { useViewportEvents } from './hooks/use-viewport-events'
@@ -8,9 +9,19 @@ import { Button } from './ui/button'
 import { ChevronLeft, Check, Copy, Trash2, ArrowUp, Send, X } from 'lucide-react'
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from './ui/tooltip'
 
-function clampUnit(value: number): number {
-  if (!Number.isFinite(value)) return 0
-  return Math.max(0, Math.min(1, value))
+const COMMENT_CARD_WIDTH = 280
+
+function getTopRightCommentPosition(
+  element: HTMLElement,
+  fallback: { x: number; y: number },
+): { x: number; y: number } {
+  if (!element.isConnected) return fallback
+
+  const rect = element.getBoundingClientRect()
+  return {
+    x: rect.right,
+    y: rect.top,
+  }
 }
 
 function formatRelativeTime(timestamp: number): string {
@@ -40,11 +51,11 @@ export interface CommentOverlayProps {
   comments: Comment[]
   activeCommentId: string | null
   onSetActiveComment: (id: string | null) => void
-  onUpdateText: (id: string, text: string) => void
+  onUpdateText?: (id: string, text: string) => void
   onAddReply: (id: string, text: string) => void
   onDelete: (id: string) => void
   onExport?: (id: string) => Promise<boolean>
-  onSendToAgent: (id: string) => Promise<boolean>
+  onSendToAgent?: (id: string) => Promise<boolean>
   attentionRequest?: { commentId: string; nonce: number } | null
   draftRef?: React.MutableRefObject<string>
 }
@@ -73,11 +84,11 @@ export function CommentOverlay({
           isActive={activeCommentId === comment.id}
           onActivate={() => onSetActiveComment(comment.id)}
           onClose={() => onSetActiveComment(null)}
-          onUpdateText={(text) => onUpdateText(comment.id, text)}
+          onUpdateText={onUpdateText ? (text) => onUpdateText(comment.id, text) : undefined}
           onAddReply={(text) => onAddReply(comment.id, text)}
           onDelete={() => onDelete(comment.id)}
           onExport={onExport ? () => onExport(comment.id) : undefined}
-          onSendToAgent={() => onSendToAgent(comment.id)}
+          onSendToAgent={onSendToAgent ? () => onSendToAgent(comment.id) : undefined}
           attentionNonce={attentionRequest?.commentId === comment.id ? attentionRequest.nonce : 0}
           draftRef={activeCommentId === comment.id ? draftRef : undefined}
         />
@@ -92,11 +103,11 @@ interface CommentPinProps {
   isActive: boolean
   onActivate: () => void
   onClose: () => void
-  onUpdateText: (text: string) => void
+  onUpdateText?: (text: string) => void
   onAddReply: (text: string) => void
   onDelete: () => void
   onExport?: () => Promise<boolean>
-  onSendToAgent: () => Promise<boolean>
+  onSendToAgent?: () => Promise<boolean>
   attentionNonce: number
   draftRef?: React.MutableRefObject<string>
 }
@@ -115,21 +126,12 @@ function CommentPin({
   attentionNonce,
   draftRef,
 }: CommentPinProps) {
-  const [position, setPosition] = React.useState(comment.clickPosition)
-  const [elementRect, setElementRect] = React.useState<DOMRect | null>(null)
+  const [position, setPosition] = React.useState(() => getTopRightCommentPosition(comment.element, comment.clickPosition))
   const [flipHorizontal, setFlipHorizontal] = React.useState(false)
 
   const updatePosition = React.useCallback(() => {
-    if (!comment.element.isConnected) return
-    const rect = comment.element.getBoundingClientRect()
-    const relativeX = clampUnit(comment.relativePosition.x)
-    const relativeY = clampUnit(comment.relativePosition.y)
-    setPosition({
-      x: rect.left + relativeX * rect.width,
-      y: rect.top + relativeY * rect.height,
-    })
-    setElementRect(rect)
-  }, [comment.element, comment.relativePosition])
+    setPosition(getTopRightCommentPosition(comment.element, comment.clickPosition))
+  }, [comment.clickPosition, comment.element])
 
   useViewportEvents(updatePosition)
 
@@ -139,39 +141,13 @@ function CommentPin({
 
   React.useEffect(() => {
     if (isActive) {
-      const hasText = comment.text !== ''
-      const cardWidth = hasText ? 280 : 220
       const pinSize = 12
-      setFlipHorizontal(position.x + pinSize + cardWidth > window.innerWidth)
+      setFlipHorizontal(position.x + pinSize + COMMENT_CARD_WIDTH > window.innerWidth)
     }
-  }, [isActive, position, comment.text])
+  }, [isActive, position])
 
   return (
     <>
-      {isActive && elementRect && (
-        <svg
-          data-direct-edit="comment-highlight"
-          style={{
-            position: 'fixed',
-            inset: 0,
-            width: '100vw',
-            height: '100vh',
-            pointerEvents: 'none',
-            zIndex: 99997,
-          }}
-        >
-          <rect
-            x={elementRect.left}
-            y={elementRect.top}
-            width={elementRect.width}
-            height={elementRect.height}
-            fill="rgba(59, 130, 246, 0.06)"
-            stroke="#3B82F6"
-            strokeWidth={1}
-          />
-        </svg>
-      )}
-
       <button
         type="button"
         data-direct-edit="comment-pin"
@@ -193,15 +169,20 @@ function CommentPin({
       </button>
 
       {isActive && (
-        comment.text === '' ? (
+        comment.text === '' && onUpdateText ? (
           <NewCommentInput
             position={position}
             flipHorizontal={flipHorizontal}
             onSubmit={(text) => {
               onUpdateText(text)
-              const md = buildCommentExport(comment.locator, text, [])
-              const instruction = buildExportInstruction({ hasCssEdits: false, hasTextEdits: false, hasMoves: false, hasComments: true })
-              copyText(`${instruction}\n\n${md}`)
+              const markdown = buildCommentExport(comment.locator, text, [])
+              const instruction = buildExportInstruction({
+                hasCssEdits: false,
+                hasTextEdits: false,
+                hasMoves: false,
+                hasComments: true,
+              })
+              void copyText(`${instruction}\n\n${markdown}`)
             }}
             onCancel={onClose}
             attentionNonce={attentionNonce}
@@ -244,7 +225,7 @@ function NewCommentInput({
   attentionNonce,
   draftRef,
 }: NewCommentInputProps) {
-  const [text, setText] = React.useState('')
+  const [text, setText] = React.useState(() => draftRef?.current ?? '')
   const [showError, setShowError] = React.useState(false)
   const inputRef = React.useRef<HTMLInputElement>(null)
   const cardRef = React.useRef<HTMLDivElement>(null)
@@ -265,11 +246,15 @@ function NewCommentInput({
         { transform: 'translateX(4px)' },
         { transform: 'translateX(0)' },
       ],
-      { duration: 260, easing: 'ease-in-out' }
+      { duration: 260, easing: 'ease-in-out' },
     )
     const timeout = window.setTimeout(() => setShowError(false), 420)
     return () => window.clearTimeout(timeout)
   }, [attentionNonce])
+
+  React.useEffect(() => {
+    if (draftRef) draftRef.current = text
+  }, [draftRef, text])
 
   return (
     <div
@@ -278,7 +263,7 @@ function NewCommentInput({
       data-direct-edit="comment-card"
       className={cn(
         'fixed z-[99999] flex items-center gap-2 rounded-xl outline outline-1 outline-foreground/10 bg-background p-1.5 shadow-lg',
-        showError && 'outline-red-500/70'
+        showError && 'outline-red-500/70',
       )}
       style={{
         width: 220,
@@ -294,13 +279,12 @@ function NewCommentInput({
         aria-invalid={showError}
         className={cn(
           'min-w-0 flex-1 bg-transparent px-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none',
-          showError && 'placeholder:text-red-400'
+          showError && 'placeholder:text-red-400',
         )}
         placeholder="Add a comment..."
         value={text}
         onChange={(e) => {
           setText(e.target.value)
-          if (draftRef) draftRef.current = e.target.value
         }}
         onKeyDown={(e) => {
           e.stopPropagation()
@@ -318,7 +302,7 @@ function NewCommentInput({
           'size-7 shrink-0',
           text.trim()
             ? 'bg-blue-500 text-white hover:bg-blue-600'
-            : 'bg-muted text-muted-foreground'
+            : 'bg-muted text-muted-foreground',
         )}
         disabled={!text.trim()}
         onClick={() => {
@@ -340,7 +324,7 @@ interface CommentThreadProps {
   onAddReply: (text: string) => void
   onDelete: () => void
   onExport?: () => Promise<boolean>
-  onSendToAgent: () => Promise<boolean>
+  onSendToAgent?: () => Promise<boolean>
 }
 
 function CommentThread({
@@ -357,8 +341,10 @@ function CommentThread({
   const [replyText, setReplyText] = React.useState('')
   const [copied, setCopied] = React.useState(false)
   const [sendStatus, setSendStatus] = React.useState<'idle' | 'sending' | 'sent' | 'offline'>('idle')
-  const inputRef = React.useRef<HTMLInputElement>(null)
+  const inputRef = React.useRef<HTMLTextAreaElement>(null)
   const copyTimerRef = React.useRef<number | null>(null)
+
+  useAutosizeTextarea(inputRef, replyText, 3)
 
   React.useEffect(() => {
     inputRef.current?.focus()
@@ -388,7 +374,7 @@ function CommentThread({
   }
 
   const handleSendToAgent = async () => {
-    if (sendStatus === 'sending') return
+    if (!onSendToAgent || sendStatus === 'sending') return
     setSendStatus('sending')
     const success = await onSendToAgent()
     if (success) {
@@ -411,10 +397,11 @@ function CommentThread({
     <div
       role="presentation"
       data-direct-edit="comment-card"
-      className="fixed z-[99999] w-[280px] overflow-hidden rounded-xl outline outline-1 outline-foreground/10 bg-background shadow-lg"
+      className="fixed z-[99999] overflow-hidden rounded-xl outline outline-1 outline-foreground/10 bg-background shadow-lg"
       style={{
-        left: flipHorizontal ? position.x - 280 - 8 : position.x + 14,
+        left: flipHorizontal ? position.x - COMMENT_CARD_WIDTH - 8 : position.x + 14,
         top: position.y - 14,
+        width: COMMENT_CARD_WIDTH,
         pointerEvents: 'auto',
       }}
       onClick={(e) => e.stopPropagation()}
@@ -446,7 +433,7 @@ function CommentThread({
                 <TooltipTrigger
                   render={
                     <Button
-                      variant="ghost"
+                      variant={onSendToAgent ? 'ghost' : 'outline'}
                       size="icon"
                       aria-label={copied ? 'Copied' : 'Copy comment export'}
                       className="size-7 text-muted-foreground"
@@ -463,29 +450,31 @@ function CommentThread({
                 <TooltipContent side="bottom">{copied ? 'Copied' : 'Copy'}</TooltipContent>
               </Tooltip>
             )}
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="size-7 text-muted-foreground"
-                    onClick={handleSendToAgent}
-                  />
-                }
-              >
-                {sendStatus === 'sent' ? (
-                  <Check className="text-green-500" />
-                ) : sendStatus === 'offline' ? (
-                  <X className="text-red-500" />
-                ) : (
-                  <Send />
-                )}
-              </TooltipTrigger>
-              <TooltipContent side="bottom">
-                {sendStatus === 'sent' ? 'Sent' : sendStatus === 'offline' ? 'Offline' : 'Send to Agent'}
-              </TooltipContent>
-            </Tooltip>
+            {onSendToAgent && (
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-7 text-muted-foreground"
+                      onClick={handleSendToAgent}
+                    />
+                  }
+                >
+                  {sendStatus === 'sent' ? (
+                    <Check className="text-green-500" />
+                  ) : sendStatus === 'offline' ? (
+                    <X className="text-red-500" />
+                  ) : (
+                    <Send />
+                  )}
+                </TooltipTrigger>
+                <TooltipContent side="bottom">
+                  {sendStatus === 'sent' ? 'Sent' : sendStatus === 'offline' ? 'Offline' : 'Send to Agent'}
+                </TooltipContent>
+              </Tooltip>
+            )}
             <Tooltip>
               <TooltipTrigger
                 render={
@@ -506,7 +495,7 @@ function CommentThread({
       </TooltipProvider>
 
       {/* Thread body */}
-      <div className="max-h-48 overflow-y-auto">
+      <div className="max-h-48 overflow-x-hidden overflow-y-auto">
         {/* Original comment */}
         <div className="px-3 py-2.5">
           <div className="mb-1.5 flex items-center gap-2">
@@ -516,7 +505,7 @@ function CommentThread({
             <span className="text-xs font-medium text-foreground">Comment #{index}</span>
             <span className="text-[10px] text-muted-foreground">{formatRelativeTime(comment.createdAt)}</span>
           </div>
-          <p className="text-xs leading-relaxed text-foreground">{comment.text}</p>
+          <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-xs leading-relaxed text-foreground">{comment.text}</p>
         </div>
 
         {/* Replies */}
@@ -528,23 +517,24 @@ function CommentThread({
               </div>
               <span className="text-[10px] text-muted-foreground">{formatRelativeTime(reply.createdAt)}</span>
             </div>
-            <p className="text-xs leading-relaxed text-foreground">{reply.text}</p>
+            <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-xs leading-relaxed text-foreground">{reply.text}</p>
           </div>
         ))}
       </div>
 
       {/* Footer */}
-      <div className="flex items-center gap-2 border-t border-border/50 px-2 py-1.5">
-        <input
+      <div className="flex items-end gap-2 border-t border-border/50 px-2 py-1.5">
+        <textarea
           ref={inputRef}
-          type="text"
-          className="min-w-0 flex-1 bg-transparent px-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none"
+          rows={1}
+          className="min-h-[18px] min-w-0 flex-1 resize-none bg-transparent px-1.5 py-1 text-xs leading-[18px] text-foreground placeholder:text-muted-foreground focus:outline-none"
           placeholder="Reply..."
           value={replyText}
           onChange={(e) => setReplyText(e.target.value)}
           onKeyDown={(e) => {
             e.stopPropagation()
-            if (e.key === 'Enter') {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault()
               handleSubmitReply()
             } else if (e.key === 'Escape') {
               onClose()

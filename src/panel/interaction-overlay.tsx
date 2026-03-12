@@ -1,5 +1,4 @@
 import * as React from 'react'
-import type { ActiveTool } from '../types'
 import {
   isTextElement,
   resolveElementTarget,
@@ -14,7 +13,6 @@ function safeElementFromPoint(x: number, y: number): HTMLElement | null {
 }
 
 export interface InteractionOverlayProps {
-  activeTool: ActiveTool
   selectedElement: HTMLElement | null
   textEditingElement: HTMLElement | null
   activeCommentId: string | null
@@ -87,25 +85,28 @@ function useInteractionCapture(props: InteractionOverlayProps) {
       const p = propsRef.current
       p.onSetHoverHighlight(null)
 
-      if (p.activeTool === 'comment') {
-        if (p.hasPendingCommentDraft()) return
-        const elementUnder = safeElementFromPoint(e.clientX, e.clientY)
-        const target = (elementUnder && elementUnder !== document.body && elementUnder !== document.documentElement)
-          ? resolveElementTarget(elementUnder, p.selectedElement)
-          : document.body
-        p.onAddComment(target, { x: e.clientX, y: e.clientY })
-        return
-      }
+      if (p.hasPendingCommentDraft()) return
+
+      const elementUnder = safeElementFromPoint(e.clientX, e.clientY)
+      const target = (elementUnder && elementUnder !== document.body && elementUnder !== document.documentElement)
+        ? resolveElementTarget(elementUnder, p.selectedElement)
+        : null
 
       if (p.activeCommentId) {
         p.onSetActiveCommentId(null)
+      }
+
+      if (!target) {
         return
       }
 
-      const elementUnder = safeElementFromPoint(e.clientX, e.clientY)
-      if (elementUnder && elementUnder !== document.body && elementUnder !== document.documentElement) {
-        const resolved = resolveElementTarget(elementUnder, p.selectedElement)
-        p.onSelectElement(resolved)
+      if (target !== p.selectedElement) {
+        p.onSelectElement(target)
+        return
+      }
+
+      if (!p.activeCommentId) {
+        p.onAddComment(target, { x: e.clientX, y: e.clientY })
       }
     }
 
@@ -116,8 +117,6 @@ function useInteractionCapture(props: InteractionOverlayProps) {
       e.stopPropagation()
 
       const p = propsRef.current
-      if (p.activeTool !== 'select') return
-
       const elementUnder = safeElementFromPoint(e.clientX, e.clientY)
       if (elementUnder && elementUnder !== document.body && elementUnder !== document.documentElement) {
         const resolved = resolveElementTarget(elementUnder, p.selectedElement)

@@ -1,5 +1,5 @@
 import * as React from 'react'
-import type { DirectEditState, ActiveTool } from './types'
+import type { DirectEditState } from './types'
 import { isTextElement, isInputFocused } from './utils'
 
 export interface KeyboardShortcutsOptions {
@@ -31,6 +31,10 @@ export function useKeyboardShortcuts({
   fitCanvasToViewport,
   zoomCanvasTo100,
 }: KeyboardShortcutsOptions) {
+  const usesMetaForUndo = React.useMemo(
+    () => typeof navigator !== 'undefined' && Boolean(navigator.platform?.includes('Mac')),
+    [],
+  )
 
   // Toggle edit mode: plain Cmd/Ctrl + Period
   // Uses capture phase so it fires before any stopPropagation() in the host app (e.g. Tauri webview)
@@ -50,33 +54,15 @@ export function useKeyboardShortcuts({
     function handleKeyDown(e: KeyboardEvent) {
       const s = stateRef.current
 
-      if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !e.shiftKey) {
+      const undoShortcutPressed = usesMetaForUndo
+        ? (e.metaKey && !e.ctrlKey && !e.altKey)
+        : (e.ctrlKey && !e.metaKey && !e.altKey)
+
+      if (undoShortcutPressed && e.key === 'z' && !e.shiftKey) {
         if (s.textEditingElement) return // let browser handle contenteditable undo
         e.preventDefault()
         undo()
         return
-      }
-
-      if (e.key === 'C' && e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey && s.editModeActive) {
-        if (!isInputFocused()) {
-          e.preventDefault()
-          setState((prev) => {
-            let comments = prev.comments
-            if (prev.activeCommentId) {
-              const active = comments.find((c) => c.id === prev.activeCommentId)
-              if (active && active.text === '') {
-                comments = comments.filter((c) => c.id !== prev.activeCommentId)
-              }
-            }
-            return {
-              ...prev,
-              comments,
-              activeTool: prev.activeTool === 'comment' ? 'select' as ActiveTool : 'comment' as ActiveTool,
-              activeCommentId: null,
-            }
-          })
-          return
-        }
       }
 
       if (e.key === 'Z' && e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey && s.editModeActive) {
@@ -140,8 +126,6 @@ export function useKeyboardShortcuts({
             }
             return { ...prev, comments, activeCommentId: null }
           })
-        } else if (s.activeTool === 'comment') {
-          setState((prev) => ({ ...prev, activeTool: 'select' as ActiveTool }))
         } else if (s.isOpen) {
           closePanel()
         } else if (s.editModeActive) {
@@ -152,5 +136,5 @@ export function useKeyboardShortcuts({
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [closePanel, toggleEditMode, toggleFlexLayout, undo, commitTextEditing, startTextEditing, toggleCanvas, setCanvasZoom, fitCanvasToViewport, zoomCanvasTo100, setState])
+  }, [closePanel, toggleEditMode, toggleFlexLayout, undo, commitTextEditing, startTextEditing, toggleCanvas, setCanvasZoom, fitCanvasToViewport, zoomCanvasTo100, setState, usesMetaForUndo])
 }

@@ -15,7 +15,11 @@ import {
   buildMovePlanContext,
   getMoveIntentForEdit,
 } from './utils'
-import { sendEditToAgent as postEditToAgent, sendCommentToAgent as postCommentToAgent } from './mcp-client'
+import {
+  checkAgentConnection,
+  sendEditToAgent as postEditToAgent,
+  sendCommentToAgent as postCommentToAgent,
+} from './mcp-client'
 
 export interface AgentCommsOptions {
   stateRef: React.MutableRefObject<DirectEditState>
@@ -24,6 +28,51 @@ export interface AgentCommsOptions {
 }
 
 export function useAgentComms({ stateRef, sessionEditsRef, getSessionItems }: AgentCommsOptions) {
+  const [agentAvailable, setAgentAvailable] = React.useState(false)
+  const isMountedRef = React.useRef(true)
+
+  React.useEffect(() => {
+    return () => {
+      isMountedRef.current = false
+    }
+  }, [])
+
+  const updateAgentAvailability = React.useCallback((available: boolean) => {
+    if (isMountedRef.current) {
+      setAgentAvailable(available)
+    }
+    return available
+  }, [])
+
+  const refreshAgentAvailability = React.useCallback(async () => {
+    try {
+      const available = await checkAgentConnection()
+      return updateAgentAvailability(available)
+    } catch {
+      return updateAgentAvailability(false)
+    }
+  }, [updateAgentAvailability])
+
+  React.useEffect(() => {
+    void refreshAgentAvailability()
+
+    function handleWindowFocus() {
+      void refreshAgentAvailability()
+    }
+
+    function handleVisibilityChange() {
+      if (document.visibilityState === 'visible') {
+        void refreshAgentAvailability()
+      }
+    }
+
+    window.addEventListener('focus', handleWindowFocus)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => {
+      window.removeEventListener('focus', handleWindowFocus)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [refreshAgentAvailability])
 
   const canSendEditToAgent = React.useCallback((snapshot?: {
     selectedElement: HTMLElement | null
@@ -99,11 +148,11 @@ export function useAgentComms({ stateRef, sessionEditsRef, getSessionItems }: Ag
         ...(movePlan ? { movePlan } : {}),
         exportMarkdown,
       })
-      return result.ok
+      return updateAgentAvailability(result.ok)
     } catch {
-      return false
+      return updateAgentAvailability(false)
     }
-  }, [])
+  }, [updateAgentAvailability])
 
   const sendSessionCommentToAgent = React.useCallback(async (comment: Comment) => {
     const exportMarkdown = buildCommentExport(comment.locator, comment.text, comment.replies)
@@ -124,11 +173,11 @@ export function useAgentComms({ stateRef, sessionEditsRef, getSessionItems }: Ag
         replies: comment.replies,
         exportMarkdown,
       })
-      return result.ok
+      return updateAgentAvailability(result.ok)
     } catch {
-      return false
+      return updateAgentAvailability(false)
     }
-  }, [])
+  }, [updateAgentAvailability])
 
   const sendEditToAgent = React.useCallback(async () => {
     const current = stateRef.current
@@ -191,6 +240,7 @@ export function useAgentComms({ stateRef, sessionEditsRef, getSessionItems }: Ag
   }, [getSessionItems, sendSessionCommentToAgent, sendSessionEditToAgent])
 
   return {
+    agentAvailable,
     canSendEditToAgent,
     sendEditToAgent,
     sendCommentToAgent,
