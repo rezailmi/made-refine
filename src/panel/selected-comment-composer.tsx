@@ -8,11 +8,11 @@ import { cn } from '../cn'
 import { Button } from '../ui/button'
 
 const VIEWPORT_INSET = 12
-const COMPOSER_MIN_WIDTH = 220
-const COMPOSER_WIDTH = 280
+const COMPOSER_MIN_WIDTH = 200
+const COMPOSER_WIDTH = 200
 const DIMENSION_LABEL_OFFSET = 4
 const DIMENSION_LABEL_HEIGHT = 20
-const COMPOSER_TOP_GAP = 10
+const COMPOSER_TOP_GAP = 4
 const COMPOSER_APPROX_HEIGHT = 60
 const TOOLBAR_COLLISION_GAP = 12
 
@@ -173,7 +173,7 @@ export function SelectedCommentComposer({
       role="presentation"
       data-direct-edit="selected-comment-composer"
       className={cn(
-        'fixed z-[99999] flex items-end gap-2 rounded-xl outline outline-1 outline-foreground/10 bg-background p-1.5 shadow-lg',
+        'fixed z-[99999] flex items-start gap-2 rounded-xl outline outline-1 outline-foreground/10 bg-background p-1.5 shadow-lg',
         showError && 'outline-red-500/70'
       )}
       style={{
@@ -189,7 +189,7 @@ export function SelectedCommentComposer({
         rows={1}
         aria-invalid={showError}
         className={cn(
-          'min-h-[18px] min-w-0 flex-1 resize-none overflow-hidden bg-transparent px-1.5 py-1 text-xs leading-[18px] text-foreground placeholder:text-muted-foreground focus:outline-none',
+          'min-h-[18px] min-w-0 flex-1 resize-none overflow-hidden bg-transparent px-1.5 py-1.5 text-xs leading-[18px] text-foreground placeholder:text-muted-foreground focus:outline-none',
           showError && 'placeholder:text-red-400'
         )}
         style={{
@@ -216,7 +216,7 @@ export function SelectedCommentComposer({
         variant="ghost"
         size="icon"
         className={cn(
-          'size-7 shrink-0 self-end',
+          'size-7 shrink-0 self-start',
           text.trim()
             ? 'bg-blue-500 text-white hover:bg-blue-600'
             : 'bg-muted text-muted-foreground'

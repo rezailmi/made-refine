@@ -454,7 +454,7 @@ export function SelectionOverlay({
   const dimensionText = `${wLabel} × ${hLabel}`
   const pageLabelFontSize = 11
   const pageLabelLineHeight = 16
-  const pageLabelGap = 8 * canvasZoom
+  const pageLabelGap = 8
   const pageLabelOffset = pageLabelLineHeight + pageLabelGap
 
   return (

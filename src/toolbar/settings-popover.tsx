@@ -58,9 +58,6 @@ export function SettingsPopover({
   onToggleCanvas,
   onSetTheme,
 }: SettingsPopoverProps) {
-  const settingsTriggerRef = React.useRef<HTMLButtonElement>(null)
-  const settingsPopupRef = React.useRef<HTMLDivElement>(null)
-
   const popupKbdClass = 'inline-flex h-4 min-w-[18px] items-center justify-center rounded-[6px] bg-muted px-1 text-[9px] font-mono text-muted-foreground'
   const popupTitleClass = 'flex h-8 items-center px-3 text-xs font-medium text-foreground'
   const popupItemClass = 'flex h-8 w-full items-center gap-2 rounded-md px-2 text-xs text-muted-foreground transition-colors data-[highlighted]:bg-muted/50 data-[highlighted]:text-foreground'
@@ -77,7 +74,6 @@ export function SettingsPopover({
         <TooltipTrigger render={
           <Menu.Trigger render={
             <button
-              ref={settingsTriggerRef}
               type="button"
               className={cn(
                 toolbarBtnClass,
@@ -98,7 +94,6 @@ export function SettingsPopover({
       <SettingsMenuPortal>
         <Menu.Positioner side={tooltipSide} sideOffset={12} className="fixed z-[99999]" style={{ pointerEvents: 'auto' }}>
           <Menu.Popup
-            ref={settingsPopupRef}
             data-direct-edit="settings-menu"
             className="w-[240px] rounded-xl bg-background text-xs outline outline-1 outline-foreground/10 shadow-lg"
             onPointerDown={stopMenuEvent}
@@ -140,7 +135,7 @@ export function SettingsPopover({
 
               <Menu.SubmenuRoot>
                 <Menu.SubmenuTrigger
-                  openOnHover={true}
+                  openOnHover={false}
                   className={popupItemClass}
                 >
                   <Monitor className="size-3.5" />
@@ -149,7 +144,6 @@ export function SettingsPopover({
                 </Menu.SubmenuTrigger>
                 <SettingsMenuPortal>
                   <Menu.Positioner
-                    anchor={settingsPopupRef}
                     side={submenuSide}
                     align="center"
                     sideOffset={6}
@@ -193,7 +187,7 @@ export function SettingsPopover({
 
               <Menu.SubmenuRoot>
                 <Menu.SubmenuTrigger
-                  openOnHover={true}
+                  openOnHover={false}
                   className={popupItemClass}
                 >
                   <Keyboard className="size-3.5" />
@@ -202,7 +196,6 @@ export function SettingsPopover({
                 </Menu.SubmenuTrigger>
                 <SettingsMenuPortal>
                   <Menu.Positioner
-                    anchor={settingsPopupRef}
                     side={submenuSide}
                     align="center"
                     sideOffset={6}

@@ -269,7 +269,7 @@ describe('DirectEditToolbarInner', () => {
     })
   })
 
-  it('configures settings submenus to open on hover', async () => {
+  it('configures settings submenus to open on click', async () => {
     const { container } = render(
       <DirectEditToolbarInner
         editModeActive={true}
@@ -290,8 +290,8 @@ describe('DirectEditToolbarInner', () => {
       button.textContent?.trim() === 'Keyboard shortcuts'
     ))
 
-    expect(themeTrigger?.getAttribute('data-open-on-hover')).toBe('true')
-    expect(shortcutsTrigger?.getAttribute('data-open-on-hover')).toBe('true')
+    expect(themeTrigger?.getAttribute('data-open-on-hover')).toBe('false')
+    expect(shortcutsTrigger?.getAttribute('data-open-on-hover')).toBe('false')
   })
 
   it('marks settings popups as editor chrome so clicks do not fall through', async () => {
