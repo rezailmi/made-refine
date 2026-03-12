@@ -5,6 +5,9 @@ import type {
   SessionEdit,
   SessionItem,
   Comment,
+  CanvasElementKind,
+  SelectElementOptions,
+  SelectElementsOptions,
 } from './types'
 import type { MoveInfo, MoveMode } from './use-move'
 import {
@@ -34,6 +37,25 @@ import {
 import { copyText } from './clipboard'
 
 type ParentLayout = 'flex' | 'grid' | 'block' | 'other'
+const GENERATED_CANVAS_NODE_ATTR = 'data-made-refine-canvas-node'
+
+function nextGeneratedCanvasId(kind: string): string {
+  let index = 1
+  let candidate = `made-refine-${kind}-${index}`
+  while (document.getElementById(candidate)) {
+    index += 1
+    candidate = `made-refine-${kind}-${index}`
+  }
+  return candidate
+}
+
+function compareDomOrder(a: HTMLElement, b: HTMLElement): number {
+  if (a === b) return 0
+  const position = a.compareDocumentPosition(b)
+  if (position & Node.DOCUMENT_POSITION_FOLLOWING) return -1
+  if (position & Node.DOCUMENT_POSITION_PRECEDING) return 1
+  return 0
+}
 
 function getLayoutFromDisplay(display: string): ParentLayout {
   if (display === 'flex' || display === 'inline-flex') return 'flex'
@@ -299,58 +321,197 @@ export function useSessionManager({
     syncSessionItemCount()
   }, [syncSessionItemCount])
 
-  const selectElement = React.useCallback((element: HTMLElement) => {
-    saveCurrentToSession()
-    const current = stateRef.current
-    if (current.selectedElement || current.isOpen) {
-      pushUndo({
-        type: 'selection',
-        previousElement: current.selectedElement,
-        previousOriginalStyles: { ...current.originalStyles },
-        previousPendingStyles: { ...current.pendingStyles },
-      })
+  interface ApplySelectionOptions {
+    primaryElement?: HTMLElement | null
+    pushUndo?: boolean
+    isOpen?: boolean
+    originalStyles?: Record<string, string>
+    pendingStyles?: Record<string, string>
+  }
+
+  const getSanitizedSelection = React.useCallback((elements: Array<HTMLElement | null | undefined>) => {
+    const seen = new Set<HTMLElement>()
+    const result: HTMLElement[] = []
+
+    for (const element of elements) {
+      if (!(element instanceof HTMLElement)) continue
+      if (!element.isConnected || element === document.documentElement) continue
+      if (element.matches('script, style, link, meta, noscript')) continue
+      if (element.matches('[data-direct-edit], [data-direct-edit-host]')) continue
+      if (seen.has(element)) continue
+      seen.add(element)
+      result.push(element)
     }
 
-    const existingEdit = sessionEditsRef.current.get(element)
-    const computed = getAllComputedStyles(element)
-    const originalStyles = existingEdit?.originalStyles ?? getOriginalInlineStyles(element)
-    const pendingStyles = existingEdit?.pendingStyles ?? {}
-    const elementInfo = getElementInfo(element)
+    return result
+  }, [])
 
-    setState((prev) => ({
-      comments: prev.activeCommentId
-        ? prev.comments.filter((comment) => {
-          if (comment.id !== prev.activeCommentId) return true
-          return comment.element === element || comment.text.trim().length > 0
+  const sameSelection = React.useCallback((a: HTMLElement[], b: HTMLElement[]) => {
+    if (a.length !== b.length) return false
+    return a.every((element, index) => element === b[index])
+  }, [])
+
+  const buildSelectionSnapshot = React.useCallback((current = stateRef.current) => ({
+    isOpen: current.isOpen,
+    selectedElement: current.selectedElement,
+    selectedElements: [...current.selectedElements],
+    selectionAnchorElement: current.selectionAnchorElement,
+    originalStyles: { ...current.originalStyles },
+    pendingStyles: { ...current.pendingStyles },
+  }), [stateRef])
+
+  const applySelection = React.useCallback((
+    elements: Array<HTMLElement | null | undefined>,
+    options?: ApplySelectionOptions,
+  ) => {
+    const nextElements = getSanitizedSelection(elements)
+    const nextPrimary = options?.primaryElement && nextElements.includes(options.primaryElement)
+      ? options.primaryElement
+      : nextElements[nextElements.length - 1] ?? null
+    const nextSingleElement = nextElements.length === 1 ? nextElements[0] : null
+    const nextIsOpen = options?.isOpen ?? (nextSingleElement !== null)
+    const current = stateRef.current
+
+    const selectionChanged = (
+      current.isOpen !== nextIsOpen
+      || current.selectedElement !== nextSingleElement
+      || current.selectionAnchorElement !== nextPrimary
+      || !sameSelection(current.selectedElements, nextElements)
+    )
+
+    if (!selectionChanged) return
+
+    if (options?.pushUndo !== false) {
+      saveCurrentToSession()
+      if (current.selectedElements.length > 0 || current.isOpen) {
+        pushUndo({
+          type: 'selection',
+          previousIsOpen: current.isOpen,
+          previousElement: current.selectedElement,
+          previousElements: [...current.selectedElements],
+          previousAnchorElement: current.selectionAnchorElement,
+          previousOriginalStyles: { ...current.originalStyles },
+          previousPendingStyles: { ...current.pendingStyles },
         })
-        : prev.comments,
-      isOpen: true,
-      selectedElement: element,
-      elementInfo,
-      computedSpacing: computed.spacing,
-      computedBorderRadius: computed.borderRadius,
-      computedBorder: computed.border,
-      computedFlex: computed.flex,
-      computedSizing: computed.sizing,
-      computedColor: computed.color,
-      computedBoxShadow: computed.boxShadow,
-      computedTypography: computed.typography,
-      originalStyles,
-      pendingStyles,
-      editModeActive: prev.editModeActive,
-      activeTool: prev.activeTool,
-      theme: prev.theme,
-      borderStyleControlPreference: prev.borderStyleControlPreference,
-      activeCommentId: prev.activeCommentId && prev.comments.some((comment) => (
-        comment.id === prev.activeCommentId && comment.element === element
-      ))
-        ? prev.activeCommentId
-        : null,
-      canvas: prev.canvas,
-      textEditingElement: null,
-    }))
+      }
+    }
 
-  }, [pushUndo, saveCurrentToSession])
+    if (nextSingleElement) {
+      const existingEdit = sessionEditsRef.current.get(nextSingleElement)
+      const computed = getAllComputedStyles(nextSingleElement)
+      const originalStyles = options?.originalStyles
+        ?? existingEdit?.originalStyles
+        ?? getOriginalInlineStyles(nextSingleElement)
+      const pendingStyles = options?.pendingStyles
+        ?? existingEdit?.pendingStyles
+        ?? {}
+      const elementInfo = getElementInfo(nextSingleElement)
+
+      setState((prev) => ({
+        comments: prev.activeCommentId
+          ? prev.comments.filter((comment) => {
+              if (comment.id !== prev.activeCommentId) return true
+              return comment.element === nextSingleElement || comment.text.trim().length > 0
+            })
+          : prev.comments,
+        isOpen: nextIsOpen,
+        selectedElement: nextSingleElement,
+        selectedElements: [nextSingleElement],
+        selectionAnchorElement: nextPrimary ?? nextSingleElement,
+        elementInfo,
+        computedSpacing: computed.spacing,
+        computedBorderRadius: computed.borderRadius,
+        computedBorder: computed.border,
+        computedFlex: computed.flex,
+        computedSizing: computed.sizing,
+        computedColor: computed.color,
+        computedBoxShadow: computed.boxShadow,
+        computedTypography: computed.typography,
+        originalStyles,
+        pendingStyles,
+        editModeActive: prev.editModeActive,
+        activeTool: prev.activeTool,
+        theme: prev.theme,
+        borderStyleControlPreference: prev.borderStyleControlPreference,
+        activeCommentId: prev.activeCommentId && prev.comments.some((comment) => (
+          comment.id === prev.activeCommentId && comment.element === nextSingleElement
+        ))
+          ? prev.activeCommentId
+          : null,
+        canvas: prev.canvas,
+        textEditingElement: null,
+      }))
+      return
+    }
+
+    setState((prev) => {
+      const comments = prev.activeCommentId
+        ? prev.comments.filter((comment) => (
+            comment.id !== prev.activeCommentId || comment.text.trim().length > 0
+          ))
+        : prev.comments
+
+      return {
+        ...prev,
+        comments,
+        isOpen: false,
+        selectedElement: null,
+        selectedElements: nextElements,
+        selectionAnchorElement: nextPrimary,
+        elementInfo: null,
+        computedSpacing: null,
+        computedBorderRadius: null,
+        computedBorder: null,
+        computedFlex: null,
+        computedSizing: null,
+        computedColor: null,
+        computedBoxShadow: null,
+        computedTypography: null,
+        originalStyles: {},
+        pendingStyles: {},
+        activeCommentId: null,
+        textEditingElement: null,
+      }
+    })
+  }, [getSanitizedSelection, pushUndo, saveCurrentToSession, sameSelection])
+
+  const selectElements = React.useCallback((elements: HTMLElement[], options?: SelectElementsOptions) => {
+    const current = stateRef.current.selectedElements
+    const nextElements = options?.additive
+      ? [...current, ...elements]
+      : elements
+
+    applySelection(nextElements, {
+      primaryElement: options?.primaryElement ?? elements[elements.length - 1] ?? null,
+    })
+  }, [applySelection, stateRef])
+
+  const selectElement = React.useCallback((element: HTMLElement, options?: SelectElementOptions) => {
+    selectElements([element], {
+      additive: options?.additive,
+      primaryElement: element,
+    })
+  }, [selectElements])
+
+  const toggleElementSelection = React.useCallback((element: HTMLElement) => {
+    const current = stateRef.current.selectedElements
+    if (current.length === 1 && current[0] === element) return
+
+    const isSelected = current.includes(element)
+    const nextElements = isSelected
+      ? current.filter((candidate) => candidate !== element)
+      : [...current, element]
+
+    applySelection(nextElements, {
+      primaryElement: isSelected
+        ? nextElements[nextElements.length - 1] ?? null
+        : element,
+    })
+  }, [applySelection, stateRef])
+
+  const clearSelection = React.useCallback(() => {
+    applySelection([], { primaryElement: null })
+  }, [applySelection])
 
   const selectParent = React.useCallback(() => {
     const el = stateRef.current.selectedElement
@@ -366,6 +527,157 @@ export function useSessionManager({
       selectElement(firstChild)
     }
   }, [getSelectableChild, selectElement])
+
+  const insertElement = React.useCallback((kind: CanvasElementKind) => {
+    if (!stateRef.current.editModeActive) return
+
+    saveCurrentToSession()
+    const restoreSelection = buildSelectionSnapshot()
+    const bodyRect = document.body.getBoundingClientRect()
+    const scaleX = document.body.offsetWidth > 0 ? bodyRect.width / document.body.offsetWidth : 1
+    const scaleY = document.body.offsetHeight > 0 ? bodyRect.height / document.body.offsetHeight : 1
+    const width = kind === 'frame' ? 240 : 160
+    const height = kind === 'frame' ? 160 : 96
+    const left = Math.round((window.innerWidth / 2 - bodyRect.left) / scaleX - width / 2)
+    const top = Math.round((window.innerHeight / 2 - bodyRect.top) / scaleY - height / 2)
+
+    const element = document.createElement('div')
+    element.id = nextGeneratedCanvasId(kind)
+    element.setAttribute(GENERATED_CANVAS_NODE_ATTR, kind)
+    element.style.position = 'absolute'
+    element.style.left = `${left}px`
+    element.style.top = `${top}px`
+    element.style.width = `${width}px`
+    element.style.height = `${height}px`
+    element.style.boxSizing = 'border-box'
+    element.style.borderRadius = kind === 'frame' ? '16px' : '12px'
+    element.style.border = '1px solid rgba(13, 153, 255, 0.35)'
+    element.style.zIndex = '1'
+
+    if (kind === 'frame') {
+      element.style.display = 'flex'
+      element.style.flexDirection = 'column'
+      element.style.gap = '12px'
+      element.style.padding = '16px'
+      element.style.background = 'rgba(255, 255, 255, 0.92)'
+      element.style.boxShadow = '0 10px 30px rgba(15, 23, 42, 0.10)'
+    } else {
+      element.style.background = 'rgba(13, 153, 255, 0.08)'
+    }
+
+    document.body.appendChild(element)
+
+    pushUndo({
+      type: 'structure',
+      restoreSelection,
+      undo: () => {
+        if (element.isConnected) {
+          element.remove()
+        }
+      },
+    })
+
+    applySelection([element], {
+      primaryElement: element,
+      pushUndo: false,
+    })
+  }, [applySelection, buildSelectionSnapshot, pushUndo, saveCurrentToSession, stateRef])
+
+  const groupSelection = React.useCallback(() => {
+    const selected = getSanitizedSelection(stateRef.current.selectedElements)
+    if (selected.length < 2) return
+
+    const parent = selected[0]?.parentElement
+    if (!parent) return
+    if (!(parent === document.body || parent.hasAttribute(GENERATED_CANVAS_NODE_ATTR))) return
+    if (!selected.every((element) => (
+      element.parentElement === parent
+      && element.hasAttribute(GENERATED_CANVAS_NODE_ATTR)
+    ))) {
+      return
+    }
+
+    for (let index = 0; index < selected.length; index += 1) {
+      for (let otherIndex = index + 1; otherIndex < selected.length; otherIndex += 1) {
+        const a = selected[index]
+        const b = selected[otherIndex]
+        if (a.contains(b) || b.contains(a)) return
+      }
+    }
+
+    saveCurrentToSession()
+    const restoreSelection = buildSelectionSnapshot()
+    const sorted = [...selected].sort(compareDomOrder)
+    const rects = sorted.map((element) => element.getBoundingClientRect())
+    const parentRect = parent.getBoundingClientRect()
+    const scaleX = parent.offsetWidth > 0 ? parentRect.width / parent.offsetWidth : 1
+    const scaleY = parent.offsetHeight > 0 ? parentRect.height / parent.offsetHeight : 1
+
+    const union = rects.reduce((bounds, rect) => ({
+      left: Math.min(bounds.left, rect.left),
+      top: Math.min(bounds.top, rect.top),
+      right: Math.max(bounds.right, rect.right),
+      bottom: Math.max(bounds.bottom, rect.bottom),
+    }), {
+      left: rects[0].left,
+      top: rects[0].top,
+      right: rects[0].right,
+      bottom: rects[0].bottom,
+    })
+
+    const wrapper = document.createElement('div')
+    wrapper.id = nextGeneratedCanvasId('group')
+    wrapper.setAttribute(GENERATED_CANVAS_NODE_ATTR, 'group')
+    wrapper.style.position = 'absolute'
+    wrapper.style.left = `${Math.round((union.left - parentRect.left) / scaleX)}px`
+    wrapper.style.top = `${Math.round((union.top - parentRect.top) / scaleY)}px`
+    wrapper.style.width = `${Math.round((union.right - union.left) / scaleX)}px`
+    wrapper.style.height = `${Math.round((union.bottom - union.top) / scaleY)}px`
+    wrapper.style.boxSizing = 'border-box'
+    wrapper.style.borderRadius = '16px'
+    wrapper.style.border = '1px dashed rgba(13, 153, 255, 0.4)'
+    wrapper.style.background = 'transparent'
+
+    const childSnapshots = sorted.map((element, index) => ({
+      element,
+      nextSibling: element.nextElementSibling as HTMLElement | null,
+      cssText: element.style.cssText,
+      rect: rects[index],
+    }))
+
+    parent.insertBefore(wrapper, sorted[0])
+
+    for (const snapshot of childSnapshots) {
+      wrapper.appendChild(snapshot.element)
+      snapshot.element.style.position = 'absolute'
+      snapshot.element.style.left = `${Math.round((snapshot.rect.left - union.left) / scaleX)}px`
+      snapshot.element.style.top = `${Math.round((snapshot.rect.top - union.top) / scaleY)}px`
+    }
+
+    pushUndo({
+      type: 'structure',
+      restoreSelection,
+      undo: () => {
+        for (let index = childSnapshots.length - 1; index >= 0; index -= 1) {
+          const snapshot = childSnapshots[index]
+          snapshot.element.style.cssText = snapshot.cssText
+          if (snapshot.nextSibling && snapshot.nextSibling.parentElement === parent) {
+            parent.insertBefore(snapshot.element, snapshot.nextSibling)
+          } else {
+            parent.appendChild(snapshot.element)
+          }
+        }
+        if (wrapper.isConnected) {
+          wrapper.remove()
+        }
+      },
+    })
+
+    applySelection([wrapper], {
+      primaryElement: wrapper,
+      pushUndo: false,
+    })
+  }, [applySelection, buildSelectionSnapshot, getSanitizedSelection, pushUndo, saveCurrentToSession, stateRef])
 
   const resetToOriginal = React.useCallback(() => {
     const current = stateRef.current
@@ -466,55 +778,45 @@ export function useSessionManager({
         break
       }
       case 'selection': {
+        const previousElements = entry.previousElements.length > 0
+          ? entry.previousElements
+          : (entry.previousElement ? [entry.previousElement] : [])
+        const nextElements = getSanitizedSelection(previousElements)
         const prevEl = entry.previousElement
-        if (prevEl && !prevEl.isConnected) return
-        if (prevEl) {
+
+        if (entry.previousIsOpen && prevEl && prevEl.isConnected) {
           for (const [prop, value] of Object.entries(entry.previousPendingStyles)) {
             prevEl.style.setProperty(prop, value)
           }
-          const computed = getAllComputedStyles(prevEl)
-          const elementInfo = getElementInfo(prevEl)
-          setState((prev) => ({
-            isOpen: true,
-            selectedElement: prevEl,
-            elementInfo,
-            computedSpacing: computed.spacing,
-            computedBorderRadius: computed.borderRadius,
-            computedBorder: computed.border,
-            computedFlex: computed.flex,
-            computedSizing: computed.sizing,
-            computedColor: computed.color,
-            computedBoxShadow: computed.boxShadow,
-            computedTypography: computed.typography,
+          applySelection([prevEl], {
+            pushUndo: false,
+            isOpen: entry.previousIsOpen,
+            primaryElement: entry.previousAnchorElement ?? prevEl,
             originalStyles: entry.previousOriginalStyles,
             pendingStyles: entry.previousPendingStyles,
-            editModeActive: prev.editModeActive,
-            activeTool: prev.activeTool,
-            theme: prev.theme,
-            borderStyleControlPreference: prev.borderStyleControlPreference,
-            comments: prev.comments,
-            activeCommentId: prev.activeCommentId,
-            canvas: prev.canvas,
-            textEditingElement: null,
-          }))
+          })
         } else {
-          setState((prev) => ({
-            ...prev,
-            isOpen: false,
-            selectedElement: null,
-            elementInfo: null,
-            computedSpacing: null,
-            computedBorderRadius: null,
-            computedBorder: null,
-            computedFlex: null,
-            computedSizing: null,
-            computedColor: null,
-            computedBoxShadow: null,
-            computedTypography: null,
-            originalStyles: {},
-            pendingStyles: {},
-          }))
+          applySelection(nextElements, {
+            pushUndo: false,
+            isOpen: entry.previousIsOpen,
+            primaryElement: entry.previousAnchorElement,
+          })
         }
+        break
+      }
+      case 'structure': {
+        entry.undo()
+        const restoredElements = entry.restoreSelection.selectedElements.length > 0
+          ? entry.restoreSelection.selectedElements
+          : (entry.restoreSelection.selectedElement ? [entry.restoreSelection.selectedElement] : [])
+
+        applySelection(restoredElements, {
+          pushUndo: false,
+          isOpen: entry.restoreSelection.isOpen,
+          primaryElement: entry.restoreSelection.selectionAnchorElement,
+          originalStyles: entry.restoreSelection.originalStyles,
+          pendingStyles: entry.restoreSelection.pendingStyles,
+        })
         break
       }
       case 'move': {
@@ -779,6 +1081,8 @@ export function useSessionManager({
       setState((prev) => ({
         isOpen: true,
         selectedElement: element,
+        selectedElements: [element],
+        selectionAnchorElement: element,
         elementInfo,
         computedSpacing: computed.spacing,
         computedBorderRadius: computed.borderRadius,
@@ -950,8 +1254,13 @@ export function useSessionManager({
     syncSessionItemCount,
     saveCurrentToSession,
     selectElement,
+    selectElements,
+    toggleElementSelection,
+    clearSelection,
     selectParent,
     selectChild,
+    insertElement,
+    groupSelection,
     resetToOriginal,
     undo,
     handleMoveComplete,

@@ -110,7 +110,6 @@ export function SelectionOverlay({
   const clickThroughTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
   const isDraggingRef = React.useRef(isDragging)
   const dragGuardRef = React.useRef(createDragInteractionGuard())
-  const [isPendingMoveGesture, setIsPendingMoveGesture] = React.useState(false)
   isDraggingRef.current = isDragging
   const showResizeHandles = enableResizeHandles && !isDragging && !isTextEditing
   const edgeHandleWidth = Math.max(0, rect.width - RESIZE_CORNER_SIZE * 2)
@@ -181,7 +180,6 @@ export function SelectionOverlay({
 
     const origin = { x: e.clientX, y: e.clientY }
     const savedEvent = e
-    setIsPendingMoveGesture(true)
     dragGuardRef.current.activate()
 
     const onMove = (moveEvent: PointerEvent) => {
@@ -223,7 +221,6 @@ export function SelectionOverlay({
       window.removeEventListener('blur', onCancel)
       window.removeEventListener('keydown', onKeyDown)
       dragGuardRef.current.deactivate()
-      setIsPendingMoveGesture(false)
       cleanupRef.current = null
     }
 
@@ -545,7 +542,7 @@ export function SelectionOverlay({
             width: rect.width,
             height: rect.height,
             zIndex: 99996,
-            cursor: isDragging || isPendingMoveGesture ? 'grabbing' : 'grab',
+            cursor: 'default',
             pointerEvents: 'auto',
           }}
           onPointerDown={handlePointerDown}
@@ -622,7 +619,7 @@ export function SelectionOverlay({
                   alignItems: 'center',
                   justifyContent: 'center',
                   boxShadow: 'none',
-                  cursor: 'grab',
+                  cursor: 'default',
                   pointerEvents: 'auto',
                   padding: 0,
                 }}

@@ -356,7 +356,7 @@ export function useMove({ onMoveComplete }: UseMoveOptions): UseMoveResult {
         scaleY: element.offsetHeight > 0 ? rect.height / element.offsetHeight : 1,
       }
       originalTransformRef.current = element.style.transform
-      dragGuardRef.current.activate({ cursor: 'grabbing' })
+      dragGuardRef.current.activate()
 
       setDragState({
         isDragging: true,

@@ -1,5 +1,5 @@
 import * as React from 'react'
-import type { DirectEditState } from './types'
+import type { DirectEditState, CanvasElementKind } from './types'
 import { isTextElement, isInputFocused } from './utils'
 
 export interface KeyboardShortcutsOptions {
@@ -10,6 +10,9 @@ export interface KeyboardShortcutsOptions {
   commitTextEditing: () => void
   startTextEditing: (element: HTMLElement) => void
   closePanel: () => void
+  clearSelection: () => void
+  groupSelection: () => void
+  insertElement: (kind: CanvasElementKind) => void
   setState: React.Dispatch<React.SetStateAction<DirectEditState>>
   toggleCanvas: () => void
   setCanvasZoom: (zoom: number) => void
@@ -25,6 +28,9 @@ export function useKeyboardShortcuts({
   commitTextEditing,
   startTextEditing,
   closePanel,
+  clearSelection,
+  groupSelection,
+  insertElement,
   setState,
   toggleCanvas,
   setCanvasZoom,
@@ -63,6 +69,14 @@ export function useKeyboardShortcuts({
         e.preventDefault()
         undo()
         return
+      }
+
+      if (undoShortcutPressed && (e.code === 'KeyG' || e.key.toLowerCase() === 'g') && !e.shiftKey) {
+        if (s.editModeActive && s.selectedElements.length > 1 && !isInputFocused()) {
+          e.preventDefault()
+          groupSelection()
+          return
+        }
       }
 
       if (e.key === 'Z' && e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey && s.editModeActive) {
@@ -104,6 +118,20 @@ export function useKeyboardShortcuts({
         }
       }
 
+      if (!e.metaKey && !e.ctrlKey && !e.altKey && s.editModeActive && !isInputFocused()) {
+        const lowerKey = e.key.toLowerCase()
+        if (lowerKey === 'f') {
+          e.preventDefault()
+          insertElement('frame')
+          return
+        }
+        if (lowerKey === 'd') {
+          e.preventDefault()
+          insertElement('div')
+          return
+        }
+      }
+
       if (e.key === 'Enter' && s.editModeActive && !s.textEditingElement && s.selectedElement) {
         if (!isInputFocused() && isTextElement(s.selectedElement)) {
           e.preventDefault()
@@ -128,6 +156,8 @@ export function useKeyboardShortcuts({
           })
         } else if (s.isOpen) {
           closePanel()
+        } else if (s.selectedElements.length > 0) {
+          clearSelection()
         } else if (s.editModeActive) {
           toggleEditMode()
         }
@@ -136,5 +166,5 @@ export function useKeyboardShortcuts({
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [closePanel, toggleEditMode, toggleFlexLayout, undo, commitTextEditing, startTextEditing, toggleCanvas, setCanvasZoom, fitCanvasToViewport, zoomCanvasTo100, setState, usesMetaForUndo])
+  }, [clearSelection, closePanel, commitTextEditing, fitCanvasToViewport, groupSelection, insertElement, setCanvasZoom, setState, startTextEditing, toggleCanvas, toggleEditMode, toggleFlexLayout, undo, usesMetaForUndo, zoomCanvasTo100])
 }

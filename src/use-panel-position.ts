@@ -98,7 +98,7 @@ function getInitialPosition(): Position {
 
   return snapToEdge({
     x: window.innerWidth - PANEL_WIDTH - PANEL_MARGIN,
-    y: window.innerHeight - PANEL_HEIGHT - PANEL_MARGIN,
+    y: PANEL_MARGIN,
   })
 }
 

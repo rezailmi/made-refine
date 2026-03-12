@@ -20,6 +20,9 @@ import type {
   BorderStyleControlPreference,
   SessionEdit,
   SessionItem,
+  SelectElementOptions,
+  SelectElementsOptions,
+  CanvasElementKind,
 } from './types'
 import type { MoveInfo } from './use-move'
 import { useStyleUpdaters } from './use-style-updaters'
@@ -30,7 +33,10 @@ import { useKeyboardShortcuts } from './use-keyboard-shortcuts'
 import { useCanvas } from './use-canvas'
 
 export interface DirectEditActionsContextValue {
-  selectElement: (element: HTMLElement) => void
+  selectElement: (element: HTMLElement, options?: SelectElementOptions) => void
+  selectElements: (elements: HTMLElement[], options?: SelectElementsOptions) => void
+  toggleElementSelection: (element: HTMLElement) => void
+  clearSelection: () => void
   selectParent: () => void
   selectChild: () => void
   closePanel: () => void
@@ -79,6 +85,8 @@ export interface DirectEditActionsContextValue {
   removeSessionEdit: (element: HTMLElement) => void
   startTextEditing: (element: HTMLElement) => void
   commitTextEditing: () => void
+  groupSelection: () => void
+  insertElement: (kind: CanvasElementKind) => void
   toggleCanvas: () => void
   setCanvasZoom: (zoom: number) => void
   fitCanvasToViewport: () => void
@@ -183,6 +191,8 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
   const [state, setState] = React.useState<DirectEditState>(() => ({
     isOpen: false,
     selectedElement: null,
+    selectedElements: [],
+    selectionAnchorElement: null,
     elementInfo: null,
     computedSpacing: null,
     computedBorderRadius: null,
@@ -224,9 +234,10 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
   }, [])
 
   const {
-    syncSessionItemCount, saveCurrentToSession, selectElement, selectParent, selectChild,
+    syncSessionItemCount, saveCurrentToSession, selectElement, selectElements, toggleElementSelection,
+    clearSelection, selectParent, selectChild,
     resetToOriginal, undo, handleMoveComplete, getSessionEdits, getSessionItems,
-    exportAllEdits, exportEdits, removeSessionEdit, clearSessionEdits,
+    exportAllEdits, exportEdits, removeSessionEdit, clearSessionEdits, groupSelection, insertElement,
   } = useSessionManager({
     stateRef, sessionEditsRef, removedSessionEditsRef, undoStackRef,
     pushUndo, setState, setSessionEditCount,
@@ -469,6 +480,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
   useKeyboardShortcuts({
     stateRef, toggleEditMode, toggleFlexLayout, undo,
     commitTextEditing, startTextEditing, closePanel, setState,
+    clearSelection, groupSelection, insertElement,
     toggleCanvas: toggleCanvasWithPreference, setCanvasZoom, fitCanvasToViewport, zoomCanvasTo100,
   })
 
@@ -479,7 +491,8 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
   }), [agentAvailable, state, sessionEditCount])
 
   const actionsContextValue = React.useMemo<DirectEditActionsContextValue>(() => ({
-    selectElement, selectParent, selectChild, closePanel,
+    selectElement, selectElements, toggleElementSelection, clearSelection,
+    selectParent, selectChild, closePanel,
     updateSpacingProperty, updateBorderRadiusProperty, updateBorderProperty,
     updateBorderProperties, updateRawCSS, updateFlexProperty, toggleFlexLayout,
     updateSizingProperties, updateSizingProperty, updateColorProperty, replaceSelectionColor, updateTypographyProperty,
@@ -489,9 +502,11 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     addComment, updateCommentText, submitCommentDraft, addCommentReply, deleteComment, exportComment,
     setActiveCommentId, getSessionEdits, getSessionItems, exportAllEdits,
     clearSessionEdits, removeSessionEdit, startTextEditing, commitTextEditing,
+    groupSelection, insertElement,
     toggleCanvas: toggleCanvasWithPreference, setCanvasZoom, fitCanvasToViewport, zoomCanvasTo100,
   }), [
-    selectElement, selectParent, selectChild, closePanel,
+    selectElement, selectElements, toggleElementSelection, clearSelection,
+    selectParent, selectChild, closePanel,
     updateSpacingProperty, updateBorderRadiusProperty, updateBorderProperty,
     updateBorderProperties, updateRawCSS, updateFlexProperty, toggleFlexLayout,
     updateSizingProperties, updateSizingProperty, updateColorProperty, replaceSelectionColor, updateTypographyProperty,
@@ -501,6 +516,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     addComment, updateCommentText, submitCommentDraft, addCommentReply, deleteComment, exportComment,
     setActiveCommentId, getSessionEdits, getSessionItems, exportAllEdits,
     clearSessionEdits, removeSessionEdit, startTextEditing, commitTextEditing,
+    groupSelection, insertElement,
     toggleCanvasWithPreference, setCanvasZoom, fitCanvasToViewport, zoomCanvasTo100,
   ])
 
