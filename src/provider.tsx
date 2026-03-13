@@ -489,7 +489,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     if (state.selectedElements.length <= 1) return 0
     let count = 0
     for (const el of state.selectedElements) {
-      if (el.isConnected && !sessionEditsRef.current.has(el)) count++
+      if (!sessionEditsRef.current.has(el)) count++
     }
     return count
   }, [state.selectedElements, sessionEditCount])
