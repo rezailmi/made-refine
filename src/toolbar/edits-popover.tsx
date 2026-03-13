@@ -12,7 +12,6 @@ import {
   buildMovePlanContext,
   getMoveIntentForEdit,
   getElementLocator,
-  hasSessionEditChanges,
 } from '../utils'
 import { copyText } from '../clipboard'
 import { cn } from '../cn'
@@ -80,7 +79,8 @@ export function EditsPopover({
       if (item.type === 'comment') return true
       if (!item.edit.move) return true
       const moveIntent = getMoveIntentForEdit(item.edit, movePlanContext)
-      return Boolean(moveIntent || hasSessionEditChanges(item.edit))
+      const hasStyleOrText = Object.keys(item.edit.pendingStyles).length > 0 || item.edit.textEdit != null
+      return Boolean(moveIntent || hasStyleOrText)
     })
   }, [editsSnapshot, movePlanContext])
 
