@@ -11,6 +11,7 @@ import {
   getExportContentProfile,
   buildMovePlanContext,
   getMoveIntentForEdit,
+  getElementLocator,
 } from '../utils'
 import { copyText } from '../clipboard'
 import { cn } from '../cn'
@@ -41,6 +42,7 @@ function summarizeMoveForPreview(intent: MoveIntent): string {
 export interface EditsPopoverProps {
   tooltipSide: 'top' | 'bottom' | 'left' | 'right'
   sessionEditCount: number
+  multiSelectedElements?: HTMLElement[]
   isOpen: boolean
   onOpenChange: (open: boolean) => void
   onGetSessionItems?: () => SessionItem[]
@@ -53,6 +55,7 @@ export interface EditsPopoverProps {
 export function EditsPopover({
   tooltipSide,
   sessionEditCount,
+  multiSelectedElements,
   isOpen,
   onOpenChange,
   onGetSessionItems,
@@ -80,6 +83,17 @@ export function EditsPopover({
       return Boolean(moveIntent || hasStyleOrText)
     })
   }, [editsSnapshot, movePlanContext])
+
+  // Multi-selected elements not already in the session snapshot
+  const multiSelectContextItems = React.useMemo(() => {
+    if (!multiSelectedElements || multiSelectedElements.length <= 1) return []
+    const sessionElements = new Set(
+      editsSnapshot.filter((i) => i.type === 'edit').map((i) => i.edit.element)
+    )
+    return multiSelectedElements
+      .filter((el) => el.isConnected && !sessionElements.has(el))
+      .map((el) => ({ element: el, locator: getElementLocator(el) }))
+  }, [multiSelectedElements, editsSnapshot])
 
   // Close on outside click (Shadow DOM breaks base-ui's dismiss)
   useOutsideClickDismiss(isOpen, () => onOpenChange(false), [editsPopupRef, editsTriggerRef])
@@ -156,7 +170,7 @@ export function EditsPopover({
           >
             <div className="flex items-center justify-between px-3 pb-1 pt-2.5">
               <span className="text-xs font-medium text-foreground">Copy to AI agents</span>
-              {visibleItems.length > 0 && (
+              {(visibleItems.length > 0 || multiSelectContextItems.length > 0) && (
                 <div className="flex items-center gap-1">
                   <BaseButton
                     className="inline-flex h-6 items-center gap-1 rounded-md px-2 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
@@ -190,7 +204,7 @@ export function EditsPopover({
                 </div>
               )}
             </div>
-            {visibleItems.length === 0 ? (
+            {visibleItems.length === 0 && multiSelectContextItems.length === 0 ? (
               <div className="px-3 pb-3 pt-1 text-xs text-muted-foreground">
                 No edits or comments yet.
               </div>
@@ -273,6 +287,24 @@ export function EditsPopover({
                       >
                         <X className="size-3" />
                       </BaseButton>
+                    </div>
+                  )
+                })}
+                {multiSelectContextItems.map(({ locator }) => {
+                  const componentName = locator.reactStack[0]?.name ?? locator.tagName
+                  return (
+                    <div
+                      key={`ctx-${locator.domSelector}`}
+                      className="flex items-start rounded-md px-1.5 py-1.5 text-xs"
+                    >
+                      <div className="min-w-0 flex flex-1 flex-col items-start gap-[4px]">
+                        <Badge variant="secondary" className="h-6 shrink-0 px-1.5 text-xs">
+                          @&lt;{componentName}&gt;
+                        </Badge>
+                        <span className="min-w-0 max-w-full truncate text-xs text-muted-foreground">
+                          selected: {truncateText(locator.textPreview || locator.domSelector, 128)}
+                        </span>
+                      </div>
                     </div>
                   )
                 })}

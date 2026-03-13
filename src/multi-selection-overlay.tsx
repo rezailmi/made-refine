@@ -26,6 +26,9 @@ function dedupeConnectedElements(elements: HTMLElement[]): HTMLElement[] {
 }
 
 function getGroupBounds(rects: DOMRect[]) {
+  if (rects.length === 0) {
+    return { left: 0, top: 0, right: 0, bottom: 0 }
+  }
   return rects.reduce((bounds, rect) => ({
     left: Math.min(bounds.left, rect.left),
     top: Math.min(bounds.top, rect.top),
@@ -100,7 +103,7 @@ export function MultiSelectionOverlay({ selectedElements }: MultiSelectionOverla
           pointerEvents: 'none',
           zIndex: 99995,
           border: `1px dashed ${BLUE}`,
-          borderRadius: '12px',
+          borderRadius: '0px',
           boxSizing: 'border-box',
         }}
       />

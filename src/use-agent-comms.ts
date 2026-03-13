@@ -7,6 +7,7 @@ import type {
 } from './types'
 import {
   buildEditExport,
+  buildElementContext,
   buildCommentExport,
   buildSessionExport,
   getElementLocator,
@@ -25,9 +26,10 @@ export interface AgentCommsOptions {
   stateRef: React.MutableRefObject<DirectEditState>
   sessionEditsRef: React.MutableRefObject<Map<HTMLElement, SessionEdit>>
   getSessionItems: () => SessionItem[]
+  saveCurrentToSession: () => void
 }
 
-export function useAgentComms({ stateRef, sessionEditsRef, getSessionItems }: AgentCommsOptions) {
+export function useAgentComms({ stateRef, sessionEditsRef, getSessionItems, saveCurrentToSession }: AgentCommsOptions) {
   const [agentAvailable, setAgentAvailable] = React.useState(false)
   const isMountedRef = React.useRef(true)
 
@@ -181,6 +183,63 @@ export function useAgentComms({ stateRef, sessionEditsRef, getSessionItems }: Ag
 
   const sendEditToAgent = React.useCallback(async () => {
     const current = stateRef.current
+
+    // Multi-selection: bundle all selected elements into a single annotation
+    if (current.selectedElements.length > 1) {
+      saveCurrentToSession()
+      const allLocators: ReturnType<typeof getElementLocator>[] = []
+      const editsWithChanges: SessionEdit[] = []
+      const contextBlocks: string[] = []
+
+      for (const el of current.selectedElements) {
+        if (!el.isConnected) continue
+        const edit = sessionEditsRef.current.get(el)
+        const locator = getElementLocator(el)
+        allLocators.push(locator)
+        if (edit && (Object.keys(edit.pendingStyles).length > 0 || edit.textEdit || edit.move)) {
+          editsWithChanges.push(edit)
+        } else {
+          contextBlocks.push(buildElementContext(locator))
+        }
+      }
+
+      if (allLocators.length === 0) return false
+
+      // Build combined export markdown
+      const markdownParts: string[] = []
+      if (editsWithChanges.length > 0) {
+        const movePlanContext = buildMovePlanContext(editsWithChanges)
+        markdownParts.push(buildSessionExport(editsWithChanges, [], { movePlanContext }))
+      }
+      markdownParts.push(...contextBlocks)
+      const exportMarkdown = markdownParts.join('\n\n')
+
+      // Send as a single annotation using the first element as primary
+      const primary = allLocators[0]
+      try {
+        const result = await postEditToAgent({
+          element: {
+            tagName: primary.tagName,
+            id: primary.id,
+            classList: primary.classList,
+            domSelector: primary.domSelector,
+            targetHtml: primary.targetHtml,
+            textPreview: primary.textPreview,
+          },
+          source: primary.domSource || null,
+          reactStack: primary.reactStack,
+          changes: [],
+          textChange: null,
+          moveIntent: null,
+          exportMarkdown,
+        })
+        return updateAgentAvailability(result.ok)
+      } catch {
+        return updateAgentAvailability(false)
+      }
+    }
+
+    // Single-selection: existing behavior
     if (!current.selectedElement || !current.elementInfo) return false
     const sessionEdit = sessionEditsRef.current.get(current.selectedElement)
     if (!canSendEditToAgent({
@@ -199,7 +258,7 @@ export function useAgentComms({ stateRef, sessionEditsRef, getSessionItems }: Ag
       textEdit: sessionEdit?.textEdit ?? null,
     }
     return sendSessionEditToAgent(editToSend)
-  }, [canSendEditToAgent, sendSessionEditToAgent])
+  }, [canSendEditToAgent, sendSessionEditToAgent, saveCurrentToSession])
 
   const sendCommentToAgent = React.useCallback(async (id: string) => {
     const comment = stateRef.current.comments.find((c) => c.id === id)
@@ -209,7 +268,21 @@ export function useAgentComms({ stateRef, sessionEditsRef, getSessionItems }: Ag
 
   const sendAllSessionItemsToAgent = React.useCallback(async () => {
     const items = getSessionItems()
-    if (items.length === 0) return false
+    const current = stateRef.current
+
+    // Collect multi-selected elements not already in the session
+    const sessionElementSet = new Set(
+      items.filter((i) => i.type === 'edit').map((i) => i.edit.element)
+    )
+    const contextOnlyLocators: ReturnType<typeof getElementLocator>[] = []
+    if (current.selectedElements.length > 1) {
+      for (const el of current.selectedElements) {
+        if (!el.isConnected || sessionElementSet.has(el)) continue
+        contextOnlyLocators.push(getElementLocator(el))
+      }
+    }
+
+    if (items.length === 0 && contextOnlyLocators.length === 0) return false
 
     const allEdits = items.filter((i): i is { type: 'edit'; edit: SessionEdit } => i.type === 'edit').map(i => i.edit)
     const movePlanContext = buildMovePlanContext(allEdits)
@@ -232,6 +305,35 @@ export function useAgentComms({ stateRef, sessionEditsRef, getSessionItems }: Ag
         succeeded = await sendSessionCommentToAgent(item.comment)
       }
       if (!succeeded) {
+        allSucceeded = false
+      }
+    }
+
+    // Bundle multi-selected context-only elements into a single annotation
+    if (contextOnlyLocators.length > 0) {
+      const contextMarkdown = contextOnlyLocators
+        .map((locator) => buildElementContext(locator))
+        .join('\n\n')
+      const primary = contextOnlyLocators[0]
+      try {
+        const result = await postEditToAgent({
+          element: {
+            tagName: primary.tagName,
+            id: primary.id,
+            classList: primary.classList,
+            domSelector: primary.domSelector,
+            targetHtml: primary.targetHtml,
+            textPreview: primary.textPreview,
+          },
+          source: primary.domSource || null,
+          reactStack: primary.reactStack,
+          changes: [],
+          textChange: null,
+          moveIntent: null,
+          exportMarkdown: contextMarkdown,
+        })
+        if (!result.ok) allSucceeded = false
+      } catch {
         allSucceeded = false
       }
     }
