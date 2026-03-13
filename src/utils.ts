@@ -26,6 +26,7 @@ import type {
   Guideline,
   DropIndicator,
   SessionEdit,
+  SessionItem,
   AnchorRef,
   PlacementRef,
   MoveClassification,
@@ -2903,6 +2904,52 @@ function buildLocatorContextLines(locator: ElementLocator, options?: { skipConte
 
 export function buildElementContext(locator: ElementLocator): string {
   return buildLocatorContextLines(locator).join('\n')
+}
+
+/** Whether a session edit has any meaningful changes (styles, text, or move). */
+export function hasSessionEditChanges(edit: SessionEdit): boolean {
+  return Object.keys(edit.pendingStyles).length > 0 || Boolean(edit.textEdit) || Boolean(edit.move)
+}
+
+/**
+ * Partition multi-selected elements into edits with changes vs context-only blocks.
+ * Returns the edits that have meaningful changes and context markdown for the rest.
+ */
+export function partitionMultiSelectedEdits(
+  elements: HTMLElement[],
+  sessionEditsRef: { current: Map<HTMLElement, SessionEdit> },
+): { editsWithChanges: SessionEdit[]; contextBlocks: string[] } {
+  const editsWithChanges: SessionEdit[] = []
+  const contextBlocks: string[] = []
+  for (const el of elements) {
+    if (!el.isConnected) continue
+    const edit = sessionEditsRef.current.get(el)
+    if (edit && hasSessionEditChanges(edit)) {
+      editsWithChanges.push(edit)
+    } else {
+      contextBlocks.push(buildElementContext(getElementLocator(el)))
+    }
+  }
+  return { editsWithChanges, contextBlocks }
+}
+
+/**
+ * Collect context blocks for multi-selected elements not already in a session items list.
+ */
+export function getContextOnlyBlocks(
+  selectedElements: HTMLElement[],
+  sessionItems: SessionItem[],
+): string[] {
+  if (selectedElements.length <= 1) return []
+  const sessionElementSet = new Set(
+    sessionItems.filter((i) => i.type === 'edit').map((i) => i.edit.element),
+  )
+  const blocks: string[] = []
+  for (const el of selectedElements) {
+    if (!el.isConnected || sessionElementSet.has(el)) continue
+    blocks.push(buildElementContext(getElementLocator(el)))
+  }
+  return blocks
 }
 
 const spacingGroups = [
