@@ -1268,6 +1268,140 @@ describe('DirectEditProvider', () => {
     expect(sendCommentToAgentMock).toHaveBeenCalledTimes(1)
   })
 
+  it('clears session edit after successful send to agent', async () => {
+    mockClipboard()
+    const target = createTarget('clear-after-send-target')
+    const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+    act(() => {
+      result.current.selectElement(target)
+    })
+
+    await waitFor(() => {
+      expect(result.current.selectedElement).toBe(target)
+    })
+
+    act(() => {
+      result.current.updateSpacingProperty('paddingTop', cssValue(20))
+    })
+
+    expect(result.current.sessionEditCount).toBe(1)
+    expect(target.style.paddingTop).toBe('20px')
+
+    let sent: boolean
+    await act(async () => {
+      sent = await result.current.sendEditToAgent()
+    })
+    expect(sent!).toBe(true)
+
+    await waitFor(() => {
+      expect(result.current.sessionEditCount).toBe(0)
+    })
+    // DOM style should be reverted
+    expect(target.style.paddingTop).not.toBe('20px')
+  })
+
+  it('does not clear session edit when send to agent fails', async () => {
+    mockClipboard()
+    const target = createTarget('keep-on-fail-target')
+    const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+    act(() => {
+      result.current.selectElement(target)
+    })
+
+    await waitFor(() => {
+      expect(result.current.selectedElement).toBe(target)
+    })
+
+    act(() => {
+      result.current.updateSpacingProperty('paddingTop', cssValue(20))
+    })
+
+    expect(result.current.sessionEditCount).toBe(1)
+
+    sendEditToAgentMock.mockResolvedValueOnce({ ok: false, id: '' })
+
+    const sent = await result.current.sendEditToAgent()
+    expect(sent).toBe(false)
+
+    // Edit should be preserved for retry
+    expect(result.current.sessionEditCount).toBe(1)
+    expect(target.style.paddingTop).toBe('20px')
+  })
+
+  it('clears comment after successful send to agent', async () => {
+    mockClipboard()
+    const target = createTarget('clear-comment-target', 'padding-top: 8px;')
+    const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+    act(() => {
+      result.current.addComment(target, { x: 10, y: 10 })
+    })
+
+    expect(result.current.comments).toHaveLength(1)
+    const commentId = result.current.comments[0].id
+
+    act(() => {
+      result.current.updateCommentText(commentId, 'Fix this layout')
+    })
+
+    let sent: boolean
+    await act(async () => {
+      sent = await result.current.sendCommentToAgent(commentId)
+    })
+    expect(sent!).toBe(true)
+
+    await waitFor(() => {
+      expect(result.current.comments).toHaveLength(0)
+    })
+  })
+
+  it('clears all session items after successful send-all to agent', async () => {
+    mockClipboard()
+    const editTarget = createTarget('clear-all-edit-target')
+    const commentTarget = createTarget('clear-all-comment-target', 'padding-top: 8px;')
+    const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+    act(() => {
+      result.current.selectElement(editTarget)
+    })
+
+    await waitFor(() => {
+      expect(result.current.selectedElement).toBe(editTarget)
+    })
+
+    act(() => {
+      result.current.updateSpacingProperty('paddingTop', cssValue(24))
+      result.current.addComment(commentTarget, { x: 10, y: 10 })
+    })
+
+    const commentId = result.current.comments[0]?.id
+    expect(commentId).toBeDefined()
+
+    act(() => {
+      result.current.updateCommentText(commentId!, 'Adjust spacing')
+    })
+
+    expect(result.current.sessionEditCount).toBeGreaterThanOrEqual(1)
+    expect(result.current.comments).toHaveLength(1)
+
+    sendEditToAgentMock.mockClear()
+    sendCommentToAgentMock.mockClear()
+
+    let sent: boolean
+    await act(async () => {
+      sent = await result.current.sendAllSessionItemsToAgent()
+    })
+    expect(sent!).toBe(true)
+
+    // Both edit and comment should be cleared
+    await waitFor(() => {
+      expect(result.current.sessionEditCount).toBe(0)
+    })
+    expect(result.current.comments).toHaveLength(0)
+  })
+
   it('supports comments lifecycle, clipboard export, and agent send', async () => {
     const clipboardWrite = mockClipboard()
     const target = createTarget('comment-target', 'padding-top: 8px;')
