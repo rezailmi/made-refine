@@ -458,7 +458,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
 
   const {
     agentAvailable, canSendEditToAgent, sendEditToAgent, sendCommentToAgent, sendAllSessionItemsToAgent,
-  } = useAgentComms({ stateRef, sessionEditsRef, getSessionItems, saveCurrentToSession })
+  } = useAgentComms({ stateRef, sessionEditsRef, getSessionItems, saveCurrentToSession, removeSessionEdit, deleteComment })
 
   const setActiveTool = React.useCallback((tool: ActiveTool) => {
     const normalizedTool: ActiveTool = tool === 'comment' ? 'select' : tool
