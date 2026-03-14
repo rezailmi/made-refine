@@ -44,9 +44,11 @@ export interface AgentCommsOptions {
   sessionEditsRef: React.MutableRefObject<Map<HTMLElement, SessionEdit>>
   getSessionItems: () => SessionItem[]
   saveCurrentToSession: () => void
+  removeSessionEdit: (element: HTMLElement) => void
+  deleteComment: (id: string) => void
 }
 
-export function useAgentComms({ stateRef, sessionEditsRef, getSessionItems, saveCurrentToSession }: AgentCommsOptions) {
+export function useAgentComms({ stateRef, sessionEditsRef, getSessionItems, saveCurrentToSession, removeSessionEdit, deleteComment }: AgentCommsOptions) {
   const [agentAvailable, setAgentAvailable] = React.useState(false)
   const isMountedRef = React.useRef(true)
 
@@ -158,11 +160,14 @@ export function useAgentComms({ stateRef, sessionEditsRef, getSessionItems, save
         ...(movePlan ? { movePlan } : {}),
         exportMarkdown,
       })
+      if (result.ok) {
+        removeSessionEdit(sessionEdit.element)
+      }
       return updateAgentAvailability(result.ok)
     } catch {
       return updateAgentAvailability(false)
     }
-  }, [updateAgentAvailability])
+  }, [updateAgentAvailability, removeSessionEdit])
 
   const sendSessionCommentToAgent = React.useCallback(async (comment: Comment) => {
     const exportMarkdown = buildCommentExport(comment.locator, comment.text, comment.replies)
@@ -174,11 +179,14 @@ export function useAgentComms({ stateRef, sessionEditsRef, getSessionItems, save
         replies: comment.replies,
         exportMarkdown,
       })
+      if (result.ok) {
+        deleteComment(comment.id)
+      }
       return updateAgentAvailability(result.ok)
     } catch {
       return updateAgentAvailability(false)
     }
-  }, [updateAgentAvailability])
+  }, [updateAgentAvailability, deleteComment])
 
   const sendEditToAgent = React.useCallback(async () => {
     const current = stateRef.current
@@ -210,6 +218,13 @@ export function useAgentComms({ stateRef, sessionEditsRef, getSessionItems, save
           moveIntent: null,
           exportMarkdown,
         })
+        if (result.ok) {
+          for (const el of current.selectedElements) {
+            if (sessionEditsRef.current.has(el)) {
+              removeSessionEdit(el)
+            }
+          }
+        }
         return updateAgentAvailability(result.ok)
       } catch {
         return updateAgentAvailability(false)
