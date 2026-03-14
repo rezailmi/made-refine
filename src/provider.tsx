@@ -96,6 +96,7 @@ export interface DirectEditActionsContextValue {
 export interface DirectEditStateContextValue extends DirectEditState {
   agentAvailable: boolean
   sessionEditCount: number
+  multiSelectContextCount: number
 }
 
 export interface DirectEditContextValue extends DirectEditStateContextValue, DirectEditActionsContextValue {}
@@ -457,7 +458,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
 
   const {
     agentAvailable, canSendEditToAgent, sendEditToAgent, sendCommentToAgent, sendAllSessionItemsToAgent,
-  } = useAgentComms({ stateRef, sessionEditsRef, getSessionItems })
+  } = useAgentComms({ stateRef, sessionEditsRef, getSessionItems, saveCurrentToSession })
 
   const setActiveTool = React.useCallback((tool: ActiveTool) => {
     const normalizedTool: ActiveTool = tool === 'comment' ? 'select' : tool
@@ -484,11 +485,21 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     toggleCanvas: toggleCanvasWithPreference, setCanvasZoom, fitCanvasToViewport, zoomCanvasTo100,
   })
 
+  const multiSelectContextCount = React.useMemo(() => {
+    if (state.selectedElements.length <= 1) return 0
+    let count = 0
+    for (const el of state.selectedElements) {
+      if (!sessionEditsRef.current.has(el)) count++
+    }
+    return count
+  }, [state.selectedElements, sessionEditCount])
+
   const stateContextValue = React.useMemo<DirectEditStateContextValue>(() => ({
     ...state,
     agentAvailable,
     sessionEditCount,
-  }), [agentAvailable, state, sessionEditCount])
+    multiSelectContextCount,
+  }), [agentAvailable, state, sessionEditCount, multiSelectContextCount])
 
   const actionsContextValue = React.useMemo<DirectEditActionsContextValue>(() => ({
     selectElement, selectElements, toggleElementSelection, clearSelection,

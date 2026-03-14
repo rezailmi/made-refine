@@ -27,6 +27,8 @@ export interface DirectEditToolbarInnerProps {
   theme?: Theme
   onSetTheme?: (theme: Theme) => void
   sessionEditCount?: number
+  multiSelectCount?: number
+  multiSelectedElements?: HTMLElement[]
   onGetSessionItems?: () => SessionItem[]
   onExportAllEdits?: () => Promise<boolean>
   onSendAllToAgents?: () => Promise<boolean>
@@ -53,6 +55,8 @@ export function DirectEditToolbarInner({
   theme = 'system',
   onSetTheme,
   sessionEditCount = 0,
+  multiSelectCount = 0,
+  multiSelectedElements,
   onGetSessionItems,
   onExportAllEdits,
   onSendAllToAgents,
@@ -76,6 +80,7 @@ export function DirectEditToolbarInner({
   const [applyStatus, setApplyStatus] = React.useState<'idle' | 'sending' | 'sent' | 'offline'>('idle')
   const applyTimerRef = React.useRef<number | null>(null)
   const showApplyButton = agentAvailable && Boolean(onSendAllToAgents)
+  const totalItemCount = sessionEditCount + multiSelectCount
 
   // Cache toolbar sizes per edge + state so prediction stays accurate after re-docking.
   const sizeCacheRef = React.useRef<Record<string, { w: number; h: number }>>({})
@@ -153,7 +158,7 @@ export function DirectEditToolbarInner({
   }, [])
 
   const handleApplyAll = React.useCallback(async () => {
-    if (!onSendAllToAgents || sessionEditCount === 0 || applyStatus === 'sending') return
+    if (!onSendAllToAgents || totalItemCount === 0 || applyStatus === 'sending') return
 
     setApplyStatus('sending')
     let success = false
@@ -165,7 +170,7 @@ export function DirectEditToolbarInner({
 
     setApplyStatus(success ? 'sent' : 'offline')
     scheduleApplyReset()
-  }, [applyStatus, onSendAllToAgents, scheduleApplyReset, sessionEditCount])
+  }, [applyStatus, onSendAllToAgents, scheduleApplyReset, totalItemCount])
 
   const dragHandlers = React.useMemo(() => ({
     onPointerDown: handlePointerDown,
@@ -252,7 +257,8 @@ export function DirectEditToolbarInner({
             >
               <EditsPopover
                 tooltipSide={tooltipSide}
-                sessionEditCount={sessionEditCount}
+                sessionEditCount={totalItemCount}
+                multiSelectedElements={multiSelectedElements}
                 isOpen={activePopover === 'edits'}
                 onOpenChange={(open) => setActivePopover(open ? 'edits' : null)}
                 onGetSessionItems={onGetSessionItems}
@@ -268,12 +274,12 @@ export function DirectEditToolbarInner({
                     className={cn(
                       toolbarBtnClass,
                       'h-8 gap-1.5 px-2.5 py-0 text-xs font-medium',
-                      sessionEditCount > 0 || applyStatus !== 'idle'
+                      totalItemCount > 0 || applyStatus !== 'idle'
                         ? 'bg-muted text-foreground hover:bg-muted/80'
                         : 'text-muted-foreground hover:bg-muted hover:text-foreground',
                     )}
                     data-direct-edit="apply-all-button"
-                    disabled={sessionEditCount === 0 || applyStatus === 'sending'}
+                    disabled={totalItemCount === 0 || applyStatus === 'sending'}
                     onPointerDown={(e) => e.stopPropagation()}
                     onClick={() => {
                       void handleApplyAll()
@@ -357,7 +363,7 @@ export function DirectEditToolbarInner({
 }
 
 function DirectEditToolbarContent() {
-  const { editModeActive, theme, sessionEditCount, canvas, agentAvailable } = useDirectEditState()
+  const { editModeActive, theme, sessionEditCount, multiSelectContextCount, selectedElements, canvas, agentAvailable } = useDirectEditState()
   const {
     toggleEditMode, setTheme,
     getSessionItems, exportAllEdits, sendAllSessionItemsToAgent, clearSessionEdits, removeSessionEdit, deleteComment,
@@ -374,6 +380,8 @@ function DirectEditToolbarContent() {
       theme={theme}
       onSetTheme={setTheme}
       sessionEditCount={sessionEditCount}
+      multiSelectCount={multiSelectContextCount}
+      multiSelectedElements={selectedElements.length > 1 ? selectedElements : undefined}
       onGetSessionItems={getSessionItems}
       onExportAllEdits={exportAllEdits}
       onSendAllToAgents={sendAllSessionItemsToAgent}

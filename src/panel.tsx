@@ -713,7 +713,7 @@ function DirectEditPanelContent() {
           onResizeSizingChange={updateSizingProperties}
         />
       )
-    : selectedElements.length > 1
+    : selectedElements.length > 1 && !textEditingElement
       ? <MultiSelectionOverlay selectedElements={selectedElements} />
       : null
 

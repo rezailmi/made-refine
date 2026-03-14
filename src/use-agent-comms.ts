@@ -14,20 +14,39 @@ import {
   collapseExportShorthands,
   buildMovePlanContext,
   getMoveIntentForEdit,
+  partitionMultiSelectedEdits,
+  getContextOnlyBlocks,
 } from './utils'
+import type { ElementLocator } from './types'
 import {
   checkAgentConnection,
   sendEditToAgent as postEditToAgent,
   sendCommentToAgent as postCommentToAgent,
 } from './mcp-client'
 
+function buildLocatorPayload(locator: ElementLocator) {
+  return {
+    element: {
+      tagName: locator.tagName,
+      id: locator.id,
+      classList: locator.classList,
+      domSelector: locator.domSelector,
+      targetHtml: locator.targetHtml,
+      textPreview: locator.textPreview,
+    },
+    source: locator.domSource || null,
+    reactStack: locator.reactStack,
+  }
+}
+
 export interface AgentCommsOptions {
   stateRef: React.MutableRefObject<DirectEditState>
   sessionEditsRef: React.MutableRefObject<Map<HTMLElement, SessionEdit>>
   getSessionItems: () => SessionItem[]
+  saveCurrentToSession: () => void
 }
 
-export function useAgentComms({ stateRef, sessionEditsRef, getSessionItems }: AgentCommsOptions) {
+export function useAgentComms({ stateRef, sessionEditsRef, getSessionItems, saveCurrentToSession }: AgentCommsOptions) {
   const [agentAvailable, setAgentAvailable] = React.useState(false)
   const isMountedRef = React.useRef(true)
 
@@ -132,16 +151,7 @@ export function useAgentComms({ stateRef, sessionEditsRef, getSessionItems }: Ag
     try {
       // TODO(mcp-server): confirm ingest validation/DTOs accept the non-versioned moveIntent/movePlan schema.
       const result = await postEditToAgent({
-        element: {
-          tagName: locator.tagName,
-          id: locator.id,
-          classList: locator.classList,
-          domSelector: locator.domSelector,
-          targetHtml: locator.targetHtml,
-          textPreview: locator.textPreview,
-        },
-        source: locator.domSource || null,
-        reactStack: locator.reactStack,
+        ...buildLocatorPayload(locator),
         changes,
         textChange: sessionEdit.textEdit ?? null,
         moveIntent,
@@ -159,16 +169,7 @@ export function useAgentComms({ stateRef, sessionEditsRef, getSessionItems }: Ag
 
     try {
       const result = await postCommentToAgent({
-        element: {
-          tagName: comment.locator.tagName,
-          id: comment.locator.id,
-          classList: comment.locator.classList,
-          domSelector: comment.locator.domSelector,
-          targetHtml: comment.locator.targetHtml,
-          textPreview: comment.locator.textPreview,
-        },
-        source: comment.locator.domSource || null,
-        reactStack: comment.locator.reactStack,
+        ...buildLocatorPayload(comment.locator),
         commentText: comment.text,
         replies: comment.replies,
         exportMarkdown,
@@ -181,6 +182,41 @@ export function useAgentComms({ stateRef, sessionEditsRef, getSessionItems }: Ag
 
   const sendEditToAgent = React.useCallback(async () => {
     const current = stateRef.current
+
+    // Multi-selection: bundle all selected elements into a single annotation
+    if (current.selectedElements.length > 1) {
+      saveCurrentToSession()
+      const { editsWithChanges, contextBlocks } = partitionMultiSelectedEdits(
+        current.selectedElements, sessionEditsRef,
+      )
+      if (editsWithChanges.length === 0 && contextBlocks.length === 0) return false
+
+      const markdownParts: string[] = []
+      if (editsWithChanges.length > 0) {
+        const movePlanContext = buildMovePlanContext(editsWithChanges)
+        markdownParts.push(buildSessionExport(editsWithChanges, [], { movePlanContext }))
+      }
+      markdownParts.push(...contextBlocks)
+      const exportMarkdown = markdownParts.join('\n\n')
+
+      const primaryEl = current.selectedElements.find((el) => el.isConnected)
+      if (!primaryEl) return false
+      const primary = getElementLocator(primaryEl)
+      try {
+        const result = await postEditToAgent({
+          ...buildLocatorPayload(primary),
+          changes: [],
+          textChange: null,
+          moveIntent: null,
+          exportMarkdown,
+        })
+        return updateAgentAvailability(result.ok)
+      } catch {
+        return updateAgentAvailability(false)
+      }
+    }
+
+    // Single-selection: existing behavior
     if (!current.selectedElement || !current.elementInfo) return false
     const sessionEdit = sessionEditsRef.current.get(current.selectedElement)
     if (!canSendEditToAgent({
@@ -199,7 +235,7 @@ export function useAgentComms({ stateRef, sessionEditsRef, getSessionItems }: Ag
       textEdit: sessionEdit?.textEdit ?? null,
     }
     return sendSessionEditToAgent(editToSend)
-  }, [canSendEditToAgent, sendSessionEditToAgent])
+  }, [canSendEditToAgent, sendSessionEditToAgent, saveCurrentToSession])
 
   const sendCommentToAgent = React.useCallback(async (id: string) => {
     const comment = stateRef.current.comments.find((c) => c.id === id)
@@ -209,7 +245,10 @@ export function useAgentComms({ stateRef, sessionEditsRef, getSessionItems }: Ag
 
   const sendAllSessionItemsToAgent = React.useCallback(async () => {
     const items = getSessionItems()
-    if (items.length === 0) return false
+    const current = stateRef.current
+    const contextOnlyBlocks = getContextOnlyBlocks(current.selectedElements, items)
+
+    if (items.length === 0 && contextOnlyBlocks.length === 0) return false
 
     const allEdits = items.filter((i): i is { type: 'edit'; edit: SessionEdit } => i.type === 'edit').map(i => i.edit)
     const movePlanContext = buildMovePlanContext(allEdits)
@@ -233,6 +272,27 @@ export function useAgentComms({ stateRef, sessionEditsRef, getSessionItems }: Ag
       }
       if (!succeeded) {
         allSucceeded = false
+      }
+    }
+
+    // Bundle multi-selected context-only elements into a single annotation
+    if (contextOnlyBlocks.length > 0) {
+      const primaryEl = current.selectedElements.find(
+        (el) => el.isConnected && !allEdits.some((e) => e.element === el),
+      )
+      if (primaryEl) {
+        try {
+          const result = await postEditToAgent({
+            ...buildLocatorPayload(getElementLocator(primaryEl)),
+            changes: [],
+            textChange: null,
+            moveIntent: null,
+            exportMarkdown: contextOnlyBlocks.join('\n\n'),
+          })
+          if (!result.ok) allSucceeded = false
+        } catch {
+          allSucceeded = false
+        }
       }
     }
 

@@ -7,7 +7,7 @@ import { SelectionOverlay } from './selection-overlay'
 import { DirectEditToolbar } from './toolbar'
 import { Rulers } from './rulers-overlay'
 import { parsePropertyValue } from './utils'
-import { PANEL_WIDTH } from './use-panel-position'
+import { PANEL_WIDTH, PANEL_HEIGHT } from './use-panel-position'
 
 const { checkAgentConnectionMock, sendEditToAgentMock, sendCommentToAgentMock } = vi.hoisted(() => ({
   checkAgentConnectionMock: vi.fn<() => Promise<boolean>>().mockResolvedValue(true),
@@ -712,7 +712,7 @@ describe('DirectEditProvider', () => {
     expect(panel.style.top).toBe('8px')
   })
 
-  it('defaults the panel to the top-right corner when no saved position exists', async () => {
+  it('defaults the panel to the bottom-right corner when no saved position exists', async () => {
     stubMatchMedia()
     localStorage.removeItem('direct-edit-panel-position')
     const target = createTarget('panel-default-target', 'padding-top: 8px;')
@@ -735,7 +735,7 @@ describe('DirectEditProvider', () => {
     })
 
     expect(panel.style.left).toBe(`${window.innerWidth - PANEL_WIDTH - 8}px`)
-    expect(panel.style.top).toBe('8px')
+    expect(panel.style.top).toBe(`${window.innerHeight - PANEL_HEIGHT - 8}px`)
   })
 
   it('re-clamps panel position when viewport shrinks below panel size', async () => {

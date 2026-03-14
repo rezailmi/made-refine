@@ -29,6 +29,8 @@ import {
   getExportContentProfile,
   buildMovePlanContext,
   getMoveIntentForEdit,
+  partitionMultiSelectedEdits,
+  getContextOnlyBlocks,
   getElementDisplayName,
   getElementLocator,
   computeIntendedIndex,
@@ -1129,12 +1131,22 @@ export function useSessionManager({
 
   const exportAllEdits = React.useCallback(async (): Promise<boolean> => {
     const items = getSessionItems()
-    if (items.length === 0) return false
+    const multiSelectContextBlocks = getContextOnlyBlocks(stateRef.current.selectedElements, items)
+
+    if (items.length === 0 && multiSelectContextBlocks.length === 0) return false
+
     const edits = items.filter((item) => item.type === 'edit').map((item) => item.edit)
     const comments = items.filter((item) => item.type === 'comment').map((item) => item.comment)
     const movePlanContext = buildMovePlanContext(edits)
-    const text = buildSessionExport(edits, comments, { movePlanContext })
-    const instruction = buildExportInstruction(getExportContentProfile(edits, comments, movePlanContext))
+    // buildSessionExport returns '' when both arrays are empty; filter(Boolean) strips it
+    const sessionText = edits.length > 0 || comments.length > 0
+      ? buildSessionExport(edits, comments, { movePlanContext })
+      : ''
+    const blocks = [sessionText, ...multiSelectContextBlocks].filter(Boolean)
+    const text = blocks.join('\n\n')
+    const instruction = items.length > 0
+      ? buildExportInstruction(getExportContentProfile(edits, comments, movePlanContext))
+      : 'Here is the element context for reference'
     return copyText(`${instruction}\n\n${text}`)
   }, [getSessionItems])
 
@@ -1216,6 +1228,28 @@ export function useSessionManager({
 
   const exportEdits = React.useCallback(async () => {
     const current = stateRef.current
+
+    // Multi-selection: bundle all selected elements into a single export
+    if (current.selectedElements.length > 1) {
+      saveCurrentToSession()
+      const { editsWithChanges, contextBlocks } = partitionMultiSelectedEdits(
+        current.selectedElements, sessionEditsRef,
+      )
+      if (editsWithChanges.length === 0 && contextBlocks.length === 0) return false
+
+      const allBlocks = [...contextBlocks]
+      if (editsWithChanges.length > 0) {
+        const movePlanContext = buildMovePlanContext(editsWithChanges)
+        allBlocks.unshift(buildSessionExport(editsWithChanges, [], { movePlanContext }))
+      }
+
+      const instruction = editsWithChanges.length > 0
+        ? buildExportInstruction(getExportContentProfile(editsWithChanges, []))
+        : 'Here is the element context for reference'
+      return copyText(`${instruction}\n\n${allBlocks.join('\n\n')}`)
+    }
+
+    // Single-selection: existing behavior
     if (!current.selectedElement || !current.elementInfo) return false
     const sessionEdit = sessionEditsRef.current.get(current.selectedElement)
     const hasPendingStyles = Object.keys(current.pendingStyles).length > 0
@@ -1248,7 +1282,7 @@ export function useSessionManager({
         })
       : 'Here is the element context for reference'
     return copyText(`${instruction}\n\n${exportMarkdown}`)
-  }, [])
+  }, [saveCurrentToSession])
 
   return {
     syncSessionItemCount,

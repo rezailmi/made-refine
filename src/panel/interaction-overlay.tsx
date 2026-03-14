@@ -255,7 +255,7 @@ function useInteractionCapture(props: InteractionOverlayProps): MarqueeRect | nu
     }
 
     function handleWindowPointerMove(e: PointerEvent) {
-      if (!dragSession) return
+      if (isStale() || !dragSession) return
       const dx = e.clientX - dragSession.originX
       const dy = e.clientY - dragSession.originY
       const distanceSquared = dx * dx + dy * dy
@@ -277,7 +277,7 @@ function useInteractionCapture(props: InteractionOverlayProps): MarqueeRect | nu
     }
 
     function handleWindowPointerUp(e: PointerEvent) {
-      if (!dragSession) return
+      if (isStale() || !dragSession) return
 
       const wasMarquee = dragSession.marqueeStarted
       const additive = dragSession.additive
@@ -291,9 +291,8 @@ function useInteractionCapture(props: InteractionOverlayProps): MarqueeRect | nu
 
       const p = propsRef.current
       p.onSetHoverHighlight(null)
-      suppressClickRef.current = true
-
       if (p.hasPendingCommentDraft()) return
+      suppressClickRef.current = true
 
       if (p.activeCommentId) {
         p.onSetActiveCommentId(null)
@@ -321,6 +320,7 @@ function useInteractionCapture(props: InteractionOverlayProps): MarqueeRect | nu
       if (isStale() || isOwnUIEvent(e)) return
       if (e.button !== 0) return
 
+      // Only preventDefault for mouse — doing so on touch would kill scroll.
       if (e.pointerType === 'mouse') e.preventDefault()
       e.stopPropagation()
 
