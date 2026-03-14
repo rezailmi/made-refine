@@ -9,6 +9,11 @@ export interface UseMeasurementResult {
   mousePosition: { x: number; y: number } | null
 }
 
+// Grace period (ms) after Alt keydown during which window blur events are
+// ignored. On macOS, pressing Option can briefly activate the browser menu
+// bar, firing a transient blur that would otherwise reset the measurement.
+const ALT_BLUR_GRACE_MS = 200
+
 const INITIAL_STATE = {
   hoveredElement: null as HTMLElement | null,
   measurements: [] as MeasurementLine[],
@@ -50,9 +55,7 @@ export function useMeasurement(selectedElement: HTMLElement | null): UseMeasurem
     }
 
     function handleBlur() {
-      // On macOS, pressing Option/Alt can briefly activate the browser menu bar,
-      // causing a transient blur event that would incorrectly reset the state.
-      if (Date.now() - altPressedAtRef.current < 200) return
+      if (Date.now() - altPressedAtRef.current < ALT_BLUR_GRACE_MS) return
       reset()
     }
 
