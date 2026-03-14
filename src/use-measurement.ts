@@ -20,6 +20,7 @@ export function useMeasurement(selectedElement: HTMLElement | null): UseMeasurem
   const [mousePosition, setMousePosition] = React.useState<{ x: number; y: number } | null>(null)
   const rafRef = React.useRef<number | null>(null)
   const mousePositionRef = React.useRef<{ x: number; y: number } | null>(null)
+  const altPressedAtRef = React.useRef(0)
 
   const getElementBelow = React.useCallback((x: number, y: number): HTMLElement | null => {
     const element = elementFromPointWithoutOverlays(x, y)
@@ -31,6 +32,7 @@ export function useMeasurement(selectedElement: HTMLElement | null): UseMeasurem
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === 'Alt') {
         e.preventDefault()
+        altPressedAtRef.current = Date.now()
         setAltHeld(true)
       }
     }
@@ -47,19 +49,29 @@ export function useMeasurement(selectedElement: HTMLElement | null): UseMeasurem
       setState(INITIAL_STATE)
     }
 
+    function handleBlur() {
+      // On macOS, pressing Option/Alt can briefly activate the browser menu bar,
+      // causing a transient blur event that would incorrectly reset the state.
+      if (Date.now() - altPressedAtRef.current < 200) return
+      reset()
+    }
+
     function handleVisibilityChange() {
       if (document.hidden) reset()
     }
 
-    window.addEventListener('keydown', handleKeyDown)
-    window.addEventListener('keyup', handleKeyUp)
-    window.addEventListener('blur', reset)
+    // Capture phase so the handler fires before any stopPropagation() in
+    // the host app (e.g. Tauri webview), consistent with other keyboard
+    // listeners in the codebase.
+    window.addEventListener('keydown', handleKeyDown, true)
+    window.addEventListener('keyup', handleKeyUp, true)
+    window.addEventListener('blur', handleBlur)
     document.addEventListener('visibilitychange', handleVisibilityChange)
 
     return () => {
-      window.removeEventListener('keydown', handleKeyDown)
-      window.removeEventListener('keyup', handleKeyUp)
-      window.removeEventListener('blur', reset)
+      window.removeEventListener('keydown', handleKeyDown, true)
+      window.removeEventListener('keyup', handleKeyUp, true)
+      window.removeEventListener('blur', handleBlur)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
   }, [])
