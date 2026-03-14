@@ -697,8 +697,7 @@ export function detectSizingMode(
 
 export function getSizingValue(element: HTMLElement, dimension: 'width' | 'height'): SizingValue {
   const mode = detectSizingMode(element, dimension)
-  const rect = element.getBoundingClientRect()
-  const numericValue = Math.round(dimension === 'width' ? rect.width : rect.height)
+  const numericValue = Math.round(dimension === 'width' ? element.offsetWidth : element.offsetHeight)
 
   return {
     mode,
