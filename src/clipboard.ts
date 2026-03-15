@@ -1,5 +1,11 @@
+const AGENT_INSTRUCTION = 'implement the visual edits below. When applying values, map them to existing CSS variables, design tokens, or utility classes already used in the project whenever possible.'
+
 export function buildAgentClipboardText(markdown: string): string {
-  return `implement the visual edits\n\n${markdown}`
+  return `${AGENT_INSTRUCTION}\n\n${markdown}`
+}
+
+export function wrapExportMarkdown(markdown: string): string {
+  return `${AGENT_INSTRUCTION}\n\n${markdown}`
 }
 
 function tryRestoreFocus(element: Element | null) {
