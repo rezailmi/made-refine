@@ -3,8 +3,8 @@
 import * as React from 'react'
 import { DirectEditPanelInner } from './panel'
 import { DirectEditToolbarInner } from './toolbar'
-import { buildEditExport, stylesToTailwind, colorPropertyToCSSMap, borderPropertyToCSSMap } from './utils'
-import { buildAgentClipboardText, copyText } from './clipboard'
+import { buildEditExport, buildExportInstruction, stylesToTailwind, colorPropertyToCSSMap, borderPropertyToCSSMap } from './utils'
+import { copyText } from './clipboard'
 import { formatColorValue } from './ui/color-utils'
 import type { SpacingPropertyKey, BorderRadiusPropertyKey, BorderPropertyKey, BorderProperties, SizingPropertyKey, ColorPropertyKey, ColorValue, TypographyPropertyKey, CSSPropertyValue, SizingValue, TypographyProperties, ElementLocator } from './types'
 
@@ -215,7 +215,8 @@ export function DirectEditDemo() {
   const handleExportEdits = async () => {
     if (Object.keys(pendingStyles).length === 0) return false
     const exportMarkdown = buildEditExport(DEMO_LOCATOR, pendingStyles)
-    return copyText(buildAgentClipboardText(exportMarkdown))
+    const instruction = buildExportInstruction({ hasCssEdits: true, hasTextEdits: false, hasMoves: false, hasComments: false })
+    return copyText(`${instruction}\n\n${exportMarkdown}`)
   }
 
   return (

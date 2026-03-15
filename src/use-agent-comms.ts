@@ -9,6 +9,8 @@ import {
   buildEditExport,
   buildCommentExport,
   buildSessionExport,
+  buildExportInstruction,
+  getExportContentProfile,
   getElementLocator,
   stylesToTailwind,
   collapseExportShorthands,
@@ -23,6 +25,12 @@ import {
   sendEditToAgent as postEditToAgent,
   sendCommentToAgent as postCommentToAgent,
 } from './mcp-client'
+import type { ExportContentProfile } from './utils'
+
+function withInstruction(profile: ExportContentProfile, markdown: string): string {
+  const instruction = buildExportInstruction(profile)
+  return instruction ? `${instruction}\n\n${markdown}` : markdown
+}
 
 function buildLocatorPayload(locator: ElementLocator) {
   return {
@@ -150,6 +158,12 @@ export function useAgentComms({ stateRef, sessionEditsRef, getSessionItems, save
     const hasMeaningfulPayload = changes.length > 0 || sessionEdit.textEdit != null || moveIntent != null
     if (!hasMeaningfulPayload) return true
 
+    const profile = getExportContentProfile(
+      [sessionEdit],
+      [],
+      resolvedPlanContext,
+    )
+
     try {
       // TODO(mcp-server): confirm ingest validation/DTOs accept the non-versioned moveIntent/movePlan schema.
       const result = await postEditToAgent({
@@ -158,7 +172,7 @@ export function useAgentComms({ stateRef, sessionEditsRef, getSessionItems, save
         textChange: sessionEdit.textEdit ?? null,
         moveIntent,
         ...(movePlan ? { movePlan } : {}),
-        exportMarkdown,
+        exportMarkdown: withInstruction(profile, exportMarkdown),
       })
       if (result.ok) {
         removeSessionEdit(sessionEdit.element)
@@ -171,13 +185,14 @@ export function useAgentComms({ stateRef, sessionEditsRef, getSessionItems, save
 
   const sendSessionCommentToAgent = React.useCallback(async (comment: Comment) => {
     const exportMarkdown = buildCommentExport(comment.locator, comment.text, comment.replies)
+    const commentProfile: ExportContentProfile = { hasCssEdits: false, hasTextEdits: false, hasMoves: false, hasComments: true }
 
     try {
       const result = await postCommentToAgent({
         ...buildLocatorPayload(comment.locator),
         commentText: comment.text,
         replies: comment.replies,
-        exportMarkdown,
+        exportMarkdown: withInstruction(commentProfile, exportMarkdown),
       })
       if (result.ok) {
         deleteComment(comment.id)
@@ -200,12 +215,14 @@ export function useAgentComms({ stateRef, sessionEditsRef, getSessionItems, save
       if (editsWithChanges.length === 0 && contextBlocks.length === 0) return false
 
       const markdownParts: string[] = []
+      let movePlanCtx: ReturnType<typeof buildMovePlanContext> | null = null
       if (editsWithChanges.length > 0) {
-        const movePlanContext = buildMovePlanContext(editsWithChanges)
-        markdownParts.push(buildSessionExport(editsWithChanges, [], { movePlanContext }))
+        movePlanCtx = buildMovePlanContext(editsWithChanges)
+        markdownParts.push(buildSessionExport(editsWithChanges, [], { movePlanContext: movePlanCtx }))
       }
       markdownParts.push(...contextBlocks)
       const exportMarkdown = markdownParts.join('\n\n')
+      const multiProfile = getExportContentProfile(editsWithChanges, [], movePlanCtx)
 
       const primaryEl = current.selectedElements.find((el) => el.isConnected)
       if (!primaryEl) return false
@@ -216,7 +233,7 @@ export function useAgentComms({ stateRef, sessionEditsRef, getSessionItems, save
           changes: [],
           textChange: null,
           moveIntent: null,
-          exportMarkdown,
+          exportMarkdown: withInstruction(multiProfile, exportMarkdown),
         })
         if (result.ok) {
           for (const el of current.selectedElements) {

@@ -826,6 +826,41 @@ describe('export context quality', () => {
     expect(instruction).not.toContain('Implement the move plan below')
   })
 
+  it('includes variable/token mapping guidance for CSS edits', () => {
+    const instruction = buildExportInstruction({ hasCssEdits: true, hasTextEdits: false, hasMoves: false, hasComments: false })
+    expect(instruction).toContain('Map values to existing CSS variables, design tokens, or utility classes')
+  })
+
+  it('does not include variable/token mapping for text-only edits', () => {
+    const instruction = buildExportInstruction({ hasCssEdits: false, hasTextEdits: true, hasMoves: false, hasComments: false })
+    expect(instruction).not.toContain('Map values to existing CSS variables')
+    expect(instruction).toContain('Update the text content')
+  })
+
+  it('does not include variable/token mapping for comment-only annotations', () => {
+    const instruction = buildExportInstruction({ hasCssEdits: false, hasTextEdits: false, hasMoves: false, hasComments: true })
+    expect(instruction).not.toContain('Map values to existing CSS variables')
+    expect(instruction).toContain('Address this feedback')
+  })
+
+  it('includes both CSS and text instructions for combined edits', () => {
+    const instruction = buildExportInstruction({ hasCssEdits: true, hasTextEdits: true, hasMoves: false, hasComments: false })
+    expect(instruction).toContain('Apply the CSS changes')
+    expect(instruction).toContain('Map values to existing CSS variables')
+    expect(instruction).toContain('Update the text content')
+  })
+
+  it('includes CSS and move instructions for combined edits', () => {
+    const instruction = buildExportInstruction({ hasCssEdits: true, hasTextEdits: false, hasMoves: true, hasComments: false })
+    expect(instruction).toContain('Map values to existing CSS variables')
+    expect(instruction).toContain('Implement the move plan below')
+  })
+
+  it('returns empty string when no content types are present', () => {
+    const instruction = buildExportInstruction({ hasCssEdits: false, hasTextEdits: false, hasMoves: false, hasComments: false })
+    expect(instruction).toBe('')
+  })
+
   it('anchors deep selectors to a stable root', () => {
     const root = document.createElement('div')
     root.id = 'selector-anchor-root'
