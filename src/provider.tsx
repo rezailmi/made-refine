@@ -296,9 +296,10 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
       enterCanvas()
     }
     if (wasActive) {
+      clearSelection()
       closePanel()
     }
-  }, [toggleEditModeBase, stateRef, exitCanvas, enterCanvas, closePanel])
+  }, [toggleEditModeBase, stateRef, exitCanvas, enterCanvas, clearSelection, closePanel])
 
   // Wrap toggleCanvas to persist the preference in localStorage.
   const toggleCanvasWithPreference = React.useCallback(() => {
