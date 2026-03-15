@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { buildAgentClipboardText, copyText } from './clipboard'
+import { copyText } from './clipboard'
 
 const restores: Array<() => void> = []
 
@@ -53,10 +53,6 @@ describe('clipboard', () => {
     }
     vi.restoreAllMocks()
     document.body.innerHTML = ''
-  })
-
-  it('builds the agent-ready clipboard prefix', () => {
-    expect(buildAgentClipboardText('## edits')).toBe('implement the visual edits\n\n## edits')
   })
 
   it('uses navigator clipboard when available', async () => {

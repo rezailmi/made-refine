@@ -1,7 +1,3 @@
-export function buildAgentClipboardText(markdown: string): string {
-  return `implement the visual edits\n\n${markdown}`
-}
-
 function tryRestoreFocus(element: Element | null) {
   if (!(element instanceof HTMLElement)) return
   try {

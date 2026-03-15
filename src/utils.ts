@@ -3813,7 +3813,7 @@ interface SessionExportOptions {
   includeMovePlanHeader?: boolean
 }
 
-interface ExportContentProfile {
+export interface ExportContentProfile {
   hasCssEdits: boolean
   hasTextEdits: boolean
   hasMoves: boolean
