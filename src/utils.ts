@@ -3851,7 +3851,7 @@ export function buildExportInstruction(profile: ExportContentProfile): string {
   }
 
   const parts: string[] = []
-  if (hasCssEdits) parts.push('Apply the CSS changes to the targeted elements using the project\'s existing styling approach (Tailwind, CSS modules, etc.).')
+  if (hasCssEdits) parts.push('Apply the CSS changes to the targeted elements using the project\'s existing styling approach (Tailwind, CSS modules, etc.). Map values to existing CSS variables, design tokens, or utility classes already used in the project whenever possible.')
   if (hasTextEdits) parts.push('Update the text content as specified.')
   if (hasMoves) parts.push('Implement the move plan below directly in source code. For `structural_move`, reorder/reparent elements using the target anchors. For `layout_refactor`, apply the listed flex/grid refactor steps. Do NOT simulate movement with absolute positioning, left/top offsets, transform, or margin hacks.')
   if (hasComments) parts.push('Address the comments on the relevant elements.')

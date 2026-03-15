@@ -23,7 +23,7 @@ import {
   sendEditToAgent as postEditToAgent,
   sendCommentToAgent as postCommentToAgent,
 } from './mcp-client'
-import { wrapExportMarkdown } from './clipboard'
+
 
 function buildLocatorPayload(locator: ElementLocator) {
   return {
@@ -159,7 +159,7 @@ export function useAgentComms({ stateRef, sessionEditsRef, getSessionItems, save
         textChange: sessionEdit.textEdit ?? null,
         moveIntent,
         ...(movePlan ? { movePlan } : {}),
-        exportMarkdown: wrapExportMarkdown(exportMarkdown),
+        exportMarkdown: exportMarkdown,
       })
       if (result.ok) {
         removeSessionEdit(sessionEdit.element)
@@ -178,7 +178,7 @@ export function useAgentComms({ stateRef, sessionEditsRef, getSessionItems, save
         ...buildLocatorPayload(comment.locator),
         commentText: comment.text,
         replies: comment.replies,
-        exportMarkdown: wrapExportMarkdown(exportMarkdown),
+        exportMarkdown: exportMarkdown,
       })
       if (result.ok) {
         deleteComment(comment.id)
@@ -217,7 +217,7 @@ export function useAgentComms({ stateRef, sessionEditsRef, getSessionItems, save
           changes: [],
           textChange: null,
           moveIntent: null,
-          exportMarkdown: wrapExportMarkdown(exportMarkdown),
+          exportMarkdown: exportMarkdown,
         })
         if (result.ok) {
           for (const el of current.selectedElements) {
@@ -303,7 +303,7 @@ export function useAgentComms({ stateRef, sessionEditsRef, getSessionItems, save
             changes: [],
             textChange: null,
             moveIntent: null,
-            exportMarkdown: wrapExportMarkdown(contextOnlyBlocks.join('\n\n')),
+            exportMarkdown: contextOnlyBlocks.join('\n\n'),
           })
           if (!result.ok) allSucceeded = false
         } catch {
