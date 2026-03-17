@@ -12,6 +12,8 @@ import {
   buildExportInstruction,
   getExportContentProfile,
   getElementLocator,
+  getLocatorHeader,
+  formatComponentTree,
   stylesToTailwind,
   collapseExportShorthands,
   buildMovePlanContext,
@@ -33,6 +35,9 @@ function withInstruction(profile: ExportContentProfile, markdown: string): strin
 }
 
 function buildLocatorPayload(locator: ElementLocator) {
+  const { componentLabel, formattedSource, formattedCallSite } = getLocatorHeader(locator)
+  const reactTree = formatComponentTree(locator.reactStack)
+
   return {
     element: {
       tagName: locator.tagName,
@@ -40,13 +45,21 @@ function buildLocatorPayload(locator: ElementLocator) {
       classList: locator.classList,
       domSelector: locator.domSelector,
       targetHtml: locator.targetHtml,
+      contextHtml: locator.domContextHtml || null,
       textPreview: locator.textPreview,
     },
-    source: locator.domSource || null,
+    componentLabel,
+    reactTree,
     reactStack: locator.reactStack,
     reactComponentName: locator.reactComponentName ?? null,
     authoredProps: locator.authoredProps ?? null,
+    type: locator.isComponentPrimitive != null
+      ? (locator.isComponentPrimitive ? 'component' : 'instance')
+      : null,
     isComponentPrimitive: locator.isComponentPrimitive ?? false,
+    source: formattedSource,
+    callSite: formattedCallSite,
+    rawSource: locator.domSource || null,
     callSiteSource: locator.callSiteSource ?? null,
     definitionSource: locator.definitionSource ?? null,
     subElementSources: locator.subElementSources ?? null,

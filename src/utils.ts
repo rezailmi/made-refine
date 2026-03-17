@@ -2939,7 +2939,7 @@ export function getElementLocator(element: HTMLElement): ElementLocator {
     subElementSources: Object.keys(subSources).length > 0 ? subSources : undefined,
     callSiteSource: callSite ?? undefined,
     definitionSource: definitionSrc ?? undefined,
-    isComponentPrimitive: nearestComponentFiber ? classification.isComponentPrimitive : undefined,
+    isComponentPrimitive: (nearestComponentFiber || elementSourceFile) ? classification.isComponentPrimitive : undefined,
   }
 }
 
@@ -2949,7 +2949,7 @@ interface ExportChange {
   tailwind: string
 }
 
-function getLocatorHeader(locator: ElementLocator): {
+export function getLocatorHeader(locator: ElementLocator): {
   componentLabel: string
   formattedSource: string | null
   formattedCallSite: string | null
@@ -2982,7 +2982,7 @@ function getLocatorHeader(locator: ElementLocator): {
   return { componentLabel, formattedSource, formattedCallSite }
 }
 
-function formatComponentTree(reactStack: ReactComponentFrame[]): string | null {
+export function formatComponentTree(reactStack: ReactComponentFrame[]): string | null {
   const names = reactStack
     .map(f => f.name)
     .filter(Boolean)
