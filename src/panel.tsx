@@ -353,7 +353,7 @@ function DirectEditPanelContent() {
     isOpen, elementInfo,
     computedSpacing, computedBorderRadius, computedBorder, computedFlex,
     computedSizing, computedColor, computedBoxShadow, computedTypography,
-    borderStyleControlPreference, pendingStyles,
+    isComponentPrimitive, borderStyleControlPreference, pendingStyles,
     editModeActive, selectedElement, selectedElements, selectionAnchorElement, canvas,
     comments, activeCommentId, textEditingElement, agentAvailable,
   } = useDirectEditState()
@@ -709,6 +709,7 @@ function DirectEditPanelContent() {
               selectElement(child)
             }
           }}
+          isComponentPrimitive={isComponentPrimitive}
           enableResizeHandles={true}
           onResizeSizingChange={updateSizingProperties}
         />

@@ -32,6 +32,12 @@ export interface ElementLocator {
   id: string | null
   classList: string[]
   domSource?: DomSourceLocation
+  reactComponentName?: string
+  authoredProps?: Record<string, unknown>
+  subElementSources?: Record<string, DomSourceLocation>
+  callSiteSource?: DomSourceLocation
+  definitionSource?: DomSourceLocation
+  isComponentPrimitive?: boolean
 }
 
 export interface CSSPropertyValue {
@@ -159,6 +165,7 @@ export interface DirectEditState {
   computedColor: ColorProperties | null
   computedBoxShadow: string | null
   computedTypography: TypographyProperties | null
+  isComponentPrimitive: boolean
   originalStyles: Record<string, string>
   pendingStyles: Record<string, string>
   editModeActive: boolean

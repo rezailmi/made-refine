@@ -24,3 +24,4 @@ Visual CSS editor for React apps, rendered inside Shadow DOM for CSS isolation.
 - [Runner workflow](docs/runner-workflow.md) — end-to-end: element selection → CSS edit → send → agent applies code
 - [Preload](docs/preload.md) — React fiber DevTools hook, why it loads before React, framework wiring
 - [Canvas body offset](docs/canvas-body-offset.md) — why guideline math must account for body margin in canvas mode
+- [Component classification](docs/component-classification.md) — how elements are classified as component primitives vs instances, purple overlay, source routing

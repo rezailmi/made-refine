@@ -44,6 +44,12 @@ function buildLocatorPayload(locator: ElementLocator) {
     },
     source: locator.domSource || null,
     reactStack: locator.reactStack,
+    reactComponentName: locator.reactComponentName ?? null,
+    authoredProps: locator.authoredProps ?? null,
+    isComponentPrimitive: locator.isComponentPrimitive ?? false,
+    callSiteSource: locator.callSiteSource ?? null,
+    definitionSource: locator.definitionSource ?? null,
+    subElementSources: locator.subElementSources ?? null,
   }
 }
 

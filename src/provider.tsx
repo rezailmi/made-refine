@@ -203,6 +203,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     computedColor: null,
     computedBoxShadow: null,
     computedTypography: null,
+    isComponentPrimitive: false,
     originalStyles: {},
     pendingStyles: {},
     editModeActive: false,

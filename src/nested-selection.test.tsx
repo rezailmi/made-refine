@@ -1394,4 +1394,85 @@ describe('SelectionOverlay', () => {
     expect(onDoubleClick).toHaveBeenCalledWith(140, 77)
     expect(onResizeSizingChange).not.toHaveBeenCalled()
   })
+
+  it('renders purple selection border when isComponentPrimitive is true', () => {
+    const { container } = render(
+      <SelectionOverlay
+        selectedElement={selectedElement}
+        isDragging={false}
+        onMoveStart={vi.fn()}
+        isComponentPrimitive={true}
+      />
+    )
+
+    const overlay = container.querySelector('[data-direct-edit="selection-overlay"]') as HTMLElement
+    expect(overlay).not.toBeNull()
+    // jsdom converts hex to rgb
+    expect(overlay.style.border).toContain('rgb(139, 92, 246)')
+  })
+
+  it('renders blue selection border when isComponentPrimitive is false', () => {
+    const { container } = render(
+      <SelectionOverlay
+        selectedElement={selectedElement}
+        isDragging={false}
+        onMoveStart={vi.fn()}
+        isComponentPrimitive={false}
+      />
+    )
+
+    const overlay = container.querySelector('[data-direct-edit="selection-overlay"]') as HTMLElement
+    expect(overlay).not.toBeNull()
+    expect(overlay.style.border).toContain('rgb(13, 153, 255)')
+  })
+
+  it('renders purple dimension label background when isComponentPrimitive is true', () => {
+    const { container } = render(
+      <SelectionOverlay
+        selectedElement={selectedElement}
+        isDragging={false}
+        onMoveStart={vi.fn()}
+        isComponentPrimitive={true}
+      />
+    )
+
+    const label = container.querySelector('[data-direct-edit="dimension-label"]') as HTMLElement
+    expect(label).not.toBeNull()
+    // The dimension text and badge are inside the label flex container
+    // Check that the label's innerHTML contains purple color
+    expect(label.innerHTML).toContain('rgb(139, 92, 246)')
+  })
+
+  it('renders purple resize corner handles when isComponentPrimitive is true', () => {
+    // Mock getComputedStyle to return a valid display value for resize handles
+    const origGCS = window.getComputedStyle
+    vi.spyOn(window, 'getComputedStyle').mockImplementation((el) => {
+      const result = origGCS(el)
+      return result
+    })
+
+    const { container } = render(
+      <SelectionOverlay
+        selectedElement={selectedElement}
+        isDragging={false}
+        onMoveStart={vi.fn()}
+        isComponentPrimitive={true}
+        enableResizeHandles={true}
+      />
+    )
+
+    const handles = container.querySelectorAll('button[data-resize-handle]')
+    const cornerHandles = Array.from(handles).filter(h => {
+      const style = (h as HTMLElement).style
+      // Corner handles have width and height set explicitly
+      return style.width === '8px' && style.height === '8px'
+    })
+    expect(cornerHandles.length).toBeGreaterThan(0)
+    for (const handle of cornerHandles) {
+      // jsdom converts hex to rgb
+      expect((handle as HTMLElement).style.border).toContain('rgb(139, 92, 246)')
+    }
+
+    vi.restoreAllMocks()
+  })
 })

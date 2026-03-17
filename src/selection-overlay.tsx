@@ -9,6 +9,7 @@ import { useViewportEvents } from './hooks/use-viewport-events'
 
 const BLUE = '#0D99FF'
 const MAGENTA = '#E11BB6'
+const COMPONENT_PURPLE = '#8B5CF6'
 const DRAG_THRESHOLD = 4
 const DBLCLICK_DELAY = 300
 const HANDLE_SIZE = 12
@@ -69,6 +70,7 @@ export interface SelectionOverlayProps {
   onHoverElement?: (element: HTMLElement | null) => void
   onClickThrough?: (clientX: number, clientY: number) => void
   onSelectPageFrame?: (element: HTMLElement) => void
+  isComponentPrimitive?: boolean
   enableResizeHandles?: boolean
   onResizeSizingChange?: (
     changes: Partial<Record<SizingPropertyKey, SizingValue>>,
@@ -91,9 +93,11 @@ export function SelectionOverlay({
   onHoverElement,
   onClickThrough,
   onSelectPageFrame,
+  isComponentPrimitive = false,
   enableResizeHandles = false,
   onResizeSizingChange,
 }: SelectionOverlayProps) {
+  const selectionColor = isComponentPrimitive ? COMPONENT_PURPLE : BLUE
   const rectElement = isDragging && draggedElement ? draggedElement : selectedElement
   const [rect, setRect] = React.useState(() => rectElement.getBoundingClientRect())
   const [pageFrameRect, setPageFrameRect] = React.useState<DOMRect | null>(() => (
@@ -469,7 +473,7 @@ export function SelectionOverlay({
               zIndex: 99997,
               background: 'transparent',
               border: 'none',
-              color: BLUE,
+              color: selectionColor,
               fontSize: `${pageLabelFontSize}px`,
               lineHeight: `${pageLabelLineHeight}px`,
               padding: 0,
@@ -499,7 +503,7 @@ export function SelectionOverlay({
             height: rect.height,
             pointerEvents: 'none',
             zIndex: 99996,
-            border: `1px solid ${BLUE}`,
+            border: `1px solid ${selectionColor}`,
             borderRadius: '0px',
             boxSizing: 'border-box',
           }}
@@ -516,19 +520,27 @@ export function SelectionOverlay({
             transform: 'translateX(-50%)',
             pointerEvents: 'none',
             zIndex: 99992,
-            background: BLUE,
-            color: 'white',
-            fontSize: '11px',
-            lineHeight: '20px',
-            padding: '0 6px',
-            borderRadius: '4px',
-            whiteSpace: 'nowrap',
-            fontFamily: 'system-ui, sans-serif',
-            fontWeight: 500,
-            letterSpacing: '-0.01em',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
           }}
         >
-          {dimensionText}
+          <span
+            style={{
+              background: selectionColor,
+              color: 'white',
+              fontSize: '11px',
+              lineHeight: '20px',
+              padding: '0 6px',
+              borderRadius: '4px',
+              whiteSpace: 'nowrap',
+              fontFamily: 'system-ui, sans-serif',
+              fontWeight: 500,
+              letterSpacing: '-0.01em',
+            }}
+          >
+            {dimensionText}
+          </span>
         </div>
       )}
 
@@ -584,7 +596,7 @@ export function SelectionOverlay({
                 position: 'absolute',
                 width: RESIZE_CORNER_SIZE,
                 height: RESIZE_CORNER_SIZE,
-                border: `1px solid ${BLUE}`,
+                border: `1px solid ${selectionColor}`,
                 background: '#fff',
                 borderRadius: 1,
                 boxSizing: 'border-box',

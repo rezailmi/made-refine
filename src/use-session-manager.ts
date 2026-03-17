@@ -37,6 +37,7 @@ import {
   isInFlowChild,
 } from './utils'
 import { copyText } from './clipboard'
+import { getReactComponentInfo, classifyComponentFiber } from './utils/react-fiber'
 
 type ParentLayout = 'flex' | 'grid' | 'block' | 'other'
 const GENERATED_CANVAS_NODE_ATTR = 'data-made-refine-canvas-node'
@@ -408,6 +409,8 @@ export function useSessionManager({
         ?? existingEdit?.pendingStyles
         ?? {}
       const elementInfo = getElementInfo(nextSingleElement)
+      const { frames, nearestComponentFiber, elementSourceFile } = getReactComponentInfo(nextSingleElement)
+      const isPrimitive = classifyComponentFiber(nearestComponentFiber, frames, elementSourceFile).isComponentPrimitive
 
       setState((prev) => ({
         comments: prev.activeCommentId
@@ -429,6 +432,7 @@ export function useSessionManager({
         computedColor: computed.color,
         computedBoxShadow: computed.boxShadow,
         computedTypography: computed.typography,
+        isComponentPrimitive: isPrimitive,
         originalStyles,
         pendingStyles,
         editModeActive: prev.editModeActive,
@@ -469,6 +473,7 @@ export function useSessionManager({
         computedColor: null,
         computedBoxShadow: null,
         computedTypography: null,
+        isComponentPrimitive: false,
         originalStyles: {},
         pendingStyles: {},
         activeCommentId: null,
@@ -1094,6 +1099,7 @@ export function useSessionManager({
         computedColor: computed.color,
         computedBoxShadow: computed.boxShadow,
         computedTypography: computed.typography,
+        isComponentPrimitive: prev.isComponentPrimitive,
         originalStyles: styleState.originalStyles,
         pendingStyles: styleState.pendingStyles,
         editModeActive: prev.editModeActive,
