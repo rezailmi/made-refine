@@ -648,8 +648,8 @@ describe('export context quality', () => {
     expect(output).toContain('<button>Blue surface</button>')
     expect(output).toContain('context:')
     expect(output).toContain('data-direct-edit-target="true"')
-    expect(output).toContain('in src/components.tsx:52:5')
-    expect(output).toContain('selector: main > section:nth-of-type(1) > button:nth-of-type(2)')
+    expect(output).toContain('source: src/components.tsx:52:5')
+    expect(output).toContain('path: main > section:nth-of-type(1) > button:nth-of-type(2)')
     expect(output).toContain('text: Blue surface')
   })
 
@@ -666,7 +666,7 @@ describe('export context quality', () => {
 
     expect(output).toContain('target:')
     expect(output).toContain('context:')
-    expect(output).toContain('selector: main > section:nth-of-type(1) > button:nth-of-type(2)')
+    expect(output).toContain('path: main > section:nth-of-type(1) > button:nth-of-type(2)')
     expect(output).toContain('edits:')
     expect(output).toContain('padding-top: 12px')
   })
@@ -677,7 +677,7 @@ describe('export context quality', () => {
 
     expect(output).toContain('target:')
     expect(output).toContain('context:')
-    expect(output).toContain('selector: main > section:nth-of-type(1) > button:nth-of-type(2)')
+    expect(output).toContain('path: main > section:nth-of-type(1) > button:nth-of-type(2)')
     expect(output).toContain('comment: Increase contrast')
   })
 
@@ -1064,7 +1064,7 @@ describe('export context quality', () => {
     try {
       const locator = getElementLocator(target)
       const output = buildElementContext(locator)
-      expect(output).toContain('in /[project]/src/components/Button.tsx:44:7')
+      expect(output).toContain('source: /[project]/src/components/Button.tsx:44:7')
     } finally {
       window.__DIRECT_EDIT_DEVTOOLS__ = previousDevtools
       target.remove()
@@ -1186,7 +1186,7 @@ react-stack-bottom-frame@http://localhost:3000/_next/static/chunks/main.js:2:2`,
       expect(locator.domSource?.column).toBe(6)
 
       const output = buildElementContext(locator)
-      expect(output).toContain('in /[project]/app/todo-item.tsx:14:6')
+      expect(output).toContain('source: /[project]/app/todo-item.tsx:14:6')
     } finally {
       window.__DIRECT_EDIT_DEVTOOLS__ = previousDevtools
       target.remove()
@@ -1220,7 +1220,220 @@ react-stack-bottom-frame@http://localhost:3000/_next/static/chunks/main.js:2:2`,
       expect(locator.domSource?.column).toBe(6)
 
       const output = buildElementContext(locator)
-      expect(output).toContain('in /[project]/app/todo-item.tsx:14:6')
+      expect(output).toContain('source: /[project]/app/todo-item.tsx:14:6')
+    } finally {
+      window.__DIRECT_EDIT_DEVTOOLS__ = previousDevtools
+      target.remove()
+    }
+  })
+})
+
+describe('collectSubElementSources', () => {
+  it('includes sub-element sources from data-direct-edit-source children in getElementLocator', () => {
+    const root = document.createElement('div')
+    const child1 = document.createElement('h2')
+    child1.textContent = 'Title'
+    child1.setAttribute('data-direct-edit-source', 'src/app.tsx:10:5')
+    const child2 = document.createElement('p')
+    child2.textContent = 'Description'
+    child2.setAttribute('data-direct-edit-source', 'src/app.tsx:11:5')
+    root.appendChild(child1)
+    root.appendChild(child2)
+    document.body.appendChild(root)
+
+    try {
+      const locator = getElementLocator(root)
+      expect(locator.subElementSources).toBeDefined()
+      expect(locator.subElementSources!['title']).toEqual({ file: 'src/app.tsx', line: 10, column: 5 })
+      expect(locator.subElementSources!['description']).toEqual({ file: 'src/app.tsx', line: 11, column: 5 })
+    } finally {
+      root.remove()
+    }
+  })
+
+  it('deduplicates labels with counter suffix', () => {
+    const root = document.createElement('div')
+    for (let i = 0; i < 3; i++) {
+      const child = document.createElement('span')
+      child.textContent = 'View'
+      child.setAttribute('data-direct-edit-source', `src/app.tsx:${10 + i}:5`)
+      root.appendChild(child)
+    }
+    document.body.appendChild(root)
+
+    try {
+      const locator = getElementLocator(root)
+      expect(locator.subElementSources).toBeDefined()
+      const keys = Object.keys(locator.subElementSources!)
+      expect(keys).toContain('view')
+      expect(keys).toContain('view_2')
+      expect(keys).toContain('view_3')
+    } finally {
+      root.remove()
+    }
+  })
+})
+
+describe('enriched getElementLocator', () => {
+  it('populates reactComponentName and authoredProps from fiber', () => {
+    const target = document.createElement('button')
+    document.body.appendChild(target)
+
+    const Button = () => null
+    ;(Button as { displayName?: string }).displayName = 'Button'
+
+    const previousDevtools = window.__DIRECT_EDIT_DEVTOOLS__
+    window.__DIRECT_EDIT_DEVTOOLS__ = {
+      getFiberForElement: () => ({
+        type: Button,
+        memoizedProps: {
+          variant: 'primary',
+          size: 'lg',
+          className: 'btn',
+          children: 'Click',
+        },
+        _debugSource: {
+          fileName: 'src/components/ui/button.tsx',
+          lineNumber: 7,
+          columnNumber: 5,
+        },
+        _debugOwner: null,
+        return: null,
+      }),
+    }
+
+    try {
+      const locator = getElementLocator(target)
+      expect(locator.reactComponentName).toBe('Button')
+      expect(locator.authoredProps).toEqual({ variant: 'primary', size: 'lg' })
+      expect(locator.isComponentPrimitive).toBe(true)
+      expect(locator.callSiteSource).toEqual({
+        file: 'src/components/ui/button.tsx',
+        line: 7,
+        column: 5,
+      })
+    } finally {
+      window.__DIRECT_EDIT_DEVTOOLS__ = previousDevtools
+      target.remove()
+    }
+  })
+
+  it('classifies non-ui components as instances', () => {
+    const target = document.createElement('div')
+    document.body.appendChild(target)
+
+    const AppCard = () => null
+    ;(AppCard as { displayName?: string }).displayName = 'AppCard'
+
+    const previousDevtools = window.__DIRECT_EDIT_DEVTOOLS__
+    window.__DIRECT_EDIT_DEVTOOLS__ = {
+      getFiberForElement: () => ({
+        type: AppCard,
+        memoizedProps: {
+          title: 'My Card',
+        },
+        _debugSource: {
+          fileName: 'src/components/app-card.tsx',
+          lineNumber: 10,
+          columnNumber: 3,
+        },
+        _debugOwner: null,
+        return: null,
+      }),
+    }
+
+    try {
+      const locator = getElementLocator(target)
+      expect(locator.reactComponentName).toBe('AppCard')
+      expect(locator.isComponentPrimitive).toBe(false)
+      expect(locator.authoredProps).toEqual({ title: 'My Card' })
+    } finally {
+      window.__DIRECT_EDIT_DEVTOOLS__ = previousDevtools
+      target.remove()
+    }
+  })
+})
+
+describe('buildLocatorContextLines format', () => {
+  it('includes react tree and type for component primitives', () => {
+    const target = document.createElement('button')
+    target.textContent = 'Submit'
+    document.body.appendChild(target)
+
+    const Button = () => null
+    ;(Button as { displayName?: string }).displayName = 'Button'
+    const Page = () => null
+    ;(Page as { displayName?: string }).displayName = 'Page'
+
+    const previousDevtools = window.__DIRECT_EDIT_DEVTOOLS__
+    window.__DIRECT_EDIT_DEVTOOLS__ = {
+      getFiberForElement: () => ({
+        type: Button,
+        memoizedProps: {
+          variant: 'default',
+          size: 'sm',
+        },
+        _debugSource: {
+          fileName: 'src/components/ui/button.tsx',
+          lineNumber: 7,
+          columnNumber: 5,
+        },
+        _debugOwner: {
+          type: Page,
+          _debugSource: {
+            fileName: 'src/app/page.tsx',
+            lineNumber: 42,
+            columnNumber: 3,
+          },
+          _debugOwner: null,
+        },
+        return: null,
+      }),
+    }
+
+    try {
+      const locator = getElementLocator(target)
+      const output = buildElementContext(locator)
+      expect(output).toContain('@<Button>')
+      expect(output).toContain('react: Button (in Page)')
+      expect(output).toContain('props: {"variant":"default","size":"sm"}')
+      expect(output).toContain('type: component')
+      expect(output).toContain('source:')
+      expect(output).toContain('text: Submit')
+    } finally {
+      window.__DIRECT_EDIT_DEVTOOLS__ = previousDevtools
+      target.remove()
+    }
+  })
+
+  it('includes type: instance for non-primitive components', () => {
+    const target = document.createElement('div')
+    document.body.appendChild(target)
+
+    const Dashboard = () => null
+    ;(Dashboard as { displayName?: string }).displayName = 'Dashboard'
+
+    const previousDevtools = window.__DIRECT_EDIT_DEVTOOLS__
+    window.__DIRECT_EDIT_DEVTOOLS__ = {
+      getFiberForElement: () => ({
+        type: Dashboard,
+        memoizedProps: {},
+        _debugSource: {
+          fileName: 'src/app/dashboard.tsx',
+          lineNumber: 15,
+        },
+        _debugOwner: null,
+        return: null,
+      }),
+    }
+
+    try {
+      const locator = getElementLocator(target)
+      const output = buildElementContext(locator)
+      expect(output).toContain('@<Dashboard>')
+      // isComponentPrimitive is false (not a UI primitive), so it's an instance
+      expect(output).toContain('type: instance')
+      expect(output).not.toContain('type: component')
     } finally {
       window.__DIRECT_EDIT_DEVTOOLS__ = previousDevtools
       target.remove()

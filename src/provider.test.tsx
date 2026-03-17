@@ -1176,9 +1176,11 @@ describe('DirectEditProvider', () => {
 
     const payload = sendEditToAgentMock.mock.calls[0][0] as {
       changes: Array<{ cssProperty: string; cssValue: string; tailwindClass: string }>
-      source: { file?: string } | null
+      source: string | null
+      rawSource: { file?: string } | null
     }
-    expect(payload.source?.file).toBe('src/App.tsx')
+    expect(payload.source).toBe('src/App.tsx:10:2')
+    expect(payload.rawSource?.file).toBe('src/App.tsx')
     expect(payload.changes).toEqual(
       expect.arrayContaining([
         expect.objectContaining({

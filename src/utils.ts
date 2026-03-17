@@ -41,6 +41,13 @@ export { parsePropertyValue, formatPropertyValue } from './utils/css-value'
 import { parsePropertyValue } from './utils/css-value'
 import { getCanvasSnapshot, getBodyOffset } from './canvas-store'
 import { getZoomScale } from './utils/measurements'
+import {
+  getComponentProps,
+  getCallSiteSource,
+  deriveDefinitionSource,
+  isComponentPrimitivePath,
+  classifyComponentFiber,
+} from './utils/react-fiber'
 
 export function clamp(value: number, min: number, max: number): number {
   if (!Number.isFinite(value)) return min
@@ -2375,52 +2382,76 @@ function shouldIncludeFrame(
   return false
 }
 
+interface ComponentWalkResult {
+  frames: ReactComponentFrame[]
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  nearestComponentFiber: any | null
+  elementSourceFile?: string
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function getOwnerStack(fiber: any): ReactComponentFrame[] {
+function getOwnerStack(fiber: any): ComponentWalkResult {
   const frames: ReactComponentFrame[] = []
   let current = fiber
   let lastFrame: ReactComponentFrame | null = null
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let nearestComponentFiber: any | null = null
 
   while (current) {
     const frame = buildFrame(current)
     if (frame && shouldIncludeFrame(frame, lastFrame)) {
       frames.push(frame)
       lastFrame = frame
+      if (!nearestComponentFiber) {
+        nearestComponentFiber = current
+      }
     }
     current = current._debugOwner
   }
 
-  return frames
+  return { frames, nearestComponentFiber }
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function getRenderStack(fiber: any): ReactComponentFrame[] {
+function getRenderStack(fiber: any): ComponentWalkResult {
   const frames: ReactComponentFrame[] = []
   let current = fiber
   let lastFrame: ReactComponentFrame | null = null
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let nearestComponentFiber: any | null = null
 
   while (current) {
     const frame = buildFrame(current)
     if (frame && shouldIncludeFrame(frame, lastFrame)) {
       frames.push(frame)
       lastFrame = frame
+      if (!nearestComponentFiber) {
+        nearestComponentFiber = current
+      }
     }
     current = current.return
   }
 
-  return frames
+  return { frames, nearestComponentFiber }
+}
+
+function getReactComponentInfo(element: HTMLElement): ComponentWalkResult {
+  const fiber = getFiberForElement(element)
+  if (!fiber) return { frames: [], nearestComponentFiber: null }
+
+  const elementSource = getSourceFromFiber(fiber)
+  const elementSourceFile = elementSource?.fileName || undefined
+
+  const ownerResult = getOwnerStack(fiber)
+  if (ownerResult.frames.length > 0) {
+    return { ...ownerResult, elementSourceFile }
+  }
+
+  return { ...getRenderStack(fiber), elementSourceFile }
 }
 
 function getReactComponentStack(element: HTMLElement): ReactComponentFrame[] {
-  const fiber = getFiberForElement(element)
-  if (!fiber) return []
-
-  const ownerStack = getOwnerStack(fiber)
-  if (ownerStack.length > 0) {
-    return ownerStack
-  }
-
-  return getRenderStack(fiber)
+  return getReactComponentInfo(element).frames
 }
 
 interface ChildBriefInfo {
@@ -2814,6 +2845,36 @@ function parseDomSource(element: HTMLElement): DomSourceLocation | null {
   return { file, line, column }
 }
 
+const MAX_SUB_ELEMENT_SOURCES = 20
+
+function collectSubElementSources(element: HTMLElement): Record<string, DomSourceLocation> {
+  const sources: Record<string, DomSourceLocation> = {}
+  const children = element.querySelectorAll('[data-direct-edit-source]')
+  const labelCounts = new Map<string, number>()
+  let count = 0
+
+  for (const child of children) {
+    if (count >= MAX_SUB_ELEMENT_SOURCES) break
+    if (!(child instanceof HTMLElement)) continue
+    const source = parseDomSource(child)
+    if (!source) continue
+
+    const text = ((child.innerText || child.textContent) ?? '').trim()
+    let baseLabel = text.length > 0 && text.length <= 30
+      ? text.slice(0, 30).toLowerCase().replace(/\s+/g, '_')
+      : child.tagName.toLowerCase()
+
+    const existing = labelCounts.get(baseLabel) ?? 0
+    labelCounts.set(baseLabel, existing + 1)
+    const label = existing > 0 ? `${baseLabel}_${existing + 1}` : baseLabel
+
+    sources[label] = source
+    count++
+  }
+
+  return sources
+}
+
 /** Resolve the source location for an element: data-direct-edit-source attribute, then fiber fallback. */
 export function getElementSource(element: HTMLElement): DomSourceLocation | null {
   const domSource = parseDomSource(element)
@@ -2841,9 +2902,30 @@ export function getElementSource(element: HTMLElement): DomSourceLocation | null
 export function getElementLocator(element: HTMLElement): ElementLocator {
   const elementInfo = getElementInfo(element)
   const domSource = getElementSource(element)
+  const { frames, nearestComponentFiber, elementSourceFile } = getReactComponentInfo(element)
+
+  const componentName = nearestComponentFiber?.type?.displayName
+    || nearestComponentFiber?.type?.name
+    || undefined
+
+  const authoredProps = nearestComponentFiber
+    ? getComponentProps(nearestComponentFiber)
+    : undefined
+
+  const classification = classifyComponentFiber(nearestComponentFiber, frames, elementSourceFile)
+
+  const callSite = nearestComponentFiber
+    ? getCallSiteSource(nearestComponentFiber)
+    : null
+
+  const definitionSrc = classification.isComponentPrimitive
+    ? deriveDefinitionSource(frames)
+    : null
+
+  const subSources = collectSubElementSources(element)
 
   return {
-    reactStack: getReactComponentStack(element),
+    reactStack: frames,
     domSelector: buildDomSelector(element),
     domContextHtml: buildDomContextHtml(element),
     targetHtml: buildTargetHtml(element),
@@ -2852,6 +2934,12 @@ export function getElementLocator(element: HTMLElement): ElementLocator {
     id: elementInfo.id,
     classList: elementInfo.classList,
     domSource: domSource ?? undefined,
+    reactComponentName: componentName,
+    authoredProps: authoredProps && Object.keys(authoredProps).length > 0 ? authoredProps : undefined,
+    subElementSources: Object.keys(subSources).length > 0 ? subSources : undefined,
+    callSiteSource: callSite ?? undefined,
+    definitionSource: definitionSrc ?? undefined,
+    isComponentPrimitive: (nearestComponentFiber || elementSourceFile) ? classification.isComponentPrimitive : undefined,
   }
 }
 
@@ -2861,39 +2949,112 @@ interface ExportChange {
   tailwind: string
 }
 
-function getLocatorHeader(locator: ElementLocator): { componentLabel: string; formattedSource: string | null } {
+export function getLocatorHeader(locator: ElementLocator): {
+  componentLabel: string
+  formattedSource: string | null
+  formattedCallSite: string | null
+} {
   const primaryFrame = getPrimaryFrame(locator)
-  const componentLabel = primaryFrame?.name ? primaryFrame.name : locator.tagName
-  const formattedSource = locator.domSource?.file
-    ? formatSourceLocation(locator.domSource.file, locator.domSource.line, locator.domSource.column)
-    : primaryFrame?.file
-      ? formatSourceLocation(primaryFrame.file, primaryFrame.line, primaryFrame.column)
-      : null
-  return { componentLabel, formattedSource }
+  const componentLabel = locator.reactComponentName ?? primaryFrame?.name ?? locator.tagName
+
+  // Classification-aware source resolution (decision 8A):
+  // For component primitives with definitionSource → use definition
+  // Otherwise → existing logic (domSource, then primary frame)
+  let formattedSource: string | null
+  if (locator.isComponentPrimitive && locator.definitionSource?.file) {
+    formattedSource = formatSourceLocation(
+      locator.definitionSource.file,
+      locator.definitionSource.line,
+      locator.definitionSource.column,
+    )
+  } else {
+    formattedSource = locator.domSource?.file
+      ? formatSourceLocation(locator.domSource.file, locator.domSource.line, locator.domSource.column)
+      : primaryFrame?.file
+        ? formatSourceLocation(primaryFrame.file, primaryFrame.line, primaryFrame.column)
+        : null
+  }
+
+  const formattedCallSite = locator.callSiteSource?.file
+    ? formatSourceLocation(locator.callSiteSource.file, locator.callSiteSource.line, locator.callSiteSource.column)
+    : null
+
+  return { componentLabel, formattedSource, formattedCallSite }
+}
+
+export function formatComponentTree(reactStack: ReactComponentFrame[]): string | null {
+  const names = reactStack
+    .map(f => f.name)
+    .filter(Boolean)
+  if (names.length === 0) return null
+  if (names.length === 1) return names[0]
+  const [component, ...ancestors] = names
+  return `${component} (in ${ancestors.join(' > ')})`
 }
 
 function buildLocatorContextLines(locator: ElementLocator, options?: { skipContext?: boolean }): string[] {
   const lines: string[] = []
-  const { componentLabel, formattedSource } = getLocatorHeader(locator)
+  const { componentLabel, formattedSource, formattedCallSite } = getLocatorHeader(locator)
   const target = (locator.targetHtml || locator.domContextHtml || '').trim()
   const context = locator.domContextHtml?.trim() || ''
-  const selector = locator.domSelector?.trim()
+  const path = locator.domSelector?.trim()
   const text = locator.textPreview?.trim()
 
   lines.push(`@<${componentLabel}>`)
   lines.push('')
+
+  // React component tree
+  const tree = formatComponentTree(locator.reactStack)
+  if (tree) {
+    lines.push(`react: ${tree}`)
+  }
+
+  // Authored props
+  if (locator.authoredProps && Object.keys(locator.authoredProps).length > 0) {
+    lines.push(`props: ${JSON.stringify(locator.authoredProps)}`)
+  }
+
+  // Type classification
+  if (locator.isComponentPrimitive != null) {
+    lines.push(`type: ${locator.isComponentPrimitive ? 'component' : 'instance'}`)
+  }
+
+  // Source location (classification-aware via getLocatorHeader)
+  lines.push(`source: ${formattedSource ?? '(file not available)'}`)
+
+  // Call-site (always included when available)
+  if (formattedCallSite && formattedCallSite !== formattedSource) {
+    lines.push(`call-site: ${formattedCallSite}`)
+  }
+
+  // Sub-element source map
+  if (locator.subElementSources && Object.keys(locator.subElementSources).length > 0) {
+    lines.push('source-map:')
+    for (const [label, source] of Object.entries(locator.subElementSources)) {
+      lines.push(`  - ${label}: ${formatSourceLocation(source.file, source.line, source.column)}`)
+    }
+  }
+
+  // DOM path
+  if (path) {
+    lines.push(`path: ${path}`)
+  }
+
+  // Target HTML
   if (target) {
+    lines.push('')
     lines.push('target:')
     lines.push(target)
   }
+
+  // Context HTML
   if (!options?.skipContext && context && context !== target) {
+    lines.push('')
     lines.push('context:')
     lines.push(context)
   }
-  lines.push(`in ${formattedSource ?? '(file not available)'}`)
-  if (selector) {
-    lines.push(`selector: ${selector}`)
-  }
+
+  // Text preview
   if (text) {
     lines.push(`text: ${text}`)
   }

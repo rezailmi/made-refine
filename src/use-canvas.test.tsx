@@ -55,6 +55,7 @@ function createMockCanvasOptions() {
     comments: [],
     activeCommentId: null,
     textEditingElement: null,
+    isComponentPrimitive: false,
     canvas: { active: false, zoom: 1, panX: 0, panY: 0 },
   }
   const stateRef = { current: initialState } as React.MutableRefObject<DirectEditState>

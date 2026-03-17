@@ -1,6 +1,6 @@
 import React from 'react'
 import { DirectEdit } from '../src/direct-edit'
-import { Avatar, Button, Badge } from './components'
+import { Avatar, Button, Badge } from './components/ui'
 import { CanvasPlayground } from './canvas-playground'
 
 const gray = {
