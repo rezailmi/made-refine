@@ -15,21 +15,6 @@ on:
         options:
           - release
           - unpublish
-      bump:
-        description: Version bump type (release only)
-        required: true
-        default: patch
-        type: choice
-        options:
-          - patch
-          - minor
-          - major
-          - prerelease
-      preid:
-        description: Pre-release identifier (prerelease only)
-        required: false
-        default: beta
-        type: string
       npm_tag:
         description: npm dist-tag (auto = latest for stable, beta for prerelease)
         required: true
@@ -86,13 +71,10 @@ jobs:
     if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.task == 'release' && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     permissions:
-      contents: write
       id-token: write
 
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - uses: oven-sh/setup-bun@v2
         with:
@@ -102,11 +84,6 @@ jobs:
         with:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
-
-      - name: Configure git author
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
@@ -125,24 +102,12 @@ jobs:
       - name: Test
         run: bunx vitest run
 
-      - name: Validate release inputs
-        run: |
-          if [ "${{ github.event.inputs.bump }}" = "prerelease" ] && [ -z "${{ github.event.inputs.preid }}" ]; then
-            echo "preid is required when bump=prerelease"
-            exit 1
-          fi
-
-      - name: Bump version
+      - name: Read version
         id: version
         run: |
-          if [ "${{ github.event.inputs.bump }}" = "prerelease" ]; then
-            bun pm version prerelease --preid "${{ github.event.inputs.preid }}"
-          else
-            bun pm version "${{ github.event.inputs.bump }}"
-          fi
-
           VERSION=$(bun -e "import pkg from './package.json'; console.log(pkg.version)")
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Publishing version: $VERSION"
 
       - name: Resolve publish tag
         id: publish_tag
@@ -164,12 +129,6 @@ jobs:
         run: npm publish --provenance --tag "${{ steps.publish_tag.outputs.tag }}"
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - name: Push version bump to main
-        run: |
-          git add package.json
-          git commit -m "chore: bump version to ${{ steps.version.outputs.version }}"
-          git push origin main
 
   unpublish:
     if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.task == 'unpublish' && github.ref == 'refs/heads/main' }}
