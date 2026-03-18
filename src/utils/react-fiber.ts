@@ -251,9 +251,9 @@ export function deriveDefinitionSource(
 // --- Component primitive classification ---
 
 const PRIMITIVE_PATH_PATTERNS = [
-  /\/components\/ui\//,
-  /\/ui\/primitives\//,
-  /\/design-system\//,
+  /(?:^|\/)components\/ui\//,
+  /(?:^|\/)ui\/primitives\//,
+  /(?:^|\/)design-system\//,
 ]
 
 const PRIMITIVE_NPM_PATTERNS = [
