@@ -88,7 +88,6 @@ jobs:
     permissions:
       contents: write
       id-token: write
-      pull-requests: write
 
     steps:
       - uses: actions/checkout@v4
@@ -166,20 +165,11 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      - name: Create version bump PR
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Push version bump to main
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          BRANCH="chore/bump-version-${VERSION}"
-          git checkout -b "$BRANCH"
-          git push origin "$BRANCH"
-          gh pr create \
-            --title "chore: bump version to ${VERSION}" \
-            --body "Automated version bump to ${VERSION} after npm publish." \
-            --base main \
-            --head "$BRANCH"
-          gh pr merge "$BRANCH" --squash --auto
+          git add package.json
+          git commit -m "chore: bump version to ${{ steps.version.outputs.version }}"
+          git push origin main
 
   unpublish:
     if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.task == 'unpublish' && github.ref == 'refs/heads/main' }}
