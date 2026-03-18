@@ -1,4 +1,5 @@
 import type { ReactComponentFrame, DomSourceLocation } from '../types'
+import { getSourceFromDebugStack } from './debug-stack'
 
 declare global {
   interface Window {
@@ -53,6 +54,10 @@ export function getSourceFromFiber(fiber: any):
 
   const memo = fiber?.memoizedProps?.__source
   if (memo?.fileName) return memo
+
+  // React 19 _debugStack fallback
+  const fromDebugStack = getSourceFromDebugStack(fiber)
+  if (fromDebugStack?.fileName) return fromDebugStack
 
   return null
 }

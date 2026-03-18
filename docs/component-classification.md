@@ -104,7 +104,7 @@ getElementLocator(element)              ← src/utils.ts
           └─► buildLocatorPayload() → agent JSON payload
 ```
 
-Note: `utils.ts` has its own local fiber-walking functions (not imported from `react-fiber.ts`) because they include a `_debugStack` fallback for React 19 server components. The `react-fiber.ts` versions are used for the overlay path. Both produce the same result on React 18.
+Note: All fiber-walking functions (`getFiberForElement`, `getSourceFromFiber`, `getReactComponentInfo`, etc.) live in `src/utils/react-fiber.ts`. The `_debugStack` fallback for React 19 is extracted into `src/utils/debug-stack.ts` and used by `react-fiber.ts`. Both the overlay and export paths share the same code.
 
 ## Key files
 

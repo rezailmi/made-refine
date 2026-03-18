@@ -5,6 +5,7 @@ import {
   getCallSiteSource,
   deriveDefinitionSource,
   classifyComponentFiber,
+  getSourceFromFiber,
 } from './react-fiber'
 
 describe('isComponentPrimitivePath', () => {
@@ -301,5 +302,73 @@ describe('classifyComponentFiber', () => {
   it('returns false when neither elementSourceFile nor fiber._debugSource exist', () => {
     const fiber = {}
     expect(classifyComponentFiber(fiber, [{ name: 'Button' }]).isComponentPrimitive).toBe(false)
+  })
+})
+
+describe('getSourceFromFiber with _debugStack (React 19)', () => {
+  it('falls back to _debugStack when _debugSource is absent', () => {
+    const fiber = {
+      _debugStack: {
+        stack: `Error: react-stack-top-frame
+    at fakeJSXCallSite (http://localhost:3000/_next/static/chunks/main.js:1:1)
+    at Button (webpack-internal:///(app-pages-browser)/./src/components/ui/button.tsx:33:11)
+    at react-stack-bottom-frame (http://localhost:3000/_next/static/chunks/main.js:2:2)`,
+      },
+      _debugOwner: null,
+      return: null,
+    }
+    const source = getSourceFromFiber(fiber)
+    expect(source?.fileName).toBe('/src/components/ui/button.tsx')
+    expect(source?.lineNumber).toBe(33)
+    expect(source?.columnNumber).toBe(11)
+  })
+
+  it('prefers _debugSource over _debugStack', () => {
+    const fiber = {
+      _debugSource: {
+        fileName: 'src/app/page.tsx',
+        lineNumber: 10,
+        columnNumber: 5,
+      },
+      _debugStack: {
+        stack: `Error: react-stack-top-frame
+    at Button (webpack-internal:///(app-pages-browser)/./src/components/ui/button.tsx:33:11)`,
+      },
+    }
+    const source = getSourceFromFiber(fiber)
+    expect(source?.fileName).toBe('src/app/page.tsx')
+    expect(source?.lineNumber).toBe(10)
+  })
+
+  it('returns null when _debugStack has no source files', () => {
+    const fiber = {
+      _debugStack: {
+        stack: `Error: react-stack-top-frame
+    at fakeJSXCallSite (http://localhost:3000/_next/static/chunks/main.js:1:1)
+    at react-stack-bottom-frame (http://localhost:3000/_next/static/chunks/main.js:2:2)`,
+      },
+    }
+    const source = getSourceFromFiber(fiber)
+    expect(source).toBeNull()
+  })
+
+  it('parses Firefox/Safari style _debugStack', () => {
+    const fiber = {
+      _debugStack: {
+        stack: `Button@webpack-internal:///(app-pages-browser)/./src/components/ui/button.tsx:28:9
+react-stack-bottom-frame@http://localhost:3000/_next/static/chunks/main.js:2:2`,
+      },
+      _debugOwner: null,
+      return: null,
+    }
+    const source = getSourceFromFiber(fiber)
+    expect(source?.fileName).toBe('/src/components/ui/button.tsx')
+    expect(source?.lineNumber).toBe(28)
+    expect(source?.columnNumber).toBe(9)
+  })
+
+  it('returns null for null/undefined fiber', () => {
+    expect(getSourceFromFiber(null)).toBeNull()
+    expect(getSourceFromFiber(undefined)).toBeNull()
   })
 })
