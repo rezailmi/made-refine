@@ -11,6 +11,8 @@ describe('isComponentPrimitivePath', () => {
   it('matches /components/ui/ paths', () => {
     expect(isComponentPrimitivePath('src/components/ui/button.tsx')).toBe(true)
     expect(isComponentPrimitivePath('/project/src/components/ui/input.tsx')).toBe(true)
+    // Relative paths without leading / (common in Next.js _debugSource)
+    expect(isComponentPrimitivePath('components/ui/sidebar.tsx')).toBe(true)
   })
 
   it('matches /ui/primitives/ paths', () => {
