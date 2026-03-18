@@ -317,5 +317,14 @@ export function classifyComponentFiber(fiber: any, frames: ReactComponentFrame[]
     }
   }
 
+  // Fallback: detect pre-compiled npm package components.
+  // If the host element has no _debugSource (elementSourceFile is undefined)
+  // but the component fiber has _debugSource (called from dev-transformed user code),
+  // the component renders pre-compiled JSX — typical of npm UI packages whose
+  // source isn't processed by the React dev transform.
+  if (!elementSourceFile && fiber._debugSource) {
+    return { isComponentPrimitive: true }
+  }
+
   return { isComponentPrimitive: false }
 }

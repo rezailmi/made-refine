@@ -266,7 +266,7 @@ describe('classifyComponentFiber', () => {
     expect(classifyComponentFiber(fiber, frames).isComponentPrimitive).toBe(true)
   })
 
-  it('returns false for app components', () => {
+  it('returns false for app components (host element has own source)', () => {
     const fiber = {
       _debugSource: {
         fileName: 'src/app/page.tsx',
@@ -276,10 +276,28 @@ describe('classifyComponentFiber', () => {
     const frames = [
       { name: 'AppCard', file: 'src/components/app-card.tsx', line: 10 },
     ]
-    expect(classifyComponentFiber(fiber, frames).isComponentPrimitive).toBe(false)
+    // User-land components: host element has _debugSource from its own JSX file
+    expect(classifyComponentFiber(fiber, frames, 'src/components/app-card.tsx').isComponentPrimitive).toBe(false)
   })
 
   it('returns false for null fiber', () => {
     expect(classifyComponentFiber(null, []).isComponentPrimitive).toBe(false)
+  })
+
+  it('returns isComponentPrimitive true for pre-compiled npm components (no elementSourceFile, fiber has _debugSource)', () => {
+    // npm packages like @base-ui/react ship pre-compiled JSX without _debugSource
+    // on host elements, but the component fiber has _debugSource from the call site
+    const fiber = {
+      _debugSource: {
+        fileName: 'src/app/page.tsx',
+        lineNumber: 10,
+      },
+    }
+    expect(classifyComponentFiber(fiber, [{ name: 'Button' }]).isComponentPrimitive).toBe(true)
+  })
+
+  it('returns false when neither elementSourceFile nor fiber._debugSource exist', () => {
+    const fiber = {}
+    expect(classifyComponentFiber(fiber, [{ name: 'Button' }]).isComponentPrimitive).toBe(false)
   })
 })
