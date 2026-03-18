@@ -1,6 +1,7 @@
 import React from 'react'
 import { DirectEdit } from '../src/direct-edit'
 import { Avatar, Button, Badge } from './components/ui'
+import { Button as BaseUIButton } from '@base-ui/react/button'
 import { CanvasPlayground } from './canvas-playground'
 
 const gray = {
@@ -225,6 +226,11 @@ export default function App() {
               <Button variant="secondary">Secondary</Button>
               <Button variant="ghost">Ghost</Button>
               <Button variant="danger">Danger</Button>
+            </div>
+            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+              <BaseUIButton style={{ padding: '8px 16px', fontSize: 14, fontWeight: 600, borderRadius: 8, border: 'none', backgroundColor: gray[900], color: '#fff', cursor: 'pointer' }}>
+                Base UI Button
+              </BaseUIButton>
             </div>
           </div>
 
