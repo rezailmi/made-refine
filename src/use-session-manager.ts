@@ -686,6 +686,56 @@ export function useSessionManager({
     })
   }, [applySelection, buildSelectionSnapshot, getSanitizedSelection, pushUndo, saveCurrentToSession, stateRef])
 
+  const deleteSelection = React.useCallback(() => {
+    const selected = getSanitizedSelection(stateRef.current.selectedElements)
+    if (selected.length === 0 || !stateRef.current.editModeActive) return
+    if (selected.some((el) => el === document.body || !el.parentElement)) return
+
+    saveCurrentToSession()
+    const restoreSelection = buildSelectionSnapshot()
+
+    const snapshots = selected.map((el) => ({
+      element: el,
+      parent: el.parentElement!,
+      nextSibling: el.nextSibling as Node | null,
+    }))
+
+    const sessionSnapshots = new Map<HTMLElement, SessionEdit>()
+    for (const el of selected) {
+      const edit = sessionEditsRef.current.get(el)
+      if (edit) sessionSnapshots.set(el, edit)
+      sessionEditsRef.current.delete(el)
+    }
+    syncSessionItemCount()
+
+    for (const { element } of snapshots) {
+      if (element.isConnected) element.remove()
+    }
+
+    pushUndo({
+      type: 'structure',
+      restoreSelection,
+      undo: () => {
+        for (let i = snapshots.length - 1; i >= 0; i--) {
+          const { element, parent, nextSibling } = snapshots[i]
+          if (!element.isConnected && parent.isConnected) {
+            if (nextSibling && nextSibling.parentNode === parent) {
+              parent.insertBefore(element, nextSibling)
+            } else {
+              parent.appendChild(element)
+            }
+          }
+        }
+        for (const [el, edit] of sessionSnapshots) {
+          sessionEditsRef.current.set(el, edit)
+        }
+        syncSessionItemCount()
+      },
+    })
+
+    applySelection([], { primaryElement: null, pushUndo: false })
+  }, [applySelection, buildSelectionSnapshot, getSanitizedSelection, pushUndo, saveCurrentToSession, stateRef, syncSessionItemCount])
+
   const resetToOriginal = React.useCallback(() => {
     const current = stateRef.current
     const el = current.selectedElement
@@ -1301,6 +1351,7 @@ export function useSessionManager({
     selectChild,
     insertElement,
     groupSelection,
+    deleteSelection,
     resetToOriginal,
     undo,
     handleMoveComplete,

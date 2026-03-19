@@ -113,6 +113,7 @@ export interface DirectEditPanelInnerProps {
   computedTypography: TypographyProperties | null
   pendingStyles: Record<string, string>
   onClose?: () => void
+  onDelete?: () => void
   onSelectParent?: () => void
   onSelectChild?: () => void
   onUpdateSpacing: (key: SpacingPropertyKey, value: CSSPropertyValue) => void
@@ -156,6 +157,7 @@ export function DirectEditPanelInner({
   computedTypography,
   pendingStyles,
   onClose,
+  onDelete,
   onSelectParent,
   onSelectChild,
   onUpdateSpacing,
@@ -219,6 +221,7 @@ export function DirectEditPanelInner({
         elementInfo={elementInfo}
         isDraggable={isDraggable}
         onClose={onClose}
+        onDelete={onDelete}
         onSelectParent={onSelectParent}
         onSelectChild={onSelectChild}
         onPointerDown={onHeaderPointerDown}
@@ -368,7 +371,7 @@ function DirectEditPanelContent() {
     handleMoveComplete,
     addComment, submitCommentDraft, addCommentReply, deleteComment, exportComment,
     sendCommentToAgent, setActiveCommentId,
-    startTextEditing, toggleEditMode,
+    startTextEditing, toggleEditMode, deleteSelection,
   } = useDirectEditActions()
 
   const {
@@ -767,6 +770,7 @@ function DirectEditPanelContent() {
         computedTypography={computedTypography}
         pendingStyles={pendingStyles}
         onClose={toggleEditMode}
+        onDelete={deleteSelection}
         onSelectParent={selectParent}
         onSelectChild={selectChild}
         onUpdateSpacing={updateSpacingProperty}
