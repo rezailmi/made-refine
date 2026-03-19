@@ -377,6 +377,9 @@ export function useMove({ onMoveComplete }: UseMoveOptions): UseMoveResult {
     if (!dragState.isDragging) return
 
     function handlePointerMove(e: PointerEvent) {
+      e.stopPropagation()
+      // Prevent browser default drag behaviors (text selection, touch scroll).
+      e.preventDefault()
       const current = dragStateRef.current
       const { draggedElement, dragOffset, originalParent } = current
 
@@ -476,12 +479,20 @@ export function useMove({ onMoveComplete }: UseMoveOptions): UseMoveResult {
       }
     }
 
-    function handlePointerUp() {
+    function handlePointerUp(e: PointerEvent) {
+      e.stopPropagation()
       completeDrag()
     }
 
-    function handlePointerCancel() {
+    function handlePointerCancel(e: PointerEvent) {
+      e.stopPropagation()
       cancelDrag()
+    }
+
+    // Block mouse events from reaching page elements and InteractionOverlay's
+    // document-level handlers during drag (e.g. hover highlights).
+    function blockMouseEvent(e: MouseEvent) {
+      e.stopPropagation()
     }
 
     function handleKeyDown(e: KeyboardEvent) {
@@ -494,16 +505,22 @@ export function useMove({ onMoveComplete }: UseMoveOptions): UseMoveResult {
       cancelDrag()
     }
 
-    window.addEventListener('pointermove', handlePointerMove)
-    window.addEventListener('pointerup', handlePointerUp)
-    window.addEventListener('pointercancel', handlePointerCancel)
+    // Use capture phase so stopPropagation prevents events from reaching
+    // page elements underneath the dragged component.
+    window.addEventListener('pointermove', handlePointerMove, true)
+    window.addEventListener('pointerup', handlePointerUp, true)
+    window.addEventListener('pointercancel', handlePointerCancel, true)
+    window.addEventListener('mousemove', blockMouseEvent, true)
+    window.addEventListener('mouseup', blockMouseEvent, true)
     window.addEventListener('keydown', handleKeyDown)
     window.addEventListener('blur', handleBlur)
 
     return () => {
-      window.removeEventListener('pointermove', handlePointerMove)
-      window.removeEventListener('pointerup', handlePointerUp)
-      window.removeEventListener('pointercancel', handlePointerCancel)
+      window.removeEventListener('pointermove', handlePointerMove, true)
+      window.removeEventListener('pointerup', handlePointerUp, true)
+      window.removeEventListener('pointercancel', handlePointerCancel, true)
+      window.removeEventListener('mousemove', blockMouseEvent, true)
+      window.removeEventListener('mouseup', blockMouseEvent, true)
       window.removeEventListener('keydown', handleKeyDown)
       window.removeEventListener('blur', handleBlur)
     }

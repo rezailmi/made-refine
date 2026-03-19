@@ -961,6 +961,42 @@ describe('useMove', () => {
     })
   })
 
+  it('stops pointer event propagation during drag to prevent page element interference', () => {
+    const parent = document.createElement('div')
+    const dragged = document.createElement('div')
+    parent.appendChild(dragged)
+    document.body.appendChild(parent)
+
+    dragged.getBoundingClientRect = () => ({
+      left: 10, top: 20, width: 100, height: 40,
+      right: 110, bottom: 60, x: 10, y: 20,
+      toJSON: () => ({}),
+    }) as DOMRect
+
+    const { result } = renderHook(() => useMove({ onMoveComplete: vi.fn() }))
+
+    act(() => {
+      result.current.startDrag(pointerEvent(30, 40), dragged)
+    })
+
+    const stopSpy = vi.spyOn(Event.prototype, 'stopPropagation')
+
+    act(() => {
+      dispatchPointer('pointermove', 60, 70)
+    })
+
+    expect(stopSpy).toHaveBeenCalled()
+
+    stopSpy.mockClear()
+
+    act(() => {
+      dispatchPointer('pointerup', 60, 70)
+    })
+
+    expect(stopSpy).toHaveBeenCalled()
+    stopSpy.mockRestore()
+  })
+
   it('makes way in target container and clears preview when leaving drop target', () => {
     const onMoveComplete = vi.fn()
     const originalParent = document.createElement('div')
