@@ -126,7 +126,7 @@ export function SelectedCommentComposer({
     updatePosition()
   }, [text, updatePosition])
 
-  React.useEffect(() => {
+  const handleComposerClick = React.useCallback(() => {
     inputRef.current?.focus()
   }, [])
 
@@ -182,7 +182,7 @@ export function SelectedCommentComposer({
         width: position.width,
         pointerEvents: 'auto',
       }}
-      onClick={(e) => e.stopPropagation()}
+      onClick={(e) => { e.stopPropagation(); handleComposerClick() }}
     >
       <textarea
         ref={inputRef}

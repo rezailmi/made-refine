@@ -2,7 +2,7 @@ import * as React from 'react'
 import { Button } from '../ui/button'
 import { Tip } from './shared'
 import { cn } from '../cn'
-import { X, ChevronUp, ChevronDown, Trash2 } from 'lucide-react'
+import { X, ChevronUp, ChevronDown } from 'lucide-react'
 
 const panelBarBaseClass = 'flex h-11 shrink-0 items-center border-border/50 bg-background px-3'
 
@@ -15,7 +15,6 @@ export interface PanelHeaderProps {
   }
   isDraggable: boolean
   onClose?: () => void
-  onDelete?: () => void
   onSelectParent?: () => void
   onSelectChild?: () => void
   onPointerDown?: (e: React.PointerEvent) => void
@@ -28,7 +27,6 @@ export function PanelHeader({
   elementInfo,
   isDraggable,
   onClose,
-  onDelete,
   onSelectParent,
   onSelectChild,
   onPointerDown,
@@ -88,19 +86,6 @@ export function PanelHeader({
               </Button>
             </Tip>
           </span>
-        )}
-        {onDelete && (
-          <Tip label="Delete Element">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onDelete}
-              aria-label="Delete selected element"
-              className="size-7 text-destructive hover:text-destructive"
-            >
-              <Trash2 />
-            </Button>
-          </Tip>
         )}
         {onClose && (
           <>
