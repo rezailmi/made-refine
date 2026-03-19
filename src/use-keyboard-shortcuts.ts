@@ -12,6 +12,7 @@ export interface KeyboardShortcutsOptions {
   closePanel: () => void
   clearSelection: () => void
   groupSelection: () => void
+  deleteSelection: () => void
   insertElement: (kind: CanvasElementKind) => void
   setState: React.Dispatch<React.SetStateAction<DirectEditState>>
   toggleCanvas: () => void
@@ -30,6 +31,7 @@ export function useKeyboardShortcuts({
   closePanel,
   clearSelection,
   groupSelection,
+  deleteSelection,
   insertElement,
   setState,
   toggleCanvas,
@@ -132,6 +134,14 @@ export function useKeyboardShortcuts({
         }
       }
 
+      if ((e.key === 'Backspace' || e.key === 'Delete') && s.editModeActive && !s.textEditingElement) {
+        if (!isInputFocused() && s.selectedElements.length > 0) {
+          e.preventDefault()
+          deleteSelection()
+          return
+        }
+      }
+
       if (e.key === 'Enter' && s.editModeActive && !s.textEditingElement && s.selectedElement) {
         if (!isInputFocused() && isTextElement(s.selectedElement)) {
           e.preventDefault()
@@ -166,5 +176,5 @@ export function useKeyboardShortcuts({
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [clearSelection, closePanel, commitTextEditing, fitCanvasToViewport, groupSelection, insertElement, setCanvasZoom, setState, startTextEditing, toggleCanvas, toggleEditMode, toggleFlexLayout, undo, usesMetaForUndo, zoomCanvasTo100])
+  }, [clearSelection, closePanel, commitTextEditing, deleteSelection, fitCanvasToViewport, groupSelection, insertElement, setCanvasZoom, setState, startTextEditing, toggleCanvas, toggleEditMode, toggleFlexLayout, undo, usesMetaForUndo, zoomCanvasTo100])
 }

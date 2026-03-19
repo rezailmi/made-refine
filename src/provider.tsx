@@ -86,6 +86,7 @@ export interface DirectEditActionsContextValue {
   startTextEditing: (element: HTMLElement) => void
   commitTextEditing: () => void
   groupSelection: () => void
+  deleteSelection: () => void
   insertElement: (kind: CanvasElementKind) => void
   toggleCanvas: () => void
   setCanvasZoom: (zoom: number) => void
@@ -239,7 +240,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     syncSessionItemCount, saveCurrentToSession, selectElement, selectElements, toggleElementSelection,
     clearSelection, selectParent, selectChild,
     resetToOriginal, undo, handleMoveComplete, getSessionEdits, getSessionItems,
-    exportAllEdits, exportEdits, removeSessionEdit, clearSessionEdits, groupSelection, insertElement,
+    exportAllEdits, exportEdits, removeSessionEdit, clearSessionEdits, groupSelection, deleteSelection, insertElement,
   } = useSessionManager({
     stateRef, sessionEditsRef, removedSessionEditsRef, undoStackRef,
     pushUndo, setState, setSessionEditCount,
@@ -483,7 +484,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
   useKeyboardShortcuts({
     stateRef, toggleEditMode, toggleFlexLayout, undo,
     commitTextEditing, startTextEditing, closePanel, setState,
-    clearSelection, groupSelection, insertElement,
+    clearSelection, groupSelection, deleteSelection, insertElement,
     toggleCanvas: toggleCanvasWithPreference, setCanvasZoom, fitCanvasToViewport, zoomCanvasTo100,
   })
 
@@ -515,7 +516,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     addComment, updateCommentText, submitCommentDraft, addCommentReply, deleteComment, exportComment,
     setActiveCommentId, getSessionEdits, getSessionItems, exportAllEdits,
     clearSessionEdits, removeSessionEdit, startTextEditing, commitTextEditing,
-    groupSelection, insertElement,
+    groupSelection, deleteSelection, insertElement,
     toggleCanvas: toggleCanvasWithPreference, setCanvasZoom, fitCanvasToViewport, zoomCanvasTo100,
   }), [
     selectElement, selectElements, toggleElementSelection, clearSelection,
@@ -529,7 +530,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     addComment, updateCommentText, submitCommentDraft, addCommentReply, deleteComment, exportComment,
     setActiveCommentId, getSessionEdits, getSessionItems, exportAllEdits,
     clearSessionEdits, removeSessionEdit, startTextEditing, commitTextEditing,
-    groupSelection, insertElement,
+    groupSelection, deleteSelection, insertElement,
     toggleCanvasWithPreference, setCanvasZoom, fitCanvasToViewport, zoomCanvasTo100,
   ])
 

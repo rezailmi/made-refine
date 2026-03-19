@@ -368,7 +368,7 @@ function DirectEditPanelContent() {
     handleMoveComplete,
     addComment, submitCommentDraft, addCommentReply, deleteComment, exportComment,
     sendCommentToAgent, setActiveCommentId,
-    startTextEditing, toggleEditMode,
+    startTextEditing, toggleEditMode, deleteSelection,
   } = useDirectEditActions()
 
   const {

@@ -2700,4 +2700,214 @@ describe('DirectEditProvider', () => {
       expect(button.style.cursor).toBe('pointer')
     })
   })
+
+  it('deletes a selected element and restores it on undo', async () => {
+    const target = createTarget('delete-target', 'padding-top: 8px;')
+    const parent = target.parentElement!
+    const nextSibling = target.nextSibling
+
+    const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+    act(() => {
+      result.current.toggleEditMode()
+    })
+
+    await waitFor(() => {
+      expect(result.current.editModeActive).toBe(true)
+    })
+
+    act(() => {
+      result.current.selectElement(target)
+    })
+
+    await waitFor(() => {
+      expect(result.current.selectedElement).toBe(target)
+    })
+
+    act(() => {
+      result.current.deleteSelection()
+    })
+
+    await waitFor(() => {
+      expect(result.current.selectedElement).toBeNull()
+      expect(result.current.selectedElements).toEqual([])
+    })
+    expect(target.isConnected).toBe(false)
+
+    act(() => {
+      result.current.undo()
+    })
+
+    await waitFor(() => {
+      expect(target.isConnected).toBe(true)
+      expect(result.current.selectedElement).toBe(target)
+    })
+    expect(target.parentElement).toBe(parent)
+    if (nextSibling) {
+      expect(target.nextSibling).toBe(nextSibling)
+    }
+  })
+
+  it('deletes multiple selected elements and restores all on undo', async () => {
+    const target1 = createTarget('multi-del-1')
+    const target2 = createTarget('multi-del-2')
+    const parent = target1.parentElement!
+
+    const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+    act(() => {
+      result.current.toggleEditMode()
+    })
+
+    await waitFor(() => {
+      expect(result.current.editModeActive).toBe(true)
+    })
+
+    act(() => {
+      result.current.selectElements([target1, target2])
+    })
+
+    await waitFor(() => {
+      expect(result.current.selectedElements).toHaveLength(2)
+    })
+
+    act(() => {
+      result.current.deleteSelection()
+    })
+
+    await waitFor(() => {
+      expect(result.current.selectedElements).toEqual([])
+    })
+    expect(target1.isConnected).toBe(false)
+    expect(target2.isConnected).toBe(false)
+
+    act(() => {
+      result.current.undo()
+    })
+
+    await waitFor(() => {
+      expect(target1.isConnected).toBe(true)
+      expect(target2.isConnected).toBe(true)
+    })
+    expect(target1.parentElement).toBe(parent)
+    expect(target2.parentElement).toBe(parent)
+  })
+
+  it('does not delete when edit mode is inactive', async () => {
+    const target = createTarget('no-del-inactive')
+
+    const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+    act(() => {
+      result.current.selectElement(target)
+    })
+
+    await waitFor(() => {
+      expect(result.current.selectedElement).toBe(target)
+    })
+
+    act(() => {
+      result.current.deleteSelection()
+    })
+
+    expect(target.isConnected).toBe(true)
+  })
+
+  it('does not delete when no element is selected', async () => {
+    const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+    act(() => {
+      result.current.toggleEditMode()
+    })
+
+    await waitFor(() => {
+      expect(result.current.editModeActive).toBe(true)
+    })
+
+    act(() => {
+      result.current.deleteSelection()
+    })
+
+    // Should not throw
+    expect(result.current.editModeActive).toBe(true)
+  })
+
+  it('does not delete document.body', async () => {
+    const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+    act(() => {
+      result.current.toggleEditMode()
+    })
+
+    await waitFor(() => {
+      expect(result.current.editModeActive).toBe(true)
+    })
+
+    act(() => {
+      result.current.selectElement(document.body)
+    })
+
+    await waitFor(() => {
+      expect(result.current.selectedElements.length).toBeGreaterThan(0)
+    })
+
+    act(() => {
+      result.current.deleteSelection()
+    })
+
+    expect(document.body.isConnected).toBe(true)
+  })
+
+  it('cleans up session edits on delete and restores them on undo', async () => {
+    const target = createTarget('session-del-target', 'padding-top: 4px;')
+
+    const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+    act(() => {
+      result.current.toggleEditMode()
+    })
+
+    await waitFor(() => {
+      expect(result.current.editModeActive).toBe(true)
+    })
+
+    act(() => {
+      result.current.selectElement(target)
+    })
+
+    await waitFor(() => {
+      expect(result.current.selectedElement).toBe(target)
+    })
+
+    act(() => {
+      result.current.updateSpacingProperty('paddingTop', cssValue(16))
+    })
+
+    await waitFor(() => {
+      expect(Object.keys(result.current.pendingStyles).length).toBeGreaterThan(0)
+    })
+
+    act(() => {
+      result.current.deleteSelection()
+    })
+
+    await waitFor(() => {
+      expect(result.current.selectedElement).toBeNull()
+    })
+    expect(target.isConnected).toBe(false)
+
+    act(() => {
+      result.current.undo()
+    })
+
+    await waitFor(() => {
+      expect(target.isConnected).toBe(true)
+      expect(result.current.selectedElement).toBe(target)
+    })
+
+    // Session edit should be restored after undo
+    const edits = result.current.getSessionEdits()
+    const restored = edits.find((e) => e.element === target)
+    expect(restored).toBeDefined()
+  })
 })
