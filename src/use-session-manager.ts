@@ -540,39 +540,54 @@ export function useSessionManager({
 
     saveCurrentToSession()
     const restoreSelection = buildSelectionSnapshot()
-    const bodyRect = document.body.getBoundingClientRect()
-    const scaleX = document.body.offsetWidth > 0 ? bodyRect.width / document.body.offsetWidth : 1
-    const scaleY = document.body.offsetHeight > 0 ? bodyRect.height / document.body.offsetHeight : 1
-    const width = kind === 'frame' ? 240 : 160
-    const height = kind === 'frame' ? 160 : 96
-    const left = Math.round((window.innerWidth / 2 - bodyRect.left) / scaleX - width / 2)
-    const top = Math.round((window.innerHeight / 2 - bodyRect.top) / scaleY - height / 2)
+
+    const selectedEl = stateRef.current.selectedElement
+    const hasSelection = kind === 'frame'
+      && selectedEl !== null
+      && selectedEl !== document.body
+      && selectedEl.parentElement !== null
+
+    const width = kind === 'frame' ? 100 : 160
+    const height = kind === 'frame' ? 100 : 96
 
     const element = document.createElement('div')
     element.id = nextGeneratedCanvasId(kind)
     element.setAttribute(GENERATED_CANVAS_NODE_ATTR, kind)
-    element.style.position = 'absolute'
-    element.style.left = `${left}px`
-    element.style.top = `${top}px`
     element.style.width = `${width}px`
     element.style.height = `${height}px`
     element.style.boxSizing = 'border-box'
-    element.style.borderRadius = kind === 'frame' ? '16px' : '12px'
-    element.style.border = '1px solid rgba(13, 153, 255, 0.35)'
-    element.style.zIndex = '1'
 
     if (kind === 'frame') {
-      element.style.display = 'flex'
-      element.style.flexDirection = 'column'
-      element.style.gap = '12px'
-      element.style.padding = '16px'
-      element.style.background = 'rgba(255, 255, 255, 0.92)'
-      element.style.boxShadow = '0 10px 30px rgba(15, 23, 42, 0.10)'
+      element.style.background = '#F5F5F5'
+      element.style.border = '1px solid #E0E0E0'
     } else {
+      element.style.borderRadius = '12px'
+      element.style.border = '1px solid rgba(13, 153, 255, 0.35)'
       element.style.background = 'rgba(13, 153, 255, 0.08)'
     }
 
-    document.body.appendChild(element)
+    if (hasSelection) {
+      const insertionParent = selectedEl!.parentElement!
+      const refNode = selectedEl!.nextSibling
+      if (refNode) {
+        insertionParent.insertBefore(element, refNode)
+      } else {
+        insertionParent.appendChild(element)
+      }
+    } else {
+      const bodyRect = document.body.getBoundingClientRect()
+      const scaleX = document.body.offsetWidth > 0
+        ? bodyRect.width / document.body.offsetWidth : 1
+      const scaleY = document.body.offsetHeight > 0
+        ? bodyRect.height / document.body.offsetHeight : 1
+      const left = Math.round((window.innerWidth / 2 - bodyRect.left) / scaleX - width / 2)
+      const top = Math.round((window.innerHeight / 2 - bodyRect.top) / scaleY - height / 2)
+      element.style.position = 'absolute'
+      element.style.left = `${left}px`
+      element.style.top = `${top}px`
+      element.style.zIndex = '1'
+      document.body.appendChild(element)
+    }
 
     pushUndo({
       type: 'structure',

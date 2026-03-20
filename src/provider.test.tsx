@@ -1021,6 +1021,200 @@ describe('DirectEditProvider', () => {
     })
   })
 
+  describe('insertElement frame', () => {
+    it('applies minimal styling to frames', async () => {
+      const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+      act(() => {
+        result.current.toggleEditMode()
+      })
+
+      await waitFor(() => {
+        expect(result.current.editModeActive).toBe(true)
+      })
+
+      act(() => {
+        result.current.insertElement('frame')
+      })
+
+      const frame = document.querySelector('[data-made-refine-canvas-node="frame"]') as HTMLElement
+      expect(frame).not.toBeNull()
+      expect(frame.style.width).toBe('100px')
+      expect(frame.style.height).toBe('100px')
+      expect(frame.style.background).toBe('rgb(245, 245, 245)')
+      expect(frame.style.border).toBe('1px solid rgb(224, 224, 224)')
+      expect(frame.style.borderRadius).toBe('')
+      expect(frame.style.boxShadow).toBe('')
+      expect(frame.style.display).toBe('')
+      expect(frame.style.padding).toBe('')
+    })
+
+    it('inserts frame on body when no element is selected', async () => {
+      const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+      act(() => {
+        result.current.toggleEditMode()
+      })
+
+      await waitFor(() => {
+        expect(result.current.editModeActive).toBe(true)
+      })
+
+      act(() => {
+        result.current.insertElement('frame')
+      })
+
+      const frame = document.querySelector('[data-made-refine-canvas-node="frame"]') as HTMLElement
+      expect(frame).not.toBeNull()
+      expect(frame.parentElement).toBe(document.body)
+      expect(frame.style.position).toBe('absolute')
+    })
+
+    it('inserts frame as sibling after selected element', async () => {
+      const container = document.createElement('div')
+      container.style.display = 'flex'
+      document.body.appendChild(container)
+      const child = document.createElement('div')
+      child.id = 'sibling-target'
+      child.textContent = 'child'
+      container.appendChild(child)
+
+      const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+      act(() => {
+        result.current.toggleEditMode()
+      })
+
+      await waitFor(() => {
+        expect(result.current.editModeActive).toBe(true)
+      })
+
+      act(() => {
+        result.current.selectElement(child)
+      })
+
+      await waitFor(() => {
+        expect(result.current.selectedElement).toBe(child)
+      })
+
+      act(() => {
+        result.current.insertElement('frame')
+      })
+
+      const frame = document.querySelector('[data-made-refine-canvas-node="frame"]') as HTMLElement
+      expect(frame).not.toBeNull()
+      expect(frame.parentElement).toBe(container)
+      expect(child.nextElementSibling).toBe(frame)
+      expect(frame.style.position).toBe('')
+    })
+
+    it('appends frame when selected element is last child', async () => {
+      const container = document.createElement('div')
+      document.body.appendChild(container)
+      const firstChild = document.createElement('div')
+      firstChild.textContent = 'first'
+      container.appendChild(firstChild)
+      const lastChild = document.createElement('div')
+      lastChild.id = 'last-child-target'
+      lastChild.textContent = 'last'
+      container.appendChild(lastChild)
+
+      const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+      act(() => {
+        result.current.toggleEditMode()
+      })
+
+      await waitFor(() => {
+        expect(result.current.editModeActive).toBe(true)
+      })
+
+      act(() => {
+        result.current.selectElement(lastChild)
+      })
+
+      await waitFor(() => {
+        expect(result.current.selectedElement).toBe(lastChild)
+      })
+
+      act(() => {
+        result.current.insertElement('frame')
+      })
+
+      const frame = document.querySelector('[data-made-refine-canvas-node="frame"]') as HTMLElement
+      expect(frame).not.toBeNull()
+      expect(frame.parentElement).toBe(container)
+      expect(container.lastElementChild).toBe(frame)
+    })
+
+    it('inserts frame on body when body is selected', async () => {
+      const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+      act(() => {
+        result.current.toggleEditMode()
+      })
+
+      await waitFor(() => {
+        expect(result.current.editModeActive).toBe(true)
+      })
+
+      act(() => {
+        result.current.selectElement(document.body)
+      })
+
+      act(() => {
+        result.current.insertElement('frame')
+      })
+
+      const frame = document.querySelector('[data-made-refine-canvas-node="frame"]') as HTMLElement
+      expect(frame).not.toBeNull()
+      expect(frame.parentElement).toBe(document.body)
+      expect(frame.style.position).toBe('absolute')
+    })
+
+    it('removes sibling-inserted frame on undo', async () => {
+      const container = document.createElement('div')
+      document.body.appendChild(container)
+      const child = document.createElement('div')
+      child.id = 'undo-sibling-target'
+      child.textContent = 'child'
+      container.appendChild(child)
+
+      const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+      act(() => {
+        result.current.toggleEditMode()
+      })
+
+      await waitFor(() => {
+        expect(result.current.editModeActive).toBe(true)
+      })
+
+      act(() => {
+        result.current.selectElement(child)
+      })
+
+      await waitFor(() => {
+        expect(result.current.selectedElement).toBe(child)
+      })
+
+      act(() => {
+        result.current.insertElement('frame')
+      })
+
+      const frame = document.querySelector('[data-made-refine-canvas-node="frame"]') as HTMLElement
+      expect(frame).not.toBeNull()
+      expect(frame.isConnected).toBe(true)
+
+      act(() => {
+        result.current.undo()
+      })
+
+      expect(frame.isConnected).toBe(false)
+      expect(container.querySelector('[data-made-refine-canvas-node="frame"]')).toBeNull()
+    })
+  })
+
   it('blocks native dragstart outside editor chrome while design mode is active', async () => {
     const target = createTarget('dragstart-block-target')
     const editorTarget = document.createElement('div')
