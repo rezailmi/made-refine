@@ -187,6 +187,7 @@ export function SelectedCommentComposer({
       <textarea
         ref={inputRef}
         rows={1}
+        autoFocus
         aria-invalid={showError}
         className={cn(
           'min-h-[18px] min-w-0 flex-1 resize-none overflow-hidden bg-transparent px-1.5 py-1.5 text-xs leading-[18px] text-foreground placeholder:text-muted-foreground focus:outline-none',

@@ -452,6 +452,26 @@ function DirectEditPanelContent() {
     setActiveCommentId(id)
   }, [activeCommentId, comments, hasPendingCommentDraft, deleteComment, setActiveCommentId])
 
+  const handleCommentPillClick = React.useCallback(() => {
+    if (activeDraftComment) {
+      handleSetActiveComment(null)
+      return
+    }
+    if (hasPendingCommentDraft()) return
+    if (!commentTargetElement) return
+
+    const existingDraft = comments.find((comment) => (
+      comment.element === commentTargetElement && comment.text.trim().length === 0
+    ))
+
+    if (existingDraft) {
+      setActiveCommentId(existingDraft.id)
+      return
+    }
+
+    addComment(commentTargetElement, getElementCommentAnchor(commentTargetElement))
+  }, [activeDraftComment, handleSetActiveComment, hasPendingCommentDraft, commentTargetElement, comments, setActiveCommentId, addComment])
+
   React.useEffect(() => {
     const previous = previousCommentTriggerRef.current
     previousCommentTriggerRef.current = { editModeActive, commentTargetElement }
@@ -472,23 +492,19 @@ function DirectEditPanelContent() {
       return
     }
 
-    if (activeCommentId) return
-
-    const existingDraft = comments.find((comment) => (
-      comment.element === commentTargetElement && comment.text.trim().length === 0
-    ))
-
-    if (existingDraft) {
-      setActiveCommentId(existingDraft.id)
-      return
+    // Clean up orphaned empty drafts when selection changes
+    if (activeCommentId) {
+      const active = comments.find((comment) => comment.id === activeCommentId)
+      if (active && active.text.trim().length === 0 && active.element !== commentTargetElement) {
+        deleteComment(active.id)
+        setActiveCommentId(null)
+      }
     }
-
-    addComment(commentTargetElement, getElementCommentAnchor(commentTargetElement))
   }, [
     activeCommentId,
-    addComment,
     commentTargetElement,
     comments,
+    deleteComment,
     editModeActive,
     setActiveCommentId,
     textEditingElement,
@@ -712,6 +728,9 @@ function DirectEditPanelContent() {
           isComponentPrimitive={isComponentPrimitive}
           enableResizeHandles={true}
           onResizeSizingChange={updateSizingProperties}
+          showCommentPill={editModeActive}
+          isCommentActive={Boolean(activeDraftComment)}
+          onCommentPillClick={handleCommentPillClick}
         />
       )
     : selectedElements.length > 1 && !textEditingElement

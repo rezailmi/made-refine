@@ -1,4 +1,6 @@
 import * as React from 'react'
+import { MessageSquare } from 'lucide-react'
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from './ui/tooltip'
 import type { ActiveTool } from './types'
 import type { SizingPropertyKey, SizingValue, SizingChangeOptions } from './types'
 import type { StartDragOptions } from './use-move'
@@ -76,6 +78,9 @@ export interface SelectionOverlayProps {
     changes: Partial<Record<SizingPropertyKey, SizingValue>>,
     options?: SizingChangeOptions
   ) => void
+  showCommentPill?: boolean
+  isCommentActive?: boolean
+  onCommentPillClick?: () => void
 }
 
 export function SelectionOverlay({
@@ -96,6 +101,9 @@ export function SelectionOverlay({
   isComponentPrimitive = false,
   enableResizeHandles = false,
   onResizeSizingChange,
+  showCommentPill = false,
+  isCommentActive = false,
+  onCommentPillClick,
 }: SelectionOverlayProps) {
   const selectionColor = isComponentPrimitive ? COMPONENT_PURPLE : BLUE
   const rectElement = isDragging && draggedElement ? draggedElement : selectedElement
@@ -541,6 +549,46 @@ export function SelectionOverlay({
           >
             {dimensionText}
           </span>
+          {showCommentPill && (
+            <TooltipProvider delayDuration={200}>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <button
+                      type="button"
+                      data-direct-edit="comment-pill"
+                      aria-label="Toggle comment"
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        background: isCommentActive ? 'white' : selectionColor,
+                        color: isCommentActive ? selectionColor : 'white',
+                        height: '20px',
+                        width: '24px',
+                        borderRadius: '4px',
+                        border: 'none',
+                        boxSizing: 'border-box',
+                        cursor: 'pointer',
+                        pointerEvents: 'auto',
+                        padding: 0,
+                        opacity: 1,
+                      }}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onCommentPillClick?.()
+                      }}
+                      onPointerEnter={(e) => { (e.currentTarget as HTMLElement).style.opacity = '0.85' }}
+                      onPointerLeave={(e) => { (e.currentTarget as HTMLElement).style.opacity = '1' }}
+                    />
+                  }
+                >
+                  <MessageSquare style={{ width: 12, height: 12 }} strokeWidth={2.5} />
+                </TooltipTrigger>
+                <TooltipContent side="bottom">Comment</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
         </div>
       )}
 
