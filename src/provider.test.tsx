@@ -216,6 +216,18 @@ async function findSelectedCommentInput(): Promise<HTMLTextAreaElement> {
   })
 }
 
+async function clickCommentPill(): Promise<void> {
+  const shadowRoot = await findHostShadowRoot()
+  const pill = await waitFor(() => {
+    const btn = shadowRoot.querySelector('[data-direct-edit="comment-pill"]') as HTMLButtonElement | null
+    expect(btn).not.toBeNull()
+    return btn as HTMLButtonElement
+  })
+  act(() => {
+    fireEvent.click(pill)
+  })
+}
+
 async function findToolbarButtonByIcon(shadowRoot: ShadowRoot, iconClass: string): Promise<HTMLButtonElement> {
   return waitFor(() => {
     const icon = shadowRoot.querySelector(`svg.${iconClass}`) as SVGElement | null
@@ -890,7 +902,7 @@ describe('DirectEditProvider', () => {
     await waitFor(() => {
       expect(shadowRoot.querySelectorAll('[data-direct-edit="selection-overlay-box"]')).toHaveLength(2)
       expect(shadowRoot.querySelector('[data-direct-edit="selection-count-label"]')).toBeNull()
-      expect(shadowRoot.querySelector('[data-direct-edit="selected-comment-composer"]')).not.toBeNull()
+      expect(shadowRoot.querySelector('[data-direct-edit="selected-comment-composer"]')).toBeNull()
     })
   })
 
@@ -948,7 +960,7 @@ describe('DirectEditProvider', () => {
 
     await waitFor(() => {
       expect(shadowRoot.querySelector('[data-direct-edit="selection-count-label"]')).toBeNull()
-      expect(shadowRoot.querySelector('[data-direct-edit="selected-comment-composer"]')).not.toBeNull()
+      expect(shadowRoot.querySelector('[data-direct-edit="selected-comment-composer"]')).toBeNull()
     })
   })
 
@@ -2020,6 +2032,8 @@ describe('DirectEditProvider', () => {
       result.current.selectElement(targetA)
     })
 
+    await clickCommentPill()
+
     await waitFor(() => {
       expect(result.current.activeCommentId).not.toBeNull()
     })
@@ -2037,9 +2051,14 @@ describe('DirectEditProvider', () => {
     })
 
     await waitFor(() => {
+      expect(result.current.selectedElement).toBe(targetB)
+    })
+
+    await clickCommentPill()
+
+    await waitFor(() => {
       expect(result.current.comments).toHaveLength(2)
       expect(result.current.activeCommentId).not.toBe(firstCommentId)
-      expect(result.current.selectedElement).toBe(targetB)
     })
 
     const firstComment = result.current.comments.find((comment) => comment.id === firstCommentId)
@@ -2060,6 +2079,8 @@ describe('DirectEditProvider', () => {
       result.current.toggleEditMode()
       result.current.selectElement(targetA)
     })
+
+    await clickCommentPill()
 
     await waitFor(() => {
       expect(result.current.activeCommentId).not.toBeNull()
@@ -2087,7 +2108,7 @@ describe('DirectEditProvider', () => {
     })
   })
 
-  it('opens the selected-element composer on selection and positions it below the size label', async () => {
+  it('opens the selected-element composer on comment pill click and positions it below the size label', async () => {
     const target = createTarget('comment-selection-target', 'padding-top: 8px; width: 320px; height: 120px;')
     target.getBoundingClientRect = () => ({
       left: 40,
@@ -2107,6 +2128,8 @@ describe('DirectEditProvider', () => {
       result.current.toggleEditMode()
       result.current.selectElement(target)
     })
+
+    await clickCommentPill()
 
     await waitFor(() => {
       expect(result.current.activeCommentId).not.toBeNull()
@@ -2201,6 +2224,8 @@ describe('DirectEditProvider', () => {
       result.current.toggleEditMode()
       result.current.selectElement(target)
     })
+
+    await clickCommentPill()
 
     const shadowRoot = await findHostShadowRoot()
     const toolbar = await waitFor(() => {
@@ -2393,6 +2418,11 @@ describe('DirectEditProvider', () => {
 
     await waitFor(() => {
       expect(result.current.selectedElement).toBe(document.body)
+    })
+
+    await clickCommentPill()
+
+    await waitFor(() => {
       expect(result.current.activeCommentId).not.toBeNull()
     })
 
@@ -2549,6 +2579,8 @@ describe('DirectEditProvider', () => {
       result.current.toggleEditMode()
       result.current.selectElement(target)
     })
+
+    await clickCommentPill()
 
     const firstInput = await findSelectedCommentInput()
     act(() => {
