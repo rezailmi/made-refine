@@ -239,6 +239,42 @@ describe('DirectEditToolbarInner', () => {
     expect(container.querySelector('svg.lucide-message-square')).toBeNull()
   })
 
+  it('renders frame and text insert buttons only when insertion is enabled', () => {
+    const onInsertElement = vi.fn()
+    const { container, rerender } = render(
+      <DirectEditToolbarInner
+        editModeActive={true}
+        onToggleEditMode={() => {}}
+        rulersVisible={false}
+        onToggleRulers={() => {}}
+        onInsertElement={onInsertElement}
+      />,
+    )
+
+    const frameButton = container.querySelector('svg.lucide-square')?.closest('button')
+    const textButton = container.querySelector('svg.lucide-type')?.closest('button')
+    expect(frameButton).not.toBeNull()
+    expect(textButton).not.toBeNull()
+
+    fireEvent.click(frameButton as HTMLButtonElement)
+    fireEvent.click(textButton as HTMLButtonElement)
+
+    expect(onInsertElement).toHaveBeenNthCalledWith(1, 'frame')
+    expect(onInsertElement).toHaveBeenNthCalledWith(2, 'text')
+
+    rerender(
+      <DirectEditToolbarInner
+        editModeActive={true}
+        onToggleEditMode={() => {}}
+        rulersVisible={false}
+        onToggleRulers={() => {}}
+      />,
+    )
+
+    expect(container.querySelector('svg.lucide-square')).toBeNull()
+    expect(container.querySelector('svg.lucide-type')).toBeNull()
+  })
+
   it('omits toggle-comments from the keyboard shortcuts menu', async () => {
     const { container } = render(
       <DirectEditToolbarInner
@@ -267,6 +303,7 @@ describe('DirectEditToolbarInner', () => {
       expect(document.body.textContent).toContain('Toggle design mode')
       expect(document.body.textContent).toContain('Group selection')
       expect(document.body.textContent).toContain('Add frame')
+      expect(document.body.textContent).toContain('Add text')
       expect(document.body.textContent).toContain('Add div')
       expect(document.body.textContent).not.toContain('Toggle comments')
     })

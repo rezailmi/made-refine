@@ -216,6 +216,7 @@ export function SettingsPopover({
                           { label: 'Undo', keys: isMac ? [<Command key="cmd" className="size-2.5" />, 'Z'] : ['Ctrl', 'Z'] },
                           { label: 'Group selection', keys: isMac ? [<Command key="cmd" className="size-2.5" />, 'G'] : ['Ctrl', 'G'] },
                           { label: 'Add frame', keys: ['F'] },
+                          { label: 'Add text', keys: ['T'] },
                           { label: 'Add div', keys: ['D'] },
                           { label: 'Add to selection', keys: [<ArrowBigUp key="shift" className="size-3" />, 'Click'] },
                           { label: 'Marquee select', keys: ['Drag'] },

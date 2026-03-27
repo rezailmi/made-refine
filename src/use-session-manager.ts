@@ -262,6 +262,7 @@ export interface SessionManagerOptions {
   sessionEditsRef: React.MutableRefObject<Map<HTMLElement, SessionEdit>>
   removedSessionEditsRef: React.MutableRefObject<WeakSet<HTMLElement>>
   undoStackRef: React.MutableRefObject<UndoEntry[]>
+  onElementInsertedRef: React.MutableRefObject<((kind: CanvasElementKind, element: HTMLElement) => void) | null>
   pushUndo: (entry: UndoEntry) => void
   setState: React.Dispatch<React.SetStateAction<DirectEditState>>
   setSessionEditCount: React.Dispatch<React.SetStateAction<number>>
@@ -272,6 +273,7 @@ export function useSessionManager({
   sessionEditsRef,
   removedSessionEditsRef,
   undoStackRef,
+  onElementInsertedRef,
   pushUndo,
   setState,
   setSessionEditCount,
@@ -535,6 +537,27 @@ export function useSessionManager({
     }
   }, [getSelectableChild, selectElement])
 
+  const centerElementOnBody = React.useCallback((
+    element: HTMLElement,
+    size?: { width: number; height: number } | null,
+  ) => {
+    const bodyRect = document.body.getBoundingClientRect()
+    const scaleX = document.body.offsetWidth > 0
+      ? bodyRect.width / document.body.offsetWidth : 1
+    const scaleY = document.body.offsetHeight > 0
+      ? bodyRect.height / document.body.offsetHeight : 1
+    const fallbackWidth = size?.width ?? element.offsetWidth ?? 0
+    const fallbackHeight = size?.height ?? element.offsetHeight ?? 0
+    const measuredRect = element.getBoundingClientRect()
+    const width = measuredRect.width || fallbackWidth
+    const height = measuredRect.height || fallbackHeight
+    const left = Math.round((window.innerWidth / 2 - bodyRect.left) / scaleX - width / 2)
+    const top = Math.round((window.innerHeight / 2 - bodyRect.top) / scaleY - height / 2)
+
+    element.style.left = `${left}px`
+    element.style.top = `${top}px`
+  }, [])
+
   const insertElement = React.useCallback((kind: CanvasElementKind) => {
     if (!stateRef.current.editModeActive) return
 
@@ -542,28 +565,34 @@ export function useSessionManager({
     const restoreSelection = buildSelectionSnapshot()
 
     const selectedEl = stateRef.current.selectedElement
-    const hasSelection = kind === 'frame'
+    const insertsAsSibling = kind === 'frame' || kind === 'text'
+    const hasSelection = insertsAsSibling
       && selectedEl !== null
       && selectedEl !== document.body
       && selectedEl.parentElement !== null
 
-    const width = kind === 'frame' ? 100 : 160
-    const height = kind === 'frame' ? 100 : 96
-
-    const element = document.createElement('div')
+    const element = document.createElement(kind === 'text' ? 'p' : 'div')
     element.id = nextGeneratedCanvasId(kind)
     element.setAttribute(GENERATED_CANVAS_NODE_ATTR, kind)
-    element.style.width = `${width}px`
-    element.style.height = `${height}px`
     element.style.boxSizing = 'border-box'
 
     if (kind === 'frame') {
+      element.style.width = '100px'
+      element.style.height = '100px'
       element.style.background = '#F5F5F5'
       element.style.border = '1px solid #E0E0E0'
-    } else {
+    } else if (kind === 'div') {
+      element.style.width = '160px'
+      element.style.height = '96px'
       element.style.borderRadius = '12px'
       element.style.border = '1px solid rgba(13, 153, 255, 0.35)'
       element.style.background = 'rgba(13, 153, 255, 0.08)'
+    } else {
+      element.textContent = 'Text'
+      element.style.display = 'inline-block'
+      element.style.margin = '0'
+      element.style.minHeight = '24px'
+      element.style.textAlign = 'center'
     }
 
     if (hasSelection) {
@@ -575,18 +604,24 @@ export function useSessionManager({
         insertionParent.appendChild(element)
       }
     } else {
-      const bodyRect = document.body.getBoundingClientRect()
-      const scaleX = document.body.offsetWidth > 0
-        ? bodyRect.width / document.body.offsetWidth : 1
-      const scaleY = document.body.offsetHeight > 0
-        ? bodyRect.height / document.body.offsetHeight : 1
-      const left = Math.round((window.innerWidth / 2 - bodyRect.left) / scaleX - width / 2)
-      const top = Math.round((window.innerHeight / 2 - bodyRect.top) / scaleY - height / 2)
       element.style.position = 'absolute'
-      element.style.left = `${left}px`
-      element.style.top = `${top}px`
       element.style.zIndex = '1'
-      document.body.appendChild(element)
+      if (kind === 'text') {
+        element.style.left = '0px'
+        element.style.top = '0px'
+        element.style.visibility = 'hidden'
+        document.body.appendChild(element)
+        centerElementOnBody(element)
+        element.style.visibility = ''
+      } else {
+        centerElementOnBody(
+          element,
+          kind === 'frame'
+            ? { width: 100, height: 100 }
+            : { width: 160, height: 96 },
+        )
+        document.body.appendChild(element)
+      }
     }
 
     pushUndo({
@@ -603,7 +638,9 @@ export function useSessionManager({
       primaryElement: element,
       pushUndo: false,
     })
-  }, [applySelection, buildSelectionSnapshot, pushUndo, saveCurrentToSession, stateRef])
+
+    onElementInsertedRef.current?.(kind, element)
+  }, [applySelection, buildSelectionSnapshot, centerElementOnBody, onElementInsertedRef, pushUndo, saveCurrentToSession, stateRef])
 
   const groupSelection = React.useCallback(() => {
     const selected = getSanitizedSelection(stateRef.current.selectedElements)

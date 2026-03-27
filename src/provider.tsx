@@ -85,6 +85,8 @@ export interface DirectEditActionsContextValue {
   removeSessionEdit: (element: HTMLElement) => void
   startTextEditing: (element: HTMLElement) => void
   commitTextEditing: () => void
+  setCommentDraftText: (text: string) => void
+  setCommentDraftBlockedHandler: (handler: (() => void) | null) => void
   groupSelection: () => void
   deleteSelection: () => void
   insertElement: (kind: CanvasElementKind) => void
@@ -220,6 +222,10 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
   const undoStackRef = React.useRef<UndoEntry[]>([])
   const sessionEditsRef = React.useRef<Map<HTMLElement, SessionEdit>>(new Map())
   const removedSessionEditsRef = React.useRef<WeakSet<HTMLElement>>(new WeakSet())
+  const commentDraftTextRef = React.useRef('')
+  const commentDraftBlockedHandlerRef = React.useRef<(() => void) | null>(null)
+  const onElementInsertedRef = React.useRef<((kind: CanvasElementKind, element: HTMLElement) => void) | null>(null)
+  const textInsertRafRef = React.useRef<number | null>(null)
   const [sessionEditCount, setSessionEditCount] = React.useState(0)
   const stateRef = React.useRef(state)
   React.useEffect(() => {
@@ -240,9 +246,10 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     syncSessionItemCount, saveCurrentToSession, selectElement, selectElements, toggleElementSelection,
     clearSelection, selectParent, selectChild,
     resetToOriginal, undo, handleMoveComplete, getSessionEdits, getSessionItems,
-    exportAllEdits, exportEdits, removeSessionEdit, clearSessionEdits, groupSelection, deleteSelection, insertElement,
+    exportAllEdits, exportEdits, removeSessionEdit, clearSessionEdits, groupSelection, deleteSelection, insertElement: insertElementBase,
   } = useSessionManager({
     stateRef, sessionEditsRef, removedSessionEditsRef, undoStackRef,
+    onElementInsertedRef,
     pushUndo, setState, setSessionEditCount,
   })
 
@@ -272,6 +279,46 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     stateRef, sessionEditsRef, removedSessionEditsRef,
     pushUndo, syncSessionItemCount, setState,
   })
+
+  React.useEffect(() => {
+    onElementInsertedRef.current = (kind, element) => {
+      if (kind === 'text') {
+        if (textInsertRafRef.current) {
+          cancelAnimationFrame(textInsertRafRef.current)
+        }
+        textInsertRafRef.current = requestAnimationFrame(() => {
+          textInsertRafRef.current = null
+          if (element.isConnected) {
+            startTextEditing(element)
+          }
+        })
+      }
+    }
+
+    return () => {
+      if (textInsertRafRef.current) {
+        cancelAnimationFrame(textInsertRafRef.current)
+        textInsertRafRef.current = null
+      }
+      onElementInsertedRef.current = null
+    }
+  }, [startTextEditing])
+
+  const setCommentDraftText = React.useCallback((text: string) => {
+    commentDraftTextRef.current = text
+  }, [])
+
+  const setCommentDraftBlockedHandler = React.useCallback((handler: (() => void) | null) => {
+    commentDraftBlockedHandlerRef.current = handler
+  }, [])
+
+  const hasPendingCommentDraft = React.useCallback(() => {
+    const activeCommentId = stateRef.current.activeCommentId
+    if (!activeCommentId) return false
+    const active = stateRef.current.comments.find((comment) => comment.id === activeCommentId)
+    if (!active) return false
+    return active.text.trim().length === 0 && commentDraftTextRef.current.trim().length > 0
+  }, [])
 
   const { toggleCanvas, enterCanvas, exitCanvas, setCanvasZoom, fitCanvasToViewport, zoomCanvasTo100 } = useCanvas({
     stateRef, setState,
@@ -481,6 +528,19 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     try { localStorage.setItem(BORDER_STYLE_CONTROL_PREFERENCE_KEY, preference) } catch {}
   }, [])
 
+  const insertElement = React.useCallback((kind: CanvasElementKind) => {
+    if (hasPendingCommentDraft()) {
+      commentDraftBlockedHandlerRef.current?.()
+      return
+    }
+
+    if (stateRef.current.textEditingElement) {
+      commitTextEditing()
+    }
+
+    insertElementBase(kind)
+  }, [commitTextEditing, hasPendingCommentDraft, insertElementBase, stateRef])
+
   useKeyboardShortcuts({
     stateRef, toggleEditMode, toggleFlexLayout, undo,
     commitTextEditing, startTextEditing, closePanel, setState,
@@ -515,7 +575,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     handleMoveComplete, setActiveTool, setTheme, setBorderStyleControlPreference,
     addComment, updateCommentText, submitCommentDraft, addCommentReply, deleteComment, exportComment,
     setActiveCommentId, getSessionEdits, getSessionItems, exportAllEdits,
-    clearSessionEdits, removeSessionEdit, startTextEditing, commitTextEditing,
+    clearSessionEdits, removeSessionEdit, startTextEditing, commitTextEditing, setCommentDraftText, setCommentDraftBlockedHandler,
     groupSelection, deleteSelection, insertElement,
     toggleCanvas: toggleCanvasWithPreference, setCanvasZoom, fitCanvasToViewport, zoomCanvasTo100,
   }), [
@@ -529,7 +589,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     handleMoveComplete, setActiveTool, setTheme, setBorderStyleControlPreference,
     addComment, updateCommentText, submitCommentDraft, addCommentReply, deleteComment, exportComment,
     setActiveCommentId, getSessionEdits, getSessionItems, exportAllEdits,
-    clearSessionEdits, removeSessionEdit, startTextEditing, commitTextEditing,
+    clearSessionEdits, removeSessionEdit, startTextEditing, commitTextEditing, setCommentDraftText, setCommentDraftBlockedHandler,
     groupSelection, deleteSelection, insertElement,
     toggleCanvasWithPreference, setCanvasZoom, fitCanvasToViewport, zoomCanvasTo100,
   ])

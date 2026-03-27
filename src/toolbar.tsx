@@ -5,8 +5,8 @@ import { useDirectEditState, useDirectEditActions } from './provider'
 import { useRulersVisible } from './rulers-overlay'
 import { cn } from './cn'
 import { useToolbarDock } from './use-toolbar-dock'
-import { MousePointer2, Command, Send, Check, X } from 'lucide-react'
-import type { ActiveTool, Theme, SessionItem } from './types'
+import { MousePointer2, Command, Send, Check, X, Square, Type } from 'lucide-react'
+import type { ActiveTool, Theme, SessionItem, CanvasElementKind } from './types'
 import {
   Tooltip,
   TooltipProvider,
@@ -43,6 +43,7 @@ export interface DirectEditToolbarInnerProps {
   onSetCanvasZoom?: (zoom: number) => void
   onZoomTo100?: () => void
   onFitToViewport?: () => void
+  onInsertElement?: (kind: CanvasElementKind) => void
 }
 
 export function DirectEditToolbarInner({
@@ -71,6 +72,7 @@ export function DirectEditToolbarInner({
   onSetCanvasZoom,
   onZoomTo100,
   onFitToViewport,
+  onInsertElement,
 }: DirectEditToolbarInnerProps) {
   const container = usePortalContainer()
   const toolbarRef = React.useRef<HTMLDivElement>(null)
@@ -80,6 +82,7 @@ export function DirectEditToolbarInner({
   const [applyStatus, setApplyStatus] = React.useState<'idle' | 'sending' | 'sent' | 'offline'>('idle')
   const applyTimerRef = React.useRef<number | null>(null)
   const showApplyButton = agentAvailable && Boolean(onSendAllToAgents)
+  const showInsertButtons = Boolean(onInsertElement)
   const totalItemCount = sessionEditCount + multiSelectCount
 
   // Cache toolbar sizes per edge + state so prediction stays accurate after re-docking.
@@ -255,6 +258,38 @@ export function DirectEditToolbarInner({
               }}
               {...dragHandlers}
             >
+              {showInsertButtons && (
+                <>
+                  <Tooltip>
+                    <TooltipTrigger
+                      className={cn(toolbarBtnClass, 'text-muted-foreground hover:bg-muted hover:text-foreground')}
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onClick={() => onInsertElement?.('frame')}
+                    >
+                      <Square className="size-4" />
+                    </TooltipTrigger>
+                    <TooltipContent side={tooltipSide} className="inline-flex items-center gap-1.5">
+                      <span>Add frame</span>
+                      <kbd className={kbdClass}>F</kbd>
+                    </TooltipContent>
+                  </Tooltip>
+
+                  <Tooltip>
+                    <TooltipTrigger
+                      className={cn(toolbarBtnClass, 'text-muted-foreground hover:bg-muted hover:text-foreground')}
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onClick={() => onInsertElement?.('text')}
+                    >
+                      <Type className="size-4" />
+                    </TooltipTrigger>
+                    <TooltipContent side={tooltipSide} className="inline-flex items-center gap-1.5">
+                      <span>Add text</span>
+                      <kbd className={kbdClass}>T</kbd>
+                    </TooltipContent>
+                  </Tooltip>
+                </>
+              )}
+
               <EditsPopover
                 tooltipSide={tooltipSide}
                 sessionEditCount={totalItemCount}
@@ -367,6 +402,7 @@ function DirectEditToolbarContent() {
   const {
     toggleEditMode, setTheme,
     getSessionItems, exportAllEdits, sendAllSessionItemsToAgent, clearSessionEdits, removeSessionEdit, deleteComment,
+    insertElement,
     toggleCanvas, setCanvasZoom, zoomCanvasTo100, fitCanvasToViewport,
   } = useDirectEditActions()
   const [rulersVisible, toggleRulers] = useRulersVisible()
@@ -395,6 +431,7 @@ function DirectEditToolbarContent() {
       onSetCanvasZoom={setCanvasZoom}
       onZoomTo100={zoomCanvasTo100}
       onFitToViewport={fitCanvasToViewport}
+      onInsertElement={insertElement}
     />
   )
 }

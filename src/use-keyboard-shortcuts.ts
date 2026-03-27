@@ -127,6 +127,11 @@ export function useKeyboardShortcuts({
           insertElement('frame')
           return
         }
+        if (lowerKey === 't') {
+          e.preventDefault()
+          insertElement('text')
+          return
+        }
         if (lowerKey === 'd') {
           e.preventDefault()
           insertElement('div')
