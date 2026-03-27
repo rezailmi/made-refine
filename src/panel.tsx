@@ -368,7 +368,7 @@ function DirectEditPanelContent() {
     handleMoveComplete,
     addComment, submitCommentDraft, addCommentReply, deleteComment, exportComment,
     sendCommentToAgent, setActiveCommentId,
-    startTextEditing, toggleEditMode, deleteSelection,
+    startTextEditing, toggleEditMode, deleteSelection, setCommentDraftText, setCommentDraftBlockedHandler,
   } = useDirectEditActions()
 
   const {
@@ -399,7 +399,8 @@ function DirectEditPanelContent() {
 
   React.useEffect(() => {
     commentDraftRef.current = ''
-  }, [activeCommentId])
+    setCommentDraftText('')
+  }, [activeCommentId, setCommentDraftText])
 
   const activeDraftComment = React.useMemo(() => {
     if (!commentTargetElement || !activeCommentId) return null
@@ -427,6 +428,21 @@ function DirectEditPanelContent() {
         : { commentId, nonce: 1 }
     ))
   }, [])
+
+  React.useEffect(() => {
+    if (!activeCommentId) {
+      setCommentDraftBlockedHandler(null)
+      return
+    }
+
+    setCommentDraftBlockedHandler(() => {
+      triggerCommentInputAttention(activeCommentId)
+    })
+
+    return () => {
+      setCommentDraftBlockedHandler(null)
+    }
+  }, [activeCommentId, setCommentDraftBlockedHandler, triggerCommentInputAttention])
 
   const hasPendingCommentDraft = React.useCallback((nextCommentId: string | null = null) => {
     if (!activeCommentId) return false
@@ -548,6 +564,7 @@ function DirectEditPanelContent() {
       comment={activeDraftComment}
       attentionNonce={commentInputAttention?.commentId === activeDraftComment.id ? commentInputAttention.nonce : 0}
       draftRef={commentDraftRef}
+      onDraftTextChange={setCommentDraftText}
       onSubmit={(text) => submitCommentDraft(activeDraftComment.id, text)}
       onCancel={() => handleSetActiveComment(null)}
     />,

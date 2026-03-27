@@ -13,6 +13,8 @@ import {
 } from './utils'
 import { copyText } from './clipboard'
 
+const GENERATED_CANVAS_NODE_ATTR = 'data-made-refine-canvas-node'
+
 function clampUnit(value: number): number {
   if (!Number.isFinite(value)) return 0
   return Math.max(0, Math.min(1, value))
@@ -64,6 +66,112 @@ export function useTextAndComments({
     editingElement.style.outlineOffset = ''
     editingElement.style.cursor = originalCursor
     editingElement.blur()
+
+    const isGeneratedTextElement = editingElement.getAttribute(GENERATED_CANVAS_NODE_ATTR) === 'text'
+    const shouldDeleteGeneratedText = isGeneratedTextElement && newText.trim().length === 0
+
+    if (shouldDeleteGeneratedText) {
+      const parent = editingElement.parentElement
+      const nextSibling = editingElement.nextSibling as Node | null
+      const current = stateRef.current
+      const removedComments = current.comments.filter((comment) => comment.element === editingElement)
+      const removedCommentIds = new Set(removedComments.map((comment) => comment.id))
+      const remainingComments = current.comments.filter((comment) => comment.element !== editingElement)
+      const restoredActiveCommentId = current.activeCommentId && removedCommentIds.has(current.activeCommentId)
+        ? current.activeCommentId
+        : null
+      const existingSessionEdit = existing
+        ? {
+            ...existing,
+            originalStyles: { ...existing.originalStyles },
+            pendingStyles: { ...existing.pendingStyles },
+            move: existing.move ? { ...existing.move } : null,
+            textEdit: existing.textEdit ? { ...existing.textEdit } : null,
+          }
+        : null
+
+      const restoreSelection = {
+        isOpen: current.isOpen,
+        selectedElement: current.selectedElement,
+        selectedElements: [...current.selectedElements],
+        selectionAnchorElement: current.selectionAnchorElement,
+        originalStyles: { ...current.originalStyles },
+        pendingStyles: { ...current.pendingStyles },
+      }
+
+      sessionEditsRef.current.delete(editingElement)
+      if (editingElement.isConnected) {
+        editingElement.remove()
+      }
+
+      pushUndo({
+        type: 'structure',
+        restoreSelection,
+        undo: () => {
+          editingElement.textContent = previousText
+          if (!editingElement.isConnected && parent?.isConnected) {
+            if (nextSibling && nextSibling.parentNode === parent) {
+              parent.insertBefore(editingElement, nextSibling)
+            } else {
+              parent.appendChild(editingElement)
+            }
+          }
+          if (existingSessionEdit) {
+            sessionEditsRef.current.set(editingElement, existingSessionEdit)
+          }
+          setState((prev) => ({
+            ...prev,
+            comments: current.comments,
+            activeCommentId: restoredActiveCommentId ?? prev.activeCommentId,
+          }))
+          syncSessionItemCount(current.comments)
+        },
+      })
+
+      syncSessionItemCount(remainingComments)
+      setState((prev) => {
+        const selectionContainsElement = prev.selectedElement === editingElement
+          || prev.selectionAnchorElement === editingElement
+          || prev.selectedElements.includes(editingElement)
+
+        if (!selectionContainsElement) {
+          return prev.textEditingElement === editingElement
+            ? {
+                ...prev,
+                comments: prev.comments.filter((comment) => comment.element !== editingElement),
+                activeCommentId: prev.activeCommentId && removedCommentIds.has(prev.activeCommentId)
+                  ? null
+                  : prev.activeCommentId,
+                textEditingElement: null,
+              }
+            : prev
+        }
+
+        return {
+          ...prev,
+          isOpen: false,
+          selectedElement: null,
+          selectedElements: [],
+          selectionAnchorElement: null,
+          elementInfo: null,
+          computedSpacing: null,
+          computedBorderRadius: null,
+          computedBorder: null,
+          computedFlex: null,
+          computedSizing: null,
+          computedColor: null,
+          computedBoxShadow: null,
+          computedTypography: null,
+          isComponentPrimitive: false,
+          comments: remainingComments,
+          activeCommentId: restoredActiveCommentId ? null : prev.activeCommentId,
+          originalStyles: {},
+          pendingStyles: {},
+          textEditingElement: null,
+        }
+      })
+      return
+    }
 
     if (newText !== previousText) {
       pushUndo({ type: 'textEdit', element: editingElement, originalText, previousText })

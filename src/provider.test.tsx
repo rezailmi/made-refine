@@ -641,6 +641,34 @@ describe('DirectEditProvider', () => {
     })
   })
 
+  it('inserts text from the real toolbar and starts inline editing', async () => {
+    class ResizeObserverMock {
+      observe() {}
+      disconnect() {}
+      unobserve() {}
+    }
+    vi.stubGlobal('ResizeObserver', ResizeObserverMock)
+    stubMatchMedia()
+
+    const { result } = renderHook(() => useDirectEdit(), { wrapper: toolbarWrapper })
+
+    act(() => {
+      result.current.toggleEditMode()
+    })
+
+    const root = await findHostShadowRoot()
+    const textTrigger = await findToolbarButtonByIcon(root, 'lucide-type')
+
+    act(() => {
+      fireEvent.click(textTrigger)
+    })
+
+    await waitFor(() => {
+      expect(result.current.selectedElement?.getAttribute('data-made-refine-canvas-node')).toBe('text')
+      expect(result.current.textEditingElement?.getAttribute('data-made-refine-canvas-node')).toBe('text')
+    })
+  })
+
   it('changes theme from the preferences theme submenu on click', async () => {
     class ResizeObserverMock {
       observe() {}
@@ -990,6 +1018,78 @@ describe('DirectEditProvider', () => {
     })
   })
 
+  it('adds canvas text from keyboard shortcuts and enters text editing', async () => {
+    const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+    act(() => {
+      result.current.toggleEditMode()
+    })
+
+    await waitFor(() => {
+      expect(result.current.editModeActive).toBe(true)
+    })
+
+    const textCountBefore = document.querySelectorAll('[data-made-refine-canvas-node="text"]').length
+
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 't', code: 'KeyT' }))
+    })
+
+    await waitFor(() => {
+      expect(document.querySelectorAll('[data-made-refine-canvas-node="text"]').length).toBeGreaterThan(textCountBefore)
+      expect(result.current.selectedElement?.getAttribute('data-made-refine-canvas-node')).toBe('text')
+      expect(result.current.textEditingElement?.getAttribute('data-made-refine-canvas-node')).toBe('text')
+    })
+  })
+
+  it('commits the active text edit before inserting a new text node', async () => {
+    const target = createTarget('insert-after-text-edit')
+    const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+    act(() => {
+      result.current.toggleEditMode()
+      result.current.selectElement(target)
+    })
+
+    await waitFor(() => {
+      expect(result.current.selectedElement).toBe(target)
+    })
+
+    act(() => {
+      result.current.startTextEditing(target)
+    })
+
+    await waitFor(() => {
+      expect(result.current.textEditingElement).toBe(target)
+      expect(target.getAttribute('contenteditable')).toBe('true')
+    })
+
+    act(() => {
+      target.textContent = 'Updated text copy'
+    })
+
+    act(() => {
+      result.current.insertElement('text')
+    })
+
+    await act(async () => {
+      await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)))
+    })
+
+    await waitFor(() => {
+      expect(target.getAttribute('contenteditable')).toBeNull()
+      expect(result.current.textEditingElement).not.toBe(target)
+      expect(result.current.textEditingElement?.getAttribute('data-made-refine-canvas-node')).toBe('text')
+      expect(result.current.selectedElement?.getAttribute('data-made-refine-canvas-node')).toBe('text')
+    })
+
+    const committedEdit = result.current.getSessionEdits().find((edit) => edit.element === target)
+    expect(committedEdit?.textEdit).toEqual({
+      originalText: 'target-insert-after-text-edit',
+      newText: 'Updated text copy',
+    })
+  })
+
   it('groups multiple canvas nodes into a wrapper', async () => {
     const { result } = renderHook(() => useDirectEdit(), { wrapper })
 
@@ -1224,6 +1324,129 @@ describe('DirectEditProvider', () => {
 
       expect(frame.isConnected).toBe(false)
       expect(container.querySelector('[data-made-refine-canvas-node="frame"]')).toBeNull()
+    })
+  })
+
+  describe('insertElement text', () => {
+    it('applies minimal styling to text and starts text editing', async () => {
+      const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+      act(() => {
+        result.current.toggleEditMode()
+      })
+
+      await waitFor(() => {
+        expect(result.current.editModeActive).toBe(true)
+      })
+
+      act(() => {
+        result.current.insertElement('text')
+      })
+
+      const text = document.querySelector('[data-made-refine-canvas-node="text"]') as HTMLParagraphElement
+      expect(text).not.toBeNull()
+      expect(text.tagName).toBe('P')
+      expect(text.textContent).toBe('Text')
+      expect(text.style.display).toBe('inline-block')
+      expect(text.style.marginTop).toBe('0px')
+      expect(text.style.marginRight).toBe('0px')
+      expect(text.style.marginBottom).toBe('0px')
+      expect(text.style.marginLeft).toBe('0px')
+      expect(text.style.boxSizing).toBe('border-box')
+      expect(text.style.minHeight).toBe('24px')
+      expect(text.style.textAlign).toBe('center')
+
+      await waitFor(() => {
+        expect(result.current.selectedElement).toBe(text)
+        expect(result.current.textEditingElement).toBe(text)
+      })
+      expect(text.getAttribute('contenteditable')).toBe('true')
+    })
+
+    it('inserts text on body when no element is selected', async () => {
+      const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+      act(() => {
+        result.current.toggleEditMode()
+      })
+
+      await waitFor(() => {
+        expect(result.current.editModeActive).toBe(true)
+      })
+
+      act(() => {
+        result.current.insertElement('text')
+      })
+
+      const text = document.querySelector('[data-made-refine-canvas-node="text"]') as HTMLParagraphElement
+      expect(text).not.toBeNull()
+      expect(text.parentElement).toBe(document.body)
+      expect(text.style.position).toBe('absolute')
+      expect(text.style.left).not.toBe('')
+      expect(text.style.top).not.toBe('')
+    })
+
+    it('inserts text as sibling after selected element', async () => {
+      const container = document.createElement('div')
+      container.style.display = 'flex'
+      document.body.appendChild(container)
+      const child = document.createElement('div')
+      child.id = 'text-sibling-target'
+      child.textContent = 'child'
+      container.appendChild(child)
+
+      const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+      act(() => {
+        result.current.toggleEditMode()
+      })
+
+      await waitFor(() => {
+        expect(result.current.editModeActive).toBe(true)
+      })
+
+      act(() => {
+        result.current.selectElement(child)
+      })
+
+      await waitFor(() => {
+        expect(result.current.selectedElement).toBe(child)
+      })
+
+      act(() => {
+        result.current.insertElement('text')
+      })
+
+      const text = document.querySelector('[data-made-refine-canvas-node="text"]') as HTMLParagraphElement
+      expect(text).not.toBeNull()
+      expect(text.parentElement).toBe(container)
+      expect(child.nextElementSibling).toBe(text)
+      expect(text.style.position).toBe('')
+    })
+
+    it('inserts text on body when body is selected', async () => {
+      const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+      act(() => {
+        result.current.toggleEditMode()
+      })
+
+      await waitFor(() => {
+        expect(result.current.editModeActive).toBe(true)
+      })
+
+      act(() => {
+        result.current.selectElement(document.body)
+      })
+
+      act(() => {
+        result.current.insertElement('text')
+      })
+
+      const text = document.querySelector('[data-made-refine-canvas-node="text"]') as HTMLParagraphElement
+      expect(text).not.toBeNull()
+      expect(text.parentElement).toBe(document.body)
+      expect(text.style.position).toBe('absolute')
     })
   })
 
@@ -2108,6 +2331,53 @@ describe('DirectEditProvider', () => {
     })
   })
 
+  it('blocks toolbar insertion for unsent drafts and preserves the draft text', async () => {
+    class ResizeObserverMock {
+      observe() {}
+      disconnect() {}
+      unobserve() {}
+    }
+    vi.stubGlobal('ResizeObserver', ResizeObserverMock)
+    stubMatchMedia()
+
+    const target = createTarget('comment-toolbar-draft-guard', 'padding-top: 8px; width: 320px; height: 120px;')
+    const { result } = renderHook(() => useDirectEdit(), { wrapper: fullUiWrapper })
+
+    act(() => {
+      result.current.toggleEditMode()
+      result.current.selectElement(target)
+    })
+
+    await clickCommentPill()
+
+    await waitFor(() => {
+      expect(result.current.activeCommentId).not.toBeNull()
+    })
+
+    const draftCommentId = result.current.activeCommentId
+    const draftInput = await findSelectedCommentInput()
+
+    act(() => {
+      fireEvent.change(draftInput, { target: { value: 'Draft that should stay put' } })
+    })
+
+    const shadowRoot = await findHostShadowRoot()
+    const textInsertButton = await findToolbarButtonByIcon(shadowRoot, 'lucide-type')
+    const textCountBefore = document.querySelectorAll('[data-made-refine-canvas-node="text"]').length
+
+    act(() => {
+      fireEvent.click(textInsertButton)
+    })
+
+    expect(document.querySelectorAll('[data-made-refine-canvas-node="text"]')).toHaveLength(textCountBefore)
+    expect(result.current.activeCommentId).toBe(draftCommentId)
+    expect(draftInput.value).toBe('Draft that should stay put')
+
+    await waitFor(() => {
+      expect(draftInput.getAttribute('aria-invalid')).toBe('true')
+    })
+  })
+
   it('opens the selected-element composer on comment pill click and positions it below the size label', async () => {
     const target = createTarget('comment-selection-target', 'padding-top: 8px; width: 320px; height: 120px;')
     target.getBoundingClientRect = () => ({
@@ -2818,6 +3088,131 @@ describe('DirectEditProvider', () => {
       expect(result.current.sessionEditCount).toBe(1)
     })
     expect(target.textContent).toBe('After')
+  })
+
+  it('deletes generated text nodes when their content is committed empty', async () => {
+    const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+    act(() => {
+      result.current.toggleEditMode()
+    })
+
+    await waitFor(() => {
+      expect(result.current.editModeActive).toBe(true)
+    })
+
+    act(() => {
+      result.current.insertElement('text')
+    })
+
+    const text = await waitFor(() => {
+      const element = document.querySelector('[data-made-refine-canvas-node="text"]') as HTMLParagraphElement | null
+      expect(element).not.toBeNull()
+      return element as HTMLParagraphElement
+    })
+
+    await waitFor(() => {
+      expect(result.current.textEditingElement).toBe(text)
+    })
+
+    act(() => {
+      text.textContent = ''
+      result.current.commitTextEditing()
+    })
+
+    await waitFor(() => {
+      expect(document.querySelector('[data-made-refine-canvas-node="text"]')).toBeNull()
+      expect(result.current.textEditingElement).toBeNull()
+      expect(result.current.selectedElement).toBeNull()
+    })
+
+    act(() => {
+      result.current.undo()
+    })
+
+    await waitFor(() => {
+      const restored = document.querySelector('[data-made-refine-canvas-node="text"]') as HTMLParagraphElement | null
+      expect(restored).not.toBeNull()
+      expect(restored?.textContent).toBe('Text')
+      expect(result.current.selectedElement).toBe(restored)
+    })
+  })
+
+  it('removes comments attached to generated text nodes when empty commit deletes them', async () => {
+    const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+    act(() => {
+      result.current.toggleEditMode()
+    })
+
+    await waitFor(() => {
+      expect(result.current.editModeActive).toBe(true)
+    })
+
+    act(() => {
+      result.current.insertElement('text')
+    })
+
+    const text = await waitFor(() => {
+      const element = document.querySelector('[data-made-refine-canvas-node="text"]') as HTMLParagraphElement | null
+      expect(element).not.toBeNull()
+      return element as HTMLParagraphElement
+    })
+
+    await waitFor(() => {
+      expect(result.current.textEditingElement).toBe(text)
+    })
+
+    act(() => {
+      result.current.commitTextEditing()
+    })
+
+    await waitFor(() => {
+      expect(result.current.textEditingElement).toBeNull()
+      expect(result.current.selectedElement).toBe(text)
+    })
+
+    act(() => {
+      result.current.addComment(text, { x: 12, y: 16 })
+    })
+
+    await waitFor(() => {
+      expect(result.current.comments).toHaveLength(1)
+      expect(result.current.activeCommentId).not.toBeNull()
+    })
+
+    const commentId = result.current.activeCommentId
+
+    act(() => {
+      result.current.startTextEditing(text)
+    })
+
+    await waitFor(() => {
+      expect(result.current.textEditingElement).toBe(text)
+    })
+
+    act(() => {
+      text.textContent = ''
+      result.current.commitTextEditing()
+    })
+
+    await waitFor(() => {
+      expect(document.querySelector('[data-made-refine-canvas-node="text"]')).toBeNull()
+      expect(result.current.comments).toHaveLength(0)
+      expect(result.current.activeCommentId).toBeNull()
+    })
+
+    act(() => {
+      result.current.undo()
+    })
+
+    await waitFor(() => {
+      const restored = document.querySelector('[data-made-refine-canvas-node="text"]') as HTMLParagraphElement | null
+      expect(restored).not.toBeNull()
+      expect(result.current.comments).toHaveLength(1)
+      expect(result.current.comments[0].id).toBe(commentId)
+      expect(result.current.activeCommentId).toBe(commentId)
+    })
   })
 
   it('blocks app element clicks while text editing is active in design mode', async () => {

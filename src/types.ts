@@ -124,7 +124,7 @@ export type ActiveTool = 'select' | 'comment'
 
 export type Theme = 'light' | 'dark' | 'system'
 export type BorderStyleControlPreference = 'label' | 'icon'
-export type CanvasElementKind = 'div' | 'frame'
+export type CanvasElementKind = 'div' | 'frame' | 'text'
 
 export interface SelectElementOptions {
   additive?: boolean

@@ -92,6 +92,7 @@ export interface SelectedCommentComposerProps {
   comment: Comment
   attentionNonce: number
   draftRef?: React.MutableRefObject<string>
+  onDraftTextChange?: (text: string) => void
   onSubmit: (text: string) => string | null
   onCancel: () => void
 }
@@ -100,6 +101,7 @@ export function SelectedCommentComposer({
   comment,
   attentionNonce,
   draftRef,
+  onDraftTextChange,
   onSubmit,
   onCancel,
 }: SelectedCommentComposerProps) {
@@ -154,7 +156,8 @@ export function SelectedCommentComposer({
 
   React.useEffect(() => {
     if (draftRef) draftRef.current = text
-  }, [draftRef, text])
+    onDraftTextChange?.(text)
+  }, [draftRef, onDraftTextChange, text])
 
   const submit = React.useCallback(() => {
     const nextText = text.trim()
