@@ -3663,6 +3663,63 @@ describe('DirectEditProvider', () => {
       })
     })
 
+    it('classifies batch network failure (all items throw) as unreachable', async () => {
+      mockClipboard()
+      const firstTarget = createTarget('batch-throw-first-target', 'padding-top: 4px;')
+      const secondTarget = createTarget('batch-throw-second-target', 'margin-left: 8px;')
+      const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+      // Set up first edit
+      act(() => {
+        result.current.selectElement(firstTarget)
+      })
+      await waitFor(() => {
+        expect(result.current.selectedElement).toBe(firstTarget)
+      })
+      act(() => {
+        result.current.updateSpacingProperty('paddingTop', cssValue(20))
+      })
+
+      // Set up second edit
+      act(() => {
+        result.current.selectElement(secondTarget)
+      })
+      await waitFor(() => {
+        expect(result.current.selectedElement).toBe(secondTarget)
+      })
+      act(() => {
+        result.current.updateSpacingProperty('paddingTop', cssValue(16))
+      })
+
+      await waitFor(() => {
+        expect(result.current.sessionEditCount).toBe(2)
+      })
+
+      sendEditToAgentMock.mockClear()
+      // Both calls throw (broker down)
+      sendEditToAgentMock
+        .mockRejectedValueOnce(new Error('network error'))
+        .mockRejectedValueOnce(new Error('network error'))
+
+      let sent: boolean
+      await act(async () => {
+        sent = await result.current.sendAllSessionItemsToAgent()
+      })
+
+      expect(sent!).toBe(false)
+
+      await waitFor(() => {
+        expect(result.current.lastSendFailure).not.toBeNull()
+      })
+
+      const failure = result.current.lastSendFailure!
+      expect(failure.reason).toBe('unreachable')
+      expect(failure.failedEditElements).toHaveLength(2)
+      expect(failure.failedEditElements).toContain(firstTarget)
+      expect(failure.failedEditElements).toContain(secondTarget)
+      expect(failure.failedCommentIds).toHaveLength(0)
+    })
+
     it('clears lastSendFailure on the next send attempt', async () => {
       mockClipboard()
       const target = createTarget('failure-clear-retry-target', 'padding-top: 4px;')

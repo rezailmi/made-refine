@@ -212,8 +212,12 @@ export function useAgentComms({ stateRef, sessionEditsRef, getSessionItems, save
         })
       }
       return updateAgentAvailability(result.ok)
-    } catch {
-      if (!options?._isBatchCall && isMountedRef.current) {
+    } catch (err) {
+      updateAgentAvailability(false)
+      if (options?._isBatchCall) {
+        throw err
+      }
+      if (isMountedRef.current) {
         setLastSendFailure({
           reason: 'unreachable',
           failedEditElements: [sessionEdit.element],
@@ -221,7 +225,7 @@ export function useAgentComms({ stateRef, sessionEditsRef, getSessionItems, save
           at: Date.now(),
         })
       }
-      return updateAgentAvailability(false)
+      return false
     }
   }, [updateAgentAvailability, removeSessionEdit])
 
@@ -247,8 +251,12 @@ export function useAgentComms({ stateRef, sessionEditsRef, getSessionItems, save
         })
       }
       return updateAgentAvailability(result.ok)
-    } catch {
-      if (!_options?._isBatchCall && isMountedRef.current) {
+    } catch (err) {
+      updateAgentAvailability(false)
+      if (_options?._isBatchCall) {
+        throw err
+      }
+      if (isMountedRef.current) {
         setLastSendFailure({
           reason: 'unreachable',
           failedEditElements: [],
@@ -256,7 +264,7 @@ export function useAgentComms({ stateRef, sessionEditsRef, getSessionItems, save
           at: Date.now(),
         })
       }
-      return updateAgentAvailability(false)
+      return false
     }
   }, [updateAgentAvailability, deleteComment])
 
@@ -440,8 +448,6 @@ export function useAgentComms({ stateRef, sessionEditsRef, getSessionItems, save
         failedCommentIds,
         at: Date.now(),
       })
-    } else if (allSucceeded && !contextBlockFailed) {
-      // already cleared at start
     }
 
     return allSucceeded
