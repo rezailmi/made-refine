@@ -29,6 +29,7 @@ type DevToolsHook = {
 
 const fiberRoots = new Map<number, Set<FiberRoot>>()
 let elementToFiber = new WeakMap<HTMLElement, Fiber>()
+let indexDirty = true
 
 function ensureRootSet(rendererId: number): Set<FiberRoot> {
   let set = fiberRoots.get(rendererId)
@@ -67,6 +68,10 @@ function indexFiberTree(root: Fiber) {
 }
 
 function getFiberForElement(element: HTMLElement): Fiber | null {
+  if (indexDirty) {
+    rebuildIndex()
+    indexDirty = false
+  }
   return elementToFiber.get(element) ?? null
 }
 
@@ -85,7 +90,7 @@ function createHook(): DevToolsHook {
     onCommitFiberRoot(id, root) {
       const roots = ensureRootSet(id)
       roots.add(root)
-      rebuildIndex()
+      indexDirty = true
     },
     onCommitFiberUnmount() {
       // Rebuild on next commit; unmount does not include the root reference.
@@ -114,7 +119,7 @@ function wrapHook(existing: DevToolsHook) {
   existing.onCommitFiberRoot = (id, root, ...args) => {
     const roots = ensureRootSet(id)
     roots.add(root)
-    rebuildIndex()
+    indexDirty = true
     if (originalCommit) {
       originalCommit(id, root, ...args)
     }
@@ -154,3 +159,5 @@ function installHook() {
 }
 
 installHook()
+
+export {}
