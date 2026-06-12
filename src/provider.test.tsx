@@ -867,6 +867,57 @@ describe('DirectEditProvider', () => {
     expect(result.current.editModeActive).toBe(false)
   })
 
+  it('does not undo when edit mode is inactive (undo shortcut not intercepted)', () => {
+    // Regression test: the undo keyboard shortcut must be a no-op when edit mode is
+    // off, so made-refine does not steal Ctrl+Z from the host app.
+    const target = createTarget('undo-inactive-mode-target', 'padding-top: 4px;')
+    const { result, unmount } = renderHook(() => useDirectEdit(), { wrapper })
+
+    // Activate edit mode, make a change, then EXIT edit mode.
+    act(() => {
+      result.current.toggleEditMode()
+      result.current.selectElement(target)
+    })
+    act(() => {
+      result.current.updateSpacingProperty('paddingTop', parsePropertyValue('16px'))
+    })
+    expect(target.style.paddingTop).toBe('16px')
+
+    act(() => {
+      result.current.toggleEditMode() // turn edit mode OFF
+    })
+    expect(result.current.editModeActive).toBe(false)
+
+    // Ctrl+Z while edit mode is off must NOT trigger made-refine undo.
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', ctrlKey: true }))
+    })
+    expect(target.style.paddingTop).toBe('16px') // change must still be in place
+    unmount()
+  })
+
+  it('performs undo shortcut when edit mode is active', () => {
+    const target = createTarget('undo-active-mode-target', 'padding-top: 4px;')
+    const { result, unmount } = renderHook(() => useDirectEdit(), { wrapper })
+
+    act(() => {
+      result.current.toggleEditMode()
+      result.current.selectElement(target)
+    })
+
+    act(() => {
+      result.current.updateSpacingProperty('paddingTop', parsePropertyValue('20px'))
+    })
+    expect(target.style.paddingTop).toBe('20px')
+
+    act(() => {
+      // Use ctrlKey so undoShortcutPressed=true in JSDOM (non-Mac navigator.platform)
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', ctrlKey: true }))
+    })
+    expect(target.style.paddingTop).toBe('4px')
+    unmount()
+  })
+
   it('uses Cmd+Z for undo on macOS and ignores Ctrl+Z', () => {
     const platformDescriptor = Object.getOwnPropertyDescriptor(window.navigator, 'platform')
     Object.defineProperty(window.navigator, 'platform', {
