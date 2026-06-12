@@ -1062,4 +1062,114 @@ describe('useMove', () => {
     expect(onMoveComplete).toHaveBeenCalledTimes(1)
     expect(onMoveComplete.mock.calls[0]?.[1]).toBeNull()
   })
+
+  it('composes inline transform during drag and restores it on drop', () => {
+    const onMoveComplete = vi.fn()
+    const parent = document.createElement('div')
+    const dragged = document.createElement('div')
+    parent.appendChild(dragged)
+    document.body.appendChild(parent)
+
+    dragged.style.transform = 'rotate(45deg)'
+    dragged.getBoundingClientRect = () => ({
+      left: 10, top: 20, width: 100, height: 40,
+      right: 110, bottom: 60, x: 10, y: 20,
+      toJSON: () => ({}),
+    }) as DOMRect
+
+    const { result } = renderHook(() => useMove({ onMoveComplete }))
+
+    act(() => {
+      result.current.startDrag(pointerEvent(30, 40), dragged)
+    })
+
+    act(() => {
+      dispatchPointer('pointermove', 60, 70)
+    })
+
+    // translate must be prepended to the original transform (order is the point of the fix)
+    expect(dragged.style.transform).toMatch(/^translate\(.+\) rotate\(45deg\)$/)
+
+    act(() => {
+      dispatchPointer('pointerup', 60, 70)
+    })
+
+    // after drop, inline transform is restored exactly
+    expect(dragged.style.transform).toBe('rotate(45deg)')
+  })
+
+  it('composes class-based (computed) transform during drag and clears inline on drop', () => {
+    const onMoveComplete = vi.fn()
+    const parent = document.createElement('div')
+    const dragged = document.createElement('div')
+    parent.appendChild(dragged)
+    document.body.appendChild(parent)
+
+    // No inline transform — transform comes from a class (mocked via getComputedStyle)
+    const computedMatrix = 'matrix(0.707, 0.707, -0.707, 0.707, 0, 0)'
+    const originalGetComputedStyle = window.getComputedStyle
+    vi.spyOn(window, 'getComputedStyle').mockImplementation((el, pseudo) => {
+      const real = originalGetComputedStyle(el, pseudo)
+      if (el === dragged) {
+        return { ...real, transform: computedMatrix } as CSSStyleDeclaration
+      }
+      return real
+    })
+
+    dragged.getBoundingClientRect = () => ({
+      left: 10, top: 20, width: 100, height: 40,
+      right: 110, bottom: 60, x: 10, y: 20,
+      toJSON: () => ({}),
+    }) as DOMRect
+
+    const { result } = renderHook(() => useMove({ onMoveComplete }))
+
+    act(() => {
+      result.current.startDrag(pointerEvent(30, 40), dragged)
+    })
+
+    act(() => {
+      dispatchPointer('pointermove', 60, 70)
+    })
+
+    // translate prepended to the computed matrix
+    expect(dragged.style.transform).toMatch(/^translate\(.+\) matrix\(/)
+
+    act(() => {
+      dispatchPointer('pointerup', 60, 70)
+    })
+
+    // inline transform restored to '' — the stylesheet class owns the transform again
+    expect(dragged.style.transform).toBe('')
+
+    vi.restoreAllMocks()
+  })
+
+  it('produces a bare translate during drag when element has no transform', () => {
+    const onMoveComplete = vi.fn()
+    const parent = document.createElement('div')
+    const dragged = document.createElement('div')
+    parent.appendChild(dragged)
+    document.body.appendChild(parent)
+
+    // No inline or computed transform
+    dragged.getBoundingClientRect = () => ({
+      left: 10, top: 20, width: 100, height: 40,
+      right: 110, bottom: 60, x: 10, y: 20,
+      toJSON: () => ({}),
+    }) as DOMRect
+
+    const { result } = renderHook(() => useMove({ onMoveComplete }))
+
+    act(() => {
+      result.current.startDrag(pointerEvent(30, 40), dragged)
+    })
+
+    act(() => {
+      dispatchPointer('pointermove', 60, 70)
+    })
+
+    // bare translate — no compose base appended after the closing paren
+    expect(dragged.style.transform).toMatch(/^translate\([^)]+px, [^)]+px\)$/)
+  })
 })
