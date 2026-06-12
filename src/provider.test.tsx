@@ -11,8 +11,8 @@ import { PANEL_WIDTH, PANEL_HEIGHT } from './use-panel-position'
 
 const { checkAgentConnectionMock, sendEditToAgentMock, sendCommentToAgentMock } = vi.hoisted(() => ({
   checkAgentConnectionMock: vi.fn<() => Promise<boolean>>().mockResolvedValue(true),
-  sendEditToAgentMock: vi.fn<(...args: unknown[]) => Promise<{ ok: boolean; id: string }>>().mockResolvedValue({ ok: true, id: 'edit-1' }),
-  sendCommentToAgentMock: vi.fn<(...args: unknown[]) => Promise<{ ok: boolean; id: string }>>().mockResolvedValue({ ok: true, id: 'comment-1' }),
+  sendEditToAgentMock: vi.fn<(...args: unknown[]) => Promise<{ ok: boolean; id: string; errorKind?: 'network' | 'rejected' }>>().mockResolvedValue({ ok: true, id: 'edit-1' }),
+  sendCommentToAgentMock: vi.fn<(...args: unknown[]) => Promise<{ ok: boolean; id: string; errorKind?: 'network' | 'rejected' }>>().mockResolvedValue({ ok: true, id: 'comment-1' }),
 }))
 
 vi.mock('./mcp-client', () => ({
@@ -3804,6 +3804,67 @@ describe('DirectEditProvider', () => {
 
       await waitFor(() => {
         expect(result.current.lastSendFailure).toBeNull()
+      })
+    })
+
+    it('sets lastSendFailure.reason to unreachable when send resolves ok=false with errorKind=network', async () => {
+      mockClipboard()
+      const target = createTarget('failure-network-kind-target', 'padding-top: 4px;')
+      const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+      act(() => {
+        result.current.selectElement(target)
+      })
+      await waitFor(() => {
+        expect(result.current.selectedElement).toBe(target)
+      })
+      act(() => {
+        result.current.updateSpacingProperty('paddingTop', cssValue(20))
+      })
+
+      sendEditToAgentMock.mockResolvedValueOnce({ ok: false, id: '', errorKind: 'network' })
+
+      let sent: boolean
+      await act(async () => {
+        sent = await result.current.sendEditToAgent()
+      })
+
+      expect(sent!).toBe(false)
+      await waitFor(() => {
+        expect(result.current.lastSendFailure).not.toBeNull()
+        expect(result.current.lastSendFailure?.reason).toBe('unreachable')
+      })
+    })
+
+    it('sets lastSendFailure under StrictMode when send fails', async () => {
+      mockClipboard()
+      const target = createTarget('failure-strictmode-target', 'padding-top: 4px;')
+      const strictWrapper = ({ children }: { children: React.ReactNode }) => (
+        <React.StrictMode>
+          <DirectEditProvider>{children}</DirectEditProvider>
+        </React.StrictMode>
+      )
+      const { result } = renderHook(() => useDirectEdit(), { wrapper: strictWrapper })
+
+      act(() => {
+        result.current.selectElement(target)
+      })
+      await waitFor(() => {
+        expect(result.current.selectedElement).toBe(target)
+      })
+      act(() => {
+        result.current.updateSpacingProperty('paddingTop', cssValue(20))
+      })
+
+      sendEditToAgentMock.mockResolvedValueOnce({ ok: false, id: '', errorKind: 'network' })
+
+      await act(async () => {
+        await result.current.sendEditToAgent()
+      })
+
+      await waitFor(() => {
+        expect(result.current.lastSendFailure).not.toBeNull()
+        expect(result.current.lastSendFailure?.reason).toBe('unreachable')
       })
     })
   })
