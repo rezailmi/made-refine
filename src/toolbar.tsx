@@ -33,6 +33,8 @@ export interface DirectEditToolbarInnerProps {
   onExportAllEdits?: () => Promise<boolean>
   onSendAllToAgents?: () => Promise<boolean>
   agentAvailable?: boolean
+  sendFailureReason?: 'unreachable' | 'rejected' | null
+  sendFailure?: { failedEditElements: HTMLElement[]; failedCommentIds: string[] } | null
   onClearSessionEdits?: () => void
   onRemoveSessionEdit?: (element: HTMLElement) => void
   onDeleteComment?: (id: string) => void
@@ -62,6 +64,8 @@ export function DirectEditToolbarInner({
   onExportAllEdits,
   onSendAllToAgents,
   agentAvailable = true,
+  sendFailureReason,
+  sendFailure,
   onClearSessionEdits,
   onRemoveSessionEdit,
   onDeleteComment,
@@ -81,7 +85,7 @@ export function DirectEditToolbarInner({
   const [activePopover, setActivePopover] = React.useState<'edits' | 'settings' | null>(null)
   const [applyStatus, setApplyStatus] = React.useState<'idle' | 'sending' | 'sent' | 'offline'>('idle')
   const applyTimerRef = React.useRef<number | null>(null)
-  const showApplyButton = agentAvailable && Boolean(onSendAllToAgents)
+  const showApplyButton = (agentAvailable || applyStatus !== 'idle') && Boolean(onSendAllToAgents)
   const showInsertButtons = Boolean(onInsertElement)
   const totalItemCount = sessionEditCount + multiSelectCount
 
@@ -160,6 +164,23 @@ export function DirectEditToolbarInner({
     }, 2000)
   }, [])
 
+  // Reset offline status when totalItemCount changes (user modified the queue)
+  const prevTotalItemCountRef = React.useRef(totalItemCount)
+  React.useEffect(() => {
+    if (prevTotalItemCountRef.current !== totalItemCount) {
+      prevTotalItemCountRef.current = totalItemCount
+      if (applyStatus === 'offline') {
+        setApplyStatus('idle')
+      }
+    }
+  }, [totalItemCount, applyStatus])
+
+  const applyTooltipLabel = applyStatus === 'offline'
+    ? (sendFailureReason === 'unreachable'
+        ? 'Agent unreachable — click to retry'
+        : 'Agent rejected the edit — click to retry')
+    : 'Apply all changes via agent'
+
   const handleApplyAll = React.useCallback(async () => {
     if (!onSendAllToAgents || totalItemCount === 0 || applyStatus === 'sending') return
 
@@ -171,8 +192,13 @@ export function DirectEditToolbarInner({
       success = false
     }
 
-    setApplyStatus(success ? 'sent' : 'offline')
-    scheduleApplyReset()
+    if (success) {
+      setApplyStatus('sent')
+      scheduleApplyReset()
+    } else {
+      // Persistent: do NOT auto-reset on failure
+      setApplyStatus('offline')
+    }
   }, [applyStatus, onSendAllToAgents, scheduleApplyReset, totalItemCount])
 
   const dragHandlers = React.useMemo(() => ({
@@ -301,6 +327,7 @@ export function DirectEditToolbarInner({
                 onClearSessionEdits={onClearSessionEdits}
                 onRemoveSessionEdit={onRemoveSessionEdit}
                 onDeleteComment={onDeleteComment}
+                sendFailure={sendFailure}
               />
 
               {showApplyButton && (
@@ -338,7 +365,7 @@ export function DirectEditToolbarInner({
                     </span>
                   </TooltipTrigger>
                   <TooltipContent side={tooltipSide}>
-                    <span>Apply all changes via agent</span>
+                    <span>{applyTooltipLabel}</span>
                   </TooltipContent>
                 </Tooltip>
               )}
@@ -398,7 +425,7 @@ export function DirectEditToolbarInner({
 }
 
 function DirectEditToolbarContent() {
-  const { editModeActive, theme, sessionEditCount, multiSelectContextCount, selectedElements, canvas, agentAvailable } = useDirectEditState()
+  const { editModeActive, theme, sessionEditCount, multiSelectContextCount, selectedElements, canvas, agentAvailable, lastSendFailure } = useDirectEditState()
   const {
     toggleEditMode, setTheme,
     getSessionItems, exportAllEdits, sendAllSessionItemsToAgent, clearSessionEdits, removeSessionEdit, deleteComment,
@@ -422,6 +449,8 @@ function DirectEditToolbarContent() {
       onExportAllEdits={exportAllEdits}
       onSendAllToAgents={sendAllSessionItemsToAgent}
       agentAvailable={agentAvailable}
+      sendFailureReason={lastSendFailure?.reason ?? null}
+      sendFailure={lastSendFailure}
       onClearSessionEdits={clearSessionEdits}
       onRemoveSessionEdit={removeSessionEdit}
       onDeleteComment={deleteComment}

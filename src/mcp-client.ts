@@ -457,41 +457,43 @@ async function sendAnnotationRequest(
   })
 }
 
-async function toClientResponse(response: Response): Promise<{ ok: boolean; id: string }> {
+async function toClientResponse(response: Response): Promise<{ ok: boolean; id: string; errorKind?: 'network' | 'rejected' }> {
   const data = await readJsonRecord(response)
   const bodyOk = data?.ok
   const parsedOk = typeof bodyOk === 'boolean' ? bodyOk : response.ok
+  const ok = parsedOk && response.ok
 
   return {
-    ok: parsedOk && response.ok,
+    ok,
     id: readString(data, 'id') ?? '',
+    ...(!ok ? { errorKind: 'rejected' as const } : {}),
   }
 }
 
 async function postWithSessionToken(
   path: AnnotationPath,
   payload: Record<string, unknown>
-): Promise<{ ok: boolean; id: string }> {
+): Promise<{ ok: boolean; id: string; errorKind?: 'network' | 'rejected' }> {
   const idempotencyKey = createIdempotencyKey()
 
   let session = await bootstrapSession()
-  if (!session) return { ok: false, id: '' }
+  if (!session) return { ok: false, id: '', errorKind: 'network' }
 
   let response: Response
   try {
     response = await sendAnnotationRequest(session, path, payload, idempotencyKey)
   } catch {
-    return { ok: false, id: '' }
+    return { ok: false, id: '', errorKind: 'network' }
   }
 
   if (response.status === 401 || response.status === 403) {
     session = (await refreshSessionToken(session)) ?? (await bootstrapSession(true))
-    if (!session) return { ok: false, id: '' }
+    if (!session) return { ok: false, id: '', errorKind: 'network' }
 
     try {
       response = await sendAnnotationRequest(session, path, payload, idempotencyKey)
     } catch {
-      return { ok: false, id: '' }
+      return { ok: false, id: '', errorKind: 'network' }
     }
   }
 
@@ -500,13 +502,13 @@ async function postWithSessionToken(
 
 export async function sendEditToAgent(
   edit: Record<string, unknown>
-): Promise<{ ok: boolean; id: string }> {
+): Promise<{ ok: boolean; id: string; errorKind?: 'network' | 'rejected' }> {
   return postWithSessionToken('/v1/annotations/edit', edit)
 }
 
 export async function sendCommentToAgent(
   comment: Record<string, unknown>
-): Promise<{ ok: boolean; id: string }> {
+): Promise<{ ok: boolean; id: string; errorKind?: 'network' | 'rejected' }> {
   return postWithSessionToken('/v1/annotations/comment', comment)
 }
 

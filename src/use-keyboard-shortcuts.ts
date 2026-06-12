@@ -67,7 +67,9 @@ export function useKeyboardShortcuts({
         : (e.ctrlKey && !e.metaKey && !e.altKey)
 
       if (undoShortcutPressed && e.key === 'z' && !e.shiftKey) {
+        if (!s.editModeActive) return // never steal the host app's undo
         if (s.textEditingElement) return // let browser handle contenteditable undo
+        if (isInputFocused()) return // let panel/host inputs keep native undo
         e.preventDefault()
         undo()
         return

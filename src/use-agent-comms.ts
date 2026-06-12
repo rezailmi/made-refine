@@ -75,11 +75,20 @@ export interface AgentCommsOptions {
   deleteComment: (id: string) => void
 }
 
+export type SendFailure = {
+  reason: 'unreachable' | 'rejected'
+  failedEditElements: HTMLElement[]
+  failedCommentIds: string[]
+  at: number
+}
+
 export function useAgentComms({ stateRef, sessionEditsRef, getSessionItems, saveCurrentToSession, removeSessionEdit, deleteComment }: AgentCommsOptions) {
   const [agentAvailable, setAgentAvailable] = React.useState(false)
+  const [lastSendFailure, setLastSendFailure] = React.useState<SendFailure | null>(null)
   const isMountedRef = React.useRef(true)
 
   React.useEffect(() => {
+    isMountedRef.current = true
     return () => {
       isMountedRef.current = false
     }
@@ -146,7 +155,7 @@ export function useAgentComms({ stateRef, sessionEditsRef, getSessionItems, save
     sessionEdit: SessionEdit,
     allEdits?: SessionEdit[],
     movePlanContext?: ReturnType<typeof buildMovePlanContext> | null,
-    options?: { includeBatchMoveEnvelope?: boolean },
+    options?: { includeBatchMoveEnvelope?: boolean; _isBatchCall?: boolean; _batchFailKinds?: Array<'network' | 'rejected'> },
   ) => {
     const locator = sessionEdit.locator
     const pendingStyles = { ...sessionEdit.pendingStyles }
@@ -195,14 +204,40 @@ export function useAgentComms({ stateRef, sessionEditsRef, getSessionItems, save
       })
       if (result.ok) {
         removeSessionEdit(sessionEdit.element)
+        updateAgentAvailability(true)
+      } else {
+        const kind = result.errorKind === 'network' ? 'unreachable' : 'rejected'
+        updateAgentAvailability(result.errorKind === 'network' ? false : true)
+        if (options?._isBatchCall) {
+          options._batchFailKinds?.push(result.errorKind ?? 'rejected')
+        } else if (isMountedRef.current) {
+          setLastSendFailure({
+            reason: kind,
+            failedEditElements: [sessionEdit.element],
+            failedCommentIds: [],
+            at: Date.now(),
+          })
+        }
       }
-      return updateAgentAvailability(result.ok)
-    } catch {
-      return updateAgentAvailability(false)
+      return result.ok
+    } catch (err) {
+      updateAgentAvailability(false)
+      if (options?._isBatchCall) {
+        throw err
+      }
+      if (isMountedRef.current) {
+        setLastSendFailure({
+          reason: 'unreachable',
+          failedEditElements: [sessionEdit.element],
+          failedCommentIds: [],
+          at: Date.now(),
+        })
+      }
+      return false
     }
   }, [updateAgentAvailability, removeSessionEdit])
 
-  const sendSessionCommentToAgent = React.useCallback(async (comment: Comment) => {
+  const sendSessionCommentToAgent = React.useCallback(async (comment: Comment, _options?: { _isBatchCall?: boolean; _batchFailKinds?: Array<'network' | 'rejected'> }) => {
     const exportMarkdown = buildCommentExport(comment.locator, comment.text, comment.replies)
     const commentProfile: ExportContentProfile = { hasCssEdits: false, hasTextEdits: false, hasMoves: false, hasComments: true }
 
@@ -215,14 +250,43 @@ export function useAgentComms({ stateRef, sessionEditsRef, getSessionItems, save
       })
       if (result.ok) {
         deleteComment(comment.id)
+        updateAgentAvailability(true)
+      } else {
+        const kind = result.errorKind === 'network' ? 'unreachable' : 'rejected'
+        updateAgentAvailability(result.errorKind === 'network' ? false : true)
+        if (_options?._isBatchCall) {
+          _options._batchFailKinds?.push(result.errorKind ?? 'rejected')
+        } else if (isMountedRef.current) {
+          setLastSendFailure({
+            reason: kind,
+            failedEditElements: [],
+            failedCommentIds: [comment.id],
+            at: Date.now(),
+          })
+        }
       }
-      return updateAgentAvailability(result.ok)
-    } catch {
-      return updateAgentAvailability(false)
+      return result.ok
+    } catch (err) {
+      updateAgentAvailability(false)
+      if (_options?._isBatchCall) {
+        throw err
+      }
+      if (isMountedRef.current) {
+        setLastSendFailure({
+          reason: 'unreachable',
+          failedEditElements: [],
+          failedCommentIds: [comment.id],
+          at: Date.now(),
+        })
+      }
+      return false
     }
   }, [updateAgentAvailability, deleteComment])
 
   const sendEditToAgent = React.useCallback(async () => {
+    // Clear any previous failure at the start of a new attempt
+    if (isMountedRef.current) setLastSendFailure(null)
+
     const current = stateRef.current
 
     // Multi-selection: bundle all selected elements into a single annotation
@@ -260,9 +324,28 @@ export function useAgentComms({ stateRef, sessionEditsRef, getSessionItems, save
               removeSessionEdit(el)
             }
           }
+          updateAgentAvailability(true)
+        } else {
+          updateAgentAvailability(result.errorKind === 'network' ? false : true)
+          if (isMountedRef.current) {
+            setLastSendFailure({
+              reason: result.errorKind === 'network' ? 'unreachable' : 'rejected',
+              failedEditElements: editsWithChanges.map((e) => e.element),
+              failedCommentIds: [],
+              at: Date.now(),
+            })
+          }
         }
-        return updateAgentAvailability(result.ok)
+        return result.ok
       } catch {
+        if (isMountedRef.current) {
+          setLastSendFailure({
+            reason: 'unreachable',
+            failedEditElements: editsWithChanges.map((e) => e.element),
+            failedCommentIds: [],
+            at: Date.now(),
+          })
+        }
         return updateAgentAvailability(false)
       }
     }
@@ -289,12 +372,17 @@ export function useAgentComms({ stateRef, sessionEditsRef, getSessionItems, save
   }, [canSendEditToAgent, sendSessionEditToAgent, saveCurrentToSession])
 
   const sendCommentToAgent = React.useCallback(async (id: string) => {
+    // Clear any previous failure at the start of a new attempt
+    if (isMountedRef.current) setLastSendFailure(null)
     const comment = stateRef.current.comments.find((c) => c.id === id)
     if (!comment) return false
     return sendSessionCommentToAgent(comment)
   }, [sendSessionCommentToAgent])
 
   const sendAllSessionItemsToAgent = React.useCallback(async () => {
+    // Clear any previous failure at the start of a new attempt
+    if (isMountedRef.current) setLastSendFailure(null)
+
     const items = getSessionItems()
     const current = stateRef.current
     const contextOnlyBlocks = getContextOnlyBlocks(current.selectedElements, items)
@@ -306,20 +394,39 @@ export function useAgentComms({ stateRef, sessionEditsRef, getSessionItems, save
     let moveEnvelopeSent = false
 
     let allSucceeded = true
+    const failedEditElements: HTMLElement[] = []
+    const failedCommentIds: string[] = []
+    let anyThrown = false
+    const batchFailKinds: Array<'network' | 'rejected'> = []
+
     for (const item of items) {
       let succeeded: boolean
       if (item.type === 'edit') {
         const hasMoveIntent = Boolean(item.edit.move && getMoveIntentForEdit(item.edit, movePlanContext))
         const includeBatchMoveEnvelope = hasMoveIntent && !moveEnvelopeSent
-        succeeded = await sendSessionEditToAgent(
-          item.edit,
-          allEdits,
-          movePlanContext,
-          { includeBatchMoveEnvelope },
-        )
+        try {
+          succeeded = await sendSessionEditToAgent(
+            item.edit,
+            allEdits,
+            movePlanContext,
+            { includeBatchMoveEnvelope, _isBatchCall: true, _batchFailKinds: batchFailKinds },
+          )
+          if (!succeeded) failedEditElements.push(item.edit.element)
+        } catch {
+          succeeded = false
+          anyThrown = true
+          failedEditElements.push(item.edit.element)
+        }
         if (includeBatchMoveEnvelope) moveEnvelopeSent = true
       } else {
-        succeeded = await sendSessionCommentToAgent(item.comment)
+        try {
+          succeeded = await sendSessionCommentToAgent(item.comment, { _isBatchCall: true, _batchFailKinds: batchFailKinds })
+          if (!succeeded) failedCommentIds.push(item.comment.id)
+        } catch {
+          succeeded = false
+          anyThrown = true
+          failedCommentIds.push(item.comment.id)
+        }
       }
       if (!succeeded) {
         allSucceeded = false
@@ -327,6 +434,7 @@ export function useAgentComms({ stateRef, sessionEditsRef, getSessionItems, save
     }
 
     // Bundle multi-selected context-only elements into a single annotation
+    let contextBlockFailed = false
     if (contextOnlyBlocks.length > 0) {
       const primaryEl = current.selectedElements.find(
         (el) => el.isConnected && !allEdits.some((e) => e.element === el),
@@ -340,18 +448,43 @@ export function useAgentComms({ stateRef, sessionEditsRef, getSessionItems, save
             moveIntent: null,
             exportMarkdown: contextOnlyBlocks.join('\n\n'),
           })
-          if (!result.ok) allSucceeded = false
+          if (result.ok) {
+            updateAgentAvailability(true)
+          } else {
+            updateAgentAvailability(result.errorKind === 'network' ? false : true)
+            allSucceeded = false
+            contextBlockFailed = true
+          }
         } catch {
+          updateAgentAvailability(false)
           allSucceeded = false
+          anyThrown = true
+          contextBlockFailed = true
         }
       }
     }
 
+    if (!allSucceeded && isMountedRef.current) {
+      const reason: 'unreachable' | 'rejected' = anyThrown || batchFailKinds.includes('network') ? 'unreachable' : 'rejected'
+      setLastSendFailure({
+        reason,
+        failedEditElements,
+        failedCommentIds,
+        at: Date.now(),
+      })
+    }
+
     return allSucceeded
-  }, [getSessionItems, sendSessionCommentToAgent, sendSessionEditToAgent])
+  }, [getSessionItems, sendSessionCommentToAgent, sendSessionEditToAgent, updateAgentAvailability])
+
+  const clearSendFailure = React.useCallback(() => {
+    if (isMountedRef.current) setLastSendFailure(null)
+  }, [])
 
   return {
     agentAvailable,
+    lastSendFailure,
+    clearSendFailure,
     canSendEditToAgent,
     sendEditToAgent,
     sendCommentToAgent,

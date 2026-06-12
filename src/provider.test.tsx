@@ -11,8 +11,8 @@ import { PANEL_WIDTH, PANEL_HEIGHT } from './use-panel-position'
 
 const { checkAgentConnectionMock, sendEditToAgentMock, sendCommentToAgentMock } = vi.hoisted(() => ({
   checkAgentConnectionMock: vi.fn<() => Promise<boolean>>().mockResolvedValue(true),
-  sendEditToAgentMock: vi.fn<(...args: unknown[]) => Promise<{ ok: boolean; id: string }>>().mockResolvedValue({ ok: true, id: 'edit-1' }),
-  sendCommentToAgentMock: vi.fn<(...args: unknown[]) => Promise<{ ok: boolean; id: string }>>().mockResolvedValue({ ok: true, id: 'comment-1' }),
+  sendEditToAgentMock: vi.fn<(...args: unknown[]) => Promise<{ ok: boolean; id: string; errorKind?: 'network' | 'rejected' }>>().mockResolvedValue({ ok: true, id: 'edit-1' }),
+  sendCommentToAgentMock: vi.fn<(...args: unknown[]) => Promise<{ ok: boolean; id: string; errorKind?: 'network' | 'rejected' }>>().mockResolvedValue({ ok: true, id: 'comment-1' }),
 }))
 
 vi.mock('./mcp-client', () => ({
@@ -865,6 +865,57 @@ describe('DirectEditProvider', () => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: '.', code: 'Period', ctrlKey: true, altKey: true }))
     })
     expect(result.current.editModeActive).toBe(false)
+  })
+
+  it('does not undo when edit mode is inactive (undo shortcut not intercepted)', () => {
+    // Regression test: the undo keyboard shortcut must be a no-op when edit mode is
+    // off, so made-refine does not steal Ctrl+Z from the host app.
+    const target = createTarget('undo-inactive-mode-target', 'padding-top: 4px;')
+    const { result, unmount } = renderHook(() => useDirectEdit(), { wrapper })
+
+    // Activate edit mode, make a change, then EXIT edit mode.
+    act(() => {
+      result.current.toggleEditMode()
+      result.current.selectElement(target)
+    })
+    act(() => {
+      result.current.updateSpacingProperty('paddingTop', parsePropertyValue('16px'))
+    })
+    expect(target.style.paddingTop).toBe('16px')
+
+    act(() => {
+      result.current.toggleEditMode() // turn edit mode OFF
+    })
+    expect(result.current.editModeActive).toBe(false)
+
+    // Ctrl+Z while edit mode is off must NOT trigger made-refine undo.
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', ctrlKey: true }))
+    })
+    expect(target.style.paddingTop).toBe('16px') // change must still be in place
+    unmount()
+  })
+
+  it('performs undo shortcut when edit mode is active', () => {
+    const target = createTarget('undo-active-mode-target', 'padding-top: 4px;')
+    const { result, unmount } = renderHook(() => useDirectEdit(), { wrapper })
+
+    act(() => {
+      result.current.toggleEditMode()
+      result.current.selectElement(target)
+    })
+
+    act(() => {
+      result.current.updateSpacingProperty('paddingTop', parsePropertyValue('20px'))
+    })
+    expect(target.style.paddingTop).toBe('20px')
+
+    act(() => {
+      // Use ctrlKey so undoShortcutPressed=true in JSDOM (non-Mac navigator.platform)
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', ctrlKey: true }))
+    })
+    expect(target.style.paddingTop).toBe('4px')
+    unmount()
   })
 
   it('uses Cmd+Z for undo on macOS and ignores Ctrl+Z', () => {
@@ -3530,5 +3581,352 @@ describe('DirectEditProvider', () => {
     const edits = result.current.getSessionEdits()
     const restored = edits.find((e) => e.element === target)
     expect(restored).toBeDefined()
+  })
+
+  describe('send failure state (plan 007)', () => {
+    it('sets lastSendFailure.reason to unreachable when single send throws', async () => {
+      mockClipboard()
+      const target = createTarget('failure-unreachable-target', 'padding-top: 4px;')
+      const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+      act(() => {
+        result.current.selectElement(target)
+      })
+
+      await waitFor(() => {
+        expect(result.current.selectedElement).toBe(target)
+      })
+
+      act(() => {
+        result.current.updateSpacingProperty('paddingTop', cssValue(20))
+      })
+
+      sendEditToAgentMock.mockRejectedValueOnce(new Error('network error'))
+
+      let sent: boolean
+      await act(async () => {
+        sent = await result.current.sendEditToAgent()
+      })
+
+      expect(sent!).toBe(false)
+      // Edit should still be in session (not removed)
+      expect(result.current.sessionEditCount).toBe(1)
+
+      await waitFor(() => {
+        expect(result.current.lastSendFailure).not.toBeNull()
+        expect(result.current.lastSendFailure?.reason).toBe('unreachable')
+      })
+    })
+
+    it('sets lastSendFailure.reason to rejected when single send resolves ok=false', async () => {
+      mockClipboard()
+      const target = createTarget('failure-rejected-target', 'padding-top: 4px;')
+      const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+      act(() => {
+        result.current.selectElement(target)
+      })
+
+      await waitFor(() => {
+        expect(result.current.selectedElement).toBe(target)
+      })
+
+      act(() => {
+        result.current.updateSpacingProperty('paddingTop', cssValue(20))
+      })
+
+      sendEditToAgentMock.mockResolvedValueOnce({ ok: false, id: '' })
+
+      let sent: boolean
+      await act(async () => {
+        sent = await result.current.sendEditToAgent()
+      })
+
+      expect(sent!).toBe(false)
+      // Edit should still be in session
+      expect(result.current.sessionEditCount).toBe(1)
+
+      await waitFor(() => {
+        expect(result.current.lastSendFailure).not.toBeNull()
+        expect(result.current.lastSendFailure?.reason).toBe('rejected')
+      })
+    })
+
+    it('tracks per-item failures in batch send: failed item in failedEditElements, succeeded item removed', async () => {
+      mockClipboard()
+      const firstTarget = createTarget('batch-first-target', 'padding-top: 4px;')
+      const secondTarget = createTarget('batch-second-target', 'margin-left: 8px;')
+      const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+      // Set up first edit
+      act(() => {
+        result.current.selectElement(firstTarget)
+      })
+      await waitFor(() => {
+        expect(result.current.selectedElement).toBe(firstTarget)
+      })
+      act(() => {
+        result.current.updateSpacingProperty('paddingTop', cssValue(20))
+      })
+
+      // Set up second edit
+      act(() => {
+        result.current.selectElement(secondTarget)
+      })
+      await waitFor(() => {
+        expect(result.current.selectedElement).toBe(secondTarget)
+      })
+      act(() => {
+        result.current.updateSpacingProperty('paddingTop', cssValue(16))
+      })
+
+      await waitFor(() => {
+        expect(result.current.sessionEditCount).toBe(2)
+      })
+
+      sendEditToAgentMock.mockClear()
+      // First call succeeds, second call fails
+      sendEditToAgentMock
+        .mockResolvedValueOnce({ ok: true, id: 'edit-1' })
+        .mockResolvedValueOnce({ ok: false, id: '' })
+
+      let sent: boolean
+      await act(async () => {
+        sent = await result.current.sendAllSessionItemsToAgent()
+      })
+
+      expect(sent!).toBe(false)
+
+      await waitFor(() => {
+        expect(result.current.lastSendFailure).not.toBeNull()
+      })
+
+      const failure = result.current.lastSendFailure!
+      // Second item should be in failedEditElements; first item was removed from session
+      expect(failure.failedEditElements).toHaveLength(1)
+      expect(failure.failedEditElements[0]).toBe(secondTarget)
+      expect(failure.failedCommentIds).toHaveLength(0)
+      // First item should have been removed from session (send succeeded)
+      await waitFor(() => {
+        const edits = result.current.getSessionEdits()
+        expect(edits.some((e) => e.element === firstTarget)).toBe(false)
+        expect(edits.some((e) => e.element === secondTarget)).toBe(true)
+      })
+    })
+
+    it('classifies batch network failure (all items throw) as unreachable', async () => {
+      mockClipboard()
+      const firstTarget = createTarget('batch-throw-first-target', 'padding-top: 4px;')
+      const secondTarget = createTarget('batch-throw-second-target', 'margin-left: 8px;')
+      const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+      // Set up first edit
+      act(() => {
+        result.current.selectElement(firstTarget)
+      })
+      await waitFor(() => {
+        expect(result.current.selectedElement).toBe(firstTarget)
+      })
+      act(() => {
+        result.current.updateSpacingProperty('paddingTop', cssValue(20))
+      })
+
+      // Set up second edit
+      act(() => {
+        result.current.selectElement(secondTarget)
+      })
+      await waitFor(() => {
+        expect(result.current.selectedElement).toBe(secondTarget)
+      })
+      act(() => {
+        result.current.updateSpacingProperty('paddingTop', cssValue(16))
+      })
+
+      await waitFor(() => {
+        expect(result.current.sessionEditCount).toBe(2)
+      })
+
+      sendEditToAgentMock.mockClear()
+      // Both calls throw (broker down)
+      sendEditToAgentMock
+        .mockRejectedValueOnce(new Error('network error'))
+        .mockRejectedValueOnce(new Error('network error'))
+
+      let sent: boolean
+      await act(async () => {
+        sent = await result.current.sendAllSessionItemsToAgent()
+      })
+
+      expect(sent!).toBe(false)
+
+      await waitFor(() => {
+        expect(result.current.lastSendFailure).not.toBeNull()
+      })
+
+      const failure = result.current.lastSendFailure!
+      expect(failure.reason).toBe('unreachable')
+      expect(failure.failedEditElements).toHaveLength(2)
+      expect(failure.failedEditElements).toContain(firstTarget)
+      expect(failure.failedEditElements).toContain(secondTarget)
+      expect(failure.failedCommentIds).toHaveLength(0)
+    })
+
+    it('clears lastSendFailure on the next send attempt', async () => {
+      mockClipboard()
+      const target = createTarget('failure-clear-retry-target', 'padding-top: 4px;')
+      const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+      act(() => {
+        result.current.selectElement(target)
+      })
+      await waitFor(() => {
+        expect(result.current.selectedElement).toBe(target)
+      })
+      act(() => {
+        result.current.updateSpacingProperty('paddingTop', cssValue(20))
+      })
+
+      // First send fails
+      sendEditToAgentMock.mockResolvedValueOnce({ ok: false, id: '' })
+      await act(async () => {
+        await result.current.sendEditToAgent()
+      })
+
+      await waitFor(() => {
+        expect(result.current.lastSendFailure).not.toBeNull()
+      })
+
+      // Next send succeeds — failure should be cleared
+      sendEditToAgentMock.mockResolvedValueOnce({ ok: true, id: 'edit-ok' })
+      await act(async () => {
+        await result.current.sendEditToAgent()
+      })
+
+      await waitFor(() => {
+        expect(result.current.lastSendFailure).toBeNull()
+      })
+    })
+
+    it('sets lastSendFailure.reason to unreachable when send resolves ok=false with errorKind=network', async () => {
+      mockClipboard()
+      const target = createTarget('failure-network-kind-target', 'padding-top: 4px;')
+      const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+      act(() => {
+        result.current.selectElement(target)
+      })
+      await waitFor(() => {
+        expect(result.current.selectedElement).toBe(target)
+      })
+      act(() => {
+        result.current.updateSpacingProperty('paddingTop', cssValue(20))
+      })
+
+      sendEditToAgentMock.mockResolvedValueOnce({ ok: false, id: '', errorKind: 'network' })
+
+      let sent: boolean
+      await act(async () => {
+        sent = await result.current.sendEditToAgent()
+      })
+
+      expect(sent!).toBe(false)
+      await waitFor(() => {
+        expect(result.current.lastSendFailure).not.toBeNull()
+        expect(result.current.lastSendFailure?.reason).toBe('unreachable')
+      })
+    })
+
+    it('keeps agentAvailable true when send fails with errorKind=rejected (server reachable)', async () => {
+      mockClipboard()
+      const target = createTarget('availability-rejected-target', 'padding-top: 4px;')
+      const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+      act(() => {
+        result.current.selectElement(target)
+      })
+      await waitFor(() => {
+        expect(result.current.selectedElement).toBe(target)
+      })
+      act(() => {
+        result.current.updateSpacingProperty('paddingTop', cssValue(20))
+      })
+
+      // Agent responds (reachable) but rejects the edit
+      sendEditToAgentMock.mockResolvedValueOnce({ ok: false, id: '', errorKind: 'rejected' })
+
+      let sent: boolean
+      await act(async () => {
+        sent = await result.current.sendEditToAgent()
+      })
+
+      expect(sent!).toBe(false)
+      await waitFor(() => {
+        expect(result.current.lastSendFailure?.reason).toBe('rejected')
+        // Server responded — agent is still reachable
+        expect(result.current.agentAvailable).toBe(true)
+      })
+    })
+
+    it('sets agentAvailable false when send fails with errorKind=network (network-level failure)', async () => {
+      mockClipboard()
+      const target = createTarget('availability-network-target', 'padding-top: 4px;')
+      const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+      act(() => {
+        result.current.selectElement(target)
+      })
+      await waitFor(() => {
+        expect(result.current.selectedElement).toBe(target)
+      })
+      act(() => {
+        result.current.updateSpacingProperty('paddingTop', cssValue(20))
+      })
+
+      // Agent is unreachable — resolves with network error kind
+      sendEditToAgentMock.mockResolvedValueOnce({ ok: false, id: '', errorKind: 'network' })
+
+      let sent: boolean
+      await act(async () => {
+        sent = await result.current.sendEditToAgent()
+      })
+
+      expect(sent!).toBe(false)
+      await waitFor(() => {
+        expect(result.current.lastSendFailure?.reason).toBe('unreachable')
+        expect(result.current.agentAvailable).toBe(false)
+      })
+    })
+
+    it('sets lastSendFailure under StrictMode when send fails', async () => {
+      mockClipboard()
+      const target = createTarget('failure-strictmode-target', 'padding-top: 4px;')
+      const strictWrapper = ({ children }: { children: React.ReactNode }) => (
+        <React.StrictMode>
+          <DirectEditProvider>{children}</DirectEditProvider>
+        </React.StrictMode>
+      )
+      const { result } = renderHook(() => useDirectEdit(), { wrapper: strictWrapper })
+
+      act(() => {
+        result.current.selectElement(target)
+      })
+      await waitFor(() => {
+        expect(result.current.selectedElement).toBe(target)
+      })
+      act(() => {
+        result.current.updateSpacingProperty('paddingTop', cssValue(20))
+      })
+
+      sendEditToAgentMock.mockResolvedValueOnce({ ok: false, id: '', errorKind: 'network' })
+
+      await act(async () => {
+        await result.current.sendEditToAgent()
+      })
+
+      await waitFor(() => {
+        expect(result.current.lastSendFailure).not.toBeNull()
+        expect(result.current.lastSendFailure?.reason).toBe('unreachable')
+      })
+    })
   })
 })

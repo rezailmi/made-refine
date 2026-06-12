@@ -286,4 +286,84 @@ describe('mcp-client', () => {
     // 1 for the first successful call + 3 for the second call (1 initial + 2 retries on 503)
     expect(fetchMock).toHaveBeenCalledTimes(4)
   })
+
+  it('returns errorKind=network when fetch rejects', async () => {
+    const fetchMock = vi.mocked(fetch)
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          protocolVersion: 1,
+          ingestBaseUrl: 'http://127.0.0.1:9602',
+          accessToken: 'token-7',
+          expiresAt: '2999-01-01T00:00:00.000Z',
+        })
+      )
+      .mockRejectedValueOnce(new Error('network error'))
+      .mockRejectedValueOnce(new Error('network error'))
+      .mockRejectedValueOnce(new Error('network error'))
+
+    window.__MADE_REFINE_CONFIG__ = {
+      mcp: {
+        bootstrapUrl: 'http://127.0.0.1:9601',
+      },
+    }
+
+    const { sendEditToAgent } = await import('./mcp-client')
+    const result = await sendEditToAgent({ change: 'color: red' })
+
+    expect(result.ok).toBe(false)
+    expect(result.errorKind).toBe('network')
+  })
+
+  it('returns errorKind=rejected when server returns non-ok response', async () => {
+    const fetchMock = vi.mocked(fetch)
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          protocolVersion: 1,
+          ingestBaseUrl: 'http://127.0.0.1:9702',
+          accessToken: 'token-8',
+          expiresAt: '2999-01-01T00:00:00.000Z',
+        })
+      )
+      .mockResolvedValueOnce(jsonResponse(422, { ok: false }))
+
+    window.__MADE_REFINE_CONFIG__ = {
+      mcp: {
+        bootstrapUrl: 'http://127.0.0.1:9701',
+      },
+    }
+
+    const { sendEditToAgent } = await import('./mcp-client')
+    const result = await sendEditToAgent({ change: 'color: red' })
+
+    expect(result.ok).toBe(false)
+    expect(result.errorKind).toBe('rejected')
+  })
+
+  it('does not include errorKind when send succeeds', async () => {
+    const fetchMock = vi.mocked(fetch)
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          protocolVersion: 1,
+          ingestBaseUrl: 'http://127.0.0.1:9802',
+          accessToken: 'token-9',
+          expiresAt: '2999-01-01T00:00:00.000Z',
+        })
+      )
+      .mockResolvedValueOnce(jsonResponse(200, { ok: true, id: 'edit-ok' }))
+
+    window.__MADE_REFINE_CONFIG__ = {
+      mcp: {
+        bootstrapUrl: 'http://127.0.0.1:9801',
+      },
+    }
+
+    const { sendEditToAgent } = await import('./mcp-client')
+    const result = await sendEditToAgent({ change: 'color: red' })
+
+    expect(result.ok).toBe(true)
+    expect(result.errorKind).toBeUndefined()
+  })
 })

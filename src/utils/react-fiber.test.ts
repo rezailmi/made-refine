@@ -6,6 +6,7 @@ import {
   deriveDefinitionSource,
   classifyComponentFiber,
   getSourceFromFiber,
+  resolveComponentName,
 } from './react-fiber'
 
 describe('isComponentPrimitivePath', () => {
@@ -370,5 +371,56 @@ react-stack-bottom-frame@http://localhost:3000/_next/static/chunks/main.js:2:2`,
   it('returns null for null/undefined fiber', () => {
     expect(getSourceFromFiber(null)).toBeNull()
     expect(getSourceFromFiber(undefined)).toBeNull()
+  })
+})
+
+describe('resolveComponentName', () => {
+  it('returns the name of a plain named function', () => {
+    function Button() { return null }
+    expect(resolveComponentName(Button)).toBe('Button')
+  })
+
+  it('displayName wins over function.name', () => {
+    const f = () => null
+    ;(f as any).displayName = 'Styled(Button)'
+    expect(resolveComponentName(f)).toBe('Styled(Button)')
+  })
+
+  it('resolves name through a forwardRef wrapper', () => {
+    function Button() { return null }
+    const type = { $$typeof: Symbol.for('react.forward_ref'), render: Button }
+    expect(resolveComponentName(type)).toBe('Button')
+  })
+
+  it('resolves name through a memo wrapper', () => {
+    function Row() { return null }
+    const type = { $$typeof: Symbol.for('react.memo'), type: Row }
+    expect(resolveComponentName(type)).toBe('Row')
+  })
+
+  it('resolves name through nested memo(forwardRef(fn))', () => {
+    function Input() { return null }
+    const forwardRefObj = { $$typeof: Symbol.for('react.forward_ref'), render: Input }
+    const memoObj = { $$typeof: Symbol.for('react.memo'), type: forwardRefObj }
+    expect(resolveComponentName(memoObj)).toBe('Input')
+  })
+
+  it('wrapper displayName beats inner function name', () => {
+    function Row() { return null }
+    const memoObj = { $$typeof: Symbol.for('react.memo'), type: Row, displayName: 'MemoRow' }
+    expect(resolveComponentName(memoObj)).toBe('MemoRow')
+  })
+
+  it('returns null for anonymous forwardRef with no render name', () => {
+    // Must use Object.defineProperty to avoid the JS inferred-name rule:
+    // `{ render: () => null }` infers `.name === 'render'`, which would be returned.
+    const anon = (() => { const f = () => null; Object.defineProperty(f, 'name', { value: '' }); return f })()
+    const type = { $$typeof: Symbol.for('react.forward_ref'), render: anon }
+    expect(resolveComponentName(type)).toBeNull()
+  })
+
+  it('returns null for plain objects and host element string types', () => {
+    expect(resolveComponentName({})).toBeNull()
+    expect(resolveComponentName('div')).toBeNull()
   })
 })

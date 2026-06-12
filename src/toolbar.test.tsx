@@ -1,6 +1,6 @@
 import * as React from 'react'
-import { fireEvent, render, waitFor } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { act, fireEvent, render, waitFor } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DirectEditToolbarInner } from './toolbar'
 import type { SessionItem } from './types'
 
@@ -601,6 +601,149 @@ describe('DirectEditToolbarInner', () => {
     expect(copied).toContain('id: op-2')
     expect(copied).not.toContain('id: op-1')
     expect(copied).not.toContain('=== LAYOUT MOVE PLAN ===')
+  })
+
+  describe('apply-all failure persistence and success auto-reset', () => {
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('keeps offline status past 2s when apply-all fails (persistent error)', async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true })
+      const onSendAllToAgents = vi.fn<(...args: unknown[]) => Promise<boolean>>().mockResolvedValue(false)
+      const { container } = render(
+        <DirectEditToolbarInner
+          editModeActive={true}
+          onToggleEditMode={() => {}}
+          rulersVisible={false}
+          onToggleRulers={() => {}}
+          sessionEditCount={1}
+          onSendAllToAgents={onSendAllToAgents}
+        />,
+      )
+
+      const applyButton = container.querySelector('[data-direct-edit="apply-all-button"]') as HTMLButtonElement
+      expect(applyButton).not.toBeNull()
+
+      await act(async () => {
+        fireEvent.click(applyButton)
+        // Flush the resolved promise
+        await Promise.resolve()
+      })
+
+      // Advance 3000ms (past the old 2s auto-reset window)
+      act(() => {
+        vi.advanceTimersByTime(3000)
+      })
+
+      // Should still be in offline state (apply button shows X icon, not Send icon)
+      const applyBtn = container.querySelector('[data-direct-edit="apply-all-button"]') as HTMLButtonElement
+      expect(applyBtn.querySelector('svg.lucide-x')).not.toBeNull()
+      expect(applyBtn.querySelector('svg.lucide-send')).toBeNull()
+    })
+
+    it('keeps apply button mounted while status is offline even if agentAvailable is false', async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true })
+      const onSendAllToAgents = vi.fn<(...args: unknown[]) => Promise<boolean>>().mockResolvedValue(false)
+      const { container, rerender } = render(
+        <DirectEditToolbarInner
+          editModeActive={true}
+          onToggleEditMode={() => {}}
+          rulersVisible={false}
+          onToggleRulers={() => {}}
+          sessionEditCount={1}
+          onSendAllToAgents={onSendAllToAgents}
+          agentAvailable={true}
+        />,
+      )
+
+      const applyButton = container.querySelector('[data-direct-edit="apply-all-button"]') as HTMLButtonElement
+      expect(applyButton).not.toBeNull()
+
+      await act(async () => {
+        fireEvent.click(applyButton)
+        await Promise.resolve()
+      })
+
+      // Simulate parent propagating agentAvailable=false after a network failure
+      rerender(
+        <DirectEditToolbarInner
+          editModeActive={true}
+          onToggleEditMode={() => {}}
+          rulersVisible={false}
+          onToggleRulers={() => {}}
+          sessionEditCount={1}
+          onSendAllToAgents={onSendAllToAgents}
+          agentAvailable={false}
+        />,
+      )
+
+      // Button must still be present because applyStatus is 'offline' (non-idle)
+      const applyBtn = container.querySelector('[data-direct-edit="apply-all-button"]') as HTMLButtonElement
+      expect(applyBtn).not.toBeNull()
+      // Offline icon visible
+      expect(applyBtn.querySelector('svg.lucide-x')).not.toBeNull()
+    })
+
+    it('hides apply button when agentAvailable is false and status is idle', () => {
+      const onSendAllToAgents = vi.fn<(...args: unknown[]) => Promise<boolean>>().mockResolvedValue(false)
+      const { container } = render(
+        <DirectEditToolbarInner
+          editModeActive={true}
+          onToggleEditMode={() => {}}
+          rulersVisible={false}
+          onToggleRulers={() => {}}
+          sessionEditCount={1}
+          onSendAllToAgents={onSendAllToAgents}
+          agentAvailable={false}
+        />,
+      )
+
+      // agentAvailable=false + idle status → button hidden
+      expect(container.querySelector('[data-direct-edit="apply-all-button"]')).toBeNull()
+    })
+
+    it('resets to idle after 2s when apply-all succeeds', async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true })
+      const onSendAllToAgents = vi.fn<(...args: unknown[]) => Promise<boolean>>().mockResolvedValue(true)
+      const { container } = render(
+        <DirectEditToolbarInner
+          editModeActive={true}
+          onToggleEditMode={() => {}}
+          rulersVisible={false}
+          onToggleRulers={() => {}}
+          sessionEditCount={1}
+          onSendAllToAgents={onSendAllToAgents}
+        />,
+      )
+
+      const applyButton = container.querySelector('[data-direct-edit="apply-all-button"]') as HTMLButtonElement
+      expect(applyButton).not.toBeNull()
+
+      await act(async () => {
+        fireEvent.click(applyButton)
+        // Flush the resolved promise
+        await Promise.resolve()
+      })
+
+      // After success, apply button should contain check icon
+      await waitFor(() => {
+        const btn = container.querySelector('[data-direct-edit="apply-all-button"]') as HTMLButtonElement
+        expect(btn.querySelector('svg.lucide-check')).not.toBeNull()
+      })
+
+      // After 2s, apply button should reset to idle (Send icon)
+      act(() => {
+        vi.advanceTimersByTime(2500)
+      })
+
+      await waitFor(() => {
+        const btn = container.querySelector('[data-direct-edit="apply-all-button"]') as HTMLButtonElement
+        expect(btn.querySelector('svg.lucide-send')).not.toBeNull()
+        // Check icon should be gone from the apply button
+        expect(btn.querySelector('svg.lucide-check')).toBeNull()
+      })
+    })
   })
 
   it('does not include move-plan instruction for style edits with noop move metadata', async () => {
