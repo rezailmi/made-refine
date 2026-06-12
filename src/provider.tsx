@@ -25,6 +25,7 @@ import type {
   CanvasElementKind,
 } from './types'
 import type { MoveInfo } from './use-move'
+import type { SendFailure } from './use-agent-comms'
 import { useStyleUpdaters } from './use-style-updaters'
 import { useSessionManager } from './use-session-manager'
 import { useTextAndComments } from './use-text-and-comments'
@@ -69,6 +70,7 @@ export interface DirectEditActionsContextValue {
   addCommentReply: (id: string, text: string) => void
   deleteComment: (id: string) => void
   exportComment: (id: string) => Promise<boolean>
+  clearSendFailure: () => void
   canSendEditToAgent: (snapshot?: {
     selectedElement: HTMLElement | null
     elementInfo: DirectEditState['elementInfo']
@@ -98,6 +100,7 @@ export interface DirectEditActionsContextValue {
 
 export interface DirectEditStateContextValue extends DirectEditState {
   agentAvailable: boolean
+  lastSendFailure: SendFailure | null
   sessionEditCount: number
   multiSelectContextCount: number
 }
@@ -507,7 +510,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
   }, [state.editModeActive])
 
   const {
-    agentAvailable, canSendEditToAgent, sendEditToAgent, sendCommentToAgent, sendAllSessionItemsToAgent,
+    agentAvailable, lastSendFailure, clearSendFailure, canSendEditToAgent, sendEditToAgent, sendCommentToAgent, sendAllSessionItemsToAgent,
   } = useAgentComms({ stateRef, sessionEditsRef, getSessionItems, saveCurrentToSession, removeSessionEdit, deleteComment })
 
   const setActiveTool = React.useCallback((tool: ActiveTool) => {
@@ -560,9 +563,10 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
   const stateContextValue = React.useMemo<DirectEditStateContextValue>(() => ({
     ...state,
     agentAvailable,
+    lastSendFailure,
     sessionEditCount,
     multiSelectContextCount,
-  }), [agentAvailable, state, sessionEditCount, multiSelectContextCount])
+  }), [agentAvailable, lastSendFailure, state, sessionEditCount, multiSelectContextCount])
 
   const actionsContextValue = React.useMemo<DirectEditActionsContextValue>(() => ({
     selectElement, selectElements, toggleElementSelection, clearSelection,
@@ -570,7 +574,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     updateSpacingProperty, updateBorderRadiusProperty, updateBorderProperty,
     updateBorderProperties, updateRawCSS, updateFlexProperty, toggleFlexLayout,
     updateSizingProperties, updateSizingProperty, updateColorProperty, replaceSelectionColor, updateTypographyProperty,
-    resetToOriginal, exportEdits, canSendEditToAgent, sendEditToAgent,
+    resetToOriginal, exportEdits, clearSendFailure, canSendEditToAgent, sendEditToAgent,
     sendAllSessionItemsToAgent, sendCommentToAgent, toggleEditMode, undo,
     handleMoveComplete, setActiveTool, setTheme, setBorderStyleControlPreference,
     addComment, updateCommentText, submitCommentDraft, addCommentReply, deleteComment, exportComment,
@@ -584,7 +588,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     updateSpacingProperty, updateBorderRadiusProperty, updateBorderProperty,
     updateBorderProperties, updateRawCSS, updateFlexProperty, toggleFlexLayout,
     updateSizingProperties, updateSizingProperty, updateColorProperty, replaceSelectionColor, updateTypographyProperty,
-    resetToOriginal, exportEdits, canSendEditToAgent, sendEditToAgent,
+    resetToOriginal, exportEdits, clearSendFailure, canSendEditToAgent, sendEditToAgent,
     sendAllSessionItemsToAgent, sendCommentToAgent, toggleEditMode, undo,
     handleMoveComplete, setActiveTool, setTheme, setBorderStyleControlPreference,
     addComment, updateCommentText, submitCommentDraft, addCommentReply, deleteComment, exportComment,

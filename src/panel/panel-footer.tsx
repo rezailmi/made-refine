@@ -12,6 +12,7 @@ export interface PanelFooterProps {
   onExportEdits?: () => Promise<boolean>
   onSendToAgent?: () => Promise<boolean>
   showSendButton?: boolean
+  sendFailureReason?: 'unreachable' | 'rejected' | null
   onPointerDown?: (e: React.PointerEvent) => void
   onPointerMove?: (e: React.PointerEvent) => void
   onPointerUp?: (e: React.PointerEvent) => void
@@ -24,6 +25,7 @@ export function PanelFooter({
   onExportEdits,
   onSendToAgent,
   showSendButton = true,
+  sendFailureReason,
   onPointerDown,
   onPointerMove,
   onPointerUp,
@@ -32,6 +34,15 @@ export function PanelFooter({
   const [copied, setCopied] = React.useState(false)
   const [copyError, setCopyError] = React.useState(false)
   const [sendStatus, setSendStatus] = React.useState<'idle' | 'sending' | 'sent' | 'offline'>('idle')
+
+  // Reset to idle when canTriggerSend flips (element selection changed)
+  const prevCanTriggerSendRef = React.useRef(canTriggerSend)
+  React.useEffect(() => {
+    if (prevCanTriggerSendRef.current !== canTriggerSend) {
+      prevCanTriggerSendRef.current = canTriggerSend
+      setSendStatus('idle')
+    }
+  }, [canTriggerSend])
 
   const handleCopy = async () => {
     if (!onExportEdits) return
@@ -47,6 +58,12 @@ export function PanelFooter({
     setTimeout(() => setCopyError(false), 2000)
   }
 
+  const sendTooltipLabel = sendStatus === 'offline'
+    ? (sendFailureReason === 'unreachable'
+        ? 'Agent unreachable — click to retry'
+        : 'Agent rejected the edit — click to retry')
+    : 'Apply changes via agent'
+
   const handleSendToAgent = async () => {
     if (!onSendToAgent || sendStatus === 'sending') return
     setSendStatus('sending')
@@ -55,8 +72,8 @@ export function PanelFooter({
       setSendStatus('sent')
       setTimeout(() => setSendStatus('idle'), 2000)
     } else {
+      // Persistent: do NOT auto-reset on failure
       setSendStatus('offline')
-      setTimeout(() => setSendStatus('idle'), 2000)
     }
   }
 
@@ -94,7 +111,7 @@ export function PanelFooter({
       )}
       {showSendButton && onSendToAgent && (
         <span className={!canTriggerSend || sendStatus === 'sending' ? 'cursor-not-allowed' : undefined}>
-          <Tip label="Apply changes via agent">
+          <Tip label={sendTooltipLabel}>
             <Button
               variant="outline"
               size="icon"

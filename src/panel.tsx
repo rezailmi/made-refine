@@ -132,6 +132,7 @@ export interface DirectEditPanelInnerProps {
   onSendToAgent?: () => Promise<boolean>
   canSendToAgent?: boolean
   showSendButton?: boolean
+  sendFailureReason?: 'unreachable' | 'rejected' | null
   className?: string
   style?: React.CSSProperties
   panelRef?: React.RefObject<HTMLDivElement>
@@ -175,6 +176,7 @@ export function DirectEditPanelInner({
   onSendToAgent,
   canSendToAgent = false,
   showSendButton = true,
+  sendFailureReason,
   className,
   style,
   panelRef,
@@ -335,6 +337,7 @@ export function DirectEditPanelInner({
           onExportEdits={onExportEdits}
           onSendToAgent={onSendToAgent}
           showSendButton={showSendButton}
+          sendFailureReason={sendFailureReason}
           onPointerDown={onHeaderPointerDown}
           onPointerMove={onHeaderPointerMove}
           onPointerUp={onHeaderPointerUp}
@@ -355,7 +358,7 @@ function DirectEditPanelContent() {
     computedSizing, computedColor, computedBoxShadow, computedTypography,
     isComponentPrimitive, borderStyleControlPreference, pendingStyles,
     editModeActive, selectedElement, selectedElements, selectionAnchorElement, canvas,
-    comments, activeCommentId, textEditingElement, agentAvailable,
+    comments, activeCommentId, textEditingElement, agentAvailable, lastSendFailure,
   } = useDirectEditState()
   const {
     selectParent, selectChild, selectElement, selectElements: setSelectedElements,
