@@ -21,7 +21,7 @@ Entry point: `src/cli.ts` (built to `dist/cli.cjs` via tsup, registered as the `
 ### Vite
 
 - Adds `import { madeRefine } from 'made-refine/vite'` and `madeRefine()` to the plugins array in `vite.config.ts`
-- Adds `babel: { plugins: ['made-refine/babel'] }` to the `react()` plugin config
+- Adds `babel: { plugins: ['made-refine/babel'] }` to the `react()` plugin config (the plugin only injects `data-direct-edit-source` attributes when Babel's env is `development` — the default when `NODE_ENV` is unset — so the attribute never reaches production builds or test snapshots)
 - Adds `{import.meta.env.DEV && <DirectEdit />}` to the root component (`src/App.tsx` or similar)
 
 ### TanStack Start

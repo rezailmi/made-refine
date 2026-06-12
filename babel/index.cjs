@@ -4,7 +4,13 @@ function isHostElement(name) {
   return /^[a-z]/.test(name)
 }
 
-module.exports = function directEditSourcePlugin({ types: t }) {
+module.exports = function directEditSourcePlugin(api) {
+  const t = api.types
+  // Source attributes are a dev-only aid: never ship file paths to production,
+  // and never pollute consumers' test snapshots (NODE_ENV=test).
+  if (typeof api.env === 'function' && !api.env('development')) {
+    return { name: 'direct-edit-source', visitor: {} }
+  }
   return {
     name: 'direct-edit-source',
     visitor: {
