@@ -8,9 +8,9 @@ The maintainer's own planning docs live in `plan/` (singular) — unrelated to t
 
 | Plan | Title | Priority | Effort | Depends on | Status |
 |------|-------|----------|--------|------------|--------|
-| 001  | Stop hijacking host-app Cmd+Z when edit mode is off | P1 | S | — | TODO |
-| 002  | Compose existing CSS transforms during drag (inline + computed/class-based) | P1 | S | — | TODO |
-| 003  | Inject `data-direct-edit-source` in development only (not prod, not test) | P1 | S | — | TODO |
+| 001  | Stop hijacking host-app Cmd+Z when edit mode is off | P1 | S | — | DONE |
+| 002  | Compose existing CSS transforms during drag (inline + computed/class-based) | P1 | S | — | DONE |
+| 003  | Inject `data-direct-edit-source` in development only (not prod, not test) | P1 | S | — | DONE |
 | 006  | Session-edit lifecycle design spike (survive remounts: reattach+reapply / stale) | P1 | M (spike) | — | TODO |
 | 004  | Rebuild preload fiber index lazily, not on every React commit | P2 | M | — | TODO |
 | 005  | Include memo()/forwardRef() components in extracted component stack | P2 | M | — | TODO |
