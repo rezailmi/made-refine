@@ -62,12 +62,34 @@ export function getSourceFromFiber(fiber: any):
   return null
 }
 
+const REACT_FORWARD_REF_TYPE = Symbol.for('react.forward_ref')
+const REACT_MEMO_TYPE = Symbol.for('react.memo')
+
+/**
+ * Resolve a displayable component name through memo()/forwardRef() wrappers.
+ * Walks at most a few levels (memo(forwardRef(fn))). Returns null when no
+ * name can be derived (anonymous wrappers, lazy, host components).
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function resolveComponentName(type: any): string | null {
+  let current = type
+  for (let depth = 0; depth < 4 && current != null; depth++) {
+    const name = current.displayName || (typeof current === 'function' ? current.name : undefined)
+    if (name) return name
+    if (typeof current !== 'object') return null
+    if (current.$$typeof === REACT_MEMO_TYPE) { current = current.type; continue }
+    if (current.$$typeof === REACT_FORWARD_REF_TYPE) { current = current.render; continue }
+    return null
+  }
+  return null
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function buildFrame(fiber: any): ReactComponentFrame | null {
   const type = fiber?.type
   if (typeof type !== 'function' && typeof type !== 'object') return null
 
-  const name = type?.displayName || type?.name || null
+  const name = resolveComponentName(type)
   if (!name || name === 'Fragment') return null
 
   const frame: ReactComponentFrame = { name }
