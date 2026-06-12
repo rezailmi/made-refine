@@ -155,6 +155,9 @@ export function useMove({ onMoveComplete }: UseMoveOptions): UseMoveResult {
     { x: 0, y: 0, scaleX: 1, scaleY: 1 }
   )
   const originalTransformRef = React.useRef('')
+  // What to append after the drag translate: the inline transform if present,
+  // else the computed matrix snapshot (covers class-based transforms like Tailwind's rotate-45).
+  const composeBaseRef = React.useRef('')
   const reorderPreviewRef = React.useRef(new Map<HTMLElement, ReorderPreviewSnapshot>())
 
   React.useEffect(() => {
@@ -265,6 +268,7 @@ export function useMove({ onMoveComplete }: UseMoveOptions): UseMoveResult {
     }
     clearReorderPreview()
     originalTransformRef.current = ''
+    composeBaseRef.current = ''
     initialRectRef.current = { x: 0, y: 0, scaleX: 1, scaleY: 1 }
     dragOptionsRef.current = DEFAULT_DRAG_OPTIONS
     dragGuardRef.current.deactivate()
@@ -289,6 +293,7 @@ export function useMove({ onMoveComplete }: UseMoveOptions): UseMoveResult {
     draggedElement.style.opacity = ''
     clearReorderPreview()
     originalTransformRef.current = ''
+    composeBaseRef.current = ''
     initialRectRef.current = { x: 0, y: 0, scaleX: 1, scaleY: 1 }
     const dragMode = dragOptionsRef.current.mode
     dragOptionsRef.current = DEFAULT_DRAG_OPTIONS
@@ -355,7 +360,14 @@ export function useMove({ onMoveComplete }: UseMoveOptions): UseMoveResult {
         scaleX: element.offsetWidth > 0 ? rect.width / element.offsetWidth : 1,
         scaleY: element.offsetHeight > 0 ? rect.height / element.offsetHeight : 1,
       }
-      originalTransformRef.current = element.style.transform
+      const inlineTransform = element.style.transform
+      originalTransformRef.current = inlineTransform // restore target stays inline-only
+      if (inlineTransform) {
+        composeBaseRef.current = inlineTransform
+      } else {
+        const computed = getComputedStyle(element).transform
+        composeBaseRef.current = computed && computed !== 'none' ? computed : ''
+      }
       dragGuardRef.current.activate()
 
       setDragState({
@@ -395,7 +407,10 @@ export function useMove({ onMoveComplete }: UseMoveOptions): UseMoveResult {
         const { x, y, scaleX, scaleY } = initialRectRef.current
         const dx = (e.clientX - dragOffset.x - x) / scaleX
         const dy = (e.clientY - dragOffset.y - y) / scaleY
-        draggedElement.style.transform = `translate(${dx}px, ${dy}px)`
+        const base = composeBaseRef.current
+        draggedElement.style.transform = base
+          ? `translate(${dx}px, ${dy}px) ${base}`
+          : `translate(${dx}px, ${dy}px)`
       }
 
       if (dragOptionsRef.current.mode === 'position') {
