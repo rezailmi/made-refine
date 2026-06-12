@@ -3582,4 +3582,229 @@ describe('DirectEditProvider', () => {
     const restored = edits.find((e) => e.element === target)
     expect(restored).toBeDefined()
   })
+
+  describe('send failure state (plan 007)', () => {
+    it('sets lastSendFailure.reason to unreachable when single send throws', async () => {
+      mockClipboard()
+      const target = createTarget('failure-unreachable-target', 'padding-top: 4px;')
+      const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+      act(() => {
+        result.current.selectElement(target)
+      })
+
+      await waitFor(() => {
+        expect(result.current.selectedElement).toBe(target)
+      })
+
+      act(() => {
+        result.current.updateSpacingProperty('paddingTop', cssValue(20))
+      })
+
+      sendEditToAgentMock.mockRejectedValueOnce(new Error('network error'))
+
+      let sent: boolean
+      await act(async () => {
+        sent = await result.current.sendEditToAgent()
+      })
+
+      expect(sent!).toBe(false)
+      // Edit should still be in session (not removed)
+      expect(result.current.sessionEditCount).toBe(1)
+
+      await waitFor(() => {
+        expect(result.current.lastSendFailure).not.toBeNull()
+        expect(result.current.lastSendFailure?.reason).toBe('unreachable')
+      })
+    })
+
+    it('sets lastSendFailure.reason to rejected when single send resolves ok=false', async () => {
+      mockClipboard()
+      const target = createTarget('failure-rejected-target', 'padding-top: 4px;')
+      const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+      act(() => {
+        result.current.selectElement(target)
+      })
+
+      await waitFor(() => {
+        expect(result.current.selectedElement).toBe(target)
+      })
+
+      act(() => {
+        result.current.updateSpacingProperty('paddingTop', cssValue(20))
+      })
+
+      sendEditToAgentMock.mockResolvedValueOnce({ ok: false, id: '' })
+
+      let sent: boolean
+      await act(async () => {
+        sent = await result.current.sendEditToAgent()
+      })
+
+      expect(sent!).toBe(false)
+      // Edit should still be in session
+      expect(result.current.sessionEditCount).toBe(1)
+
+      await waitFor(() => {
+        expect(result.current.lastSendFailure).not.toBeNull()
+        expect(result.current.lastSendFailure?.reason).toBe('rejected')
+      })
+    })
+
+    it('tracks per-item failures in batch send: failed item in failedEditElements, succeeded item removed', async () => {
+      mockClipboard()
+      const firstTarget = createTarget('batch-first-target', 'padding-top: 4px;')
+      const secondTarget = createTarget('batch-second-target', 'margin-left: 8px;')
+      const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+      // Set up first edit
+      act(() => {
+        result.current.selectElement(firstTarget)
+      })
+      await waitFor(() => {
+        expect(result.current.selectedElement).toBe(firstTarget)
+      })
+      act(() => {
+        result.current.updateSpacingProperty('paddingTop', cssValue(20))
+      })
+
+      // Set up second edit
+      act(() => {
+        result.current.selectElement(secondTarget)
+      })
+      await waitFor(() => {
+        expect(result.current.selectedElement).toBe(secondTarget)
+      })
+      act(() => {
+        result.current.updateSpacingProperty('paddingTop', cssValue(16))
+      })
+
+      await waitFor(() => {
+        expect(result.current.sessionEditCount).toBe(2)
+      })
+
+      sendEditToAgentMock.mockClear()
+      // First call succeeds, second call fails
+      sendEditToAgentMock
+        .mockResolvedValueOnce({ ok: true, id: 'edit-1' })
+        .mockResolvedValueOnce({ ok: false, id: '' })
+
+      let sent: boolean
+      await act(async () => {
+        sent = await result.current.sendAllSessionItemsToAgent()
+      })
+
+      expect(sent!).toBe(false)
+
+      await waitFor(() => {
+        expect(result.current.lastSendFailure).not.toBeNull()
+      })
+
+      const failure = result.current.lastSendFailure!
+      // Second item should be in failedEditElements; first item was removed from session
+      expect(failure.failedEditElements).toHaveLength(1)
+      expect(failure.failedEditElements[0]).toBe(secondTarget)
+      expect(failure.failedCommentIds).toHaveLength(0)
+      // First item should have been removed from session (send succeeded)
+      await waitFor(() => {
+        const edits = result.current.getSessionEdits()
+        expect(edits.some((e) => e.element === firstTarget)).toBe(false)
+        expect(edits.some((e) => e.element === secondTarget)).toBe(true)
+      })
+    })
+
+    it('classifies batch network failure (all items throw) as unreachable', async () => {
+      mockClipboard()
+      const firstTarget = createTarget('batch-throw-first-target', 'padding-top: 4px;')
+      const secondTarget = createTarget('batch-throw-second-target', 'margin-left: 8px;')
+      const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+      // Set up first edit
+      act(() => {
+        result.current.selectElement(firstTarget)
+      })
+      await waitFor(() => {
+        expect(result.current.selectedElement).toBe(firstTarget)
+      })
+      act(() => {
+        result.current.updateSpacingProperty('paddingTop', cssValue(20))
+      })
+
+      // Set up second edit
+      act(() => {
+        result.current.selectElement(secondTarget)
+      })
+      await waitFor(() => {
+        expect(result.current.selectedElement).toBe(secondTarget)
+      })
+      act(() => {
+        result.current.updateSpacingProperty('paddingTop', cssValue(16))
+      })
+
+      await waitFor(() => {
+        expect(result.current.sessionEditCount).toBe(2)
+      })
+
+      sendEditToAgentMock.mockClear()
+      // Both calls throw (broker down)
+      sendEditToAgentMock
+        .mockRejectedValueOnce(new Error('network error'))
+        .mockRejectedValueOnce(new Error('network error'))
+
+      let sent: boolean
+      await act(async () => {
+        sent = await result.current.sendAllSessionItemsToAgent()
+      })
+
+      expect(sent!).toBe(false)
+
+      await waitFor(() => {
+        expect(result.current.lastSendFailure).not.toBeNull()
+      })
+
+      const failure = result.current.lastSendFailure!
+      expect(failure.reason).toBe('unreachable')
+      expect(failure.failedEditElements).toHaveLength(2)
+      expect(failure.failedEditElements).toContain(firstTarget)
+      expect(failure.failedEditElements).toContain(secondTarget)
+      expect(failure.failedCommentIds).toHaveLength(0)
+    })
+
+    it('clears lastSendFailure on the next send attempt', async () => {
+      mockClipboard()
+      const target = createTarget('failure-clear-retry-target', 'padding-top: 4px;')
+      const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+      act(() => {
+        result.current.selectElement(target)
+      })
+      await waitFor(() => {
+        expect(result.current.selectedElement).toBe(target)
+      })
+      act(() => {
+        result.current.updateSpacingProperty('paddingTop', cssValue(20))
+      })
+
+      // First send fails
+      sendEditToAgentMock.mockResolvedValueOnce({ ok: false, id: '' })
+      await act(async () => {
+        await result.current.sendEditToAgent()
+      })
+
+      await waitFor(() => {
+        expect(result.current.lastSendFailure).not.toBeNull()
+      })
+
+      // Next send succeeds — failure should be cleared
+      sendEditToAgentMock.mockResolvedValueOnce({ ok: true, id: 'edit-ok' })
+      await act(async () => {
+        await result.current.sendEditToAgent()
+      })
+
+      await waitFor(() => {
+        expect(result.current.lastSendFailure).toBeNull()
+      })
+    })
+  })
 })

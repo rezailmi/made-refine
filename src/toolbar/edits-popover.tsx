@@ -50,6 +50,7 @@ export interface EditsPopoverProps {
   onClearSessionEdits?: () => void
   onRemoveSessionEdit?: (element: HTMLElement) => void
   onDeleteComment?: (id: string) => void
+  sendFailure?: { failedEditElements: HTMLElement[]; failedCommentIds: string[] } | null
 }
 
 export function EditsPopover({
@@ -63,6 +64,7 @@ export function EditsPopover({
   onClearSessionEdits,
   onRemoveSessionEdit,
   onDeleteComment,
+  sendFailure,
 }: EditsPopoverProps) {
   const [copied, setCopied] = React.useState(false)
   const editsPopupRef = React.useRef<HTMLDivElement>(null)
@@ -238,6 +240,9 @@ export function EditsPopover({
                     }
                     valueSummary = commentValues.join(', ')
                   }
+                  const failed = isEdit
+                    ? sendFailure?.failedEditElements.includes(item.edit.element)
+                    : sendFailure?.failedCommentIds.includes(item.comment.id)
                   return (
                     <div
                       key={item.type === 'comment' ? item.comment.id : `edit-${i}`}
@@ -256,9 +261,16 @@ export function EditsPopover({
                       }}
                     >
                       <div className="min-w-0 flex flex-1 flex-col items-start gap-[4px]">
-                        <Badge variant="secondary" className="h-6 shrink-0 px-1.5 text-xs">
-                          @&lt;{componentName}&gt;
-                        </Badge>
+                        <div className="flex items-center gap-1">
+                          <Badge variant="secondary" className="h-6 shrink-0 px-1.5 text-xs">
+                            @&lt;{componentName}&gt;
+                          </Badge>
+                          {failed && (
+                            <Badge variant="default" className="h-6 shrink-0 px-1.5 text-xs bg-red-500 text-white border-transparent">
+                              Failed
+                            </Badge>
+                          )}
+                        </div>
                         <span className="min-w-0 max-w-full truncate text-xs text-muted-foreground">
                           {isEdit ? (isMoved ? 'moved: ' : 'edit: ') : 'comment: '}
                           {truncateText(valueSummary, 128)}
