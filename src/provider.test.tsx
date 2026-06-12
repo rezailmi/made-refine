@@ -3836,6 +3836,67 @@ describe('DirectEditProvider', () => {
       })
     })
 
+    it('keeps agentAvailable true when send fails with errorKind=rejected (server reachable)', async () => {
+      mockClipboard()
+      const target = createTarget('availability-rejected-target', 'padding-top: 4px;')
+      const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+      act(() => {
+        result.current.selectElement(target)
+      })
+      await waitFor(() => {
+        expect(result.current.selectedElement).toBe(target)
+      })
+      act(() => {
+        result.current.updateSpacingProperty('paddingTop', cssValue(20))
+      })
+
+      // Agent responds (reachable) but rejects the edit
+      sendEditToAgentMock.mockResolvedValueOnce({ ok: false, id: '', errorKind: 'rejected' })
+
+      let sent: boolean
+      await act(async () => {
+        sent = await result.current.sendEditToAgent()
+      })
+
+      expect(sent!).toBe(false)
+      await waitFor(() => {
+        expect(result.current.lastSendFailure?.reason).toBe('rejected')
+        // Server responded — agent is still reachable
+        expect(result.current.agentAvailable).toBe(true)
+      })
+    })
+
+    it('sets agentAvailable false when send fails with errorKind=network (network-level failure)', async () => {
+      mockClipboard()
+      const target = createTarget('availability-network-target', 'padding-top: 4px;')
+      const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+      act(() => {
+        result.current.selectElement(target)
+      })
+      await waitFor(() => {
+        expect(result.current.selectedElement).toBe(target)
+      })
+      act(() => {
+        result.current.updateSpacingProperty('paddingTop', cssValue(20))
+      })
+
+      // Agent is unreachable — resolves with network error kind
+      sendEditToAgentMock.mockResolvedValueOnce({ ok: false, id: '', errorKind: 'network' })
+
+      let sent: boolean
+      await act(async () => {
+        sent = await result.current.sendEditToAgent()
+      })
+
+      expect(sent!).toBe(false)
+      await waitFor(() => {
+        expect(result.current.lastSendFailure?.reason).toBe('unreachable')
+        expect(result.current.agentAvailable).toBe(false)
+      })
+    })
+
     it('sets lastSendFailure under StrictMode when send fails', async () => {
       mockClipboard()
       const target = createTarget('failure-strictmode-target', 'padding-top: 4px;')

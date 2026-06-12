@@ -642,6 +642,67 @@ describe('DirectEditToolbarInner', () => {
       expect(applyBtn.querySelector('svg.lucide-send')).toBeNull()
     })
 
+    it('keeps apply button mounted while status is offline even if agentAvailable is false', async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true })
+      const onSendAllToAgents = vi.fn<(...args: unknown[]) => Promise<boolean>>().mockResolvedValue(false)
+      const { container, rerender } = render(
+        <DirectEditToolbarInner
+          editModeActive={true}
+          onToggleEditMode={() => {}}
+          rulersVisible={false}
+          onToggleRulers={() => {}}
+          sessionEditCount={1}
+          onSendAllToAgents={onSendAllToAgents}
+          agentAvailable={true}
+        />,
+      )
+
+      const applyButton = container.querySelector('[data-direct-edit="apply-all-button"]') as HTMLButtonElement
+      expect(applyButton).not.toBeNull()
+
+      await act(async () => {
+        fireEvent.click(applyButton)
+        await Promise.resolve()
+      })
+
+      // Simulate parent propagating agentAvailable=false after a network failure
+      rerender(
+        <DirectEditToolbarInner
+          editModeActive={true}
+          onToggleEditMode={() => {}}
+          rulersVisible={false}
+          onToggleRulers={() => {}}
+          sessionEditCount={1}
+          onSendAllToAgents={onSendAllToAgents}
+          agentAvailable={false}
+        />,
+      )
+
+      // Button must still be present because applyStatus is 'offline' (non-idle)
+      const applyBtn = container.querySelector('[data-direct-edit="apply-all-button"]') as HTMLButtonElement
+      expect(applyBtn).not.toBeNull()
+      // Offline icon visible
+      expect(applyBtn.querySelector('svg.lucide-x')).not.toBeNull()
+    })
+
+    it('hides apply button when agentAvailable is false and status is idle', () => {
+      const onSendAllToAgents = vi.fn<(...args: unknown[]) => Promise<boolean>>().mockResolvedValue(false)
+      const { container } = render(
+        <DirectEditToolbarInner
+          editModeActive={true}
+          onToggleEditMode={() => {}}
+          rulersVisible={false}
+          onToggleRulers={() => {}}
+          sessionEditCount={1}
+          onSendAllToAgents={onSendAllToAgents}
+          agentAvailable={false}
+        />,
+      )
+
+      // agentAvailable=false + idle status → button hidden
+      expect(container.querySelector('[data-direct-edit="apply-all-button"]')).toBeNull()
+    })
+
     it('resets to idle after 2s when apply-all succeeds', async () => {
       vi.useFakeTimers({ shouldAdvanceTime: true })
       const onSendAllToAgents = vi.fn<(...args: unknown[]) => Promise<boolean>>().mockResolvedValue(true)

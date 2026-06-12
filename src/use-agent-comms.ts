@@ -204,8 +204,10 @@ export function useAgentComms({ stateRef, sessionEditsRef, getSessionItems, save
       })
       if (result.ok) {
         removeSessionEdit(sessionEdit.element)
+        updateAgentAvailability(true)
       } else {
         const kind = result.errorKind === 'network' ? 'unreachable' : 'rejected'
+        updateAgentAvailability(result.errorKind === 'network' ? false : true)
         if (options?._isBatchCall) {
           options._batchFailKinds?.push(result.errorKind ?? 'rejected')
         } else if (isMountedRef.current) {
@@ -217,7 +219,7 @@ export function useAgentComms({ stateRef, sessionEditsRef, getSessionItems, save
           })
         }
       }
-      return updateAgentAvailability(result.ok)
+      return result.ok
     } catch (err) {
       updateAgentAvailability(false)
       if (options?._isBatchCall) {
@@ -248,8 +250,10 @@ export function useAgentComms({ stateRef, sessionEditsRef, getSessionItems, save
       })
       if (result.ok) {
         deleteComment(comment.id)
+        updateAgentAvailability(true)
       } else {
         const kind = result.errorKind === 'network' ? 'unreachable' : 'rejected'
+        updateAgentAvailability(result.errorKind === 'network' ? false : true)
         if (_options?._isBatchCall) {
           _options._batchFailKinds?.push(result.errorKind ?? 'rejected')
         } else if (isMountedRef.current) {
@@ -261,7 +265,7 @@ export function useAgentComms({ stateRef, sessionEditsRef, getSessionItems, save
           })
         }
       }
-      return updateAgentAvailability(result.ok)
+      return result.ok
     } catch (err) {
       updateAgentAvailability(false)
       if (_options?._isBatchCall) {
@@ -320,15 +324,19 @@ export function useAgentComms({ stateRef, sessionEditsRef, getSessionItems, save
               removeSessionEdit(el)
             }
           }
-        } else if (isMountedRef.current) {
-          setLastSendFailure({
-            reason: result.errorKind === 'network' ? 'unreachable' : 'rejected',
-            failedEditElements: editsWithChanges.map((e) => e.element),
-            failedCommentIds: [],
-            at: Date.now(),
-          })
+          updateAgentAvailability(true)
+        } else {
+          updateAgentAvailability(result.errorKind === 'network' ? false : true)
+          if (isMountedRef.current) {
+            setLastSendFailure({
+              reason: result.errorKind === 'network' ? 'unreachable' : 'rejected',
+              failedEditElements: editsWithChanges.map((e) => e.element),
+              failedCommentIds: [],
+              at: Date.now(),
+            })
+          }
         }
-        return updateAgentAvailability(result.ok)
+        return result.ok
       } catch {
         if (isMountedRef.current) {
           setLastSendFailure({
@@ -440,11 +448,15 @@ export function useAgentComms({ stateRef, sessionEditsRef, getSessionItems, save
             moveIntent: null,
             exportMarkdown: contextOnlyBlocks.join('\n\n'),
           })
-          if (!result.ok) {
+          if (result.ok) {
+            updateAgentAvailability(true)
+          } else {
+            updateAgentAvailability(result.errorKind === 'network' ? false : true)
             allSucceeded = false
             contextBlockFailed = true
           }
         } catch {
+          updateAgentAvailability(false)
           allSucceeded = false
           anyThrown = true
           contextBlockFailed = true
@@ -463,7 +475,7 @@ export function useAgentComms({ stateRef, sessionEditsRef, getSessionItems, save
     }
 
     return allSucceeded
-  }, [getSessionItems, sendSessionCommentToAgent, sendSessionEditToAgent])
+  }, [getSessionItems, sendSessionCommentToAgent, sendSessionEditToAgent, updateAgentAvailability])
 
   const clearSendFailure = React.useCallback(() => {
     if (isMountedRef.current) setLastSendFailure(null)

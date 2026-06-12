@@ -85,7 +85,7 @@ export function DirectEditToolbarInner({
   const [activePopover, setActivePopover] = React.useState<'edits' | 'settings' | null>(null)
   const [applyStatus, setApplyStatus] = React.useState<'idle' | 'sending' | 'sent' | 'offline'>('idle')
   const applyTimerRef = React.useRef<number | null>(null)
-  const showApplyButton = agentAvailable && Boolean(onSendAllToAgents)
+  const showApplyButton = (agentAvailable || applyStatus !== 'idle') && Boolean(onSendAllToAgents)
   const showInsertButtons = Boolean(onInsertElement)
   const totalItemCount = sessionEditCount + multiSelectCount
 
