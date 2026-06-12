@@ -11,12 +11,23 @@ The maintainer's own planning docs live in `plan/` (singular) — unrelated to t
 | 001  | Stop hijacking host-app Cmd+Z when edit mode is off | P1 | S | — | DONE |
 | 002  | Compose existing CSS transforms during drag (inline + computed/class-based) | P1 | S | — | DONE |
 | 003  | Inject `data-direct-edit-source` in development only (not prod, not test) | P1 | S | — | DONE |
-| 006  | Session-edit lifecycle design spike (survive remounts: reattach+reapply / stale) | P1 | M (spike) | — | TODO |
-| 004  | Rebuild preload fiber index lazily, not on every React commit | P2 | M | — | TODO |
-| 005  | Include memo()/forwardRef() components in extracted component stack | P2 | M | — | TODO |
-| 007  | Persistent send-failure feedback with reason + per-item indicators | P2 | M | — | TODO |
+| 006  | Session-edit lifecycle design spike (survive remounts: reattach+reapply / stale) | P1 | M (spike) | — | DONE (design doc: `006-output-session-lifecycle-design.md`) |
+| 004  | Rebuild preload fiber index lazily, not on every React commit | P2 | M | — | DONE |
+| 005  | Include memo()/forwardRef() components in extracted component stack | P2 | M | — | DONE |
+| 007  | Persistent send-failure feedback with reason + per-item indicators | P2 | M | — | DONE (plus follow-up fixes 008/009 below) |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (with one-line reason) | REJECTED (with one-line rationale)
+
+## Execution record (2026-06-12)
+
+All seven plans were executed by subagents in isolated worktrees, code-reviewed, and merged to main (`829304d`…`909fa78`). Full suite: **508 tests passing** (470 at baseline). Live browser validation (agent-browser against `bun run dev:app` + a fake MCP broker on :8787) confirmed: 001 (undo blocked when edit mode off, works when on), 002 (mid-drag `translate(...) rotate(45deg)` composition + exact restore on drop), 004/005 (selection/panel fiber lookups working), 007 (persistent "Offline" state past 6s, per-item `Failed` badge in edits popover).
+
+Two unplanned fixes came out of review + live validation:
+
+- **008** (`773b8ac`): (a) `isMountedRef` was never re-set to `true` on StrictMode remount, permanently suppressing `agentAvailable`/`lastSendFailure` updates in StrictMode dev apps (pre-existing; blocked all agent UI in the repo's own dev app); (b) `mcp-client` never throws (it catches network errors internally), so plan 007's throw-based `'unreachable'` classification was dead code — added `errorKind: 'network' | 'rejected'` to annotation results and classified from it.
+- **009** (`909fa78`): every send path ended `return updateAgentAvailability(result.ok)`, so any failure (even a reachable broker rejecting an edit) marked the agent unavailable and unmounted the apply-all button — hiding the very failure state 007 added. Availability now reflects reachability (`errorKind === 'network'`), and the toolbar keeps the button mounted while its status is non-idle.
+
+Findings from validation recorded for later: the provider-wired panel (`panel.tsx:795`) never passes `onSendToAgent`/`onExportEdits`, so the panel footer (including 007's footer error states) is unreachable in the provider app — only direct `DirectEditPanelInner` consumers (like `src/demo.tsx`) see it; the live send surface is the toolbar. See backlog #8.
 
 ## Maintainer decisions from the grill session (2026-06-12)
 
@@ -47,7 +58,8 @@ Ordered by leverage; ask the advisor to expand any of these into a plan.
 4. **No linter/formatter** — CI (`.github/workflows/publish.yml`) runs `tsc --noEmit` + vitest on push/PR, but there's no eslint/prettier. S–M, low urgency.
 5. **`pretest` runs a full build** (`package.json`) — every `bun run test` pays a tsup+Tailwind build. Deliberate (tests cover dist portability) but worth a `test:fast` script for iteration. S.
 6. **Preload hook version field** — `window.__DIRECT_EDIT_DEVTOOLS__` has no protocol version; add `version: N` if its shape ever changes (noted in plan 004 maintenance).
-7. **Drag scale-divisor math for rotated elements** — `rect.width/offsetWidth` is bounding-box inflation, not pure scale, so pointer tracking lags slightly on rotated elements (pre-existing; plan 002 documents but does not fix). Revisit only if plan 002's manual check shows it matters in practice.
+7. **Drag scale-divisor math for rotated elements** — `rect.width/offsetWidth` is bounding-box inflation, not pure scale, so pointer tracking lags slightly on rotated elements (pre-existing; plan 002 documents but does not fix). Live drag of a rotate(45deg) element tracked acceptably in validation. Revisit only if it matters in practice.
+8. **Panel footer send path unreachable in provider app** — `DirectEditPanelContent` (`panel.tsx:795`) passes no `onSendToAgent`/`onExportEdits` to `DirectEditPanelInner`, so the footer (copy/send buttons + 007's `sendFailureReason` states) only renders for direct component consumers. Decide: wire it up in the provider (pass `sendEditToAgent`, `agentAvailable`, `lastSendFailure.reason`) or remove the footer from the provider path intentionally. S effort.
 
 ## Direction findings (maintainer options, not ranked against bugs)
 
