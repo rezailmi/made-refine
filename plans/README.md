@@ -16,6 +16,21 @@ The maintainer's own planning docs live in `plan/` (singular) — unrelated to t
 | 005  | Include memo()/forwardRef() components in extracted component stack | P2 | M | — | DONE |
 | 007  | Persistent send-failure feedback with reason + per-item indicators | P2 | M | — | DONE (plus follow-up fixes 008/009 below) |
 
+### Batch 2 — backlog converted to plans (2026-06-13, commit `c1687d9`)
+
+These eight plans expand the former "Backlog" section into self-contained handoff plans. Numbering starts at **010** to avoid colliding with the `008`/`009` commit references already used in the execution record above (no plan files exist for those numbers). Recommended execution order is in the "Batch 2 dependency & ordering notes" section, not the row order.
+
+| Plan | Title | Priority | Effort | Depends on | Status |
+|------|-------|----------|--------|------------|--------|
+| 010  | Extract one cohesive cluster (computed-style getters) out of the `utils.ts` god module | P2 | M | — (recommend 014 first) | TODO |
+| 011  | Unit tests for interaction-overlay / multi-selection-overlay / canvas-store | P2 | M | — | TODO |
+| 012  | Reduce repeated full-subtree `getComputedStyle` in `replaceSelectionColor` (profile-gated) | P3 | S–M | — | TODO (Step 0 gate may → REJECTED) |
+| 013  | Add ESLint + Prettier with a non-blocking CI baseline | P3 | M | — | TODO |
+| 014  | Add `test:fast` script that skips the prebuild on the inner loop | P3 | S | — | TODO |
+| 015  | Add a protocol `version` field to the preload DevTools hook | P3 | S | — | TODO |
+| 016  | Correct drag/resize scale-divisor math for rotated elements (artifact-gated) | P3 | S–M | — | TODO (Step 0 gate may → REJECTED) |
+| 017  | Wire the panel footer send/export in the provider path (makes 007's footer states reachable) | P2 | S | relates to 007 | TODO |
+
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (with one-line reason) | REJECTED (with one-line rationale)
 
 ## Execution record (2026-06-12)
@@ -48,18 +63,41 @@ These are binding on executors; the plan files already reflect them:
 - 006 is a design spike; its output doc (`plans/006-output-session-lifecycle-design.md`) spawns the implementation plan(s) for the session-map redesign. If 004 lands first, 006's reattachment trigger should reuse 004's commit dirty-flag signal.
 - 007's `Failed` badge and 006's future `Stale` badge share the edits popover — whichever lands second aligns styling with the first.
 
-## Backlog — vetted findings without plans yet
+## Batch 2 dependency & ordering notes (plans 010–017)
 
-Ordered by leverage; ask the advisor to expand any of these into a plan.
+All eight are independent (no plan blocks another). Recommended execution order
+by leverage, risk, and convenience:
 
-1. **`src/utils.ts` god module** — 3,596 lines, ~75 exports, 31 importers; the `src/utils/` extraction stalled. L effort, MED risk; do after the current plans land to avoid conflicts.
-2. **Test gaps flagged in TODOS.md** — `interaction-overlay.tsx` and `multi-selection-overlay.tsx` have zero tests (TODOS.md documents exactly what to test); also untested: `use-keyboard-shortcuts.ts` (partially addressed by 001's tests), `canvas-store.ts`. M effort, additive. (`use-agent-comms.ts` gains its first tests in 007.)
-3. **`replaceSelectionColor` subtree scan** (`src/use-style-updaters.ts:76–132`) — `getComputedStyle` on every descendant per invocation; fine for small subtrees, janky for large ones. Only worth fixing if profiling shows it hot. S–M.
-4. **No linter/formatter** — CI (`.github/workflows/publish.yml`) runs `tsc --noEmit` + vitest on push/PR, but there's no eslint/prettier. S–M, low urgency.
-5. **`pretest` runs a full build** (`package.json`) — every `bun run test` pays a tsup+Tailwind build. Deliberate (tests cover dist portability) but worth a `test:fast` script for iteration. S.
-6. **Preload hook version field** — `window.__DIRECT_EDIT_DEVTOOLS__` has no protocol version; add `version: N` if its shape ever changes (noted in plan 004 maintenance).
-7. **Drag scale-divisor math for rotated elements** — `rect.width/offsetWidth` is bounding-box inflation, not pure scale, so pointer tracking lags slightly on rotated elements (pre-existing; plan 002 documents but does not fix). Live drag of a rotate(45deg) element tracked acceptably in validation. Revisit only if it matters in practice.
-8. **Panel footer send path unreachable in provider app** — `DirectEditPanelContent` (`panel.tsx:795`) passes no `onSendToAgent`/`onExportEdits` to `DirectEditPanelInner`, so the footer (copy/send buttons + 007's `sendFailureReason` states) only renders for direct component consumers. Decide: wire it up in the provider (pass `sendEditToAgent`, `agentAvailable`, `lastSendFailure.reason`) or remove the footer from the provider path intentionally. S effort.
+1. **014** (`test:fast`, S) — quickest win; speeds re-running the gate for every
+   plan after it.
+2. **015** (preload `version`, S) — isolated, additive, near-zero risk.
+3. **017** (wire panel footer, S) — restores plan 007's footer states in the
+   real app; small and self-contained. Decision plan: default is "wire up", with
+   a documented "remove" alternative — read its STOP conditions.
+4. **011** (overlay/canvas-store tests, M) — adds a safety net before riskier
+   refactors; source change is only added `export` keywords.
+5. **013** (ESLint + Prettier, M) — introduced **non-blocking** so the existing
+   backlog doesn't wedge CI; explicitly does NOT reformat `src/`.
+6. **016** (rotated drag scale, S–M) — **Step 0 gate**: confirm the lag is
+   observable before changing pointer math that works for the common case; may
+   end REJECTED.
+7. **012** (`replaceSelectionColor` scan, S–M) — **Step 0 gate**: profile first;
+   may end REJECTED if the scan isn't hot in practice.
+8. **010** (utils god-module slice, M) — do **last** of this batch: highest merge
+   conflict surface (23 importers via the barrel). Pure code-move, one cluster
+   only; relies on the existing `utils.test.ts` as the regression net. Benefits
+   from 014 landing first.
+
+Cross-plan interactions:
+- **010 vs 011** — both add files but in different areas (utils vs overlays);
+  no file conflict. Land 011 first so the test count baseline is higher before
+  the 010 move.
+- **016 vs plan 002** — 002 documented this rotated-scale artifact without
+  fixing it; 016 is the deferred fix. 016 must NOT touch `use-session-manager.ts`
+  (the body/canvas-zoom scale, which is never rotated).
+- **017 vs plan 007** — 017 makes 007's footer failure states reachable in the
+  provider app for the first time; 017's reviewer should verify those states
+  actually render on a failed send.
 
 ## Direction findings (maintainer options, not ranked against bugs)
 

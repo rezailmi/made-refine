@@ -163,7 +163,7 @@ export function useAgentComms({ stateRef, sessionEditsRef, getSessionItems, save
     const resolvedPlanContext = movePlanContext ?? buildMovePlanContext(editsForPlan)
     const includeBatchMoveEnvelope = Boolean(options?.includeBatchMoveEnvelope && sessionEdit.move)
     const isBatchSend = Boolean(allEdits && allEdits.length > 1)
-    const exportMarkdown = sessionEdit.move
+    const exportMarkdown = (sessionEdit.move || sessionEdit.deleted)
       ? buildSessionExport(
           includeBatchMoveEnvelope ? editsForPlan : [sessionEdit],
           [],
@@ -183,7 +183,7 @@ export function useAgentComms({ stateRef, sessionEditsRef, getSessionItems, save
       ? getMoveIntentForEdit(sessionEdit, resolvedPlanContext)
       : null
     const movePlan = includeBatchMoveEnvelope ? resolvedPlanContext.movePlan : null
-    const hasMeaningfulPayload = changes.length > 0 || sessionEdit.textEdit != null || moveIntent != null
+    const hasMeaningfulPayload = changes.length > 0 || sessionEdit.textEdit != null || moveIntent != null || Boolean(sessionEdit.deleted)
     if (!hasMeaningfulPayload) return true
 
     const profile = getExportContentProfile(
@@ -200,6 +200,7 @@ export function useAgentComms({ stateRef, sessionEditsRef, getSessionItems, save
         textChange: sessionEdit.textEdit ?? null,
         moveIntent,
         ...(movePlan ? { movePlan } : {}),
+        ...(sessionEdit.deleted ? { deleted: true } : {}),
         exportMarkdown: withInstruction(profile, exportMarkdown),
       })
       if (result.ok) {

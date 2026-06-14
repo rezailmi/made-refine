@@ -79,6 +79,7 @@ export function EditsPopover({
   const visibleItems = React.useMemo(() => {
     return editsSnapshot.filter((item) => {
       if (item.type === 'comment') return true
+      if (item.edit.deleted) return true
       if (!item.edit.move) return true
       const moveIntent = getMoveIntentForEdit(item.edit, movePlanContext)
       const hasStyleOrText = Object.keys(item.edit.pendingStyles).length > 0 || item.edit.textEdit != null
@@ -214,12 +215,15 @@ export function EditsPopover({
               <div className="max-h-[240px] overflow-y-auto px-1 py-1">
                 {visibleItems.map((item, i) => {
                   const isEdit = item.type === 'edit'
+                  const isDeleted = isEdit && Boolean(item.edit.deleted)
                   const moveIntent = isEdit && item.edit.move ? getMoveIntentForEdit(item.edit, movePlanContext) : null
                   const isMoved = Boolean(moveIntent)
                   const locator = isEdit ? item.edit.locator : item.comment.locator
                   const componentName = locator.reactStack[0]?.name ?? locator.tagName
                   let valueSummary = ''
-                  if (isEdit) {
+                  if (isEdit && isDeleted) {
+                    valueSummary = locator.textPreview || locator.domSelector || locator.tagName
+                  } else if (isEdit) {
                     const entries = Object.entries(item.edit.pendingStyles)
                     const editValues: string[] = []
                     for (const [prop, value] of entries) {
@@ -272,7 +276,7 @@ export function EditsPopover({
                           )}
                         </div>
                         <span className="min-w-0 max-w-full truncate text-xs text-muted-foreground">
-                          {isEdit ? (isMoved ? 'moved: ' : 'edit: ') : 'comment: '}
+                          {isEdit ? (isDeleted ? 'deleted: ' : isMoved ? 'moved: ' : 'edit: ') : 'comment: '}
                           {truncateText(valueSummary, 128)}
                         </span>
                       </div>

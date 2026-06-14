@@ -93,6 +93,7 @@ Both call through `useAgentComms` (`src/use-agent-comms.ts`).
     reasons: ['...'],
   } | null,
   movePlan?: { operations: [...], affectedContainers: [...], orderingConstraints: [...], notes: [...] },
+  deleted?: true,
   exportMarkdown: '...',
 }
 ```
@@ -103,6 +104,7 @@ Key fields for the agent:
 - **`changes[].tailwindClass`** — the Tailwind utility that maps to the raw CSS value. The agent applies this class rather than inline styles.
 - **`moveIntent`** — per-edit canonical move operation. `classification` determines whether to apply a structural move (`existing_layout_move`) or a best-practice layout refactor (`layout_refactor`).
 - **`movePlan`** — optional batch-wide move plan included during multi-edit sends.
+- **`deleted`** — present and `true` when the user deleted the element in the overlay. The agent should remove the element from source (its markup/JSX and any props/handlers/imports it solely used). `changes`, `textChange`, and `moveIntent` are suppressed for a deleted edit; `exportMarkdown` carries an `action: delete this element` line.
 - **`exportMarkdown`** — summary generated from the same plan object used by payload fields. It includes a `=== LAYOUT MOVE PLAN ===` header and explicit implementation steps.
 
 ### 5. Session bootstrap and annotation delivery

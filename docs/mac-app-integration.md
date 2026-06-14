@@ -111,6 +111,7 @@ Body:
   "textChange": { "originalText": "Get started", "newText": "Start now" } | null,
   "moveIntent": { ... } | null,
   "movePlan": { ... } | undefined,
+  "deleted": true,
   "exportMarkdown": "## Hero\n\n**Changes:**\n- `padding-top: 24px` → `pt-6`\n..."
 }
 ```

@@ -2552,7 +2552,7 @@ export function buildElementContext(locator: ElementLocator): string {
 
 /** Whether a session edit has any meaningful changes (styles, text, or move). */
 export function hasSessionEditChanges(edit: SessionEdit): boolean {
-  return Object.keys(edit.pendingStyles).length > 0 || Boolean(edit.textEdit) || Boolean(edit.move)
+  return Object.keys(edit.pendingStyles).length > 0 || Boolean(edit.textEdit) || Boolean(edit.move) || Boolean(edit.deleted)
 }
 
 /**
@@ -3251,7 +3251,9 @@ function buildMoveEntries(edits: SessionEdit[]): {
 
   for (const edit of edits) {
     const move = edit.move
-    if (!move) continue
+    // A deleted element is being removed from source, so any pending move on it
+    // is moot — don't emit a move plan/intent that contradicts the delete action.
+    if (!move || edit.deleted) continue
 
     const subject = buildAnchorRef(
       getElementDisplayName(edit.element) || edit.locator.tagName,
@@ -3463,6 +3465,7 @@ export interface ExportContentProfile {
   hasTextEdits: boolean
   hasMoves: boolean
   hasComments: boolean
+  hasDeletes?: boolean
 }
 
 export function getExportContentProfile(
@@ -3481,15 +3484,17 @@ export function getExportContentProfile(
     hasTextEdits: edits.some(e => e.textEdit != null),
     hasMoves: moveOpCount > 0,
     hasComments: comments.length > 0,
+    hasDeletes: edits.some(e => e.deleted),
   }
 }
 
 export function buildExportInstruction(profile: ExportContentProfile): string {
   const { hasCssEdits, hasTextEdits, hasMoves, hasComments } = profile
+  const hasDeletes = Boolean(profile.hasDeletes)
 
-  if (!hasCssEdits && !hasTextEdits && !hasMoves && !hasComments) return ''
+  if (!hasCssEdits && !hasTextEdits && !hasMoves && !hasComments && !hasDeletes) return ''
 
-  if (!hasCssEdits && !hasTextEdits && !hasMoves) {
+  if (!hasCssEdits && !hasTextEdits && !hasMoves && !hasDeletes) {
     return hasComments
       ? 'Address this feedback on the UI. Use the provided source location and selector to find each element in the codebase.'
       : ''
@@ -3499,6 +3504,7 @@ export function buildExportInstruction(profile: ExportContentProfile): string {
   if (hasCssEdits) parts.push('Apply the CSS changes to the targeted elements using the project\'s existing styling approach (Tailwind, CSS modules, etc.). Map values to existing CSS variables, design tokens, or utility classes already used in the project whenever possible.')
   if (hasTextEdits) parts.push('Update the text content as specified.')
   if (hasMoves) parts.push('Implement the move plan below directly in source code. For `structural_move`, reorder/reparent elements using the target anchors. For `layout_refactor`, apply the listed flex/grid refactor steps. Do NOT simulate movement with absolute positioning, left/top offsets, transform, or margin hacks.')
+  if (hasDeletes) parts.push('Delete the elements marked for deletion from the source code — remove their markup/JSX (and any now-dead props, handlers, or imports they solely used).')
   if (hasComments) parts.push('Address the comments on the relevant elements.')
 
   return `${parts.join(' ')} Use the provided source locations, selectors, and context HTML to locate each element in the codebase.`
@@ -3541,6 +3547,13 @@ export function buildSessionExport(
   }
 
   for (const edit of edits) {
+    if (edit.deleted) {
+      const lines = buildLocatorContextLines(edit.locator)
+      lines.push('')
+      lines.push('action: delete this element — remove it from the source')
+      blocks.push(lines.join('\n'))
+      continue
+    }
     const moveIntent = getMoveIntentForEdit(edit, planContext)
     const hasMove = Boolean(moveIntent)
     const hasStyleOrText = Object.keys(edit.pendingStyles).length > 0 || edit.textEdit != null

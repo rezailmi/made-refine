@@ -350,6 +350,8 @@ export interface SessionEdit {
     originalText: string
     newText: string
   } | null
+  /** Element was deleted in the overlay. Exported so the agent removes it from source. */
+  deleted?: boolean
 }
 
 export interface AnchorRef {

@@ -3420,6 +3420,183 @@ describe('DirectEditProvider', () => {
     }
   })
 
+  it('tracks a deleted element as a session edit so it is exported to the agent', async () => {
+    const target = createTarget('delete-tracked')
+
+    const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+    act(() => {
+      result.current.toggleEditMode()
+    })
+    await waitFor(() => {
+      expect(result.current.editModeActive).toBe(true)
+    })
+
+    act(() => {
+      result.current.selectElement(target)
+    })
+    await waitFor(() => {
+      expect(result.current.selectedElement).toBe(target)
+    })
+
+    act(() => {
+      result.current.deleteSelection()
+    })
+    await waitFor(() => {
+      expect(result.current.selectedElement).toBeNull()
+    })
+    expect(target.isConnected).toBe(false)
+
+    // The deletion survives the disconnected-element filter and is exportable.
+    const deletedEdit = result.current.getSessionEdits().find((edit) => edit.element === target)
+    expect(deletedEdit?.deleted).toBe(true)
+    expect(
+      result.current.getSessionItems().some((i) => i.type === 'edit' && i.edit.element === target),
+    ).toBe(true)
+
+    act(() => {
+      result.current.undo()
+    })
+    await waitFor(() => {
+      expect(target.isConnected).toBe(true)
+    })
+    // Undo clears the tracked deletion.
+    expect(
+      result.current.getSessionEdits().some((edit) => edit.element === target && edit.deleted),
+    ).toBe(false)
+  })
+
+  it('preserves a prior style edit through deletion and restores it on undo', async () => {
+    const target = createTarget('delete-styled')
+
+    const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+    act(() => {
+      result.current.toggleEditMode()
+    })
+    await waitFor(() => {
+      expect(result.current.editModeActive).toBe(true)
+    })
+
+    act(() => {
+      result.current.selectElement(target)
+    })
+    await waitFor(() => {
+      expect(result.current.selectedElement).toBe(target)
+    })
+
+    act(() => {
+      result.current.updateSpacingProperty('paddingTop', cssValue(24))
+    })
+
+    act(() => {
+      result.current.deleteSelection()
+    })
+    await waitFor(() => {
+      expect(target.isConnected).toBe(false)
+    })
+
+    const deletedEdit = result.current.getSessionEdits().find((edit) => edit.element === target)
+    expect(deletedEdit?.deleted).toBe(true)
+    expect(Object.keys(deletedEdit?.pendingStyles ?? {}).length).toBeGreaterThan(0)
+
+    act(() => {
+      result.current.undo()
+    })
+    await waitFor(() => {
+      expect(target.isConnected).toBe(true)
+    })
+    const restored = result.current.getSessionEdits().find((edit) => edit.element === target)
+    expect(restored?.deleted).toBeFalsy()
+    expect(Object.keys(restored?.pendingStyles ?? {}).length).toBeGreaterThan(0)
+  })
+
+  it('sends a deletion to the agent with deleted:true and a delete instruction', async () => {
+    mockClipboard()
+    sendEditToAgentMock.mockClear()
+    sendEditToAgentMock.mockResolvedValue({ ok: true, id: 'edit-del' })
+    const target = createTarget('delete-send')
+
+    const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+    act(() => {
+      result.current.toggleEditMode()
+    })
+    await waitFor(() => {
+      expect(result.current.editModeActive).toBe(true)
+    })
+
+    act(() => {
+      result.current.selectElement(target)
+    })
+    await waitFor(() => {
+      expect(result.current.selectedElement).toBe(target)
+    })
+
+    act(() => {
+      result.current.deleteSelection()
+    })
+    await waitFor(() => {
+      expect(target.isConnected).toBe(false)
+    })
+
+    // Deletions are dispatched through the apply-all/send-all path.
+    await act(async () => {
+      await result.current.sendAllSessionItemsToAgent()
+    })
+
+    expect(sendEditToAgentMock).toHaveBeenCalledTimes(1)
+    const payload = sendEditToAgentMock.mock.calls[0][0] as {
+      deleted?: boolean
+      exportMarkdown?: string
+    }
+    expect(payload.deleted).toBe(true)
+    expect(payload.exportMarkdown).toContain('action: delete this element')
+  })
+
+  it('tracks deletion of multiple selected elements and clears all on undo', async () => {
+    const target1 = createTarget('multi-del-track-1')
+    const target2 = createTarget('multi-del-track-2')
+
+    const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+    act(() => {
+      result.current.toggleEditMode()
+    })
+    await waitFor(() => {
+      expect(result.current.editModeActive).toBe(true)
+    })
+
+    act(() => {
+      result.current.selectElements([target1, target2])
+    })
+    await waitFor(() => {
+      expect(result.current.selectedElements).toHaveLength(2)
+    })
+
+    act(() => {
+      result.current.deleteSelection()
+    })
+    await waitFor(() => {
+      expect(target1.isConnected).toBe(false)
+      expect(target2.isConnected).toBe(false)
+    })
+
+    const edits = result.current.getSessionEdits()
+    expect(edits.find((e) => e.element === target1)?.deleted).toBe(true)
+    expect(edits.find((e) => e.element === target2)?.deleted).toBe(true)
+
+    act(() => {
+      result.current.undo()
+    })
+    await waitFor(() => {
+      expect(target1.isConnected).toBe(true)
+      expect(target2.isConnected).toBe(true)
+    })
+    const after = result.current.getSessionEdits()
+    expect(after.some((e) => (e.element === target1 || e.element === target2) && e.deleted)).toBe(false)
+  })
+
   it('deletes multiple selected elements and restores all on undo', async () => {
     const target1 = createTarget('multi-del-1')
     const target2 = createTarget('multi-del-2')
@@ -3530,7 +3707,7 @@ describe('DirectEditProvider', () => {
     expect(document.body.isConnected).toBe(true)
   })
 
-  it('cleans up session edits on delete and restores them on undo', async () => {
+  it('restores the session edit on undo after deleting an edited element', async () => {
     const target = createTarget('session-del-target', 'padding-top: 4px;')
 
     const { result } = renderHook(() => useDirectEdit(), { wrapper })

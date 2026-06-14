@@ -20,6 +20,7 @@ import {
   buildSessionExport,
   getExportContentProfile,
   buildExportInstruction,
+  hasSessionEditChanges,
   getElementLocator,
   computeIntendedIndex,
 } from './utils'
@@ -841,6 +842,99 @@ describe('export context quality', () => {
     const instruction = buildExportInstruction({ hasCssEdits: false, hasTextEdits: false, hasMoves: false, hasComments: true })
     expect(instruction).not.toContain('Map values to existing CSS variables')
     expect(instruction).toContain('Address this feedback')
+  })
+
+  it('exports a deleted element as a delete action with locator context', () => {
+    const edit: SessionEdit = {
+      element: document.createElement('div'),
+      locator: {
+        tagName: 'div',
+        id: 'doomed-card',
+        classList: [],
+        domSelector: '#doomed-card',
+        domContextHtml: '<section><div id="doomed-card" data-direct-edit-target="true"></div></section>',
+        targetHtml: '<div id="doomed-card">',
+        textPreview: '',
+        reactStack: [],
+        domSource: { file: 'src/App.tsx', line: 12, column: 5 },
+      },
+      originalStyles: {},
+      pendingStyles: {},
+      textEdit: null,
+      move: null,
+      deleted: true,
+    }
+    const output = buildSessionExport([edit], [])
+    expect(output).toContain('action: delete this element')
+    expect(output).toContain('doomed-card')
+  })
+
+  it('suppresses move guidance for a deleted element that also had a pending move', () => {
+    const edit: SessionEdit = {
+      element: document.createElement('div'),
+      locator: {
+        tagName: 'div',
+        id: 'moved-then-deleted',
+        classList: [],
+        domSelector: '#moved-then-deleted',
+        domContextHtml: '<section><div id="moved-then-deleted" data-direct-edit-target="true"></div></section>',
+        targetHtml: '<div id="moved-then-deleted">',
+        textPreview: '',
+        reactStack: [],
+        domSource: { file: 'src/App.tsx', line: 8, column: 3 },
+      },
+      originalStyles: {},
+      pendingStyles: {},
+      textEdit: null,
+      deleted: true,
+      move: {
+        mode: 'reorder',
+        fromParentName: 'section',
+        toParentName: 'main',
+        fromSiblingBefore: null,
+        fromSiblingAfter: null,
+        toSiblingBefore: null,
+        toSiblingAfter: null,
+        fromParentSelector: 'main > section',
+        toParentSelector: 'main',
+        fromIndex: 0,
+        toIndex: 1,
+      },
+    }
+    const output = buildSessionExport([edit], [])
+    // The delete action is emitted; the contradictory move plan is not.
+    expect(output).toContain('action: delete this element')
+    expect(output).not.toContain('=== LAYOUT MOVE PLAN ===')
+    expect(output).not.toContain('moved:')
+    // And the profile no longer claims a move for a delete-only session.
+    const profile = getExportContentProfile([edit], [], null)
+    expect(profile.hasMoves).toBe(false)
+    expect(profile.hasDeletes).toBe(true)
+  })
+
+  it('counts a deletion as a session-edit change and surfaces it in the export profile/instruction', () => {
+    const edit: SessionEdit = {
+      element: document.createElement('div'),
+      locator: {
+        tagName: 'div',
+        id: 'doomed',
+        classList: [],
+        domSelector: '#doomed',
+        domContextHtml: '<div id="doomed" data-direct-edit-target="true"></div>',
+        targetHtml: '<div id="doomed">',
+        textPreview: '',
+        reactStack: [],
+      },
+      originalStyles: {},
+      pendingStyles: {},
+      textEdit: null,
+      move: null,
+      deleted: true,
+    }
+    expect(hasSessionEditChanges(edit)).toBe(true)
+    const profile = getExportContentProfile([edit], [], null)
+    expect(profile.hasDeletes).toBe(true)
+    expect(buildExportInstruction(profile)).toContain('Delete the elements marked for deletion')
   })
 
   it('includes both CSS and text instructions for combined edits', () => {
