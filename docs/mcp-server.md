@@ -62,6 +62,8 @@ Output: {
     orderingConstraints: string[],
     notes: string[]
   },
+  deleted?: true,   // present when the user deleted the element; remove it from source.
+                    // changes/textChange/moveIntent are suppressed for a deleted edit.
   exportMarkdown: string
   // Move exports use the canonical format:
   //   - "=== LAYOUT MOVE PLAN ===" batch header

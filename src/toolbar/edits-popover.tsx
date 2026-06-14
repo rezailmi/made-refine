@@ -79,6 +79,7 @@ export function EditsPopover({
   const visibleItems = React.useMemo(() => {
     return editsSnapshot.filter((item) => {
       if (item.type === 'comment') return true
+      if (item.edit.deleted) return true
       if (!item.edit.move) return true
       const moveIntent = getMoveIntentForEdit(item.edit, movePlanContext)
       const hasStyleOrText = Object.keys(item.edit.pendingStyles).length > 0 || item.edit.textEdit != null

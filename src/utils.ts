@@ -3251,7 +3251,9 @@ function buildMoveEntries(edits: SessionEdit[]): {
 
   for (const edit of edits) {
     const move = edit.move
-    if (!move) continue
+    // A deleted element is being removed from source, so any pending move on it
+    // is moot — don't emit a move plan/intent that contradicts the delete action.
+    if (!move || edit.deleted) continue
 
     const subject = buildAnchorRef(
       getElementDisplayName(edit.element) || edit.locator.tagName,

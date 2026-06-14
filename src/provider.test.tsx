@@ -3511,6 +3511,92 @@ describe('DirectEditProvider', () => {
     expect(Object.keys(restored?.pendingStyles ?? {}).length).toBeGreaterThan(0)
   })
 
+  it('sends a deletion to the agent with deleted:true and a delete instruction', async () => {
+    mockClipboard()
+    sendEditToAgentMock.mockClear()
+    sendEditToAgentMock.mockResolvedValue({ ok: true, id: 'edit-del' })
+    const target = createTarget('delete-send')
+
+    const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+    act(() => {
+      result.current.toggleEditMode()
+    })
+    await waitFor(() => {
+      expect(result.current.editModeActive).toBe(true)
+    })
+
+    act(() => {
+      result.current.selectElement(target)
+    })
+    await waitFor(() => {
+      expect(result.current.selectedElement).toBe(target)
+    })
+
+    act(() => {
+      result.current.deleteSelection()
+    })
+    await waitFor(() => {
+      expect(target.isConnected).toBe(false)
+    })
+
+    // Deletions are dispatched through the apply-all/send-all path.
+    await act(async () => {
+      await result.current.sendAllSessionItemsToAgent()
+    })
+
+    expect(sendEditToAgentMock).toHaveBeenCalledTimes(1)
+    const payload = sendEditToAgentMock.mock.calls[0][0] as {
+      deleted?: boolean
+      exportMarkdown?: string
+    }
+    expect(payload.deleted).toBe(true)
+    expect(payload.exportMarkdown).toContain('action: delete this element')
+  })
+
+  it('tracks deletion of multiple selected elements and clears all on undo', async () => {
+    const target1 = createTarget('multi-del-track-1')
+    const target2 = createTarget('multi-del-track-2')
+
+    const { result } = renderHook(() => useDirectEdit(), { wrapper })
+
+    act(() => {
+      result.current.toggleEditMode()
+    })
+    await waitFor(() => {
+      expect(result.current.editModeActive).toBe(true)
+    })
+
+    act(() => {
+      result.current.selectElements([target1, target2])
+    })
+    await waitFor(() => {
+      expect(result.current.selectedElements).toHaveLength(2)
+    })
+
+    act(() => {
+      result.current.deleteSelection()
+    })
+    await waitFor(() => {
+      expect(target1.isConnected).toBe(false)
+      expect(target2.isConnected).toBe(false)
+    })
+
+    const edits = result.current.getSessionEdits()
+    expect(edits.find((e) => e.element === target1)?.deleted).toBe(true)
+    expect(edits.find((e) => e.element === target2)?.deleted).toBe(true)
+
+    act(() => {
+      result.current.undo()
+    })
+    await waitFor(() => {
+      expect(target1.isConnected).toBe(true)
+      expect(target2.isConnected).toBe(true)
+    })
+    const after = result.current.getSessionEdits()
+    expect(after.some((e) => (e.element === target1 || e.element === target2) && e.deleted)).toBe(false)
+  })
+
   it('deletes multiple selected elements and restores all on undo', async () => {
     const target1 = createTarget('multi-del-1')
     const target2 = createTarget('multi-del-2')
