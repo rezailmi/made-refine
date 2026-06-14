@@ -752,11 +752,23 @@ export function useSessionManager({
       nextSibling: el.nextSibling as Node | null,
     }))
 
-    const sessionSnapshots = new Map<HTMLElement, SessionEdit>()
+    const sessionSnapshots = new Map<HTMLElement, SessionEdit | null>()
     for (const el of selected) {
-      const edit = sessionEditsRef.current.get(el)
-      if (edit) sessionSnapshots.set(el, edit)
-      sessionEditsRef.current.delete(el)
+      const existing = sessionEditsRef.current.get(el)
+      sessionSnapshots.set(el, existing ?? null)
+      // Track the deletion as a session edit so it is exported/sent to the agent.
+      // Capture the locator now, while the element is still connected (removed below).
+      sessionEditsRef.current.set(el, existing
+        ? { ...existing, deleted: true }
+        : {
+            element: el,
+            locator: getElementLocator(el),
+            originalStyles: {},
+            pendingStyles: {},
+            move: null,
+            textEdit: null,
+            deleted: true,
+          })
     }
     syncSessionItemCount()
 
@@ -779,7 +791,8 @@ export function useSessionManager({
           }
         }
         for (const [el, edit] of sessionSnapshots) {
-          sessionEditsRef.current.set(el, edit)
+          if (edit) sessionEditsRef.current.set(el, edit)
+          else sessionEditsRef.current.delete(el)
         }
         syncSessionItemCount()
       },
@@ -1221,7 +1234,9 @@ export function useSessionManager({
     saveCurrentToSession()
     const edits: SessionEdit[] = []
     for (const edit of sessionEditsRef.current.values()) {
-      if (!edit.element.isConnected) {
+      // Keep deleted edits even though their element is disconnected — the deletion
+      // is the thing we need to export. Drop only genuinely-stale disconnected edits.
+      if (!edit.element.isConnected && !edit.deleted) {
         sessionEditsRef.current.delete(edit.element)
         continue
       }
