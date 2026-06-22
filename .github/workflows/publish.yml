@@ -28,12 +28,12 @@ on:
       unpublish_versions:
         description: Space-separated versions to unpublish (unpublish only)
         required: false
-        default: "0.1.0-beta.3 0.1.0-beta.4 0.1.0-beta.5 0.1.0-beta.6 0.1.0-beta.7 0.1.0-beta.8"
+        default: '0.1.0-beta.3 0.1.0-beta.4 0.1.0-beta.5 0.1.0-beta.6 0.1.0-beta.7 0.1.0-beta.8'
         type: string
       confirm_unpublish:
         description: Type UNPUBLISH to confirm unpublish task
         required: false
-        default: ""
+        default: ''
         type: string
 
 permissions:
@@ -63,6 +63,9 @@ jobs:
 
       - name: Typecheck
         run: bunx tsc --noEmit
+
+      - name: Lint (non-blocking baseline)
+        run: bun run lint || true
 
       - name: Test
         run: bunx vitest run

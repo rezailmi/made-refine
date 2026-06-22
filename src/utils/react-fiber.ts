@@ -6,6 +6,7 @@ declare global {
     __DIRECT_EDIT_DEVTOOLS__?: {
       getFiberForElement: (element: HTMLElement) => unknown | null
       hasHook?: boolean
+      version?: number
     }
   }
 }
@@ -32,13 +33,11 @@ export function getFiberForElement(element: HTMLElement): any | null {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function getSourceFromFiber(fiber: any):
-  | {
-      fileName?: string
-      lineNumber?: number
-      columnNumber?: number
-    }
-  | null {
+export function getSourceFromFiber(fiber: any): {
+  fileName?: string
+  lineNumber?: number
+  columnNumber?: number
+} | null {
   const debugSource = fiber?._debugSource
   if (debugSource?.fileName) return debugSource
 
@@ -77,8 +76,14 @@ export function resolveComponentName(type: any): string | null {
     const name = current.displayName || (typeof current === 'function' ? current.name : undefined)
     if (name) return name
     if (typeof current !== 'object') return null
-    if (current.$$typeof === REACT_MEMO_TYPE) { current = current.type; continue }
-    if (current.$$typeof === REACT_FORWARD_REF_TYPE) { current = current.render; continue }
+    if (current.$$typeof === REACT_MEMO_TYPE) {
+      current = current.type
+      continue
+    }
+    if (current.$$typeof === REACT_FORWARD_REF_TYPE) {
+      current = current.render
+      continue
+    }
     return null
   }
   return null
@@ -129,7 +134,10 @@ function shouldIncludeFrame(
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function getOwnerStack(fiber: any): { frames: ReactComponentFrame[]; nearestComponentFiber: any | null } {
+function getOwnerStack(fiber: any): {
+  frames: ReactComponentFrame[]
+  nearestComponentFiber: any | null
+} {
   const frames: ReactComponentFrame[] = []
   let current = fiber
   let lastFrame: ReactComponentFrame | null = null
@@ -152,7 +160,10 @@ function getOwnerStack(fiber: any): { frames: ReactComponentFrame[]; nearestComp
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function getRenderStack(fiber: any): { frames: ReactComponentFrame[]; nearestComponentFiber: any | null } {
+function getRenderStack(fiber: any): {
+  frames: ReactComponentFrame[]
+  nearestComponentFiber: any | null
+} {
   const frames: ReactComponentFrame[] = []
   let current = fiber
   let lastFrame: ReactComponentFrame | null = null
@@ -203,9 +214,7 @@ export function getReactComponentStack(element: HTMLElement): ReactComponentFram
 
 // --- Component props extraction ---
 
-const EXCLUDED_PROP_KEYS = new Set([
-  'className', 'style', 'children', 'ref', 'key', 'render',
-])
+const EXCLUDED_PROP_KEYS = new Set(['className', 'style', 'children', 'ref', 'key', 'render'])
 
 function serializePropValue(value: unknown): unknown {
   if (typeof value === 'function') return '[function]'
@@ -264,9 +273,7 @@ export function getCallSiteSource(fiber: any): DomSourceLocation | null {
   return null
 }
 
-export function deriveDefinitionSource(
-  frames: ReactComponentFrame[],
-): DomSourceLocation | null {
+export function deriveDefinitionSource(frames: ReactComponentFrame[]): DomSourceLocation | null {
   for (const frame of frames) {
     if (frame.file && isComponentPrimitivePath(frame.file)) {
       return { file: frame.file, line: frame.line, column: frame.column }
@@ -322,7 +329,11 @@ export function isComponentPrimitivePath(filePath: string): boolean {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function classifyComponentFiber(fiber: any, frames: ReactComponentFrame[], elementSourceFile?: string): { isComponentPrimitive: boolean } {
+export function classifyComponentFiber(
+  fiber: any,
+  frames: ReactComponentFrame[],
+  elementSourceFile?: string
+): { isComponentPrimitive: boolean } {
   // Check the host element's own source first — for component primitives,
   // this points to the file where the component renders its host elements.
   // This check runs before the fiber null guard because elementSourceFile

@@ -1,7 +1,12 @@
 import * as React from 'react'
 import { act, fireEvent, render, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { DirectEditProvider, useDirectEdit, useDirectEditActions, useDirectEditState } from './provider'
+import {
+  DirectEditProvider,
+  useDirectEdit,
+  useDirectEditActions,
+  useDirectEditState,
+} from './provider'
 import { DirectEditPanel } from './panel'
 import { SelectionOverlay } from './selection-overlay'
 import { DirectEditToolbar } from './toolbar'
@@ -9,11 +14,25 @@ import { Rulers } from './rulers-overlay'
 import { parsePropertyValue } from './utils'
 import { PANEL_WIDTH, PANEL_HEIGHT } from './use-panel-position'
 
-const { checkAgentConnectionMock, sendEditToAgentMock, sendCommentToAgentMock } = vi.hoisted(() => ({
-  checkAgentConnectionMock: vi.fn<() => Promise<boolean>>().mockResolvedValue(true),
-  sendEditToAgentMock: vi.fn<(...args: unknown[]) => Promise<{ ok: boolean; id: string; errorKind?: 'network' | 'rejected' }>>().mockResolvedValue({ ok: true, id: 'edit-1' }),
-  sendCommentToAgentMock: vi.fn<(...args: unknown[]) => Promise<{ ok: boolean; id: string; errorKind?: 'network' | 'rejected' }>>().mockResolvedValue({ ok: true, id: 'comment-1' }),
-}))
+const { checkAgentConnectionMock, sendEditToAgentMock, sendCommentToAgentMock } = vi.hoisted(
+  () => ({
+    checkAgentConnectionMock: vi.fn<() => Promise<boolean>>().mockResolvedValue(true),
+    sendEditToAgentMock: vi
+      .fn<
+        (
+          ...args: unknown[]
+        ) => Promise<{ ok: boolean; id: string; errorKind?: 'network' | 'rejected' }>
+      >()
+      .mockResolvedValue({ ok: true, id: 'edit-1' }),
+    sendCommentToAgentMock: vi
+      .fn<
+        (
+          ...args: unknown[]
+        ) => Promise<{ ok: boolean; id: string; errorKind?: 'network' | 'rejected' }>
+      >()
+      .mockResolvedValue({ ok: true, id: 'comment-1' }),
+  })
+)
 
 vi.mock('./mcp-client', () => ({
   checkAgentConnection: checkAgentConnectionMock,
@@ -115,16 +134,19 @@ function mockExecCommand() {
 }
 
 function stubMatchMedia() {
-  vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({
-    matches: false,
-    media: query,
-    onchange: null,
-    addEventListener: () => {},
-    removeEventListener: () => {},
-    addListener: () => {},
-    removeListener: () => {},
-    dispatchEvent: () => false,
-  })))
+  vi.stubGlobal(
+    'matchMedia',
+    vi.fn().mockImplementation((query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+      dispatchEvent: () => false,
+    }))
+  )
 }
 
 function resetStorage() {
@@ -149,21 +171,25 @@ function clickOverlay(
   overlay: HTMLElement,
   clientX: number,
   clientY: number,
-  init: MouseEventInit = {},
+  init: MouseEventInit = {}
 ) {
-  overlay.dispatchEvent(new MouseEvent('click', {
-    bubbles: true,
-    cancelable: true,
-    composed: true,
-    clientX,
-    clientY,
-    ...init,
-  }))
+  overlay.dispatchEvent(
+    new MouseEvent('click', {
+      bubbles: true,
+      cancelable: true,
+      composed: true,
+      clientX,
+      clientY,
+      ...init,
+    })
+  )
 }
 
 function mockElementFromPoint(returnElement: HTMLElement) {
   const originalDescriptor = Object.getOwnPropertyDescriptor(document, 'elementFromPoint')
-  const elementFromPoint = vi.fn<(...args: unknown[]) => HTMLElement | null>().mockReturnValue(returnElement)
+  const elementFromPoint = vi
+    .fn<(...args: unknown[]) => HTMLElement | null>()
+    .mockReturnValue(returnElement)
   Object.defineProperty(document, 'elementFromPoint', {
     configurable: true,
     writable: true,
@@ -187,7 +213,9 @@ async function findOverlayElement(): Promise<HTMLElement> {
   })
 
   return waitFor(() => {
-    const overlay = host.shadowRoot?.querySelector('[data-direct-edit="overlay"]') as HTMLElement | null
+    const overlay = host.shadowRoot?.querySelector(
+      '[data-direct-edit="overlay"]'
+    ) as HTMLElement | null
     expect(overlay).not.toBeNull()
     return overlay as HTMLElement
   })
@@ -210,7 +238,9 @@ async function findHostShadowRoot(): Promise<ShadowRoot> {
 async function findSelectedCommentInput(): Promise<HTMLTextAreaElement> {
   const shadowRoot = await findHostShadowRoot()
   return waitFor(() => {
-    const input = shadowRoot.querySelector('[data-direct-edit="selected-comment-composer"] textarea') as HTMLTextAreaElement | null
+    const input = shadowRoot.querySelector(
+      '[data-direct-edit="selected-comment-composer"] textarea'
+    ) as HTMLTextAreaElement | null
     expect(input).not.toBeNull()
     return input as HTMLTextAreaElement
   })
@@ -219,7 +249,9 @@ async function findSelectedCommentInput(): Promise<HTMLTextAreaElement> {
 async function clickCommentPill(): Promise<void> {
   const shadowRoot = await findHostShadowRoot()
   const pill = await waitFor(() => {
-    const btn = shadowRoot.querySelector('[data-direct-edit="comment-pill"]') as HTMLButtonElement | null
+    const btn = shadowRoot.querySelector(
+      '[data-direct-edit="comment-pill"]'
+    ) as HTMLButtonElement | null
     expect(btn).not.toBeNull()
     return btn as HTMLButtonElement
   })
@@ -228,7 +260,10 @@ async function clickCommentPill(): Promise<void> {
   })
 }
 
-async function findToolbarButtonByIcon(shadowRoot: ShadowRoot, iconClass: string): Promise<HTMLButtonElement> {
+async function findToolbarButtonByIcon(
+  shadowRoot: ShadowRoot,
+  iconClass: string
+): Promise<HTMLButtonElement> {
   return waitFor(() => {
     const icon = shadowRoot.querySelector(`svg.${iconClass}`) as SVGElement | null
     const button = icon?.closest('button') as HTMLButtonElement | null
@@ -257,7 +292,7 @@ describe('DirectEditProvider', () => {
     document.documentElement.removeAttribute('data-direct-edit-disable-styles')
     document.body.innerHTML = ''
     // Clean up hosts appended to documentElement (outside body)
-    document.querySelectorAll('[data-direct-edit-host]').forEach(el => el.remove())
+    document.querySelectorAll('[data-direct-edit-host]').forEach((el) => el.remove())
     resetStorage()
   })
 
@@ -308,10 +343,13 @@ describe('DirectEditProvider', () => {
     mockClipboard()
     const target = createTarget('split-hooks-target', 'padding-top: 2px;')
 
-    const { result } = renderHook(() => ({
-      state: useDirectEditState(),
-      actions: useDirectEditActions(),
-    }), { wrapper })
+    const { result } = renderHook(
+      () => ({
+        state: useDirectEditState(),
+        actions: useDirectEditActions(),
+      }),
+      { wrapper }
+    )
 
     const initialActions = result.current.actions
 
@@ -448,7 +486,9 @@ describe('DirectEditProvider', () => {
     const { result } = renderHook(() => useDirectEdit(), { wrapper })
 
     act(() => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: '.', code: 'Period', ctrlKey: true }))
+      window.dispatchEvent(
+        new KeyboardEvent('keydown', { key: '.', code: 'Period', ctrlKey: true })
+      )
     })
     expect(result.current.editModeActive).toBe(true)
 
@@ -492,6 +532,14 @@ describe('DirectEditProvider', () => {
       result.current.selectElement(target)
     })
 
+    await waitFor(() => {
+      expect(result.current.selectedElement).toBe(target)
+    })
+
+    act(() => {
+      result.current.updateSpacingProperty('paddingTop', cssValue(16))
+    })
+
     const host = await waitFor(() => {
       const node = document.querySelector('[data-direct-edit-host]') as HTMLElement | null
       expect(node).not.toBeNull()
@@ -512,17 +560,23 @@ describe('DirectEditProvider', () => {
       return node as HTMLElement
     })
     const rulerHorizontal = await waitFor(() => {
-      const node = shadowRoot?.querySelector('[data-direct-edit="ruler-horizontal"]') as HTMLElement | null
+      const node = shadowRoot?.querySelector(
+        '[data-direct-edit="ruler-horizontal"]'
+      ) as HTMLElement | null
       expect(node).not.toBeNull()
       return node as HTMLElement
     })
     const rulerVertical = await waitFor(() => {
-      const node = shadowRoot?.querySelector('[data-direct-edit="ruler-vertical"]') as HTMLElement | null
+      const node = shadowRoot?.querySelector(
+        '[data-direct-edit="ruler-vertical"]'
+      ) as HTMLElement | null
       expect(node).not.toBeNull()
       return node as HTMLElement
     })
     const rulerCorner = await waitFor(() => {
-      const node = shadowRoot?.querySelector('[data-direct-edit="ruler-corner"]') as HTMLElement | null
+      const node = shadowRoot?.querySelector(
+        '[data-direct-edit="ruler-corner"]'
+      ) as HTMLElement | null
       expect(node).not.toBeNull()
       return node as HTMLElement
     })
@@ -664,8 +718,12 @@ describe('DirectEditProvider', () => {
     })
 
     await waitFor(() => {
-      expect(result.current.selectedElement?.getAttribute('data-made-refine-canvas-node')).toBe('text')
-      expect(result.current.textEditingElement?.getAttribute('data-made-refine-canvas-node')).toBe('text')
+      expect(result.current.selectedElement?.getAttribute('data-made-refine-canvas-node')).toBe(
+        'text'
+      )
+      expect(result.current.textEditingElement?.getAttribute('data-made-refine-canvas-node')).toBe(
+        'text'
+      )
     })
   })
 
@@ -743,7 +801,9 @@ describe('DirectEditProvider', () => {
     })
 
     const panel = await waitFor(() => {
-      const node = host.shadowRoot?.querySelector('[data-direct-edit="panel"]') as HTMLElement | null
+      const node = host.shadowRoot?.querySelector(
+        '[data-direct-edit="panel"]'
+      ) as HTMLElement | null
       expect(node).not.toBeNull()
       return node as HTMLElement
     })
@@ -769,7 +829,9 @@ describe('DirectEditProvider', () => {
     })
 
     const panel = await waitFor(() => {
-      const node = host.shadowRoot?.querySelector('[data-direct-edit="panel"]') as HTMLElement | null
+      const node = host.shadowRoot?.querySelector(
+        '[data-direct-edit="panel"]'
+      ) as HTMLElement | null
       expect(node).not.toBeNull()
       return node as HTMLElement
     })
@@ -795,7 +857,9 @@ describe('DirectEditProvider', () => {
     })
 
     const panel = await waitFor(() => {
-      const node = host.shadowRoot?.querySelector('[data-direct-edit="panel"]') as HTMLElement | null
+      const node = host.shadowRoot?.querySelector(
+        '[data-direct-edit="panel"]'
+      ) as HTMLElement | null
       expect(node).not.toBeNull()
       return node as HTMLElement
     })
@@ -847,7 +911,9 @@ describe('DirectEditProvider', () => {
     const { result } = renderHook(() => useDirectEdit(), { wrapper })
 
     act(() => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: ',', code: 'Period', ctrlKey: true }))
+      window.dispatchEvent(
+        new KeyboardEvent('keydown', { key: ',', code: 'Period', ctrlKey: true })
+      )
     })
     expect(result.current.editModeActive).toBe(true)
 
@@ -857,12 +923,16 @@ describe('DirectEditProvider', () => {
     expect(result.current.editModeActive).toBe(false)
 
     act(() => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: '>', code: 'Period', ctrlKey: true, shiftKey: true }))
+      window.dispatchEvent(
+        new KeyboardEvent('keydown', { key: '>', code: 'Period', ctrlKey: true, shiftKey: true })
+      )
     })
     expect(result.current.editModeActive).toBe(false)
 
     act(() => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: '.', code: 'Period', ctrlKey: true, altKey: true }))
+      window.dispatchEvent(
+        new KeyboardEvent('keydown', { key: '.', code: 'Period', ctrlKey: true, altKey: true })
+      )
     })
     expect(result.current.editModeActive).toBe(false)
   })
@@ -979,7 +1049,9 @@ describe('DirectEditProvider', () => {
 
     const shadowRoot = await findHostShadowRoot()
     await waitFor(() => {
-      expect(shadowRoot.querySelectorAll('[data-direct-edit="selection-overlay-box"]')).toHaveLength(2)
+      expect(
+        shadowRoot.querySelectorAll('[data-direct-edit="selection-overlay-box"]')
+      ).toHaveLength(2)
       expect(shadowRoot.querySelector('[data-direct-edit="selection-count-label"]')).toBeNull()
       expect(shadowRoot.querySelector('[data-direct-edit="selected-comment-composer"]')).toBeNull()
     })
@@ -988,28 +1060,30 @@ describe('DirectEditProvider', () => {
   it('supports marquee multi-selection by dragging on the canvas overlay', async () => {
     const targetA = createTarget('marquee-a')
     const targetB = createTarget('marquee-b')
-    targetA.getBoundingClientRect = () => ({
-      left: 20,
-      top: 20,
-      width: 80,
-      height: 80,
-      right: 100,
-      bottom: 100,
-      x: 20,
-      y: 20,
-      toJSON: () => ({}),
-    }) as DOMRect
-    targetB.getBoundingClientRect = () => ({
-      left: 140,
-      top: 24,
-      width: 80,
-      height: 80,
-      right: 220,
-      bottom: 104,
-      x: 140,
-      y: 24,
-      toJSON: () => ({}),
-    }) as DOMRect
+    targetA.getBoundingClientRect = () =>
+      ({
+        left: 20,
+        top: 20,
+        width: 80,
+        height: 80,
+        right: 100,
+        bottom: 100,
+        x: 20,
+        y: 20,
+        toJSON: () => ({}),
+      }) as DOMRect
+    targetB.getBoundingClientRect = () =>
+      ({
+        left: 140,
+        top: 24,
+        width: 80,
+        height: 80,
+        right: 220,
+        bottom: 104,
+        x: 140,
+        y: 24,
+        toJSON: () => ({}),
+      }) as DOMRect
 
     const { result } = renderHook(() => useDirectEdit(), { wrapper: panelWrapper })
 
@@ -1054,7 +1128,9 @@ describe('DirectEditProvider', () => {
       expect(result.current.editModeActive).toBe(true)
     })
 
-    const frameCountBefore = document.querySelectorAll('[data-made-refine-canvas-node="frame"]').length
+    const frameCountBefore = document.querySelectorAll(
+      '[data-made-refine-canvas-node="frame"]'
+    ).length
     const divCountBefore = document.querySelectorAll('[data-made-refine-canvas-node="div"]').length
 
     act(() => {
@@ -1063,9 +1139,15 @@ describe('DirectEditProvider', () => {
     })
 
     await waitFor(() => {
-      expect(document.querySelectorAll('[data-made-refine-canvas-node="frame"]').length).toBeGreaterThan(frameCountBefore)
-      expect(document.querySelectorAll('[data-made-refine-canvas-node="div"]').length).toBeGreaterThan(divCountBefore)
-      expect(result.current.selectedElement?.getAttribute('data-made-refine-canvas-node')).toBe('div')
+      expect(
+        document.querySelectorAll('[data-made-refine-canvas-node="frame"]').length
+      ).toBeGreaterThan(frameCountBefore)
+      expect(
+        document.querySelectorAll('[data-made-refine-canvas-node="div"]').length
+      ).toBeGreaterThan(divCountBefore)
+      expect(result.current.selectedElement?.getAttribute('data-made-refine-canvas-node')).toBe(
+        'div'
+      )
     })
   })
 
@@ -1080,16 +1162,24 @@ describe('DirectEditProvider', () => {
       expect(result.current.editModeActive).toBe(true)
     })
 
-    const textCountBefore = document.querySelectorAll('[data-made-refine-canvas-node="text"]').length
+    const textCountBefore = document.querySelectorAll(
+      '[data-made-refine-canvas-node="text"]'
+    ).length
 
     act(() => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 't', code: 'KeyT' }))
     })
 
     await waitFor(() => {
-      expect(document.querySelectorAll('[data-made-refine-canvas-node="text"]').length).toBeGreaterThan(textCountBefore)
-      expect(result.current.selectedElement?.getAttribute('data-made-refine-canvas-node')).toBe('text')
-      expect(result.current.textEditingElement?.getAttribute('data-made-refine-canvas-node')).toBe('text')
+      expect(
+        document.querySelectorAll('[data-made-refine-canvas-node="text"]').length
+      ).toBeGreaterThan(textCountBefore)
+      expect(result.current.selectedElement?.getAttribute('data-made-refine-canvas-node')).toBe(
+        'text'
+      )
+      expect(result.current.textEditingElement?.getAttribute('data-made-refine-canvas-node')).toBe(
+        'text'
+      )
     })
   })
 
@@ -1130,8 +1220,12 @@ describe('DirectEditProvider', () => {
     await waitFor(() => {
       expect(target.getAttribute('contenteditable')).toBeNull()
       expect(result.current.textEditingElement).not.toBe(target)
-      expect(result.current.textEditingElement?.getAttribute('data-made-refine-canvas-node')).toBe('text')
-      expect(result.current.selectedElement?.getAttribute('data-made-refine-canvas-node')).toBe('text')
+      expect(result.current.textEditingElement?.getAttribute('data-made-refine-canvas-node')).toBe(
+        'text'
+      )
+      expect(result.current.selectedElement?.getAttribute('data-made-refine-canvas-node')).toBe(
+        'text'
+      )
     })
 
     const committedEdit = result.current.getSessionEdits().find((edit) => edit.element === target)
@@ -1177,7 +1271,9 @@ describe('DirectEditProvider', () => {
     })
 
     await waitFor(() => {
-      const group = document.querySelector('[data-made-refine-canvas-node="group"]') as HTMLElement | null
+      const group = document.querySelector(
+        '[data-made-refine-canvas-node="group"]'
+      ) as HTMLElement | null
       expect(group).not.toBeNull()
       expect(group?.children).toHaveLength(2)
       expect(result.current.selectedElement).toBe(group)
@@ -1394,7 +1490,9 @@ describe('DirectEditProvider', () => {
         result.current.insertElement('text')
       })
 
-      const text = document.querySelector('[data-made-refine-canvas-node="text"]') as HTMLParagraphElement
+      const text = document.querySelector(
+        '[data-made-refine-canvas-node="text"]'
+      ) as HTMLParagraphElement
       expect(text).not.toBeNull()
       expect(text.tagName).toBe('P')
       expect(text.textContent).toBe('Text')
@@ -1429,7 +1527,9 @@ describe('DirectEditProvider', () => {
         result.current.insertElement('text')
       })
 
-      const text = document.querySelector('[data-made-refine-canvas-node="text"]') as HTMLParagraphElement
+      const text = document.querySelector(
+        '[data-made-refine-canvas-node="text"]'
+      ) as HTMLParagraphElement
       expect(text).not.toBeNull()
       expect(text.parentElement).toBe(document.body)
       expect(text.style.position).toBe('absolute')
@@ -1468,7 +1568,9 @@ describe('DirectEditProvider', () => {
         result.current.insertElement('text')
       })
 
-      const text = document.querySelector('[data-made-refine-canvas-node="text"]') as HTMLParagraphElement
+      const text = document.querySelector(
+        '[data-made-refine-canvas-node="text"]'
+      ) as HTMLParagraphElement
       expect(text).not.toBeNull()
       expect(text.parentElement).toBe(container)
       expect(child.nextElementSibling).toBe(text)
@@ -1494,7 +1596,9 @@ describe('DirectEditProvider', () => {
         result.current.insertElement('text')
       })
 
-      const text = document.querySelector('[data-made-refine-canvas-node="text"]') as HTMLParagraphElement
+      const text = document.querySelector(
+        '[data-made-refine-canvas-node="text"]'
+      ) as HTMLParagraphElement
       expect(text).not.toBeNull()
       expect(text.parentElement).toBe(document.body)
       expect(text.style.position).toBe('absolute')
@@ -1667,7 +1771,7 @@ describe('DirectEditProvider', () => {
           cssProperty: 'padding-top',
           cssValue: '12px',
         }),
-      ]),
+      ])
     )
   })
 
@@ -1707,7 +1811,7 @@ describe('DirectEditProvider', () => {
           cssValue: '16px',
           tailwindClass: 'p-4',
         }),
-      ]),
+      ])
     )
     expect(cssProperties).not.toContain('padding-top')
     expect(cssProperties).not.toContain('padding-right')
@@ -1918,17 +2022,18 @@ describe('DirectEditProvider', () => {
 
   it('clamps comment anchor position to the target bounds', () => {
     const target = createTarget('comment-anchor-clamp-target')
-    target.getBoundingClientRect = () => ({
-      left: 100,
-      top: 80,
-      width: 300,
-      height: 200,
-      right: 400,
-      bottom: 280,
-      x: 100,
-      y: 80,
-      toJSON: () => ({}),
-    }) as DOMRect
+    target.getBoundingClientRect = () =>
+      ({
+        left: 100,
+        top: 80,
+        width: 300,
+        height: 200,
+        right: 400,
+        bottom: 280,
+        x: 100,
+        y: 80,
+        toJSON: () => ({}),
+      }) as DOMRect
 
     const { result } = renderHook(() => useDirectEdit(), { wrapper })
 
@@ -2131,7 +2236,7 @@ describe('DirectEditProvider', () => {
       expect.objectContaining({
         interactionMode: 'reorder',
         classification: expect.any(String),
-      }),
+      })
     )
     expect(payload.exportMarkdown).toContain('moved:')
     expect(payload.exportMarkdown).toContain('id:')
@@ -2337,7 +2442,9 @@ describe('DirectEditProvider', () => {
 
     const firstComment = result.current.comments.find((comment) => comment.id === firstCommentId)
     expect(firstComment?.text).toBe('Keep this comment')
-    const activeComment = result.current.comments.find((comment) => comment.id === result.current.activeCommentId)
+    const activeComment = result.current.comments.find(
+      (comment) => comment.id === result.current.activeCommentId
+    )
     expect(activeComment?.text).toBe('')
     expect(activeComment?.element).toBe(targetB)
   })
@@ -2391,7 +2498,10 @@ describe('DirectEditProvider', () => {
     vi.stubGlobal('ResizeObserver', ResizeObserverMock)
     stubMatchMedia()
 
-    const target = createTarget('comment-toolbar-draft-guard', 'padding-top: 8px; width: 320px; height: 120px;')
+    const target = createTarget(
+      'comment-toolbar-draft-guard',
+      'padding-top: 8px; width: 320px; height: 120px;'
+    )
     const { result } = renderHook(() => useDirectEdit(), { wrapper: fullUiWrapper })
 
     act(() => {
@@ -2414,13 +2524,17 @@ describe('DirectEditProvider', () => {
 
     const shadowRoot = await findHostShadowRoot()
     const textInsertButton = await findToolbarButtonByIcon(shadowRoot, 'lucide-type')
-    const textCountBefore = document.querySelectorAll('[data-made-refine-canvas-node="text"]').length
+    const textCountBefore = document.querySelectorAll(
+      '[data-made-refine-canvas-node="text"]'
+    ).length
 
     act(() => {
       fireEvent.click(textInsertButton)
     })
 
-    expect(document.querySelectorAll('[data-made-refine-canvas-node="text"]')).toHaveLength(textCountBefore)
+    expect(document.querySelectorAll('[data-made-refine-canvas-node="text"]')).toHaveLength(
+      textCountBefore
+    )
     expect(result.current.activeCommentId).toBe(draftCommentId)
     expect(draftInput.value).toBe('Draft that should stay put')
 
@@ -2430,18 +2544,22 @@ describe('DirectEditProvider', () => {
   })
 
   it('opens the selected-element composer on comment pill click and positions it below the size label', async () => {
-    const target = createTarget('comment-selection-target', 'padding-top: 8px; width: 320px; height: 120px;')
-    target.getBoundingClientRect = () => ({
-      left: 40,
-      top: 60,
-      width: 320,
-      height: 120,
-      right: 360,
-      bottom: 180,
-      x: 40,
-      y: 60,
-      toJSON: () => ({}),
-    }) as DOMRect
+    const target = createTarget(
+      'comment-selection-target',
+      'padding-top: 8px; width: 320px; height: 120px;'
+    )
+    target.getBoundingClientRect = () =>
+      ({
+        left: 40,
+        top: 60,
+        width: 320,
+        height: 120,
+        right: 360,
+        bottom: 180,
+        x: 40,
+        y: 60,
+        toJSON: () => ({}),
+      }) as DOMRect
 
     const { result } = renderHook(() => useDirectEdit(), { wrapper: panelWrapper })
 
@@ -2458,9 +2576,15 @@ describe('DirectEditProvider', () => {
 
     const shadowRoot = await findHostShadowRoot()
     const input = await findSelectedCommentInput()
-    const selectionOverlay = shadowRoot.querySelector('[data-direct-edit="selection-overlay"]') as HTMLElement | null
-    const dimensionLabel = shadowRoot.querySelector('[data-direct-edit="dimension-label"]') as HTMLElement | null
-    const composer = shadowRoot.querySelector('[data-direct-edit="selected-comment-composer"]') as HTMLElement | null
+    const selectionOverlay = shadowRoot.querySelector(
+      '[data-direct-edit="selection-overlay"]'
+    ) as HTMLElement | null
+    const dimensionLabel = shadowRoot.querySelector(
+      '[data-direct-edit="dimension-label"]'
+    ) as HTMLElement | null
+    const composer = shadowRoot.querySelector(
+      '[data-direct-edit="selected-comment-composer"]'
+    ) as HTMLElement | null
 
     expect(input.placeholder).toBe('Add a comment...')
     expect(input.tagName).toBe('TEXTAREA')
@@ -2469,17 +2593,37 @@ describe('DirectEditProvider', () => {
     expect(composer).not.toBeNull()
     expect(composer?.style.width).toBe('200px')
     expect(shadowRoot.querySelector('[data-direct-edit="comment-pin"]')).toBeNull()
-    expect(Number.parseFloat(dimensionLabel?.style.top ?? '0')).toBeGreaterThan(Number.parseFloat(selectionOverlay?.style.top ?? '0'))
-    expect(Number.parseFloat(composer?.style.top ?? '0')).toBeGreaterThan(Number.parseFloat(dimensionLabel?.style.top ?? '0'))
+    expect(Number.parseFloat(dimensionLabel?.style.top ?? '0')).toBeGreaterThan(
+      Number.parseFloat(selectionOverlay?.style.top ?? '0')
+    )
+    expect(Number.parseFloat(composer?.style.top ?? '0')).toBeGreaterThan(
+      Number.parseFloat(dimensionLabel?.style.top ?? '0')
+    )
   })
 
-  it('does not render copy or apply footer actions inside the panel', async () => {
-    const target = createTarget('panel-actions-target', 'padding-top: 8px; width: 320px; height: 120px;')
+  it('renders panel footer actions and sends through the provider path', async () => {
+    const target = createTarget(
+      'panel-actions-target',
+      'padding-top: 8px; width: 320px; height: 120px;'
+    )
     const { result } = renderHook(() => useDirectEdit(), { wrapper: panelWrapper })
+    sendEditToAgentMock.mockClear()
 
     act(() => {
       result.current.toggleEditMode()
       result.current.selectElement(target)
+    })
+
+    await waitFor(() => {
+      expect(result.current.selectedElement).toBe(target)
+    })
+
+    act(() => {
+      result.current.updateSpacingProperty('paddingTop', cssValue(16))
+    })
+
+    await waitFor(() => {
+      expect(result.current.pendingStyles['padding-top']).toBe('16px')
     })
 
     const shadowRoot = await findHostShadowRoot()
@@ -2489,12 +2633,30 @@ describe('DirectEditProvider', () => {
       return node as HTMLElement
     })
 
-    expect(panel.querySelector('button[aria-label="Copy edits"]')).toBeNull()
-    expect(panel.querySelector('button[aria-label="Apply changes via agent"]')).toBeNull()
+    expect(panel.querySelector('button[aria-label="Copy edits"]')).not.toBeNull()
+    const sendButton = await waitFor(() => {
+      const button = panel.querySelector(
+        'button[aria-label="Apply changes via agent"]'
+      ) as HTMLButtonElement | null
+      expect(button).not.toBeNull()
+      expect(button?.disabled).toBe(false)
+      return button as HTMLButtonElement
+    })
+
+    await act(async () => {
+      fireEvent.click(sendButton)
+    })
+
+    await waitFor(() => {
+      expect(sendEditToAgentMock).toHaveBeenCalledTimes(1)
+    })
   })
 
   it('uses the panel close button to exit design mode', async () => {
-    const target = createTarget('panel-close-target', 'padding-top: 8px; width: 320px; height: 120px;')
+    const target = createTarget(
+      'panel-close-target',
+      'padding-top: 8px; width: 320px; height: 120px;'
+    )
     const { result } = renderHook(() => useDirectEdit(), { wrapper: panelWrapper })
 
     act(() => {
@@ -2504,7 +2666,9 @@ describe('DirectEditProvider', () => {
 
     const shadowRoot = await findHostShadowRoot()
     const closeButton = await waitFor(() => {
-      const button = shadowRoot.querySelector('button[aria-label="Close panel"]') as HTMLButtonElement | null
+      const button = shadowRoot.querySelector(
+        'button[aria-label="Close panel"]'
+      ) as HTMLButtonElement | null
       expect(button).not.toBeNull()
       return button as HTMLButtonElement
     })
@@ -2526,18 +2690,22 @@ describe('DirectEditProvider', () => {
     }
     vi.stubGlobal('ResizeObserver', ResizeObserverMock)
 
-    const target = createTarget('comment-toolbar-collision-target', 'padding-top: 8px; width: 320px; height: 120px;')
-    target.getBoundingClientRect = () => ({
-      left: 40,
-      top: 60,
-      width: 320,
-      height: 120,
-      right: 360,
-      bottom: 180,
-      x: 40,
-      y: 60,
-      toJSON: () => ({}),
-    }) as DOMRect
+    const target = createTarget(
+      'comment-toolbar-collision-target',
+      'padding-top: 8px; width: 320px; height: 120px;'
+    )
+    target.getBoundingClientRect = () =>
+      ({
+        left: 40,
+        top: 60,
+        width: 320,
+        height: 120,
+        right: 360,
+        bottom: 180,
+        x: 40,
+        y: 60,
+        toJSON: () => ({}),
+      }) as DOMRect
 
     const { result } = renderHook(() => useDirectEdit(), { wrapper: fullUiWrapper })
 
@@ -2554,24 +2722,27 @@ describe('DirectEditProvider', () => {
       expect(node).not.toBeNull()
       return node as HTMLElement
     })
-    toolbar.getBoundingClientRect = () => ({
-      left: 70,
-      top: 200,
-      width: 240,
-      height: 56,
-      right: 310,
-      bottom: 256,
-      x: 70,
-      y: 200,
-      toJSON: () => ({}),
-    }) as DOMRect
+    toolbar.getBoundingClientRect = () =>
+      ({
+        left: 70,
+        top: 200,
+        width: 240,
+        height: 56,
+        right: 310,
+        bottom: 256,
+        x: 70,
+        y: 200,
+        toJSON: () => ({}),
+      }) as DOMRect
 
     act(() => {
       window.dispatchEvent(new Event('resize'))
     })
 
     await waitFor(() => {
-      const composer = shadowRoot.querySelector('[data-direct-edit="selected-comment-composer"]') as HTMLElement | null
+      const composer = shadowRoot.querySelector(
+        '[data-direct-edit="selected-comment-composer"]'
+      ) as HTMLElement | null
       expect(composer).not.toBeNull()
       expect(Number.parseFloat(composer?.style.top ?? '0')).toBeGreaterThanOrEqual(268)
     })
@@ -2587,39 +2758,42 @@ describe('DirectEditProvider', () => {
 
     const outer = createTarget('page-frame', 'padding-top: 8px; width: 420px; height: 240px;')
     const inner = createTarget('page-frame-inner', 'padding-top: 8px; width: 160px; height: 80px;')
-    document.body.getBoundingClientRect = () => ({
-      left: 12,
-      top: 28,
-      width: 640,
-      height: 480,
-      right: 652,
-      bottom: 508,
-      x: 12,
-      y: 28,
-      toJSON: () => ({}),
-    }) as DOMRect
-    outer.getBoundingClientRect = () => ({
-      left: 24,
-      top: 40,
-      width: 420,
-      height: 240,
-      right: 444,
-      bottom: 280,
-      x: 24,
-      y: 40,
-      toJSON: () => ({}),
-    }) as DOMRect
-    inner.getBoundingClientRect = () => ({
-      left: 60,
-      top: 90,
-      width: 160,
-      height: 80,
-      right: 220,
-      bottom: 170,
-      x: 60,
-      y: 90,
-      toJSON: () => ({}),
-    }) as DOMRect
+    document.body.getBoundingClientRect = () =>
+      ({
+        left: 12,
+        top: 28,
+        width: 640,
+        height: 480,
+        right: 652,
+        bottom: 508,
+        x: 12,
+        y: 28,
+        toJSON: () => ({}),
+      }) as DOMRect
+    outer.getBoundingClientRect = () =>
+      ({
+        left: 24,
+        top: 40,
+        width: 420,
+        height: 240,
+        right: 444,
+        bottom: 280,
+        x: 24,
+        y: 40,
+        toJSON: () => ({}),
+      }) as DOMRect
+    inner.getBoundingClientRect = () =>
+      ({
+        left: 60,
+        top: 90,
+        width: 160,
+        height: 80,
+        right: 220,
+        bottom: 170,
+        x: 60,
+        y: 90,
+        toJSON: () => ({}),
+      }) as DOMRect
     outer.appendChild(inner)
 
     const { result } = renderHook(() => useDirectEdit(), { wrapper: panelWrapper })
@@ -2631,7 +2805,9 @@ describe('DirectEditProvider', () => {
 
     const shadowRoot = await findHostShadowRoot()
     const pageLabel = await waitFor(() => {
-      const label = shadowRoot.querySelector('[data-direct-edit="page-frame-label"]') as HTMLButtonElement | null
+      const label = shadowRoot.querySelector(
+        '[data-direct-edit="page-frame-label"]'
+      ) as HTMLButtonElement | null
       expect(label).not.toBeNull()
       expect(label?.textContent).toBe('Page name')
       return label as HTMLButtonElement
@@ -2682,41 +2858,50 @@ describe('DirectEditProvider', () => {
       document.title = previousTitle
     })
 
-    const outer = createTarget('page-frame-comment-outer', 'padding-top: 12px; width: 420px; height: 260px;')
-    const inner = createTarget('page-frame-comment-inner', 'padding-top: 8px; width: 160px; height: 80px;')
-    document.body.getBoundingClientRect = () => ({
-      left: 12,
-      top: 60,
-      width: 640,
-      height: 480,
-      right: 652,
-      bottom: 540,
-      x: 12,
-      y: 60,
-      toJSON: () => ({}),
-    }) as DOMRect
-    outer.getBoundingClientRect = () => ({
-      left: 40,
-      top: 80,
-      width: 420,
-      height: 260,
-      right: 460,
-      bottom: 340,
-      x: 40,
-      y: 80,
-      toJSON: () => ({}),
-    }) as DOMRect
-    inner.getBoundingClientRect = () => ({
-      left: 60,
-      top: 100,
-      width: 160,
-      height: 80,
-      right: 220,
-      bottom: 180,
-      x: 60,
-      y: 100,
-      toJSON: () => ({}),
-    }) as DOMRect
+    const outer = createTarget(
+      'page-frame-comment-outer',
+      'padding-top: 12px; width: 420px; height: 260px;'
+    )
+    const inner = createTarget(
+      'page-frame-comment-inner',
+      'padding-top: 8px; width: 160px; height: 80px;'
+    )
+    document.body.getBoundingClientRect = () =>
+      ({
+        left: 12,
+        top: 60,
+        width: 640,
+        height: 480,
+        right: 652,
+        bottom: 540,
+        x: 12,
+        y: 60,
+        toJSON: () => ({}),
+      }) as DOMRect
+    outer.getBoundingClientRect = () =>
+      ({
+        left: 40,
+        top: 80,
+        width: 420,
+        height: 260,
+        right: 460,
+        bottom: 340,
+        x: 40,
+        y: 80,
+        toJSON: () => ({}),
+      }) as DOMRect
+    inner.getBoundingClientRect = () =>
+      ({
+        left: 60,
+        top: 100,
+        width: 160,
+        height: 80,
+        right: 220,
+        bottom: 180,
+        x: 60,
+        y: 100,
+        toJSON: () => ({}),
+      }) as DOMRect
     outer.appendChild(inner)
 
     const { result } = renderHook(() => useDirectEdit(), { wrapper: panelWrapper })
@@ -2728,7 +2913,9 @@ describe('DirectEditProvider', () => {
 
     const shadowRoot = await findHostShadowRoot()
     const pageLabel = await waitFor(() => {
-      const label = shadowRoot.querySelector('[data-direct-edit="page-frame-label"]') as HTMLButtonElement | null
+      const label = shadowRoot.querySelector(
+        '[data-direct-edit="page-frame-label"]'
+      ) as HTMLButtonElement | null
       expect(label).not.toBeNull()
       return label as HTMLButtonElement
     })
@@ -2747,7 +2934,9 @@ describe('DirectEditProvider', () => {
       expect(result.current.activeCommentId).not.toBeNull()
     })
 
-    expect(shadowRoot.querySelector('[data-direct-edit="selected-comment-composer"]')).not.toBeNull()
+    expect(
+      shadowRoot.querySelector('[data-direct-edit="selected-comment-composer"]')
+    ).not.toBeNull()
     document.title = previousTitle
   })
 
@@ -2757,29 +2946,34 @@ describe('DirectEditProvider', () => {
       document.body.getBoundingClientRect = originalBodyRect
     })
 
-    const inner = createTarget('zoom-page-frame-inner', 'padding-top: 8px; width: 160px; height: 80px;')
-    document.body.getBoundingClientRect = () => ({
-      left: 12,
-      top: 60,
-      width: 640,
-      height: 480,
-      right: 652,
-      bottom: 540,
-      x: 12,
-      y: 60,
-      toJSON: () => ({}),
-    }) as DOMRect
-    inner.getBoundingClientRect = () => ({
-      left: 60,
-      top: 90,
-      width: 160,
-      height: 80,
-      right: 220,
-      bottom: 170,
-      x: 60,
-      y: 90,
-      toJSON: () => ({}),
-    }) as DOMRect
+    const inner = createTarget(
+      'zoom-page-frame-inner',
+      'padding-top: 8px; width: 160px; height: 80px;'
+    )
+    document.body.getBoundingClientRect = () =>
+      ({
+        left: 12,
+        top: 60,
+        width: 640,
+        height: 480,
+        right: 652,
+        bottom: 540,
+        x: 12,
+        y: 60,
+        toJSON: () => ({}),
+      }) as DOMRect
+    inner.getBoundingClientRect = () =>
+      ({
+        left: 60,
+        top: 90,
+        width: 160,
+        height: 80,
+        right: 220,
+        bottom: 170,
+        x: 60,
+        y: 90,
+        toJSON: () => ({}),
+      }) as DOMRect
 
     const { container, rerender } = render(
       <SelectionOverlay
@@ -2789,11 +2983,13 @@ describe('DirectEditProvider', () => {
         canvasZoom={0.5}
         isDragging={false}
         onMoveStart={() => {}}
-      />,
+      />
     )
 
     const pageLabel = await waitFor(() => {
-      const label = container.querySelector('[data-direct-edit="page-frame-label"]') as HTMLButtonElement | null
+      const label = container.querySelector(
+        '[data-direct-edit="page-frame-label"]'
+      ) as HTMLButtonElement | null
       expect(label).not.toBeNull()
       return label as HTMLButtonElement
     })
@@ -2810,11 +3006,13 @@ describe('DirectEditProvider', () => {
         canvasZoom={2}
         isDragging={false}
         onMoveStart={() => {}}
-      />,
+      />
     )
 
     const zoomedInPageLabel = await waitFor(() => {
-      const label = container.querySelector('[data-direct-edit="page-frame-label"]') as HTMLButtonElement | null
+      const label = container.querySelector(
+        '[data-direct-edit="page-frame-label"]'
+      ) as HTMLButtonElement | null
       expect(label).not.toBeNull()
       return label as HTMLButtonElement
     })
@@ -2866,13 +3064,19 @@ describe('DirectEditProvider', () => {
 
   it('hides apply buttons when agent connection is offline and keeps copy controls visible', async () => {
     checkAgentConnectionMock.mockResolvedValue(false)
-    vi.stubGlobal('ResizeObserver', class ResizeObserver {
-      observe() {}
-      unobserve() {}
-      disconnect() {}
-    })
+    vi.stubGlobal(
+      'ResizeObserver',
+      class ResizeObserver {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      }
+    )
 
-    const target = createTarget('offline-agent-target', 'padding-top: 8px; width: 320px; height: 120px;')
+    const target = createTarget(
+      'offline-agent-target',
+      'padding-top: 8px; width: 320px; height: 120px;'
+    )
     const { result } = renderHook(() => useDirectEdit(), { wrapper: fullUiWrapper })
 
     act(() => {
@@ -2892,7 +3096,10 @@ describe('DirectEditProvider', () => {
 
   it('submits inline comments as replies when the element already has a submitted thread', async () => {
     const clipboardWrite = mockClipboard()
-    const target = createTarget('comment-inline-reply-target', 'padding-top: 8px; width: 320px; height: 120px;')
+    const target = createTarget(
+      'comment-inline-reply-target',
+      'padding-top: 8px; width: 320px; height: 120px;'
+    )
 
     const { result } = renderHook(() => useDirectEdit(), { wrapper: panelWrapper })
 
@@ -2988,7 +3195,9 @@ describe('DirectEditProvider', () => {
     expect(copied).toBe(true)
     expect(clipboardWrite).toHaveBeenCalledTimes(1)
     expect(String(clipboardWrite.mock.calls[0][0])).toContain('padding-top: 20px')
-    expect(String(clipboardWrite.mock.calls[0][0])).toContain('comment: Increase contrast for readability')
+    expect(String(clipboardWrite.mock.calls[0][0])).toContain(
+      'comment: Increase contrast for readability'
+    )
 
     act(() => {
       result.current.clearSessionEdits()
@@ -3006,26 +3215,44 @@ describe('DirectEditProvider', () => {
     const { result } = renderHook(() => useDirectEdit(), { wrapper })
 
     // Edit element A
-    act(() => { result.current.selectElement(targetA) })
-    await waitFor(() => { expect(result.current.selectedElement).toBe(targetA) })
-    act(() => { result.current.updateSpacingProperty('paddingTop', cssValue(20)) })
+    act(() => {
+      result.current.selectElement(targetA)
+    })
+    await waitFor(() => {
+      expect(result.current.selectedElement).toBe(targetA)
+    })
+    act(() => {
+      result.current.updateSpacingProperty('paddingTop', cssValue(20))
+    })
     expect(result.current.pendingStyles['padding-top']).toBe('20px')
 
     // Switch to element B and edit it
-    act(() => { result.current.selectElement(targetB) })
-    await waitFor(() => { expect(result.current.selectedElement).toBe(targetB) })
-    act(() => { result.current.updateSpacingProperty('marginLeft', cssValue(16)) })
+    act(() => {
+      result.current.selectElement(targetB)
+    })
+    await waitFor(() => {
+      expect(result.current.selectedElement).toBe(targetB)
+    })
+    act(() => {
+      result.current.updateSpacingProperty('marginLeft', cssValue(16))
+    })
     expect(result.current.pendingStyles['margin-left']).toBe('16px')
 
     // Re-select element A — this previously deleted A's session edit
-    act(() => { result.current.selectElement(targetA) })
-    await waitFor(() => { expect(result.current.selectedElement).toBe(targetA) })
+    act(() => {
+      result.current.selectElement(targetA)
+    })
+    await waitFor(() => {
+      expect(result.current.selectedElement).toBe(targetA)
+    })
 
     // A's pending styles should be restored from session
     expect(result.current.pendingStyles['padding-top']).toBe('20px')
 
     // Both edits must survive in the session
-    await waitFor(() => { expect(result.current.sessionEditCount).toBe(2) })
+    await waitFor(() => {
+      expect(result.current.sessionEditCount).toBe(2)
+    })
     const edits = result.current.getSessionEdits()
     expect(edits).toHaveLength(2)
 
@@ -3157,7 +3384,9 @@ describe('DirectEditProvider', () => {
     })
 
     const text = await waitFor(() => {
-      const element = document.querySelector('[data-made-refine-canvas-node="text"]') as HTMLParagraphElement | null
+      const element = document.querySelector(
+        '[data-made-refine-canvas-node="text"]'
+      ) as HTMLParagraphElement | null
       expect(element).not.toBeNull()
       return element as HTMLParagraphElement
     })
@@ -3182,7 +3411,9 @@ describe('DirectEditProvider', () => {
     })
 
     await waitFor(() => {
-      const restored = document.querySelector('[data-made-refine-canvas-node="text"]') as HTMLParagraphElement | null
+      const restored = document.querySelector(
+        '[data-made-refine-canvas-node="text"]'
+      ) as HTMLParagraphElement | null
       expect(restored).not.toBeNull()
       expect(restored?.textContent).toBe('Text')
       expect(result.current.selectedElement).toBe(restored)
@@ -3205,7 +3436,9 @@ describe('DirectEditProvider', () => {
     })
 
     const text = await waitFor(() => {
-      const element = document.querySelector('[data-made-refine-canvas-node="text"]') as HTMLParagraphElement | null
+      const element = document.querySelector(
+        '[data-made-refine-canvas-node="text"]'
+      ) as HTMLParagraphElement | null
       expect(element).not.toBeNull()
       return element as HTMLParagraphElement
     })
@@ -3258,7 +3491,9 @@ describe('DirectEditProvider', () => {
     })
 
     await waitFor(() => {
-      const restored = document.querySelector('[data-made-refine-canvas-node="text"]') as HTMLParagraphElement | null
+      const restored = document.querySelector(
+        '[data-made-refine-canvas-node="text"]'
+      ) as HTMLParagraphElement | null
       expect(restored).not.toBeNull()
       expect(result.current.comments).toHaveLength(1)
       expect(result.current.comments[0].id).toBe(commentId)
@@ -3303,13 +3538,21 @@ describe('DirectEditProvider', () => {
       expect(editable.getAttribute('contenteditable')).toBe('true')
     })
 
-    const outsideClick = new MouseEvent('click', { bubbles: true, cancelable: true, composed: true })
+    const outsideClick = new MouseEvent('click', {
+      bubbles: true,
+      cancelable: true,
+      composed: true,
+    })
     outsideButton.dispatchEvent(outsideClick)
 
     expect(outsideClick.defaultPrevented).toBe(true)
     expect(outsideClickSpy).not.toHaveBeenCalled()
 
-    const editableClick = new MouseEvent('click', { bubbles: true, cancelable: true, composed: true })
+    const editableClick = new MouseEvent('click', {
+      bubbles: true,
+      cancelable: true,
+      composed: true,
+    })
     editable.dispatchEvent(editableClick)
 
     expect(editableClick.defaultPrevented).toBe(true)
@@ -3451,7 +3694,7 @@ describe('DirectEditProvider', () => {
     const deletedEdit = result.current.getSessionEdits().find((edit) => edit.element === target)
     expect(deletedEdit?.deleted).toBe(true)
     expect(
-      result.current.getSessionItems().some((i) => i.type === 'edit' && i.edit.element === target),
+      result.current.getSessionItems().some((i) => i.type === 'edit' && i.edit.element === target)
     ).toBe(true)
 
     act(() => {
@@ -3462,7 +3705,7 @@ describe('DirectEditProvider', () => {
     })
     // Undo clears the tracked deletion.
     expect(
-      result.current.getSessionEdits().some((edit) => edit.element === target && edit.deleted),
+      result.current.getSessionEdits().some((edit) => edit.element === target && edit.deleted)
     ).toBe(false)
   })
 
@@ -3594,7 +3837,9 @@ describe('DirectEditProvider', () => {
       expect(target2.isConnected).toBe(true)
     })
     const after = result.current.getSessionEdits()
-    expect(after.some((e) => (e.element === target1 || e.element === target2) && e.deleted)).toBe(false)
+    expect(after.some((e) => (e.element === target1 || e.element === target2) && e.deleted)).toBe(
+      false
+    )
   })
 
   it('deletes multiple selected elements and restores all on undo', async () => {

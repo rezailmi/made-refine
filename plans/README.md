@@ -22,14 +22,14 @@ These eight plans expand the former "Backlog" section into self-contained handof
 
 | Plan | Title | Priority | Effort | Depends on | Status |
 |------|-------|----------|--------|------------|--------|
-| 010  | Extract one cohesive cluster (computed-style getters) out of the `utils.ts` god module | P2 | M | — (recommend 014 first) | TODO |
-| 011  | Unit tests for interaction-overlay / multi-selection-overlay / canvas-store | P2 | M | — | TODO |
-| 012  | Reduce repeated full-subtree `getComputedStyle` in `replaceSelectionColor` (profile-gated) | P3 | S–M | — | TODO (Step 0 gate may → REJECTED) |
-| 013  | Add ESLint + Prettier with a non-blocking CI baseline | P3 | M | — | TODO |
-| 014  | Add `test:fast` script that skips the prebuild on the inner loop | P3 | S | — | TODO |
-| 015  | Add a protocol `version` field to the preload DevTools hook | P3 | S | — | TODO |
-| 016  | Correct drag/resize scale-divisor math for rotated elements (artifact-gated) | P3 | S–M | — | TODO (Step 0 gate may → REJECTED) |
-| 017  | Wire the panel footer send/export in the provider path (makes 007's footer states reachable) | P2 | S | relates to 007 | TODO |
+| 010  | Extract one cohesive cluster (computed-style getters) out of the `utils.ts` god module | P2 | M | — (recommend 014 first) | DONE |
+| 011  | Unit tests for interaction-overlay / multi-selection-overlay / canvas-store | P2 | M | — | DONE |
+| 012  | Reduce repeated full-subtree `getComputedStyle` in `replaceSelectionColor` (profile-gated) | P3 | S–M | — | REJECTED (no hot-path evidence; avoid speculative behavior change) |
+| 013  | Add ESLint + Prettier with a non-blocking CI baseline | P3 | M | — | DONE |
+| 014  | Add `test:fast` script that skips the prebuild on the inner loop | P3 | S | — | DONE |
+| 015  | Add a protocol `version` field to the preload DevTools hook | P3 | S | — | DONE |
+| 016  | Correct drag/resize scale-divisor math for rotated elements (artifact-gated) | P3 | S–M | — | DONE |
+| 017  | Wire the panel footer send/export in the provider path (makes 007's footer states reachable) | P2 | S | relates to 007 | DONE |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (with one-line reason) | REJECTED (with one-line rationale)
 

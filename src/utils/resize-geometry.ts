@@ -36,10 +36,167 @@ function toFinite(value: number, fallback: number): number {
   return value
 }
 
+interface ScaleMatrix {
+  a: number
+  b: number
+  c: number
+  d: number
+}
+
+function multiplyMatrix(left: ScaleMatrix, right: ScaleMatrix): ScaleMatrix {
+  return {
+    a: left.a * right.a + left.c * right.b,
+    b: left.b * right.a + left.d * right.b,
+    c: left.a * right.c + left.c * right.d,
+    d: left.b * right.c + left.d * right.d,
+  }
+}
+
+function splitTransformArgs(raw: string): string[] {
+  return raw.trim().replace(/,/g, ' ').split(/\s+/).filter(Boolean)
+}
+
+function parseAngleRadians(value: string): number {
+  const numeric = Number.parseFloat(value)
+  if (!Number.isFinite(numeric)) return 0
+  const unit = value.trim().replace(String(numeric), '').trim().toLowerCase()
+
+  switch (unit) {
+    case 'rad':
+      return numeric
+    case 'turn':
+      return numeric * Math.PI * 2
+    case 'grad':
+      return (numeric * Math.PI) / 200
+    case 'deg':
+    case '':
+    default:
+      return (numeric * Math.PI) / 180
+  }
+}
+
+function parseTransformFunction(name: string, rawArgs: string): ScaleMatrix | null {
+  const args = splitTransformArgs(rawArgs)
+
+  switch (name.toLowerCase()) {
+    case 'matrix': {
+      if (args.length < 4) return null
+      const [a, b, c, d] = args.map(Number.parseFloat)
+      if (![a, b, c, d].every(Number.isFinite)) return null
+      return { a, b, c, d }
+    }
+    case 'matrix3d': {
+      if (args.length < 16) return null
+      const values = args.map(Number.parseFloat)
+      if (!values.every(Number.isFinite)) return null
+      return { a: values[0], b: values[1], c: values[4], d: values[5] }
+    }
+    case 'scale': {
+      const scaleX = Number.parseFloat(args[0] ?? '1')
+      const scaleY = Number.parseFloat(args[1] ?? args[0] ?? '1')
+      if (!Number.isFinite(scaleX) || !Number.isFinite(scaleY)) return null
+      return { a: scaleX, b: 0, c: 0, d: scaleY }
+    }
+    case 'scalex': {
+      const scaleX = Number.parseFloat(args[0] ?? '1')
+      if (!Number.isFinite(scaleX)) return null
+      return { a: scaleX, b: 0, c: 0, d: 1 }
+    }
+    case 'scaley': {
+      const scaleY = Number.parseFloat(args[0] ?? '1')
+      if (!Number.isFinite(scaleY)) return null
+      return { a: 1, b: 0, c: 0, d: scaleY }
+    }
+    case 'rotate': {
+      const angle = parseAngleRadians(args[0] ?? '0deg')
+      const cos = Math.cos(angle)
+      const sin = Math.sin(angle)
+      return { a: cos, b: sin, c: -sin, d: cos }
+    }
+    case 'translate':
+    case 'translatex':
+    case 'translatey':
+      return { a: 1, b: 0, c: 0, d: 1 }
+    default:
+      return null
+  }
+}
+
+function parseTransformMatrix(transform: string): ScaleMatrix | null {
+  const functionPattern = /([a-zA-Z0-9]+)\(([^)]*)\)/g
+  let matrix: ScaleMatrix = { a: 1, b: 0, c: 0, d: 1 }
+  let matched = false
+
+  for (const match of transform.matchAll(functionPattern)) {
+    const next = parseTransformFunction(match[1], match[2])
+    if (!next) return null
+    matrix = multiplyMatrix(matrix, next)
+    matched = true
+  }
+
+  return matched ? matrix : null
+}
+
+function scaleFromMatrix(matrix: ScaleMatrix): { scaleX: number; scaleY: number } {
+  return {
+    scaleX: Math.hypot(matrix.a, matrix.b) || 1,
+    scaleY: Math.hypot(matrix.c, matrix.d) || 1,
+  }
+}
+
+function getRenderedOffsetScale(element: HTMLElement): { scaleX: number; scaleY: number } | null {
+  const rect = element.getBoundingClientRect()
+  const width = element.offsetWidth
+  const height = element.offsetHeight
+  if (width <= 0 || height <= 0 || rect.width <= 0 || rect.height <= 0) return null
+
+  return {
+    scaleX: rect.width / width,
+    scaleY: rect.height / height,
+  }
+}
+
 export function clampSize(value: number, minSize = 1): number {
   const safeMin = Math.max(1, toFinite(minSize, 1))
   const safeValue = toFinite(value, safeMin)
   return Math.max(safeMin, safeValue)
+}
+
+export function getElementScale(element: HTMLElement): { scaleX: number; scaleY: number } {
+  const transform = getComputedStyle(element).transform
+  if (!transform || transform === 'none') {
+    return getRenderedOffsetScale(element) ?? { scaleX: 1, scaleY: 1 }
+  }
+
+  let transformMatrix: ScaleMatrix | null = null
+  if (typeof DOMMatrix !== 'undefined') {
+    try {
+      const matrix = new DOMMatrix(transform)
+      transformMatrix = matrix
+    } catch {
+      // jsdom returns transform functions like rotate(...) rather than matrix(...).
+    }
+  }
+
+  transformMatrix = transformMatrix ?? parseTransformMatrix(transform)
+  if (!transformMatrix) return getRenderedOffsetScale(element) ?? { scaleX: 1, scaleY: 1 }
+
+  const localScale = scaleFromMatrix(transformMatrix)
+  const rect = element.getBoundingClientRect()
+  const width = element.offsetWidth
+  const height = element.offsetHeight
+  if (width <= 0 || height <= 0 || rect.width <= 0 || rect.height <= 0) return localScale
+
+  const transformedWidth =
+    Math.abs(transformMatrix.a) * width + Math.abs(transformMatrix.c) * height
+  const transformedHeight =
+    Math.abs(transformMatrix.b) * width + Math.abs(transformMatrix.d) * height
+  if (transformedWidth <= 0 || transformedHeight <= 0) return localScale
+
+  return {
+    scaleX: (rect.width / transformedWidth) * localScale.scaleX,
+    scaleY: (rect.height / transformedHeight) * localScale.scaleY,
+  }
 }
 
 export function computeEdgeSize({
@@ -124,7 +281,11 @@ export function computeFillRenderedWidth(element: HTMLElement): number | null {
   }
 
   return clampSize(
-    parentContentWidth + elementPaddingLeft + elementPaddingRight + elementBorderLeft + elementBorderRight,
+    parentContentWidth +
+      elementPaddingLeft +
+      elementPaddingRight +
+      elementBorderLeft +
+      elementBorderRight,
     1
   )
 }
