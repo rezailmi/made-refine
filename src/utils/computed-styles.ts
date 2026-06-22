@@ -9,6 +9,7 @@ import type {
   TypographyProperties,
   ColorValue,
   ColorProperties,
+  EffectsProperties,
 } from '../types'
 import { parsePropertyValue } from './css-value'
 import { getSizingValue, parseColorValue } from '../utils'
@@ -43,6 +44,7 @@ export function getComputedStyles(element: HTMLElement): {
       flexDirection: computed.flexDirection as FlexProperties['flexDirection'],
       justifyContent: computed.justifyContent,
       alignItems: computed.alignItems,
+      flexWrap: (computed.flexWrap as FlexProperties['flexWrap']) || 'nowrap',
     },
   }
 }
@@ -105,6 +107,7 @@ export const ORIGINAL_STYLE_PROPS = [
   'flex-direction',
   'justify-content',
   'align-items',
+  'flex-wrap',
   'width',
   'height',
   'background-color',
@@ -121,6 +124,13 @@ export const ORIGINAL_STYLE_PROPS = [
   'line-height',
   'letter-spacing',
   'text-align',
+  'opacity',
+  'overflow',
+  'object-fit',
+  'text-decoration-line',
+  'text-decoration',
+  'text-transform',
+  'font-style',
 ] as const
 
 export function getOriginalInlineStyles(element: HTMLElement): Record<string, string> {
@@ -179,7 +189,50 @@ export function getComputedTypography(element: HTMLElement): TypographyPropertie
     letterSpacing,
     textAlign: computed.textAlign as TypographyProperties['textAlign'],
     textVerticalAlign,
+    textDecoration: getTextDecoration(computed),
+    textTransform: getTextTransform(computed),
+    fontStyle: getFontStyle(computed),
   }
+}
+
+function getTextDecoration(computed: CSSStyleDeclaration): TypographyProperties['textDecoration'] {
+  const decorationLine = computed.textDecorationLine
+  if (decorationLine.includes('underline')) return 'underline'
+  if (decorationLine.includes('line-through')) return 'line-through'
+  return 'none'
+}
+
+function getTextTransform(computed: CSSStyleDeclaration): TypographyProperties['textTransform'] {
+  if (computed.textTransform === 'uppercase') return 'uppercase'
+  if (computed.textTransform === 'lowercase') return 'lowercase'
+  if (computed.textTransform === 'capitalize') return 'capitalize'
+  return 'none'
+}
+
+function getFontStyle(computed: CSSStyleDeclaration): TypographyProperties['fontStyle'] {
+  return computed.fontStyle === 'italic' || computed.fontStyle === 'oblique' ? 'italic' : 'normal'
+}
+
+export function getComputedEffects(element: HTMLElement): EffectsProperties {
+  const computed = window.getComputedStyle(element)
+  const opacity = Math.min(100, Math.max(0, Math.round(parseFloat(computed.opacity || '1') * 100)))
+  const overflowToken = (computed.overflow || computed.overflowY || 'visible')
+    .trim()
+    .split(/\s+/)[0]
+  const rawFit = computed.objectFit
+
+  let overflow: EffectsProperties['overflow'] = 'visible'
+  if (overflowToken === 'hidden') overflow = 'hidden'
+  else if (overflowToken === 'auto') overflow = 'auto'
+  else if (overflowToken === 'scroll') overflow = 'scroll'
+
+  let objectFit: EffectsProperties['objectFit'] = 'fill'
+  if (rawFit === 'contain') objectFit = 'contain'
+  else if (rawFit === 'cover') objectFit = 'cover'
+  else if (rawFit === 'none') objectFit = 'none'
+  else if (rawFit === 'scale-down') objectFit = 'scale-down'
+
+  return { opacity, overflow, objectFit }
 }
 
 export function getComputedSizing(element: HTMLElement): SizingProperties {
@@ -247,6 +300,33 @@ function parseVisibleColor(value: string, fallbackCurrentColor?: string): ColorV
     return null
   }
   return parsed
+}
+
+function parseSvgPaintColor(
+  node: SVGElement,
+  property: 'fill' | 'stroke',
+  computed: CSSStyleDeclaration,
+  fallbackCurrentColor: string
+): ColorValue | null {
+  const attributeColor = parseVisibleColor(node.getAttribute(property) ?? '', fallbackCurrentColor)
+  const computedRaw = computed.getPropertyValue(property)
+  const computedColor = parseVisibleColor(computedRaw, fallbackCurrentColor)
+
+  if (!attributeColor) return computedColor
+  if (!computedColor) return attributeColor
+
+  const hasInlineOrClassOverride =
+    Boolean(node.style.getPropertyValue(property)) || node.classList.length > 0
+  const isInitialSvgPaint =
+    property === 'fill'
+      ? computedRaw.trim().toLowerCase() === 'rgb(0, 0, 0)'
+      : computedRaw.trim().toLowerCase() === 'none'
+
+  if (!hasInlineOrClassOverride && isInitialSvgPaint) {
+    return attributeColor
+  }
+
+  return computedColor
 }
 
 function addUniqueColor(colors: Map<string, ColorValue>, color: ColorValue | null): void {
@@ -382,12 +462,8 @@ export function getSelectionColors(element: HTMLElement): ColorValue[] {
       }
 
       if (node instanceof SVGElement) {
-        const fillColor =
-          parseVisibleColor(computed.getPropertyValue('fill'), currentTextColor) ??
-          parseVisibleColor(node.getAttribute('fill') ?? '', currentTextColor)
-        const strokeColor =
-          parseVisibleColor(computed.getPropertyValue('stroke'), currentTextColor) ??
-          parseVisibleColor(node.getAttribute('stroke') ?? '', currentTextColor)
+        const fillColor = parseSvgPaintColor(node, 'fill', computed, currentTextColor)
+        const strokeColor = parseSvgPaintColor(node, 'stroke', computed, currentTextColor)
         addUniqueColor(uniqueColors, fillColor)
         addUniqueColor(uniqueColors, strokeColor)
       }
@@ -410,6 +486,7 @@ export interface AllComputedStyles {
   color: ColorProperties
   boxShadow: string
   typography: TypographyProperties
+  effects: EffectsProperties
 }
 
 export function getAllComputedStyles(element: HTMLElement): AllComputedStyles {
@@ -423,5 +500,6 @@ export function getAllComputedStyles(element: HTMLElement): AllComputedStyles {
     color: getComputedColorStyles(element),
     boxShadow: getComputedBoxShadow(element),
     typography: getComputedTypography(element),
+    effects: getComputedEffects(element),
   }
 }

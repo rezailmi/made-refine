@@ -1,7 +1,12 @@
 import * as React from 'react'
 import type { DirectEditState } from './types'
 import { isInputFocused } from './utils'
-import { setCanvasSnapshot, getBodyOffset, setBodyOffset, registerCanvasStoreOwner } from './canvas-store'
+import {
+  setCanvasSnapshot,
+  getBodyOffset,
+  setBodyOffset,
+  registerCanvasStoreOwner,
+} from './canvas-store'
 
 const MIN_ZOOM = 0.1
 const MAX_ZOOM = 5.0
@@ -25,10 +30,12 @@ type CanvasStrategy = 'body-transform' | 'fixed-frame'
 
 function normalizeWheelDelta(e: WheelEvent): { deltaX: number; deltaY: number } {
   let { deltaX, deltaY } = e
-  if (e.deltaMode === 1) {        // DOM_DELTA_LINE
+  if (e.deltaMode === 1) {
+    // DOM_DELTA_LINE
     deltaX *= LINE_HEIGHT_PX
     deltaY *= LINE_HEIGHT_PX
-  } else if (e.deltaMode === 2) { // DOM_DELTA_PAGE
+  } else if (e.deltaMode === 2) {
+    // DOM_DELTA_PAGE
     deltaX *= PAGE_HEIGHT_PX
     deltaY *= PAGE_HEIGHT_PX
   }
@@ -66,8 +73,8 @@ function getFixedFrameCanvasDimensions(): { width: number; height: number } | nu
     const rect = canvas.getBoundingClientRect()
     if (style.position !== 'fixed') continue
     if (
-      Math.abs(rect.left) > FIXED_FRAME_CANVAS_EDGE_TOLERANCE_PX
-      || Math.abs(rect.top) > FIXED_FRAME_CANVAS_EDGE_TOLERANCE_PX
+      Math.abs(rect.left) > FIXED_FRAME_CANVAS_EDGE_TOLERANCE_PX ||
+      Math.abs(rect.top) > FIXED_FRAME_CANVAS_EDGE_TOLERANCE_PX
     ) {
       continue
     }
@@ -87,7 +94,14 @@ function getFixedFrameCanvasDimensions(): { width: number; height: number } | nu
 }
 
 function getResolvedOverflowY(style: CSSStyleDeclaration): string {
-  return style.overflowY || style.overflow
+  const overflowY = style.overflowY.trim()
+  const overflow = style.overflow.trim()
+  const overflowTokens = overflow.split(/\s+/).filter(Boolean)
+  const shorthandY = overflowTokens.length > 1 ? overflowTokens[1] : overflowTokens[0]
+
+  if (overflowY && overflowY !== 'visible') return overflowY
+  if (shorthandY && shorthandY !== 'visible') return shorthandY
+  return overflowY || shorthandY || 'visible'
 }
 
 function isScrollableOverflowY(value: string): boolean {
@@ -149,18 +163,18 @@ function clampPan(
   panX: number,
   panY: number,
   bodyW: number,
-  bodyH: number,
+  bodyH: number
 ): { panX: number; panY: number } {
   const vw = window.innerWidth
   const vh = window.innerHeight
   // Content right edge must remain >= MARGIN * vw in viewport space:
   //   (bodyW + panX) * zoom >= MARGIN * vw  →  panX >= MARGIN*vw/zoom - bodyW
-  const minPanX = PAN_MARGIN * vw / zoom - bodyW
+  const minPanX = (PAN_MARGIN * vw) / zoom - bodyW
   // Content left edge must remain <= (1-MARGIN) * vw:
   //   panX * zoom <= (1-MARGIN)*vw  →  panX <= (1-MARGIN)*vw/zoom
-  const maxPanX = (1 - PAN_MARGIN) * vw / zoom
-  const minPanY = PAN_MARGIN * vh / zoom - bodyH
-  const maxPanY = (1 - PAN_MARGIN) * vh / zoom
+  const maxPanX = ((1 - PAN_MARGIN) * vw) / zoom
+  const minPanY = (PAN_MARGIN * vh) / zoom - bodyH
+  const maxPanY = ((1 - PAN_MARGIN) * vh) / zoom
   return {
     panX: Math.max(minPanX, Math.min(maxPanX, panX)),
     panY: Math.max(minPanY, Math.min(maxPanY, panY)),
@@ -195,7 +209,7 @@ function collectTraversalSeeds(): HTMLElement[] {
 }
 
 function expandScrollableRegionsAndMeasureBody(
-  savedExpandedNodesRef: React.MutableRefObject<ExpandedNodeSnapshot>,
+  savedExpandedNodesRef: React.MutableRefObject<ExpandedNodeSnapshot>
 ): { width: number; height: number } {
   const snapshots = new Map<HTMLElement, { height: string; maxHeight: string; overflowY: string }>()
   const expandedOrder: HTMLElement[] = []
@@ -242,7 +256,9 @@ function expandScrollableRegionsAndMeasureBody(
       }
     }
 
-    const canContributeFallback = hasVerticalOverflow && (isScrollable || (!isClippedOverflowY(overflowY) && !hasClippedAncestor(el)))
+    const canContributeFallback =
+      hasVerticalOverflow &&
+      (isScrollable || (!isClippedOverflowY(overflowY) && !hasClippedAncestor(el)))
     if (canContributeFallback) {
       const bounds = measureContentBounds(el)
       fallbackWidth = Math.max(fallbackWidth, bounds.width)
@@ -255,13 +271,23 @@ function expandScrollableRegionsAndMeasureBody(
   savedExpandedNodesRef.current = expandedOrder.map((el) => ({ el, ...snapshots.get(el)! }))
 
   return {
-    width: Math.max(document.body.scrollWidth, document.documentElement.scrollWidth, fallbackWidth, window.innerWidth),
-    height: Math.max(document.body.scrollHeight, document.documentElement.scrollHeight, fallbackHeight, window.innerHeight),
+    width: Math.max(
+      document.body.scrollWidth,
+      document.documentElement.scrollWidth,
+      fallbackWidth,
+      window.innerWidth
+    ),
+    height: Math.max(
+      document.body.scrollHeight,
+      document.documentElement.scrollHeight,
+      fallbackHeight,
+      window.innerHeight
+    ),
   }
 }
 
 function restoreExpandedNodes(
-  savedExpandedNodesRef: React.MutableRefObject<ExpandedNodeSnapshot>,
+  savedExpandedNodesRef: React.MutableRefObject<ExpandedNodeSnapshot>
 ): void {
   for (let i = savedExpandedNodesRef.current.length - 1; i >= 0; i--) {
     const { el, height, maxHeight, overflowY } = savedExpandedNodesRef.current[i]
@@ -350,32 +376,35 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
     }
   }, [])
 
-  const updateCanvas = React.useCallback((zoom: number, panX: number, panY: number) => {
-    const dims = savedBodyDimensionsRef.current
-    const bodyW = dims.width || window.innerWidth
-    const bodyH = dims.height || window.innerHeight
-    const clamped = clampPan(zoom, panX, panY, bodyW, bodyH)
+  const updateCanvas = React.useCallback(
+    (zoom: number, panX: number, panY: number) => {
+      const dims = savedBodyDimensionsRef.current
+      const bodyW = dims.width || window.innerWidth
+      const bodyH = dims.height || window.innerHeight
+      const clamped = clampPan(zoom, panX, panY, bodyW, bodyH)
 
-    canvasRef.current = { ...canvasRef.current, zoom, panX: clamped.panX, panY: clamped.panY }
-    setCanvasSnapshot(canvasRef.current)
-    applyTransform(zoom, clamped.panX, clamped.panY)
-    dispatchCanvasChange()
+      canvasRef.current = { ...canvasRef.current, zoom, panX: clamped.panX, panY: clamped.panY }
+      setCanvasSnapshot(canvasRef.current)
+      applyTransform(zoom, clamped.panX, clamped.panY)
+      dispatchCanvasChange()
 
-    // Batch React state update via rAF. The snapshot is read at fire time so
-    // rapid events (e.g. 60fps wheel) collapse into a single setState per frame.
-    if (!rafPendingRef.current) {
-      rafPendingRef.current = true
-      rafIdRef.current = requestAnimationFrame(() => {
-        rafPendingRef.current = false
-        rafIdRef.current = null
-        const s = canvasRef.current
-        setState((prev) => ({
-          ...prev,
-          canvas: { active: s.active, zoom: s.zoom, panX: s.panX, panY: s.panY },
-        }))
-      })
-    }
-  }, [applyTransform, dispatchCanvasChange, setState])
+      // Batch React state update via rAF. The snapshot is read at fire time so
+      // rapid events (e.g. 60fps wheel) collapse into a single setState per frame.
+      if (!rafPendingRef.current) {
+        rafPendingRef.current = true
+        rafIdRef.current = requestAnimationFrame(() => {
+          rafPendingRef.current = false
+          rafIdRef.current = null
+          const s = canvasRef.current
+          setState((prev) => ({
+            ...prev,
+            canvas: { active: s.active, zoom: s.zoom, panX: s.panX, panY: s.panY },
+          }))
+        })
+      }
+    },
+    [applyTransform, dispatchCanvasChange, setState]
+  )
 
   const enterCanvas = React.useCallback(() => {
     if (canvasRef.current.active) return
@@ -397,7 +426,10 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
     if (canvasStrategyRef.current === 'body-transform') {
       const existingTransform = document.body.style.transform
       if (existingTransform && existingTransform !== 'none' && existingTransform !== '') {
-        console.warn('[made-refine] canvas mode: overriding existing body transform:', existingTransform)
+        console.warn(
+          '[made-refine] canvas mode: overriding existing body transform:',
+          existingTransform
+        )
       }
     }
 
@@ -408,7 +440,8 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
 
       if (canvasStrategyRef.current === 'body-transform') {
         // Expand scroll regions and clipped ancestors before measuring canvas bounds.
-        savedBodyDimensionsRef.current = expandScrollableRegionsAndMeasureBody(savedExpandedNodesRef)
+        savedBodyDimensionsRef.current =
+          expandScrollableRegionsAndMeasureBody(savedExpandedNodesRef)
 
         // Measure body margin before applying transform — needed for guideline math.
         updateBodyOffset()
@@ -494,12 +527,15 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
     }
   }, [enterCanvas, exitCanvas])
 
-  const setCanvasZoom = React.useCallback((zoom: number) => {
-    const c = canvasRef.current
-    if (!c.active) return
-    const clampedZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom))
-    updateCanvas(clampedZoom, c.panX, c.panY)
-  }, [updateCanvas])
+  const setCanvasZoom = React.useCallback(
+    (zoom: number) => {
+      const c = canvasRef.current
+      if (!c.active) return
+      const clampedZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom))
+      updateCanvas(clampedZoom, c.panX, c.panY)
+    },
+    [updateCanvas]
+  )
 
   const fitCanvasToViewport = React.useCallback(() => {
     const c = canvasRef.current
@@ -630,12 +666,16 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
         dragAbort.abort()
       }
 
-      window.addEventListener('pointermove', (moveE: PointerEvent) => {
-        const current = canvasRef.current
-        const dx = (moveE.clientX - dragStartRef.current.x) / current.zoom
-        const dy = (moveE.clientY - dragStartRef.current.y) / current.zoom
-        updateCanvas(current.zoom, dragStartRef.current.panX + dx, dragStartRef.current.panY + dy)
-      }, opts)
+      window.addEventListener(
+        'pointermove',
+        (moveE: PointerEvent) => {
+          const current = canvasRef.current
+          const dx = (moveE.clientX - dragStartRef.current.x) / current.zoom
+          const dy = (moveE.clientY - dragStartRef.current.y) / current.zoom
+          updateCanvas(current.zoom, dragStartRef.current.panX + dx, dragStartRef.current.panY + dy)
+        },
+        opts
+      )
 
       // pointercancel: pointer cancelled by system gesture or browser intervention
       // blur: tab switch or window focus loss mid-drag
@@ -658,11 +698,22 @@ export function useCanvas({ stateRef, setState }: UseCanvasOptions): UseCanvasRe
   React.useEffect(() => {
     return () => {
       cancelPendingRafRef.current()
-      if (canvasRef.current.active || domStateSavedRef.current || savedExpandedNodesRef.current.length > 0) {
+      if (
+        canvasRef.current.active ||
+        domStateSavedRef.current ||
+        savedExpandedNodesRef.current.length > 0
+      ) {
         exitCanvasRef.current()
       }
     }
   }, [])
 
-  return { toggleCanvas, enterCanvas, exitCanvas, setCanvasZoom, fitCanvasToViewport, zoomCanvasTo100 }
+  return {
+    toggleCanvas,
+    enterCanvas,
+    exitCanvas,
+    setCanvasZoom,
+    fitCanvasToViewport,
+    zoomCanvasTo100,
+  }
 }

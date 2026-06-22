@@ -1,10 +1,5 @@
 import * as React from 'react'
-import type {
-  DirectEditState,
-  SessionEdit,
-  SessionItem,
-  Comment,
-} from './types'
+import type { DirectEditState, SessionEdit, SessionItem, Comment } from './types'
 import {
   buildEditExport,
   buildCommentExport,
@@ -15,6 +10,7 @@ import {
   getLocatorHeader,
   formatComponentTree,
   stylesToTailwind,
+  attributeClassesForProperty,
   collapseExportShorthands,
   buildMovePlanContext,
   getMoveIntentForEdit,
@@ -53,9 +49,12 @@ function buildLocatorPayload(locator: ElementLocator) {
     reactStack: locator.reactStack,
     reactComponentName: locator.reactComponentName ?? null,
     authoredProps: locator.authoredProps ?? null,
-    type: locator.isComponentPrimitive != null
-      ? (locator.isComponentPrimitive ? 'component' : 'instance')
-      : null,
+    type:
+      locator.isComponentPrimitive != null
+        ? locator.isComponentPrimitive
+          ? 'component'
+          : 'instance'
+        : null,
     isComponentPrimitive: locator.isComponentPrimitive ?? false,
     source: formattedSource,
     callSite: formattedCallSite,
@@ -82,7 +81,14 @@ export type SendFailure = {
   at: number
 }
 
-export function useAgentComms({ stateRef, sessionEditsRef, getSessionItems, saveCurrentToSession, removeSessionEdit, deleteComment }: AgentCommsOptions) {
+export function useAgentComms({
+  stateRef,
+  sessionEditsRef,
+  getSessionItems,
+  saveCurrentToSession,
+  removeSessionEdit,
+  deleteComment,
+}: AgentCommsOptions) {
   const [agentAvailable, setAgentAvailable] = React.useState(false)
   const [lastSendFailure, setLastSendFailure] = React.useState<SendFailure | null>(null)
   const isMountedRef = React.useRef(true)
@@ -131,158 +137,186 @@ export function useAgentComms({ stateRef, sessionEditsRef, getSessionItems, save
     }
   }, [refreshAgentAvailability])
 
-  const canSendEditToAgent = React.useCallback((snapshot?: {
-    selectedElement: HTMLElement | null
-    elementInfo: DirectEditState['elementInfo']
-    pendingStyles: Record<string, string>
-  }) => {
-    const current = stateRef.current
-    const selectedElement = snapshot?.selectedElement ?? current.selectedElement
-    const elementInfo = snapshot?.elementInfo ?? current.elementInfo
-    const pendingStyles = snapshot?.pendingStyles ?? current.pendingStyles
-    if (!selectedElement || !elementInfo) return false
-    const sessionEdit = sessionEditsRef.current.get(selectedElement)
-    const hasPendingStyles = Object.keys(pendingStyles).length > 0
-    const hasTextEdit = Boolean(sessionEdit?.textEdit)
-    const hasMove = Boolean(
-      sessionEdit?.move
-      && getMoveIntentForEdit(sessionEdit, buildMovePlanContext([sessionEdit])),
-    )
-    return hasPendingStyles || hasTextEdit || hasMove
-  }, [])
+  const canSendEditToAgent = React.useCallback(
+    (snapshot?: {
+      selectedElement: HTMLElement | null
+      elementInfo: DirectEditState['elementInfo']
+      pendingStyles: Record<string, string>
+    }) => {
+      const current = stateRef.current
+      const selectedElement = snapshot?.selectedElement ?? current.selectedElement
+      const elementInfo = snapshot?.elementInfo ?? current.elementInfo
+      const pendingStyles = snapshot?.pendingStyles ?? current.pendingStyles
+      if (!selectedElement || !elementInfo) return false
+      const sessionEdit = sessionEditsRef.current.get(selectedElement)
+      const hasPendingStyles = Object.keys(pendingStyles).length > 0
+      const hasTextEdit = Boolean(sessionEdit?.textEdit)
+      const hasMove = Boolean(
+        sessionEdit?.move && getMoveIntentForEdit(sessionEdit, buildMovePlanContext([sessionEdit]))
+      )
+      return hasPendingStyles || hasTextEdit || hasMove
+    },
+    []
+  )
 
-  const sendSessionEditToAgent = React.useCallback(async (
-    sessionEdit: SessionEdit,
-    allEdits?: SessionEdit[],
-    movePlanContext?: ReturnType<typeof buildMovePlanContext> | null,
-    options?: { includeBatchMoveEnvelope?: boolean; _isBatchCall?: boolean; _batchFailKinds?: Array<'network' | 'rejected'> },
-  ) => {
-    const locator = sessionEdit.locator
-    const pendingStyles = { ...sessionEdit.pendingStyles }
-    const editsForPlan = allEdits ?? [sessionEdit]
-    const resolvedPlanContext = movePlanContext ?? buildMovePlanContext(editsForPlan)
-    const includeBatchMoveEnvelope = Boolean(options?.includeBatchMoveEnvelope && sessionEdit.move)
-    const isBatchSend = Boolean(allEdits && allEdits.length > 1)
-    const exportMarkdown = (sessionEdit.move || sessionEdit.deleted)
-      ? buildSessionExport(
-          includeBatchMoveEnvelope ? editsForPlan : [sessionEdit],
-          [],
-          {
-            movePlanContext: resolvedPlanContext,
-            includeMovePlanHeader: includeBatchMoveEnvelope || !isBatchSend,
-          },
-        )
-      : buildEditExport(locator, pendingStyles, sessionEdit.textEdit)
-    const collapsedStyles = collapseExportShorthands(pendingStyles)
-    const changes = Object.entries(collapsedStyles).map(([cssProperty, cssValue]) => ({
-      cssProperty,
-      cssValue,
-      tailwindClass: stylesToTailwind({ [cssProperty]: cssValue }),
-    }))
-    const moveIntent = sessionEdit.move
-      ? getMoveIntentForEdit(sessionEdit, resolvedPlanContext)
-      : null
-    const movePlan = includeBatchMoveEnvelope ? resolvedPlanContext.movePlan : null
-    const hasMeaningfulPayload = changes.length > 0 || sessionEdit.textEdit != null || moveIntent != null || Boolean(sessionEdit.deleted)
-    if (!hasMeaningfulPayload) return true
-
-    const profile = getExportContentProfile(
-      [sessionEdit],
-      [],
-      resolvedPlanContext,
-    )
-
-    try {
-      // TODO(mcp-server): confirm ingest validation/DTOs accept the non-versioned moveIntent/movePlan schema.
-      const result = await postEditToAgent({
-        ...buildLocatorPayload(locator),
-        changes,
-        textChange: sessionEdit.textEdit ?? null,
-        moveIntent,
-        ...(movePlan ? { movePlan } : {}),
-        ...(sessionEdit.deleted ? { deleted: true } : {}),
-        exportMarkdown: withInstruction(profile, exportMarkdown),
+  const sendSessionEditToAgent = React.useCallback(
+    async (
+      sessionEdit: SessionEdit,
+      allEdits?: SessionEdit[],
+      movePlanContext?: ReturnType<typeof buildMovePlanContext> | null,
+      options?: {
+        includeBatchMoveEnvelope?: boolean
+        _isBatchCall?: boolean
+        _batchFailKinds?: Array<'network' | 'rejected'>
+      }
+    ) => {
+      const locator = sessionEdit.locator
+      const pendingStyles = { ...sessionEdit.pendingStyles }
+      const editsForPlan = allEdits ?? [sessionEdit]
+      const resolvedPlanContext = movePlanContext ?? buildMovePlanContext(editsForPlan)
+      const includeBatchMoveEnvelope = Boolean(
+        options?.includeBatchMoveEnvelope && sessionEdit.move
+      )
+      const isBatchSend = Boolean(allEdits && allEdits.length > 1)
+      const exportMarkdown =
+        sessionEdit.move || sessionEdit.deleted
+          ? buildSessionExport(includeBatchMoveEnvelope ? editsForPlan : [sessionEdit], [], {
+              movePlanContext: resolvedPlanContext,
+              includeMovePlanHeader: includeBatchMoveEnvelope || !isBatchSend,
+            })
+          : buildEditExport(locator, pendingStyles, sessionEdit.textEdit)
+      const collapsedStyles = collapseExportShorthands(pendingStyles)
+      const changes = Object.entries(collapsedStyles).map(([cssProperty, cssValue]) => {
+        const attribution = attributeClassesForProperty(cssProperty, locator.classList ?? [])
+        return {
+          cssProperty,
+          cssValue,
+          tailwindClass: stylesToTailwind({ [cssProperty]: cssValue }),
+          ...(attribution.matchedClasses.length > 0
+            ? { sourceClasses: attribution.matchedClasses }
+            : {}),
+          ...(attribution.variantMatches.length > 0
+            ? { variantClasses: attribution.variantMatches }
+            : {}),
+        }
       })
-      if (result.ok) {
-        removeSessionEdit(sessionEdit.element)
-        updateAgentAvailability(true)
-      } else {
-        const kind = result.errorKind === 'network' ? 'unreachable' : 'rejected'
-        updateAgentAvailability(result.errorKind === 'network' ? false : true)
+      const moveIntent = sessionEdit.move
+        ? getMoveIntentForEdit(sessionEdit, resolvedPlanContext)
+        : null
+      const movePlan = includeBatchMoveEnvelope ? resolvedPlanContext.movePlan : null
+      const hasMeaningfulPayload =
+        changes.length > 0 ||
+        sessionEdit.textEdit != null ||
+        moveIntent != null ||
+        Boolean(sessionEdit.deleted)
+      if (!hasMeaningfulPayload) return true
+
+      const profile = getExportContentProfile([sessionEdit], [], resolvedPlanContext)
+
+      try {
+        // TODO(mcp-server): confirm ingest validation/DTOs accept the non-versioned moveIntent/movePlan schema.
+        const result = await postEditToAgent({
+          ...buildLocatorPayload(locator),
+          changes,
+          textChange: sessionEdit.textEdit ?? null,
+          moveIntent,
+          ...(movePlan ? { movePlan } : {}),
+          ...(sessionEdit.deleted ? { deleted: true } : {}),
+          exportMarkdown: withInstruction(profile, exportMarkdown),
+        })
+        if (result.ok) {
+          removeSessionEdit(sessionEdit.element)
+          updateAgentAvailability(true)
+        } else {
+          const kind = result.errorKind === 'network' ? 'unreachable' : 'rejected'
+          updateAgentAvailability(result.errorKind === 'network' ? false : true)
+          if (options?._isBatchCall) {
+            options._batchFailKinds?.push(result.errorKind ?? 'rejected')
+          } else if (isMountedRef.current) {
+            setLastSendFailure({
+              reason: kind,
+              failedEditElements: [sessionEdit.element],
+              failedCommentIds: [],
+              at: Date.now(),
+            })
+          }
+        }
+        return result.ok
+      } catch (err) {
+        updateAgentAvailability(false)
         if (options?._isBatchCall) {
-          options._batchFailKinds?.push(result.errorKind ?? 'rejected')
-        } else if (isMountedRef.current) {
+          throw err
+        }
+        if (isMountedRef.current) {
           setLastSendFailure({
-            reason: kind,
+            reason: 'unreachable',
             failedEditElements: [sessionEdit.element],
             failedCommentIds: [],
             at: Date.now(),
           })
         }
+        return false
       }
-      return result.ok
-    } catch (err) {
-      updateAgentAvailability(false)
-      if (options?._isBatchCall) {
-        throw err
+    },
+    [updateAgentAvailability, removeSessionEdit]
+  )
+
+  const sendSessionCommentToAgent = React.useCallback(
+    async (
+      comment: Comment,
+      _options?: { _isBatchCall?: boolean; _batchFailKinds?: Array<'network' | 'rejected'> }
+    ) => {
+      const exportMarkdown = buildCommentExport(comment.locator, comment.text, comment.replies)
+      const commentProfile: ExportContentProfile = {
+        hasCssEdits: false,
+        hasTextEdits: false,
+        hasMoves: false,
+        hasComments: true,
       }
-      if (isMountedRef.current) {
-        setLastSendFailure({
-          reason: 'unreachable',
-          failedEditElements: [sessionEdit.element],
-          failedCommentIds: [],
-          at: Date.now(),
+
+      try {
+        const result = await postCommentToAgent({
+          ...buildLocatorPayload(comment.locator),
+          commentText: comment.text,
+          replies: comment.replies,
+          exportMarkdown: withInstruction(commentProfile, exportMarkdown),
         })
-      }
-      return false
-    }
-  }, [updateAgentAvailability, removeSessionEdit])
-
-  const sendSessionCommentToAgent = React.useCallback(async (comment: Comment, _options?: { _isBatchCall?: boolean; _batchFailKinds?: Array<'network' | 'rejected'> }) => {
-    const exportMarkdown = buildCommentExport(comment.locator, comment.text, comment.replies)
-    const commentProfile: ExportContentProfile = { hasCssEdits: false, hasTextEdits: false, hasMoves: false, hasComments: true }
-
-    try {
-      const result = await postCommentToAgent({
-        ...buildLocatorPayload(comment.locator),
-        commentText: comment.text,
-        replies: comment.replies,
-        exportMarkdown: withInstruction(commentProfile, exportMarkdown),
-      })
-      if (result.ok) {
-        deleteComment(comment.id)
-        updateAgentAvailability(true)
-      } else {
-        const kind = result.errorKind === 'network' ? 'unreachable' : 'rejected'
-        updateAgentAvailability(result.errorKind === 'network' ? false : true)
+        if (result.ok) {
+          deleteComment(comment.id)
+          updateAgentAvailability(true)
+        } else {
+          const kind = result.errorKind === 'network' ? 'unreachable' : 'rejected'
+          updateAgentAvailability(result.errorKind === 'network' ? false : true)
+          if (_options?._isBatchCall) {
+            _options._batchFailKinds?.push(result.errorKind ?? 'rejected')
+          } else if (isMountedRef.current) {
+            setLastSendFailure({
+              reason: kind,
+              failedEditElements: [],
+              failedCommentIds: [comment.id],
+              at: Date.now(),
+            })
+          }
+        }
+        return result.ok
+      } catch (err) {
+        updateAgentAvailability(false)
         if (_options?._isBatchCall) {
-          _options._batchFailKinds?.push(result.errorKind ?? 'rejected')
-        } else if (isMountedRef.current) {
+          throw err
+        }
+        if (isMountedRef.current) {
           setLastSendFailure({
-            reason: kind,
+            reason: 'unreachable',
             failedEditElements: [],
             failedCommentIds: [comment.id],
             at: Date.now(),
           })
         }
+        return false
       }
-      return result.ok
-    } catch (err) {
-      updateAgentAvailability(false)
-      if (_options?._isBatchCall) {
-        throw err
-      }
-      if (isMountedRef.current) {
-        setLastSendFailure({
-          reason: 'unreachable',
-          failedEditElements: [],
-          failedCommentIds: [comment.id],
-          at: Date.now(),
-        })
-      }
-      return false
-    }
-  }, [updateAgentAvailability, deleteComment])
+    },
+    [updateAgentAvailability, deleteComment]
+  )
 
   const sendEditToAgent = React.useCallback(async () => {
     // Clear any previous failure at the start of a new attempt
@@ -294,7 +328,8 @@ export function useAgentComms({ stateRef, sessionEditsRef, getSessionItems, save
     if (current.selectedElements.length > 1) {
       saveCurrentToSession()
       const { editsWithChanges, contextBlocks } = partitionMultiSelectedEdits(
-        current.selectedElements, sessionEditsRef,
+        current.selectedElements,
+        sessionEditsRef
       )
       if (editsWithChanges.length === 0 && contextBlocks.length === 0) return false
 
@@ -302,7 +337,9 @@ export function useAgentComms({ stateRef, sessionEditsRef, getSessionItems, save
       let movePlanCtx: ReturnType<typeof buildMovePlanContext> | null = null
       if (editsWithChanges.length > 0) {
         movePlanCtx = buildMovePlanContext(editsWithChanges)
-        markdownParts.push(buildSessionExport(editsWithChanges, [], { movePlanContext: movePlanCtx }))
+        markdownParts.push(
+          buildSessionExport(editsWithChanges, [], { movePlanContext: movePlanCtx })
+        )
       }
       markdownParts.push(...contextBlocks)
       const exportMarkdown = markdownParts.join('\n\n')
@@ -354,11 +391,14 @@ export function useAgentComms({ stateRef, sessionEditsRef, getSessionItems, save
     // Single-selection: existing behavior
     if (!current.selectedElement || !current.elementInfo) return false
     const sessionEdit = sessionEditsRef.current.get(current.selectedElement)
-    if (!canSendEditToAgent({
-      selectedElement: current.selectedElement,
-      elementInfo: current.elementInfo,
-      pendingStyles: current.pendingStyles,
-    })) return false
+    if (
+      !canSendEditToAgent({
+        selectedElement: current.selectedElement,
+        elementInfo: current.elementInfo,
+        pendingStyles: current.pendingStyles,
+      })
+    )
+      return false
 
     const locator = getElementLocator(current.selectedElement)
     const editToSend: SessionEdit = {
@@ -372,13 +412,16 @@ export function useAgentComms({ stateRef, sessionEditsRef, getSessionItems, save
     return sendSessionEditToAgent(editToSend)
   }, [canSendEditToAgent, sendSessionEditToAgent, saveCurrentToSession])
 
-  const sendCommentToAgent = React.useCallback(async (id: string) => {
-    // Clear any previous failure at the start of a new attempt
-    if (isMountedRef.current) setLastSendFailure(null)
-    const comment = stateRef.current.comments.find((c) => c.id === id)
-    if (!comment) return false
-    return sendSessionCommentToAgent(comment)
-  }, [sendSessionCommentToAgent])
+  const sendCommentToAgent = React.useCallback(
+    async (id: string) => {
+      // Clear any previous failure at the start of a new attempt
+      if (isMountedRef.current) setLastSendFailure(null)
+      const comment = stateRef.current.comments.find((c) => c.id === id)
+      if (!comment) return false
+      return sendSessionCommentToAgent(comment)
+    },
+    [sendSessionCommentToAgent]
+  )
 
   const sendAllSessionItemsToAgent = React.useCallback(async () => {
     // Clear any previous failure at the start of a new attempt
@@ -390,7 +433,9 @@ export function useAgentComms({ stateRef, sessionEditsRef, getSessionItems, save
 
     if (items.length === 0 && contextOnlyBlocks.length === 0) return false
 
-    const allEdits = items.filter((i): i is { type: 'edit'; edit: SessionEdit } => i.type === 'edit').map(i => i.edit)
+    const allEdits = items
+      .filter((i): i is { type: 'edit'; edit: SessionEdit } => i.type === 'edit')
+      .map((i) => i.edit)
     const movePlanContext = buildMovePlanContext(allEdits)
     let moveEnvelopeSent = false
 
@@ -403,15 +448,16 @@ export function useAgentComms({ stateRef, sessionEditsRef, getSessionItems, save
     for (const item of items) {
       let succeeded: boolean
       if (item.type === 'edit') {
-        const hasMoveIntent = Boolean(item.edit.move && getMoveIntentForEdit(item.edit, movePlanContext))
+        const hasMoveIntent = Boolean(
+          item.edit.move && getMoveIntentForEdit(item.edit, movePlanContext)
+        )
         const includeBatchMoveEnvelope = hasMoveIntent && !moveEnvelopeSent
         try {
-          succeeded = await sendSessionEditToAgent(
-            item.edit,
-            allEdits,
-            movePlanContext,
-            { includeBatchMoveEnvelope, _isBatchCall: true, _batchFailKinds: batchFailKinds },
-          )
+          succeeded = await sendSessionEditToAgent(item.edit, allEdits, movePlanContext, {
+            includeBatchMoveEnvelope,
+            _isBatchCall: true,
+            _batchFailKinds: batchFailKinds,
+          })
           if (!succeeded) failedEditElements.push(item.edit.element)
         } catch {
           succeeded = false
@@ -421,7 +467,10 @@ export function useAgentComms({ stateRef, sessionEditsRef, getSessionItems, save
         if (includeBatchMoveEnvelope) moveEnvelopeSent = true
       } else {
         try {
-          succeeded = await sendSessionCommentToAgent(item.comment, { _isBatchCall: true, _batchFailKinds: batchFailKinds })
+          succeeded = await sendSessionCommentToAgent(item.comment, {
+            _isBatchCall: true,
+            _batchFailKinds: batchFailKinds,
+          })
           if (!succeeded) failedCommentIds.push(item.comment.id)
         } catch {
           succeeded = false
@@ -435,10 +484,9 @@ export function useAgentComms({ stateRef, sessionEditsRef, getSessionItems, save
     }
 
     // Bundle multi-selected context-only elements into a single annotation
-    let contextBlockFailed = false
     if (contextOnlyBlocks.length > 0) {
       const primaryEl = current.selectedElements.find(
-        (el) => el.isConnected && !allEdits.some((e) => e.element === el),
+        (el) => el.isConnected && !allEdits.some((e) => e.element === el)
       )
       if (primaryEl) {
         try {
@@ -454,19 +502,18 @@ export function useAgentComms({ stateRef, sessionEditsRef, getSessionItems, save
           } else {
             updateAgentAvailability(result.errorKind === 'network' ? false : true)
             allSucceeded = false
-            contextBlockFailed = true
           }
         } catch {
           updateAgentAvailability(false)
           allSucceeded = false
           anyThrown = true
-          contextBlockFailed = true
         }
       }
     }
 
     if (!allSucceeded && isMountedRef.current) {
-      const reason: 'unreachable' | 'rejected' = anyThrown || batchFailKinds.includes('network') ? 'unreachable' : 'rejected'
+      const reason: 'unreachable' | 'rejected' =
+        anyThrown || batchFailKinds.includes('network') ? 'unreachable' : 'rejected'
       setLastSendFailure({
         reason,
         failedEditElements,

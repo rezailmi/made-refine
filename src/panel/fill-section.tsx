@@ -3,13 +3,11 @@ import type { ColorValue } from '../types'
 import { formatColorValue } from '../ui/color-utils'
 import { ColorPickerPopover, ColorPickerGroup } from '../ui/color-picker'
 import { parseFillLayers, serializeFillLayers } from '../fill-utils'
-import { CollapsibleSection, Tip } from './shared'
+import { CollapsibleSection, Tip, useEchoGuardedInput } from './shared'
 import { Button } from '../ui/button'
-import {
-  LocateFixed,
-  Plus,
-  Minus,
-} from 'lucide-react'
+import { LocateFixed, Plus, Minus } from 'lucide-react'
+
+const MAX_LAYER_COUNT = 16
 
 interface ColorInputProps {
   id?: string
@@ -19,19 +17,13 @@ interface ColorInputProps {
 }
 
 export function ColorInput({ id, value, onChange, className }: ColorInputProps) {
-  const [hexInput, setHexInput] = React.useState(value.hex)
-  const [alphaInput, setAlphaInput] = React.useState(value.alpha.toString())
-
-  // Sync internal state when value changes externally
-  React.useEffect(() => {
-    setHexInput(value.hex)
-    setAlphaInput(value.alpha.toString())
-  }, [value.hex, value.alpha])
+  const hex = useEchoGuardedInput(value.hex)
+  const alpha = useEchoGuardedInput(value.alpha.toString())
 
   const handleHexChange = (newHex: string) => {
     // Remove # if present and convert to uppercase
     const cleaned = newHex.replace('#', '').toUpperCase()
-    setHexInput(cleaned)
+    hex.setLocalValue(cleaned)
 
     // Only update if valid 6-character hex
     if (/^[0-9A-F]{6}$/.test(cleaned)) {
@@ -44,7 +36,7 @@ export function ColorInput({ id, value, onChange, className }: ColorInputProps) 
   }
 
   const handleAlphaChange = (newAlpha: string) => {
-    setAlphaInput(newAlpha)
+    alpha.setLocalValue(newAlpha)
 
     const numAlpha = parseInt(newAlpha)
     if (!isNaN(numAlpha) && numAlpha >= 0 && numAlpha <= 100) {
@@ -72,9 +64,10 @@ export function ColorInput({ id, value, onChange, className }: ColorInputProps) 
         {/* Hex input */}
         <input
           type="text"
-          value={hexInput}
+          value={hex.localValue}
           onChange={(e) => handleHexChange(e.target.value)}
-          onBlur={() => setHexInput(value.hex)}
+          onFocus={hex.handleFocus}
+          onBlur={hex.handleBlur}
           className="h-full w-[68px] bg-transparent px-2 font-mono text-xs uppercase outline-none"
           maxLength={6}
           placeholder="FFFFFF"
@@ -86,9 +79,10 @@ export function ColorInput({ id, value, onChange, className }: ColorInputProps) 
         {/* Opacity input */}
         <input
           type="number"
-          value={alphaInput}
+          value={alpha.localValue}
           onChange={(e) => handleAlphaChange(e.target.value)}
-          onBlur={() => setAlphaInput(value.alpha.toString())}
+          onFocus={alpha.handleFocus}
+          onBlur={alpha.handleBlur}
           className="h-full w-10 bg-transparent px-1 text-center text-xs tabular-nums outline-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none [appearance:textfield]"
           min={0}
           max={100}
@@ -137,7 +131,10 @@ export function FillSection({
           <div className="space-y-2">
             <div className="space-y-2">
               {selectionColors.map((color, index) => (
-                <div key={`${color.hex}-${color.alpha}-${index}`} className="flex items-center gap-2">
+                <div
+                  key={`${color.hex}-${color.alpha}-${index}`}
+                  className="flex items-center gap-2"
+                >
                   <div className="min-w-0 flex-1">
                     <ColorInput
                       id={`selection-color-${index}`}
@@ -164,27 +161,15 @@ export function FillSection({
         )}
 
         {!showDetectedColorInputs && hasTextContent && (
-          <ColorInput
-            id="fill-text"
-            value={textColor}
-            onChange={onTextChange}
-          />
+          <ColorInput id="fill-text" value={textColor} onChange={onTextChange} />
         )}
 
         {!showDetectedColorInputs && showBorderColor && borderColor && onBorderColorChange && (
-          <ColorInput
-            id="fill-border"
-            value={borderColor}
-            onChange={onBorderColorChange}
-          />
+          <ColorInput id="fill-border" value={borderColor} onChange={onBorderColorChange} />
         )}
 
         {!showDetectedColorInputs && showOutlineColor && outlineColor && onOutlineColorChange && (
-          <ColorInput
-            id="fill-outline"
-            value={outlineColor}
-            onChange={onOutlineColorChange}
-          />
+          <ColorInput id="fill-outline" value={outlineColor} onChange={onOutlineColorChange} />
         )}
       </div>
     </ColorPickerGroup>
@@ -195,31 +180,52 @@ const DEFAULT_FILL: ColorValue = { hex: 'DDDDDD', alpha: 100, raw: '#DDDDDD' }
 
 interface BackgroundFillSectionProps {
   backgroundColor: ColorValue
-  onSetCSS: (properties: Record<string, string>) => void
+  onSetCSS?: (properties: Record<string, string>) => void
+  onCommitFillLayers?: (layers: ColorValue[]) => void
   pendingStyles: Record<string, string>
 }
 
-export function BackgroundFillSection({ backgroundColor, onSetCSS, pendingStyles }: BackgroundFillSectionProps) {
+export function BackgroundFillSection({
+  backgroundColor,
+  onSetCSS,
+  onCommitFillLayers,
+  pendingStyles,
+}: BackgroundFillSectionProps) {
   const effectiveBgColor = pendingStyles['background-color'] ?? backgroundColor.raw
   const effectiveBgShorthand = pendingStyles['background'] ?? ''
   const parsedLayers = React.useMemo(
     () => parseFillLayers(effectiveBgColor, effectiveBgShorthand),
-    [effectiveBgColor, effectiveBgShorthand],
+    [effectiveBgColor, effectiveBgShorthand]
   )
   const [layers, setLayers] = React.useState<ColorValue[]>(parsedLayers)
   const hasFill = layers.length > 0
+  const committedRef = React.useRef<string | null>(null)
 
   React.useEffect(() => {
-    setLayers(parsedLayers)
+    const incoming = JSON.stringify(parsedLayers)
+    if (committedRef.current === null) {
+      setLayers(parsedLayers)
+    } else if (committedRef.current === incoming) {
+      committedRef.current = null
+      setLayers(parsedLayers)
+    }
   }, [parsedLayers])
 
   const commitLayers = (nextLayers: ColorValue[]) => {
+    committedRef.current = JSON.stringify(nextLayers)
     setLayers(nextLayers)
-    const { properties } = serializeFillLayers(nextLayers)
-    onSetCSS(properties)
+    if (onCommitFillLayers) {
+      onCommitFillLayers(nextLayers)
+    } else if (onSetCSS) {
+      const { properties } = serializeFillLayers(nextLayers)
+      onSetCSS(properties)
+    }
   }
 
+  const atLayerCap = layers.length >= MAX_LAYER_COUNT
+
   const addLayer = () => {
+    if (atLayerCap) return
     commitLayers([...layers, DEFAULT_FILL])
   }
 
@@ -233,12 +239,17 @@ export function BackgroundFillSection({ backgroundColor, onSetCSS, pendingStyles
 
   const headerActions = (
     <div className="flex items-center gap-2">
-      <Tip label={hasFill ? 'Add fill layer' : 'Add fill'}>
+      <Tip
+        label={
+          atLayerCap ? `Maximum ${MAX_LAYER_COUNT} layers` : hasFill ? 'Add fill layer' : 'Add fill'
+        }
+      >
         <Button
           variant="ghost"
           size="icon"
           className="size-7 text-muted-foreground"
           onClick={addLayer}
+          disabled={atLayerCap}
         >
           <Plus />
         </Button>

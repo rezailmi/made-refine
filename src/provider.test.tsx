@@ -1730,6 +1730,7 @@ describe('DirectEditProvider', () => {
   it('exports and sends edits for a selected element', async () => {
     const clipboardWrite = mockClipboard()
     const target = createTarget('button', 'padding-top: 4px;')
+    target.className = 'pt-1 sm:pt-6'
     target.setAttribute('data-direct-edit-source', 'src/App.tsx:10:2')
 
     const { result } = renderHook(() => useDirectEdit(), { wrapper })
@@ -1752,14 +1753,25 @@ describe('DirectEditProvider', () => {
     const copied = await result.current.exportEdits()
     expect(copied).toBe(true)
     expect(clipboardWrite).toHaveBeenCalledTimes(1)
-    expect(String(clipboardWrite.mock.calls[0][0])).toContain('padding-top: 12px')
+    expect(String(clipboardWrite.mock.calls[0][0])).toContain(
+      'padding-top: 12px (pt-3) — replaces existing class(es): pt-1'
+    )
+    expect(String(clipboardWrite.mock.calls[0][0])).toContain(
+      'also set by variant class(es) sm:pt-6'
+    )
 
     const sent = await result.current.sendEditToAgent()
     expect(sent).toBe(true)
     expect(sendEditToAgentMock).toHaveBeenCalledTimes(1)
 
     const payload = sendEditToAgentMock.mock.calls[0][0] as {
-      changes: Array<{ cssProperty: string; cssValue: string; tailwindClass: string }>
+      changes: Array<{
+        cssProperty: string
+        cssValue: string
+        tailwindClass: string
+        sourceClasses?: string[]
+        variantClasses?: string[]
+      }>
       source: string | null
       rawSource: { file?: string } | null
     }
@@ -1770,6 +1782,9 @@ describe('DirectEditProvider', () => {
         expect.objectContaining({
           cssProperty: 'padding-top',
           cssValue: '12px',
+          tailwindClass: 'pt-3',
+          sourceClasses: ['pt-1'],
+          variantClasses: ['sm:pt-6'],
         }),
       ])
     )

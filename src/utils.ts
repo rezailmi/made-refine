@@ -11,6 +11,7 @@ import type {
   FlexPropertyKey,
   SizingPropertyKey,
   TypographyPropertyKey,
+  EffectsPropertyKey,
   ElementInfo,
   ReactComponentFrame,
   ElementLocator,
@@ -33,18 +34,15 @@ import type {
 } from './types'
 
 export { parsePropertyValue, formatPropertyValue } from './utils/css-value'
-import { parsePropertyValue } from './utils/css-value'
 import { getCanvasSnapshot, getBodyOffset } from './canvas-store'
 import { getZoomScale } from './utils/measurements'
 import {
   getFiberForElement,
   getSourceFromFiber,
   getReactComponentInfo,
-  getReactComponentStack,
   getComponentProps,
   getCallSiteSource,
   deriveDefinitionSource,
-  isComponentPrimitivePath,
   classifyComponentFiber,
 } from './utils/react-fiber'
 
@@ -66,334 +64,13 @@ export function isInputFocused(): boolean {
   )
 }
 
-const spacingScale: Record<number, string> = { 0: '0', 1: 'px', 2: '0.5', 4: '1', 8: '2', 12: '3', 16: '4', 20: '5', 24: '6', 32: '8' }
-
-const tailwindClassMap: Record<string, { prefix: string; scale: Record<number, string> }> = {
-  padding: { prefix: 'p', scale: spacingScale },
-  'padding-inline': { prefix: 'px', scale: spacingScale },
-  'padding-block': { prefix: 'py', scale: spacingScale },
-  'padding-top': { prefix: 'pt', scale: spacingScale },
-  'padding-right': { prefix: 'pr', scale: spacingScale },
-  'padding-bottom': { prefix: 'pb', scale: spacingScale },
-  'padding-left': { prefix: 'pl', scale: spacingScale },
-  margin: { prefix: 'm', scale: spacingScale },
-  'margin-inline': { prefix: 'mx', scale: spacingScale },
-  'margin-block': { prefix: 'my', scale: spacingScale },
-  'margin-top': { prefix: 'mt', scale: spacingScale },
-  'margin-right': { prefix: 'mr', scale: spacingScale },
-  'margin-bottom': { prefix: 'mb', scale: spacingScale },
-  'margin-left': { prefix: 'ml', scale: spacingScale },
-  gap: { prefix: 'gap', scale: spacingScale },
-  'border-width': {
-    prefix: 'border',
-    scale: { 0: '0', 1: '', 2: '2', 4: '4', 8: '8' },
-  },
-  'border-top-width': {
-    prefix: 'border-t',
-    scale: { 0: '0', 1: '', 2: '2', 4: '4', 8: '8' },
-  },
-  'border-right-width': {
-    prefix: 'border-r',
-    scale: { 0: '0', 1: '', 2: '2', 4: '4', 8: '8' },
-  },
-  'border-bottom-width': {
-    prefix: 'border-b',
-    scale: { 0: '0', 1: '', 2: '2', 4: '4', 8: '8' },
-  },
-  'border-left-width': {
-    prefix: 'border-l',
-    scale: { 0: '0', 1: '', 2: '2', 4: '4', 8: '8' },
-  },
-  'border-radius': {
-    prefix: 'rounded',
-    scale: { 0: 'none', 2: 'sm', 4: '', 6: 'md', 8: 'lg', 12: 'xl', 16: '2xl', 24: '3xl', 9999: 'full' },
-  },
-  'border-top-left-radius': {
-    prefix: 'rounded-tl',
-    scale: { 0: 'none', 2: 'sm', 4: '', 6: 'md', 8: 'lg', 12: 'xl', 16: '2xl', 24: '3xl', 9999: 'full' },
-  },
-  'border-top-right-radius': {
-    prefix: 'rounded-tr',
-    scale: { 0: 'none', 2: 'sm', 4: '', 6: 'md', 8: 'lg', 12: 'xl', 16: '2xl', 24: '3xl', 9999: 'full' },
-  },
-  'border-bottom-right-radius': {
-    prefix: 'rounded-br',
-    scale: { 0: 'none', 2: 'sm', 4: '', 6: 'md', 8: 'lg', 12: 'xl', 16: '2xl', 24: '3xl', 9999: 'full' },
-  },
-  'border-bottom-left-radius': {
-    prefix: 'rounded-bl',
-    scale: { 0: 'none', 2: 'sm', 4: '', 6: 'md', 8: 'lg', 12: 'xl', 16: '2xl', 24: '3xl', 9999: 'full' },
-  },
-}
-
-const flexDirectionMap: Record<string, string> = {
-  row: 'flex-row',
-  'row-reverse': 'flex-row-reverse',
-  column: 'flex-col',
-  'column-reverse': 'flex-col-reverse',
-}
-
-const justifyContentMap: Record<string, string> = {
-  'flex-start': 'justify-start',
-  'flex-end': 'justify-end',
-  center: 'justify-center',
-  'space-between': 'justify-between',
-  'space-around': 'justify-around',
-  'space-evenly': 'justify-evenly',
-  start: 'justify-start',
-  end: 'justify-end',
-}
-
-const alignItemsMap: Record<string, string> = {
-  'flex-start': 'items-start',
-  'flex-end': 'items-end',
-  center: 'items-center',
-  baseline: 'items-baseline',
-  stretch: 'items-stretch',
-  start: 'items-start',
-  end: 'items-end',
-}
-
-function getExactScaleValue(value: number, scale: Record<number, string>): string | null {
-  if (Object.prototype.hasOwnProperty.call(scale, value)) {
-    return scale[value]
-  }
-  return null
-}
-
-function normalizeTailwindArbitraryValue(value: string): string {
-  return value.trim().replace(/\s+/g, '_')
-}
-
-function normalizeShadowForComparison(value: string): string {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/\s*\/\s*/g, '/')
-    .replace(/\(\s+/g, '(')
-    .replace(/\s+\)/g, ')')
-    .replace(/\s*,\s*/g, ',')
-    .replace(/\s+/g, ' ')
-}
-
-const tailwindShadowClassValues: Array<{ className: string; css: string }> = [
-  { className: 'shadow-2xs', css: '0 1px rgb(0 0 0 / 0.05)' },
-  { className: 'shadow-xs', css: '0 1px 2px 0 rgb(0 0 0 / 0.05)' },
-  { className: 'shadow', css: '0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)' },
-  { className: 'shadow-sm', css: '0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)' },
-  { className: 'shadow-md', css: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)' },
-  { className: 'shadow-lg', css: '0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)' },
-  { className: 'shadow-xl', css: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)' },
-  { className: 'shadow-2xl', css: '0 25px 50px -12px rgb(0 0 0 / 0.25)' },
-  { className: 'shadow-inner', css: 'inset 0 2px 4px 0 rgb(0 0 0 / 0.05)' },
-]
-
-export function stylesToTailwind(styles: Record<string, string>): string {
-  const classes: string[] = []
-
-  for (const [prop, value] of Object.entries(styles)) {
-    if (tailwindClassMap[prop]) {
-      const parsed = parsePropertyValue(value)
-      const mapping = tailwindClassMap[prop]
-      if (value === 'auto') {
-        classes.push(`${mapping.prefix}-auto`)
-        continue
-      }
-      if (parsed.unit === 'px') {
-        const exactScale = getExactScaleValue(parsed.numericValue, mapping.scale)
-        if (exactScale !== null) {
-          if (exactScale === '') {
-            classes.push(mapping.prefix)
-          } else {
-            classes.push(`${mapping.prefix}-${exactScale}`)
-          }
-          continue
-        }
-      }
-      classes.push(`${mapping.prefix}-[${value}]`)
-      continue
-    }
-
-    if (prop === 'flex-direction' && flexDirectionMap[value]) {
-      classes.push(flexDirectionMap[value])
-      continue
-    }
-
-    if (prop === 'justify-content' && justifyContentMap[value]) {
-      classes.push(justifyContentMap[value])
-      continue
-    }
-
-    if (prop === 'align-items' && alignItemsMap[value]) {
-      classes.push(alignItemsMap[value])
-      continue
-    }
-
-    if (prop === 'display') {
-      if (value === 'flex') classes.push('flex')
-      else if (value === 'inline-flex') classes.push('inline-flex')
-      else if (value === 'grid') classes.push('grid')
-      else if (value === 'block') classes.push('block')
-      else if (value === 'inline-block') classes.push('inline-block')
-      else if (value === 'none') classes.push('hidden')
-      continue
-    }
-
-    if (prop === 'width') {
-      if (value === '100%') classes.push('w-full')
-      else if (value === 'fit-content') classes.push('w-fit')
-      else if (value === 'auto') classes.push('w-auto')
-      else classes.push(`w-[${value}]`)
-      continue
-    }
-
-    if (prop === 'height') {
-      if (value === '100%') classes.push('h-full')
-      else if (value === 'fit-content') classes.push('h-fit')
-      else if (value === 'auto') classes.push('h-auto')
-      else classes.push(`h-[${value}]`)
-      continue
-    }
-
-    if (prop === 'background-color') {
-      const colorValue = parseColorValue(value)
-      classes.push(colorToTailwind('backgroundColor', colorValue))
-      continue
-    }
-
-    if (prop === 'color') {
-      const colorValue = parseColorValue(value)
-      classes.push(colorToTailwind('color', colorValue))
-      continue
-    }
-
-    if (prop === 'border-color') {
-      const colorValue = parseColorValue(value)
-      classes.push(colorToTailwind('borderColor', colorValue))
-      continue
-    }
-
-    if (prop === 'border-style') {
-      const styleMap: Record<string, string> = {
-        none: 'border-none',
-        solid: 'border-solid',
-        dashed: 'border-dashed',
-        dotted: 'border-dotted',
-        double: 'border-double',
-      }
-      classes.push(styleMap[value] || `[border-style:${value}]`)
-      continue
-    }
-
-    // Tailwind has no per-side border-style utilities — consolidate when all sides match
-    if (prop === 'border-top-style' || prop === 'border-right-style' || prop === 'border-bottom-style' || prop === 'border-left-style') {
-      const allPresent =
-        'border-top-style' in styles &&
-        'border-right-style' in styles &&
-        'border-bottom-style' in styles &&
-        'border-left-style' in styles
-      if (allPresent) {
-        // Only emit once (from border-top-style) when all four sides are present
-        if (prop === 'border-top-style') {
-          const allSame =
-            styles['border-top-style'] === styles['border-right-style'] &&
-            styles['border-top-style'] === styles['border-bottom-style'] &&
-            styles['border-top-style'] === styles['border-left-style']
-          if (allSame) {
-            const styleMap: Record<string, string> = {
-              none: 'border-none',
-              solid: 'border-solid',
-              dashed: 'border-dashed',
-              dotted: 'border-dotted',
-              double: 'border-double',
-            }
-            classes.push(styleMap[value] || `[border-style:${value}]`)
-          } else {
-            // Sides differ — emit each side individually
-            classes.push(`[border-top-style:${styles['border-top-style']}]`)
-            classes.push(`[border-right-style:${styles['border-right-style']}]`)
-            classes.push(`[border-bottom-style:${styles['border-bottom-style']}]`)
-            classes.push(`[border-left-style:${styles['border-left-style']}]`)
-          }
-        }
-      } else {
-        // Emit arbitrary-property syntax for individual side styles
-        classes.push(`[${prop}:${value}]`)
-      }
-      continue
-    }
-
-    if (prop === 'outline-color') {
-      const colorValue = parseColorValue(value)
-      classes.push(colorToTailwind('outlineColor', colorValue))
-      continue
-    }
-
-    if (prop === 'box-shadow') {
-      const trimmed = value.trim()
-      if (trimmed === 'none' || trimmed === '') {
-        classes.push('shadow-none')
-      } else {
-        const normalized = normalizeShadowForComparison(trimmed)
-        const preset = tailwindShadowClassValues.find(
-          (entry) => normalizeShadowForComparison(entry.css) === normalized
-        )
-        if (preset) classes.push(preset.className)
-        else classes.push(`shadow-[${normalizeTailwindArbitraryValue(value)}]`)
-      }
-      continue
-    }
-
-    if (prop === 'font-size') {
-      classes.push(`text-[${value}]`)
-      continue
-    }
-
-    if (prop === 'font-weight') {
-      const weightMap: Record<string, string> = {
-        '100': 'font-thin',
-        '200': 'font-extralight',
-        '300': 'font-light',
-        '400': 'font-normal',
-        '500': 'font-medium',
-        '600': 'font-semibold',
-        '700': 'font-bold',
-        '800': 'font-extrabold',
-        '900': 'font-black',
-      }
-      classes.push(weightMap[value] || `font-[${value}]`)
-      continue
-    }
-
-    if (prop === 'line-height') {
-      classes.push(`leading-[${value}]`)
-      continue
-    }
-
-    if (prop === 'letter-spacing') {
-      classes.push(`tracking-[${value}]`)
-      continue
-    }
-
-    if (prop === 'text-align') {
-      const alignMap: Record<string, string> = {
-        left: 'text-left',
-        center: 'text-center',
-        right: 'text-right',
-        justify: 'text-justify',
-      }
-      if (alignMap[value]) classes.push(alignMap[value])
-      continue
-    }
-
-    if (prop === 'font-family') {
-      classes.push(`font-[${value.replace(/\s+/g, '_')}]`)
-      continue
-    }
-  }
-
-  return classes.join(' ')
-}
+export {
+  attributeClassesForProperty,
+  expandPropertyForAttribution,
+} from './utils/tailwind-attribution'
+import { attributeClassesForProperty } from './utils/tailwind-attribution'
+export { stylesToTailwind } from './utils/tailwind'
+import { stylesToTailwind } from './utils/tailwind'
 
 export const propertyToCSSMap: Record<SpacingPropertyKey, string> = {
   paddingTop: 'padding-top',
@@ -430,6 +107,7 @@ export const flexPropertyToCSSMap: Record<FlexPropertyKey, string> = {
   flexDirection: 'flex-direction',
   justifyContent: 'justify-content',
   alignItems: 'align-items',
+  flexWrap: 'flex-wrap',
 }
 
 export const sizingPropertyToCSSMap: Record<SizingPropertyKey, string> = {
@@ -445,13 +123,44 @@ export const typographyPropertyToCSSMap: Record<TypographyPropertyKey, string> =
   letterSpacing: 'letter-spacing',
   textAlign: 'text-align',
   textVerticalAlign: 'align-items',
+  textDecoration: 'text-decoration-line',
+  textTransform: 'text-transform',
+  fontStyle: 'font-style',
+}
+
+export const effectsPropertyToCSSMap: Record<EffectsPropertyKey, string> = {
+  opacity: 'opacity',
+  overflow: 'overflow',
+  objectFit: 'object-fit',
 }
 
 const TEXT_ELEMENT_TAGS = new Set([
-  'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-  'span', 'label', 'a', 'strong', 'em', 'small',
-  'blockquote', 'li', 'td', 'th', 'caption', 'figcaption',
-  'legend', 'dt', 'dd', 'abbr', 'cite', 'code', 'pre',
+  'p',
+  'h1',
+  'h2',
+  'h3',
+  'h4',
+  'h5',
+  'h6',
+  'span',
+  'label',
+  'a',
+  'strong',
+  'em',
+  'small',
+  'blockquote',
+  'li',
+  'td',
+  'th',
+  'caption',
+  'figcaption',
+  'legend',
+  'dt',
+  'dd',
+  'abbr',
+  'cite',
+  'code',
+  'pre',
 ])
 
 function hasDirectNonWhitespaceText(element: HTMLElement): boolean {
@@ -474,10 +183,7 @@ export function isTextElement(element: HTMLElement): boolean {
   return false
 }
 
-export function detectSizingMode(
-  element: HTMLElement,
-  dimension: 'width' | 'height'
-): SizingMode {
+export function detectSizingMode(element: HTMLElement, dimension: 'width' | 'height'): SizingMode {
   const computed = window.getComputedStyle(element)
   const inlineValue = element.style[dimension]
 
@@ -530,7 +236,9 @@ export function detectSizingMode(
 
 export function getSizingValue(element: HTMLElement, dimension: 'width' | 'height'): SizingValue {
   const mode = detectSizingMode(element, dimension)
-  const numericValue = Math.round(dimension === 'width' ? element.offsetWidth : element.offsetHeight)
+  const numericValue = Math.round(
+    dimension === 'width' ? element.offsetWidth : element.offsetHeight
+  )
 
   return {
     mode,
@@ -628,7 +336,10 @@ function parseRgbaColor(rgba: string): ColorValue {
   let channelTokens: [string, string, string] | null = null
   let alphaToken: string | undefined
 
-  const commaParts = body.split(',').map((part) => part.trim()).filter(Boolean)
+  const commaParts = body
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean)
   if (commaParts.length === 3 || commaParts.length === 4) {
     channelTokens = [commaParts[0], commaParts[1], commaParts[2]]
     alphaToken = commaParts[3]
@@ -717,10 +428,7 @@ const colorTailwindPrefixMap: Record<ColorPropertyKey, string> = {
   outlineColor: 'outline',
 }
 
-export function colorToTailwind(
-  property: ColorPropertyKey,
-  colorValue: ColorValue
-): string {
+export function colorToTailwind(property: ColorPropertyKey, colorValue: ColorValue): string {
   const prefix = colorTailwindPrefixMap[property]
 
   // Use arbitrary hex value
@@ -742,8 +450,10 @@ export function getElementInfo(element: HTMLElement): ElementInfo {
     isFlexItem = parentComputed.display === 'flex' || parentComputed.display === 'inline-flex'
   }
 
+  const tagName = element.tagName.toLowerCase()
+
   return {
-    tagName: element.tagName.toLowerCase(),
+    tagName,
     id: element.id || null,
     classList: Array.from(element.classList),
     isFlexContainer,
@@ -751,6 +461,7 @@ export function getElementInfo(element: HTMLElement): ElementInfo {
     isTextElement: isTextElement(element),
     parentElement,
     hasChildren: element.children.length > 0,
+    isImageElement: tagName === 'img' || tagName === 'video',
   }
 }
 
@@ -818,8 +529,10 @@ export function getDimensionDisplay(element: HTMLElement): DimensionDisplay {
   }
 }
 
-
-export function calculateParentMeasurements(element: HTMLElement, container?: HTMLElement): MeasurementLine[] {
+export function calculateParentMeasurements(
+  element: HTMLElement,
+  container?: HTMLElement
+): MeasurementLine[] {
   const parent = container ?? element.parentElement
   if (!parent) return []
 
@@ -927,10 +640,8 @@ export function calculateElementMeasurements(
   const zoom = getZoomScale()
   const measurements: MeasurementLine[] = []
 
-  const horizontalOverlap =
-    fromRect.left < toRect.right && fromRect.right > toRect.left
-  const verticalOverlap =
-    fromRect.top < toRect.bottom && fromRect.bottom > toRect.top
+  const horizontalOverlap = fromRect.left < toRect.right && fromRect.right > toRect.left
+  const verticalOverlap = fromRect.top < toRect.bottom && fromRect.bottom > toRect.top
 
   if (verticalOverlap) {
     const overlapTop = Math.max(fromRect.top, toRect.top)
@@ -998,9 +709,10 @@ export function calculateElementMeasurements(
     const toCenterX = toRect.left + toRect.width / 2
     const toCenterY = toRect.top + toRect.height / 2
 
-    const hDistance = toCenterX > fromCenterX
-      ? Math.round((toRect.left - fromRect.right) / zoom)
-      : Math.round((fromRect.left - toRect.right) / zoom)
+    const hDistance =
+      toCenterX > fromCenterX
+        ? Math.round((toRect.left - fromRect.right) / zoom)
+        : Math.round((fromRect.left - toRect.right) / zoom)
 
     if (hDistance > 0) {
       const startX = toCenterX > fromCenterX ? fromRect.right : fromRect.left
@@ -1017,9 +729,10 @@ export function calculateElementMeasurements(
       })
     }
 
-    const vDistance = toCenterY > fromCenterY
-      ? Math.round((toRect.top - fromRect.bottom) / zoom)
-      : Math.round((fromRect.top - toRect.bottom) / zoom)
+    const vDistance =
+      toCenterY > fromCenterY
+        ? Math.round((toRect.top - fromRect.bottom) / zoom)
+        : Math.round((fromRect.top - toRect.bottom) / zoom)
 
     if (vDistance > 0) {
       const x = (fromCenterX + toCenterX) / 2
@@ -1045,7 +758,7 @@ const GUIDELINE_PROXIMITY = 80
 export function calculateGuidelineMeasurements(
   element: HTMLElement,
   guidelines: Guideline[],
-  mousePosition?: { x: number; y: number } | null,
+  mousePosition?: { x: number; y: number } | null
 ): MeasurementLine[] {
   if (guidelines.length === 0) return []
 
@@ -1163,7 +876,7 @@ export function detectChildrenDirection(
   if (computed.display === 'flex' || computed.display === 'inline-flex') {
     const dir = computed.flexDirection
     return {
-      axis: (dir === 'row' || dir === 'row-reverse') ? 'horizontal' : 'vertical',
+      axis: dir === 'row' || dir === 'row-reverse' ? 'horizontal' : 'vertical',
       reversed: dir === 'row-reverse' || dir === 'column-reverse',
     }
   }
@@ -1191,7 +904,7 @@ export function detectChildrenDirection(
 
 export function computeIntendedIndex(
   parent: HTMLElement,
-  draggedElement: HTMLElement,
+  draggedElement: HTMLElement
 ): {
   index: number
   siblingBefore: HTMLElement | null
@@ -1217,15 +930,17 @@ export function computeIntendedIndex(
 
   for (let i = 0; i < siblings.length; i++) {
     const rect = siblings[i].getBoundingClientRect()
-    const midpoint = isHorizontal
-      ? rect.left + rect.width / 2
-      : rect.top + rect.height / 2
+    const midpoint = isHorizontal ? rect.left + rect.width / 2 : rect.top + rect.height / 2
     if (intendedCenter < midpoint) {
       return { index: i, siblingBefore: i > 0 ? siblings[i - 1] : null, siblingAfter: siblings[i] }
     }
   }
 
-  return { index: siblings.length, siblingBefore: siblings[siblings.length - 1], siblingAfter: null }
+  return {
+    index: siblings.length,
+    siblingBefore: siblings[siblings.length - 1],
+    siblingAfter: null,
+  }
 }
 
 function htmlChildren(el: HTMLElement): HTMLElement[] {
@@ -1237,7 +952,7 @@ function htmlChildren(el: HTMLElement): HTMLElement[] {
 /** Walk up from `element` to find the nearest flex/inline-flex ancestor, stopping at `boundary`. */
 function findFlexAncestor(
   element: HTMLElement,
-  boundary: HTMLElement | null,
+  boundary: HTMLElement | null
 ): { flexParent: HTMLElement; child: HTMLElement } | null {
   let current: HTMLElement | null = element
   while (current && current !== document.body) {
@@ -1255,7 +970,7 @@ function findFlexAncestor(
 
 export function computeHoverHighlight(
   elementUnder: HTMLElement | null,
-  selectedElement: HTMLElement | null,
+  selectedElement: HTMLElement | null
 ): { flexContainer: HTMLElement; children: HTMLElement[] } | null {
   if (
     !elementUnder ||
@@ -1286,7 +1001,7 @@ export function computeHoverHighlight(
 
 export function resolveElementTarget(
   elementUnder: HTMLElement,
-  selectedElement: HTMLElement | null,
+  selectedElement: HTMLElement | null
 ): HTMLElement {
   const boundary = selectedElement?.contains(elementUnder) ? selectedElement : null
   const found = findFlexAncestor(elementUnder, boundary)
@@ -1298,7 +1013,7 @@ export function resolveElementTarget(
 export function findTextOwnerAtPoint(
   boundary: HTMLElement,
   clientX: number,
-  clientY: number,
+  clientY: number
 ): HTMLElement | null {
   const doc = document as Document & {
     caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node } | null
@@ -1306,9 +1021,9 @@ export function findTextOwnerAtPoint(
   }
 
   const caretNode =
-    doc.caretPositionFromPoint?.(clientX, clientY)?.offsetNode
-    ?? doc.caretRangeFromPoint?.(clientX, clientY)?.startContainer
-    ?? null
+    doc.caretPositionFromPoint?.(clientX, clientY)?.offsetNode ??
+    doc.caretRangeFromPoint?.(clientX, clientY)?.startContainer ??
+    null
   if (!caretNode || caretNode.nodeType !== Node.TEXT_NODE) return null
 
   const textNode = caretNode as Text
@@ -1332,7 +1047,7 @@ export function findTextOwnerAtPoint(
 export function findTextOwnerByRangeScan(
   boundary: HTMLElement,
   clientX: number,
-  clientY: number,
+  clientY: number
 ): HTMLElement | null {
   const walker = document.createTreeWalker(boundary, NodeFilter.SHOW_TEXT)
   let current: Node | null = walker.nextNode()
@@ -1366,7 +1081,7 @@ export function findTextOwnerByRangeScan(
 export function ensureDirectTextSpanAtPoint(
   parent: HTMLElement,
   clientX: number,
-  clientY: number,
+  clientY: number
 ): HTMLElement | null {
   const directTextNodes = Array.from(parent.childNodes).filter(
     (node): node is Text => node.nodeType === Node.TEXT_NODE && Boolean(node.textContent?.trim())
@@ -1397,7 +1112,7 @@ export function ensureDirectTextSpanAtPoint(
 export function findChildAtPoint(
   parent: HTMLElement,
   clientX: number,
-  clientY: number,
+  clientY: number
 ): HTMLElement | null {
   const children = htmlChildren(parent)
   if (children.length === 0) return null
@@ -1435,8 +1150,12 @@ export function isLayoutContainer(element: HTMLElement): boolean {
 
 function isBlockContainer(element: HTMLElement): boolean {
   const display = window.getComputedStyle(element).display
-  return display === 'block' || display === 'flow-root'
-      || display === 'inline-block' || display === 'list-item'
+  return (
+    display === 'block' ||
+    display === 'flow-root' ||
+    display === 'inline-block' ||
+    display === 'list-item'
+  )
 }
 
 function skipElement(el: HTMLElement, exclude: HTMLElement | null): boolean {
@@ -1446,7 +1165,11 @@ function skipElement(el: HTMLElement, exclude: HTMLElement | null): boolean {
   return false
 }
 
-function findContainerViaTraversal(x: number, y: number, exclude: HTMLElement | null): HTMLElement | null {
+function findContainerViaTraversal(
+  x: number,
+  y: number,
+  exclude: HTMLElement | null
+): HTMLElement | null {
   const el = elementFromPointWithoutOverlays(x, y)
   if (!el) return null
   let current: HTMLElement | null = el
@@ -1479,7 +1202,10 @@ export function findContainerAtPoint(
   }
 
   // Fallback: preferredParent for gap/padding areas
-  if (preferredParent && (isLayoutContainer(preferredParent) || isBlockContainer(preferredParent))) {
+  if (
+    preferredParent &&
+    (isLayoutContainer(preferredParent) || isBlockContainer(preferredParent))
+  ) {
     for (const el of elements) {
       if (el === preferredParent) return preferredParent
     }
@@ -1493,7 +1219,7 @@ export function findLayoutContainerAtPoint(
   x: number,
   y: number,
   exclude: HTMLElement | null,
-  preferredParent?: HTMLElement | null,
+  preferredParent?: HTMLElement | null
 ): HTMLElement | null {
   const host = document.querySelector<HTMLElement>('[data-direct-edit-host]')
   if (host) host.style.display = 'none'
@@ -1547,9 +1273,7 @@ export function calculateDropPosition(
   for (let i = 0; i < children.length; i++) {
     const child = children[i]
     const rect = child.getBoundingClientRect()
-    const midpoint = isHorizontal
-      ? rect.left + rect.width / 2
-      : rect.top + rect.height / 2
+    const midpoint = isHorizontal ? rect.left + rect.width / 2 : rect.top + rect.height / 2
 
     const pointer = isHorizontal ? pointerX : pointerY
 
@@ -1594,8 +1318,7 @@ interface ChildBriefInfo {
 export function getElementDisplayName(element: HTMLElement): string {
   const tag = element.tagName.toLowerCase()
   if (element.id) return `${tag}#${element.id}`
-  const firstClass = Array.from(element.classList)
-    .find(c => c && !c.startsWith('direct-edit'))
+  const firstClass = Array.from(element.classList).find((c) => c && !c.startsWith('direct-edit'))
   if (firstClass) return `${tag}.${firstClass}`
   return tag
 }
@@ -1748,16 +1471,7 @@ function sanitizeContextNode(root: HTMLElement) {
 function buildTargetHtml(element: HTMLElement): string {
   const tagName = element.tagName.toLowerCase()
   const attrs: string[] = []
-  const allowList = [
-    'id',
-    'class',
-    'href',
-    'src',
-    'alt',
-    'aria-label',
-    'role',
-    'data-testid',
-  ]
+  const allowList = ['id', 'class', 'href', 'src', 'alt', 'aria-label', 'role', 'data-testid']
   const maxAttrLength = 48
 
   for (const attr of allowList) {
@@ -1856,10 +1570,7 @@ function escapeHtml(value: string): string {
     .replace(/'/g, '&#039;')
 }
 
-function buildDomContextHtml(
-  element: HTMLElement,
-  options?: { siblingCount?: number }
-): string {
+function buildDomContextHtml(element: HTMLElement, options?: { siblingCount?: number }): string {
   const parent = element.parentElement
   if (!parent) {
     const clone = element.cloneNode(true) as HTMLElement
@@ -1991,9 +1702,10 @@ function collectSubElementSources(element: HTMLElement): Record<string, DomSourc
     if (!source) continue
 
     const text = ((child.innerText || child.textContent) ?? '').trim()
-    let baseLabel = text.length > 0 && text.length <= 30
-      ? text.slice(0, 30).toLowerCase().replace(/\s+/g, '_')
-      : child.tagName.toLowerCase()
+    const baseLabel =
+      text.length > 0 && text.length <= 30
+        ? text.slice(0, 30).toLowerCase().replace(/\s+/g, '_')
+        : child.tagName.toLowerCase()
 
     const existing = labelCounts.get(baseLabel) ?? 0
     labelCounts.set(baseLabel, existing + 1)
@@ -2013,7 +1725,7 @@ export function getElementSource(element: HTMLElement): DomSourceLocation | null
 
   // Fallback: get source from the element's own React fiber when
   // the Vite plugin attribute is not present
-  const seenFibers = new Set<any>()
+  const seenFibers = new Set<unknown>()
   let fiber = getFiberForElement(element)
   while (fiber && !seenFibers.has(fiber)) {
     seenFibers.add(fiber)
@@ -2035,23 +1747,16 @@ export function getElementLocator(element: HTMLElement): ElementLocator {
   const domSource = getElementSource(element)
   const { frames, nearestComponentFiber, elementSourceFile } = getReactComponentInfo(element)
 
-  const componentName = nearestComponentFiber?.type?.displayName
-    || nearestComponentFiber?.type?.name
-    || undefined
+  const componentName =
+    nearestComponentFiber?.type?.displayName || nearestComponentFiber?.type?.name || undefined
 
-  const authoredProps = nearestComponentFiber
-    ? getComponentProps(nearestComponentFiber)
-    : undefined
+  const authoredProps = nearestComponentFiber ? getComponentProps(nearestComponentFiber) : undefined
 
   const classification = classifyComponentFiber(nearestComponentFiber, frames, elementSourceFile)
 
-  const callSite = nearestComponentFiber
-    ? getCallSiteSource(nearestComponentFiber)
-    : null
+  const callSite = nearestComponentFiber ? getCallSiteSource(nearestComponentFiber) : null
 
-  const definitionSrc = classification.isComponentPrimitive
-    ? deriveDefinitionSource(frames)
-    : null
+  const definitionSrc = classification.isComponentPrimitive ? deriveDefinitionSource(frames) : null
 
   const subSources = collectSubElementSources(element)
 
@@ -2066,11 +1771,13 @@ export function getElementLocator(element: HTMLElement): ElementLocator {
     classList: elementInfo.classList,
     domSource: domSource ?? undefined,
     reactComponentName: componentName,
-    authoredProps: authoredProps && Object.keys(authoredProps).length > 0 ? authoredProps : undefined,
+    authoredProps:
+      authoredProps && Object.keys(authoredProps).length > 0 ? authoredProps : undefined,
     subElementSources: Object.keys(subSources).length > 0 ? subSources : undefined,
     callSiteSource: callSite ?? undefined,
     definitionSource: definitionSrc ?? undefined,
-    isComponentPrimitive: (nearestComponentFiber || elementSourceFile) ? classification.isComponentPrimitive : undefined,
+    isComponentPrimitive:
+      nearestComponentFiber || elementSourceFile ? classification.isComponentPrimitive : undefined,
   }
 }
 
@@ -2096,34 +1803,43 @@ export function getLocatorHeader(locator: ElementLocator): {
     formattedSource = formatSourceLocation(
       locator.definitionSource.file,
       locator.definitionSource.line,
-      locator.definitionSource.column,
+      locator.definitionSource.column
     )
   } else {
     formattedSource = locator.domSource?.file
-      ? formatSourceLocation(locator.domSource.file, locator.domSource.line, locator.domSource.column)
+      ? formatSourceLocation(
+          locator.domSource.file,
+          locator.domSource.line,
+          locator.domSource.column
+        )
       : primaryFrame?.file
         ? formatSourceLocation(primaryFrame.file, primaryFrame.line, primaryFrame.column)
         : null
   }
 
   const formattedCallSite = locator.callSiteSource?.file
-    ? formatSourceLocation(locator.callSiteSource.file, locator.callSiteSource.line, locator.callSiteSource.column)
+    ? formatSourceLocation(
+        locator.callSiteSource.file,
+        locator.callSiteSource.line,
+        locator.callSiteSource.column
+      )
     : null
 
   return { componentLabel, formattedSource, formattedCallSite }
 }
 
 export function formatComponentTree(reactStack: ReactComponentFrame[]): string | null {
-  const names = reactStack
-    .map(f => f.name)
-    .filter(Boolean)
+  const names = reactStack.map((f) => f.name).filter(Boolean)
   if (names.length === 0) return null
   if (names.length === 1) return names[0]
   const [component, ...ancestors] = names
   return `${component} (in ${ancestors.join(' > ')})`
 }
 
-function buildLocatorContextLines(locator: ElementLocator, options?: { skipContext?: boolean }): string[] {
+function buildLocatorContextLines(
+  locator: ElementLocator,
+  options?: { skipContext?: boolean }
+): string[] {
   const lines: string[] = []
   const { componentLabel, formattedSource, formattedCallSite } = getLocatorHeader(locator)
   const target = (locator.targetHtml || locator.domContextHtml || '').trim()
@@ -2199,7 +1915,12 @@ export function buildElementContext(locator: ElementLocator): string {
 
 /** Whether a session edit has any meaningful changes (styles, text, or move). */
 export function hasSessionEditChanges(edit: SessionEdit): boolean {
-  return Object.keys(edit.pendingStyles).length > 0 || Boolean(edit.textEdit) || Boolean(edit.move) || Boolean(edit.deleted)
+  return (
+    Object.keys(edit.pendingStyles).length > 0 ||
+    Boolean(edit.textEdit) ||
+    Boolean(edit.move) ||
+    Boolean(edit.deleted)
+  )
 }
 
 /**
@@ -2208,7 +1929,7 @@ export function hasSessionEditChanges(edit: SessionEdit): boolean {
  */
 export function partitionMultiSelectedEdits(
   elements: HTMLElement[],
-  sessionEditsRef: { current: Map<HTMLElement, SessionEdit> },
+  sessionEditsRef: { current: Map<HTMLElement, SessionEdit> }
 ): { editsWithChanges: SessionEdit[]; contextBlocks: string[] } {
   const editsWithChanges: SessionEdit[] = []
   const contextBlocks: string[] = []
@@ -2229,11 +1950,11 @@ export function partitionMultiSelectedEdits(
  */
 export function getContextOnlyBlocks(
   selectedElements: HTMLElement[],
-  sessionItems: SessionItem[],
+  sessionItems: SessionItem[]
 ): string[] {
   if (selectedElements.length <= 1) return []
   const sessionElementSet = new Set(
-    sessionItems.filter((i) => i.type === 'edit').map((i) => i.edit.element),
+    sessionItems.filter((i) => i.type === 'edit').map((i) => i.edit.element)
   )
   const blocks: string[] = []
   for (const el of selectedElements) {
@@ -2244,8 +1965,24 @@ export function getContextOnlyBlocks(
 }
 
 const spacingGroups = [
-  { top: 'padding-top', right: 'padding-right', bottom: 'padding-bottom', left: 'padding-left', all: 'padding', inline: 'padding-inline', block: 'padding-block' },
-  { top: 'margin-top', right: 'margin-right', bottom: 'margin-bottom', left: 'margin-left', all: 'margin', inline: 'margin-inline', block: 'margin-block' },
+  {
+    top: 'padding-top',
+    right: 'padding-right',
+    bottom: 'padding-bottom',
+    left: 'padding-left',
+    all: 'padding',
+    inline: 'padding-inline',
+    block: 'padding-block',
+  },
+  {
+    top: 'margin-top',
+    right: 'margin-right',
+    bottom: 'margin-bottom',
+    left: 'margin-left',
+    all: 'margin',
+    inline: 'margin-inline',
+    block: 'margin-block',
+  },
 ] as const
 
 export function collapseSpacingShorthands(styles: Record<string, string>): Record<string, string> {
@@ -2303,7 +2040,15 @@ function collapseFourSideShorthand(
   result: Record<string, string>,
   sides: { top: string; right: string; bottom: string; left: string; all: string }
 ): void {
-  if (!(sides.top in result && sides.right in result && sides.bottom in result && sides.left in result)) return
+  if (
+    !(
+      sides.top in result &&
+      sides.right in result &&
+      sides.bottom in result &&
+      sides.left in result
+    )
+  )
+    return
 
   // Side-specific values are the source of truth when all four are present.
   delete result[sides.all]
@@ -2352,6 +2097,27 @@ export function collapseExportShorthands(styles: Record<string, string>): Record
   return result
 }
 
+/**
+ * Render 1-or-2 lines for a single CSS change in the edit export format:
+ *   "property: value (tailwindClass) — replaces existing class(es): ..."
+ *   "  note: also set by variant class(es) ..."
+ */
+function renderChangeLine(change: ExportChange, locator: ElementLocator): string[] {
+  const tailwind = change.tailwind ? ` (${change.tailwind})` : ''
+  const attribution = attributeClassesForProperty(change.property, locator.classList ?? [])
+  const replaceSuffix =
+    attribution.matchedClasses.length > 0
+      ? ` — replaces existing class(es): ${attribution.matchedClasses.join(', ')}`
+      : ''
+  const result = [`${change.property}: ${change.value}${tailwind}${replaceSuffix}`]
+  if (attribution.variantMatches.length > 0) {
+    result.push(
+      `  note: also set by variant class(es) ${attribution.variantMatches.join(', ')} — preserve these variants unless the change should apply at those breakpoints/states too`
+    )
+  }
+  return result
+}
+
 export function buildEditExport(
   locator: ElementLocator,
   pendingStyles: Record<string, string>,
@@ -2382,9 +2148,10 @@ export function buildEditExport(
     void arg6
   }
   const pendingStyles = (isLocator ? (arg2 as Record<string, string>) : arg7) || {}
-  const textEdit = isLocator && arg3 && typeof arg3 === 'object' && 'originalText' in arg3
-    ? (arg3 as { originalText: string; newText: string })
-    : null
+  const textEdit =
+    isLocator && arg3 && typeof arg3 === 'object' && 'originalText' in arg3
+      ? (arg3 as { originalText: string; newText: string })
+      : null
   let locator: ElementLocator
 
   if (isLocator) {
@@ -2423,8 +2190,9 @@ export function buildEditExport(
   if (changes.length > 0) {
     lines.push('edits:')
     for (const change of changes) {
-      const tailwind = change.tailwind ? ` (${change.tailwind})` : ''
-      lines.push(`${change.property}: ${change.value}${tailwind}`)
+      for (const line of renderChangeLine(change, locator)) {
+        lines.push(line)
+      }
     }
   }
 
@@ -2456,8 +2224,9 @@ function buildEditExportWithOptions(
   if (changes.length > 0) {
     lines.push('edits:')
     for (const change of changes) {
-      const tailwind = change.tailwind ? ` (${change.tailwind})` : ''
-      lines.push(`${change.property}: ${change.value}${tailwind}`)
+      for (const line of renderChangeLine(change, locator)) {
+        lines.push(line)
+      }
     }
   }
 
@@ -2526,9 +2295,9 @@ function anchorsEqual(a: AnchorRef | null | undefined, b: AnchorRef | null | und
   if (aSelector && bSelector) return aSelector === bSelector
   if (a.source?.file && b.source?.file) {
     return (
-      a.source.file === b.source.file
-      && (a.source.line ?? null) === (b.source.line ?? null)
-      && (a.source.column ?? null) === (b.source.column ?? null)
+      a.source.file === b.source.file &&
+      (a.source.line ?? null) === (b.source.line ?? null) &&
+      (a.source.column ?? null) === (b.source.column ?? null)
     )
   }
   return normalizeName(a.name) === normalizeName(b.name)
@@ -2538,7 +2307,8 @@ function formatAnchorRef(anchor: AnchorRef | null | undefined, fallback = '(none
   if (!anchor) return fallback
   const selector = normalizeSelector(anchor.selector)
   if (selector) return selector
-  if (anchor.source?.file) return `<${anchor.name}> @ ${formatSourceLocation(anchor.source.file, anchor.source.line, anchor.source.column)}`
+  if (anchor.source?.file)
+    return `<${anchor.name}> @ ${formatSourceLocation(anchor.source.file, anchor.source.line, anchor.source.column)}`
   return `<${anchor.name}>`
 }
 
@@ -2579,16 +2349,20 @@ function buildPlacementFromMove(
   afterSelector: string | null | undefined,
   afterSource: DomSourceLocation | null | undefined
 ): PlacementRef {
-  const before = (beforeName || beforeSelector || beforeSource?.file)
-    ? buildAnchorRef(beforeName, beforeSelector, beforeSource)
-    : null
-  const after = (afterName || afterSelector || afterSource?.file)
-    ? buildAnchorRef(afterName, afterSelector, afterSource)
-    : null
+  const before =
+    beforeName || beforeSelector || beforeSource?.file
+      ? buildAnchorRef(beforeName, beforeSelector, beforeSource)
+      : null
+  const after =
+    afterName || afterSelector || afterSource?.file
+      ? buildAnchorRef(afterName, afterSelector, afterSource)
+      : null
   return buildPlacementRef(before, after)
 }
 
-function toRoundedVisualDelta(move: NonNullable<SessionEdit['move']>): { x: number; y: number } | undefined {
+function toRoundedVisualDelta(
+  move: NonNullable<SessionEdit['move']>
+): { x: number; y: number } | undefined {
   const delta = move.visualDelta ?? move.positionDelta
   if (!delta) return undefined
   const rounded = { x: Math.round(delta.x), y: Math.round(delta.y) }
@@ -2600,7 +2374,11 @@ function hasVisualIntent(move: NonNullable<SessionEdit['move']>): boolean {
 }
 
 function hasStructuralChange(move: NonNullable<SessionEdit['move']>): boolean {
-  const fromParent = buildAnchorRef(move.fromParentName, move.fromParentSelector, move.fromParentSource)
+  const fromParent = buildAnchorRef(
+    move.fromParentName,
+    move.fromParentSelector,
+    move.fromParentSource
+  )
   const toParent = buildAnchorRef(move.toParentName, move.toParentSelector, move.toParentSource)
   const fromPlacement = buildPlacementFromMove(
     move.fromSiblingBefore,
@@ -2608,7 +2386,7 @@ function hasStructuralChange(move: NonNullable<SessionEdit['move']>): boolean {
     move.fromSiblingBeforeSource,
     move.fromSiblingAfter,
     move.fromSiblingAfterSelector,
-    move.fromSiblingAfterSource,
+    move.fromSiblingAfterSource
   )
   const toPlacement = buildPlacementFromMove(
     move.toSiblingBefore,
@@ -2616,17 +2394,24 @@ function hasStructuralChange(move: NonNullable<SessionEdit['move']>): boolean {
     move.toSiblingBeforeSource,
     move.toSiblingAfter,
     move.toSiblingAfterSelector,
-    move.toSiblingAfterSource,
+    move.toSiblingAfterSource
   )
 
   if (!anchorsEqual(fromParent, toParent)) return true
   if (!anchorsEqual(fromPlacement.before, toPlacement.before)) return true
   if (!anchorsEqual(fromPlacement.after, toPlacement.after)) return true
-  if (typeof move.fromIndex === 'number' && typeof move.toIndex === 'number' && move.fromIndex !== move.toIndex) return true
+  if (
+    typeof move.fromIndex === 'number' &&
+    typeof move.toIndex === 'number' &&
+    move.fromIndex !== move.toIndex
+  )
+    return true
   return false
 }
 
-function isStructuredLayoutContainer(layout: NonNullable<SessionEdit['move']>['fromParentLayout'] | undefined): boolean {
+function isStructuredLayoutContainer(
+  layout: NonNullable<SessionEdit['move']>['fromParentLayout'] | undefined
+): boolean {
   return layout === 'flex' || layout === 'grid'
 }
 
@@ -2634,14 +2419,21 @@ function isExistingFlexWorkflow(move: NonNullable<SessionEdit['move']>): boolean
   const structuralChange = hasStructuralChange(move)
   if (!structuralChange) return false
 
-  const fromParent = buildAnchorRef(move.fromParentName, move.fromParentSelector, move.fromParentSource)
+  const fromParent = buildAnchorRef(
+    move.fromParentName,
+    move.fromParentSelector,
+    move.fromParentSource
+  )
   const toParent = buildAnchorRef(move.toParentName, move.toParentSelector, move.toParentSource)
   const sameParent = anchorsEqual(fromParent, toParent)
   const fromLayout = move.fromParentLayout
   const toLayout = move.toParentLayout
 
   if (sameParent) {
-    return Boolean(move.mode === 'reorder' && (isStructuredLayoutContainer(toLayout) || isStructuredLayoutContainer(fromLayout)))
+    return Boolean(
+      move.mode === 'reorder' &&
+      (isStructuredLayoutContainer(toLayout) || isStructuredLayoutContainer(fromLayout))
+    )
   }
   return Boolean(isStructuredLayoutContainer(fromLayout) && isStructuredLayoutContainer(toLayout))
 }
@@ -2687,7 +2479,10 @@ function inferFlexDirection(
     return { direction: 'row', reason: 'Subject aligns with neighboring anchors on the same row.' }
   }
   if (sameColumnCount > sameRowCount) {
-    return { direction: 'column', reason: 'Subject aligns with neighboring anchors on the same column.' }
+    return {
+      direction: 'column',
+      reason: 'Subject aligns with neighboring anchors on the same column.',
+    }
   }
   if (sameRowCount > 0) {
     return { direction: 'row', reason: 'Detected row alignment in final geometry.' }
@@ -2719,19 +2514,22 @@ function inferLayoutPrescription(
         `Convert ${formatAnchorRef(operation.to.parent)} to flex and set a clear primary axis for this relationship.`,
         'Use `gap` for spacing and keep positioning static.',
       ],
-      itemSteps: [
-        'Remove any inline `left/top/transform` move artifacts from moved elements.',
-      ],
+      itemSteps: ['Remove any inline `left/top/transform` move artifacts from moved elements.'],
     }
   }
 
   const children = Array.from(parent.children).filter(
-    (node) => node instanceof HTMLElement && isInFlowChild(node) && !node.hasAttribute('data-direct-edit')
+    (node) =>
+      node instanceof HTMLElement && isInFlowChild(node) && !node.hasAttribute('data-direct-edit')
   ) as HTMLElement[]
   const childSnapshots = children.map((child) => {
     const rect = child.getBoundingClientRect()
     const locator = getElementLocator(child)
-    const anchor = buildAnchorRef(getElementDisplayName(child), locator.domSelector, locator.domSource)
+    const anchor = buildAnchorRef(
+      getElementDisplayName(child),
+      locator.domSelector,
+      locator.domSource
+    )
     return {
       child,
       rect,
@@ -2782,24 +2580,34 @@ function inferLayoutPrescription(
   const colCenters = childSnapshots.map(({ centerX }) => centerX)
   const rowClusters = buildNumericClusters(rowCenters, rowTolerance)
   const colClusters = buildNumericClusters(colCenters, colTolerance)
-  const denseRowClusters = rowClusters.filter(cluster => cluster.values.length >= 2).length
-  const denseColClusters = colClusters.filter(cluster => cluster.values.length >= 2).length
-  const isTwoDimensional = childSnapshots.length >= 4 && denseRowClusters >= 2 && denseColClusters >= 2
+  const denseRowClusters = rowClusters.filter((cluster) => cluster.values.length >= 2).length
+  const denseColClusters = colClusters.filter((cluster) => cluster.values.length >= 2).length
+  const isTwoDimensional =
+    childSnapshots.length >= 4 && denseRowClusters >= 2 && denseColClusters >= 2
   const recommendedSystem: 'flex' | 'grid' = isTwoDimensional ? 'grid' : 'flex'
 
   const intentPatterns: string[] = []
-  if (sameRowWith.length > 0) intentPatterns.push(`same_row_with:${sameRowWith.slice(0, 3).join(', ')}`)
-  if (sameColumnWith.length > 0) intentPatterns.push(`same_column_with:${sameColumnWith.slice(0, 3).join(', ')}`)
+  if (sameRowWith.length > 0)
+    intentPatterns.push(`same_row_with:${sameRowWith.slice(0, 3).join(', ')}`)
+  if (sameColumnWith.length > 0)
+    intentPatterns.push(`same_column_with:${sameColumnWith.slice(0, 3).join(', ')}`)
   if (aboveAnchor) intentPatterns.push(`below:${aboveAnchor}`)
   if (belowAnchor) intentPatterns.push(`above:${belowAnchor}`)
-  if (sameRowWith.length === 0 && sameColumnWith.length === 0) intentPatterns.push('separate_cluster')
+  if (sameRowWith.length === 0 && sameColumnWith.length === 0)
+    intentPatterns.push('separate_cluster')
 
   const visualDelta = operation.visualDelta
-  const flexDirectionInfo = inferFlexDirection(sameRowWith.length, sameColumnWith.length, visualDelta)
+  const flexDirectionInfo = inferFlexDirection(
+    sameRowWith.length,
+    sameColumnWith.length,
+    visualDelta
+  )
   const flexDirection = flexDirectionInfo.direction
 
   if (recommendedSystem === 'grid') {
-    reasons.push('Detected multiple dense row and column clusters; a 2D layout system is likely intentional.')
+    reasons.push(
+      'Detected multiple dense row and column clusters; a 2D layout system is likely intentional.'
+    )
     return {
       recommendedSystem: 'grid',
       intentPatterns,
@@ -2812,7 +2620,8 @@ function inferLayoutPrescription(
         'Use `gap` for consistent spacing and keep placement structural.',
       ],
       itemSteps: [
-        `Set item alignment on ${formatAnchorRef(operation.subject)} with grid self-alignment (` + '`justify-self`/`align-self`).',
+        `Set item alignment on ${formatAnchorRef(operation.subject)} with grid self-alignment (` +
+          '`justify-self`/`align-self`).',
       ],
     }
   }
@@ -2836,11 +2645,12 @@ function inferLayoutPrescription(
     }
   }
 
-  const hasBelowCluster = childSnapshots.some((node) => (
-    node.child !== edit.element
-    && node.centerY - subjectCenterY > rowTolerance * 1.5
-    && Math.abs(node.centerY - subjectCenterY) > Math.abs(node.centerX - subjectCenterX)
-  ))
+  const hasBelowCluster = childSnapshots.some(
+    (node) =>
+      node.child !== edit.element &&
+      node.centerY - subjectCenterY > rowTolerance * 1.5 &&
+      Math.abs(node.centerY - subjectCenterY) > Math.abs(node.centerX - subjectCenterX)
+  )
 
   const refactorSteps = [
     `Ensure ${formatAnchorRef(operation.subject)} and referenced neighbors share a common container under ${formatAnchorRef(operation.to.parent)}.`,
@@ -2848,10 +2658,14 @@ function inferLayoutPrescription(
   ]
   if (flexDirection === 'row' && hasStackedCluster) {
     const clusterSample = Array.from(stackedAnchorLabels).slice(0, 3).join(', ')
-    refactorSteps.push(`Create a left-side content wrapper for vertically stacked items (${clusterSample}), and keep ${formatAnchorRef(operation.subject)} as the opposite-side sibling.`)
+    refactorSteps.push(
+      `Create a left-side content wrapper for vertically stacked items (${clusterSample}), and keep ${formatAnchorRef(operation.subject)} as the opposite-side sibling.`
+    )
   }
   if (hasBelowCluster) {
-    refactorSteps.push('Keep lower content sections in a separate block below the horizontal header row; do not force them into the same row.')
+    refactorSteps.push(
+      'Keep lower content sections in a separate block below the horizontal header row; do not force them into the same row.'
+    )
   }
 
   const styleSteps = [
@@ -2862,7 +2676,9 @@ function inferLayoutPrescription(
     'Use `gap` for spacing between siblings.',
   ]
   if (flexDirection === 'row' && hasStackedCluster) {
-    styleSteps.push('Set the content wrapper to `display: flex` with `flex-direction: column` and an appropriate vertical gap.')
+    styleSteps.push(
+      'Set the content wrapper to `display: flex` with `flex-direction: column` and an appropriate vertical gap.'
+    )
   }
 
   return {
@@ -2871,7 +2687,9 @@ function inferLayoutPrescription(
     refactorSteps,
     styleSteps,
     itemSteps: [
-      `Apply item-level alignment (` + '`align-self`' + ` / flex-basis) only when needed for ${formatAnchorRef(operation.subject)}.`,
+      `Apply item-level alignment (` +
+        '`align-self`' +
+        ` / flex-basis) only when needed for ${formatAnchorRef(operation.subject)}.`,
       'Do not use absolute positioning, top/left offsets, transforms, or margin hacks to simulate movement.',
     ],
   }
@@ -2905,9 +2723,13 @@ function buildMoveEntries(edits: SessionEdit[]): {
     const subject = buildAnchorRef(
       getElementDisplayName(edit.element) || edit.locator.tagName,
       edit.locator.domSelector,
-      edit.locator.domSource,
+      edit.locator.domSource
     )
-    const fromParent = buildAnchorRef(move.fromParentName, move.fromParentSelector, move.fromParentSource)
+    const fromParent = buildAnchorRef(
+      move.fromParentName,
+      move.fromParentSelector,
+      move.fromParentSource
+    )
     const toParent = buildAnchorRef(move.toParentName, move.toParentSelector, move.toParentSource)
     const fromPlacement = buildPlacementFromMove(
       move.fromSiblingBefore,
@@ -2915,7 +2737,7 @@ function buildMoveEntries(edits: SessionEdit[]): {
       move.fromSiblingBeforeSource,
       move.fromSiblingAfter,
       move.fromSiblingAfterSelector,
-      move.fromSiblingAfterSource,
+      move.fromSiblingAfterSource
     )
     const toPlacement = buildPlacementFromMove(
       move.toSiblingBefore,
@@ -2923,7 +2745,7 @@ function buildMoveEntries(edits: SessionEdit[]): {
       move.toSiblingBeforeSource,
       move.toSiblingAfter,
       move.toSiblingAfterSelector,
-      move.toSiblingAfterSource,
+      move.toSiblingAfterSource
     )
 
     const reasons: string[] = []
@@ -2950,11 +2772,8 @@ function buildMoveEntries(edits: SessionEdit[]): {
       from: { parent: fromParent, placement: fromPlacement },
       to: { parent: toParent, placement: toPlacement },
       ...(visualDelta ? { visualDelta } : {}),
-      confidence: classification === 'existing_layout_move'
-        ? 'high'
-        : structuralChange
-          ? 'medium'
-          : 'high',
+      confidence:
+        classification === 'existing_layout_move' ? 'high' : structuralChange ? 'medium' : 'high',
       reasons,
     }
 
@@ -2978,10 +2797,8 @@ function buildMoveEntries(edits: SessionEdit[]): {
   return { entries, noopMoveCount }
 }
 
-export function buildMovePlanContext(
-  edits: SessionEdit[],
-  _domContext?: unknown
-): MovePlanContext {
+export function buildMovePlanContext(edits: SessionEdit[], _domContext?: unknown): MovePlanContext {
+  void _domContext
   const { entries, noopMoveCount } = buildMoveEntries(edits)
   if (entries.length === 0) {
     return {
@@ -3007,12 +2824,15 @@ export function buildMovePlanContext(
   }
 
   const orderingConstraints = operations
-    .filter(op => op.classification === 'existing_layout_move')
-    .map(op => `${op.operationId}: place ${formatAnchorRef(op.subject)} ${op.to.placement.description} in ${formatAnchorRef(op.to.parent)}.`)
+    .filter((op) => op.classification === 'existing_layout_move')
+    .map(
+      (op) =>
+        `${op.operationId}: place ${formatAnchorRef(op.subject)} ${op.to.placement.description} in ${formatAnchorRef(op.to.parent)}.`
+    )
 
   const notes: string[] = []
   if (noopMoveCount > 0) notes.push(`Excluded ${noopMoveCount} no-op move(s).`)
-  if (operations.some(op => op.classification === 'layout_refactor')) {
+  if (operations.some((op) => op.classification === 'layout_refactor')) {
     notes.push('Layout refactor operations include best-practice flex/grid prescriptions.')
   }
 
@@ -3030,12 +2850,14 @@ export function buildMovePlanContext(
 
 export function buildMovePlan(edits: SessionEdit[], domContext?: unknown): MovePlan {
   const context = buildMovePlanContext(edits, domContext)
-  return context.movePlan ?? {
-    operations: [],
-    affectedContainers: [],
-    orderingConstraints: [],
-    notes: context.noopMoveCount > 0 ? [`Excluded ${context.noopMoveCount} no-op move(s).`] : [],
-  }
+  return (
+    context.movePlan ?? {
+      operations: [],
+      affectedContainers: [],
+      orderingConstraints: [],
+      notes: context.noopMoveCount > 0 ? [`Excluded ${context.noopMoveCount} no-op move(s).`] : [],
+    }
+  )
 }
 
 export function getMoveIntentForEdit(
@@ -3064,7 +2886,9 @@ function buildMoveExportLines(intent: MoveIntent): string[] {
   const moveType = formatMoveType(intent.classification)
   const implementationSteps: string[] = []
   if (intent.classification === 'existing_layout_move') {
-    implementationSteps.push(`Reorder/reparent ${formatAnchorRef(intent.subject)} to ${intent.to.placement.description} in ${formatAnchorRef(intent.to.parent)}.`)
+    implementationSteps.push(
+      `Reorder/reparent ${formatAnchorRef(intent.subject)} to ${intent.to.placement.description} in ${formatAnchorRef(intent.to.parent)}.`
+    )
   } else {
     const prescription = intent.layoutPrescription
     if (prescription) {
@@ -3097,7 +2921,9 @@ function buildMoveExportLines(intent: MoveIntent): string[] {
   }
 
   lines.push('guardrails:')
-  lines.push('  - Do not simulate movement with absolute positioning, left/top offsets, transform, or margin hacks.')
+  lines.push(
+    '  - Do not simulate movement with absolute positioning, left/top offsets, transform, or margin hacks.'
+  )
   lines.push(`instruction: ${buildMoveInstructionFromIntent(intent)}`)
   return lines
 }
@@ -3121,17 +2947,17 @@ export function getExportContentProfile(
   movePlanOrContext?: MovePlan | MovePlanContext | null
 ): ExportContentProfile {
   const moveOpCount = movePlanOrContext
-    ? ('operations' in movePlanOrContext
+    ? 'operations' in movePlanOrContext
       ? movePlanOrContext.operations.length
-      : (movePlanOrContext.movePlan?.operations.length ?? 0))
+      : (movePlanOrContext.movePlan?.operations.length ?? 0)
     : (buildMovePlanContext(edits).movePlan?.operations.length ?? 0)
 
   return {
-    hasCssEdits: edits.some(e => Object.keys(e.pendingStyles).length > 0),
-    hasTextEdits: edits.some(e => e.textEdit != null),
+    hasCssEdits: edits.some((e) => Object.keys(e.pendingStyles).length > 0),
+    hasTextEdits: edits.some((e) => e.textEdit != null),
     hasMoves: moveOpCount > 0,
     hasComments: comments.length > 0,
-    hasDeletes: edits.some(e => e.deleted),
+    hasDeletes: edits.some((e) => e.deleted),
   }
 }
 
@@ -3148,10 +2974,19 @@ export function buildExportInstruction(profile: ExportContentProfile): string {
   }
 
   const parts: string[] = []
-  if (hasCssEdits) parts.push('Apply the CSS changes to the targeted elements using the project\'s existing styling approach (Tailwind, CSS modules, etc.). Map values to existing CSS variables, design tokens, or utility classes already used in the project whenever possible.')
+  if (hasCssEdits)
+    parts.push(
+      "Apply the CSS changes to the targeted elements using the project's existing styling approach (Tailwind, CSS modules, etc.). Map values to existing CSS variables, design tokens, or utility classes already used in the project whenever possible."
+    )
   if (hasTextEdits) parts.push('Update the text content as specified.')
-  if (hasMoves) parts.push('Implement the move plan below directly in source code. For `structural_move`, reorder/reparent elements using the target anchors. For `layout_refactor`, apply the listed flex/grid refactor steps. Do NOT simulate movement with absolute positioning, left/top offsets, transform, or margin hacks.')
-  if (hasDeletes) parts.push('Delete the elements marked for deletion from the source code — remove their markup/JSX (and any now-dead props, handlers, or imports they solely used).')
+  if (hasMoves)
+    parts.push(
+      'Implement the move plan below directly in source code. For `structural_move`, reorder/reparent elements using the target anchors. For `layout_refactor`, apply the listed flex/grid refactor steps. Do NOT simulate movement with absolute positioning, left/top offsets, transform, or margin hacks.'
+    )
+  if (hasDeletes)
+    parts.push(
+      'Delete the elements marked for deletion from the source code — remove their markup/JSX (and any now-dead props, handlers, or imports they solely used).'
+    )
   if (hasComments) parts.push('Address the comments on the relevant elements.')
 
   return `${parts.join(' ')} Use the provided source locations, selectors, and context HTML to locate each element in the codebase.`
@@ -3207,7 +3042,9 @@ export function buildSessionExport(
     if (!hasMove && !hasStyleOrText) continue
 
     const block = hasMove
-      ? buildEditExportWithOptions(edit.locator, edit.pendingStyles, edit.textEdit, { skipContext: true })
+      ? buildEditExportWithOptions(edit.locator, edit.pendingStyles, edit.textEdit, {
+          skipContext: true,
+        })
       : buildEditExport(edit.locator, edit.pendingStyles, edit.textEdit)
 
     let moveBlock = ''
@@ -3230,6 +3067,7 @@ export {
   ORIGINAL_STYLE_PROPS,
   getOriginalInlineStyles,
   getComputedTypography,
+  getComputedEffects,
   getComputedSizing,
   getComputedBoxShadow,
   getComputedColorStyles,

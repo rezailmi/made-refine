@@ -63,6 +63,7 @@ describe('DirectEditPanelInner', () => {
             flexDirection: 'row',
             justifyContent: 'flex-start',
             alignItems: 'stretch',
+            flexWrap: 'nowrap',
           }}
           computedSizing={{
             width: { mode: 'fixed', value: cssValue('320px', 320) },
@@ -92,7 +93,7 @@ describe('DirectEditPanelInner', () => {
           onSendToAgent={vi.fn().mockResolvedValue(true)}
           canSendToAgent={true}
         />
-      </DirectEditProvider>,
+      </DirectEditProvider>
     )
 
     expect(container.querySelector('button[aria-label="Copy edits"]')).not.toBeNull()

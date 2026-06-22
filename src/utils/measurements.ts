@@ -19,8 +19,10 @@ export function getElementInfo(element: HTMLElement): ElementInfo {
     isFlexItem = parentComputed.display === 'flex' || parentComputed.display === 'inline-flex'
   }
 
+  const tagName = element.tagName.toLowerCase()
+
   return {
-    tagName: element.tagName.toLowerCase(),
+    tagName,
     id: element.id || null,
     classList: Array.from(element.classList),
     isFlexContainer,
@@ -28,6 +30,7 @@ export function getElementInfo(element: HTMLElement): ElementInfo {
     isTextElement: isTextElement(element),
     parentElement,
     hasChildren: element.children.length > 0,
+    isImageElement: tagName === 'img' || tagName === 'video',
   }
 }
 
@@ -95,8 +98,10 @@ export function getDimensionDisplay(element: HTMLElement): DimensionDisplay {
   }
 }
 
-
-export function calculateParentMeasurements(element: HTMLElement, container?: HTMLElement): MeasurementLine[] {
+export function calculateParentMeasurements(
+  element: HTMLElement,
+  container?: HTMLElement
+): MeasurementLine[] {
   const parent = container ?? element.parentElement
   if (!parent) return []
 
@@ -204,10 +209,8 @@ export function calculateElementMeasurements(
   const zoom = getZoomScale()
   const measurements: MeasurementLine[] = []
 
-  const horizontalOverlap =
-    fromRect.left < toRect.right && fromRect.right > toRect.left
-  const verticalOverlap =
-    fromRect.top < toRect.bottom && fromRect.bottom > toRect.top
+  const horizontalOverlap = fromRect.left < toRect.right && fromRect.right > toRect.left
+  const verticalOverlap = fromRect.top < toRect.bottom && fromRect.bottom > toRect.top
 
   if (verticalOverlap) {
     const overlapTop = Math.max(fromRect.top, toRect.top)
@@ -275,9 +278,10 @@ export function calculateElementMeasurements(
     const toCenterX = toRect.left + toRect.width / 2
     const toCenterY = toRect.top + toRect.height / 2
 
-    const hDistance = toCenterX > fromCenterX
-      ? Math.round((toRect.left - fromRect.right) / zoom)
-      : Math.round((fromRect.left - toRect.right) / zoom)
+    const hDistance =
+      toCenterX > fromCenterX
+        ? Math.round((toRect.left - fromRect.right) / zoom)
+        : Math.round((fromRect.left - toRect.right) / zoom)
 
     if (hDistance > 0) {
       const startX = toCenterX > fromCenterX ? fromRect.right : fromRect.left
@@ -294,9 +298,10 @@ export function calculateElementMeasurements(
       })
     }
 
-    const vDistance = toCenterY > fromCenterY
-      ? Math.round((toRect.top - fromRect.bottom) / zoom)
-      : Math.round((fromRect.top - toRect.bottom) / zoom)
+    const vDistance =
+      toCenterY > fromCenterY
+        ? Math.round((toRect.top - fromRect.bottom) / zoom)
+        : Math.round((fromRect.top - toRect.bottom) / zoom)
 
     if (vDistance > 0) {
       const x = (fromCenterX + toCenterX) / 2
@@ -322,7 +327,7 @@ const GUIDELINE_PROXIMITY = 80
 export function calculateGuidelineMeasurements(
   element: HTMLElement,
   guidelines: Guideline[],
-  mousePosition?: { x: number; y: number } | null,
+  mousePosition?: { x: number; y: number } | null
 ): MeasurementLine[] {
   if (guidelines.length === 0) return []
 

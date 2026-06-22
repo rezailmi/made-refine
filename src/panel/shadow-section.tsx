@@ -1,12 +1,16 @@
 import * as React from 'react'
-import { createDefaultShadowLayer, parseShadowLayers, serializeShadowLayers, type EditableShadowLayer } from '../shadow-utils'
+import {
+  createDefaultShadowLayer,
+  parseShadowLayers,
+  serializeShadowLayers,
+  type EditableShadowLayer,
+} from '../shadow-utils'
 import { NumberInput, Tip, CollapsibleSection } from './shared'
 import { ColorInput } from './fill-section'
 import { Button } from '../ui/button'
-import {
-  Plus,
-  Minus,
-} from 'lucide-react'
+import { Plus, Minus } from 'lucide-react'
+
+const MAX_LAYER_COUNT = 16
 
 export function ShadowField({
   label,
@@ -19,7 +23,9 @@ export function ShadowField({
 }) {
   return (
     <div className="relative">
-      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">{label}</span>
+      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+        {label}
+      </span>
       <NumberInput
         value={value}
         onValueChange={onChange}
@@ -48,12 +54,20 @@ export function ShadowLayerEditor({
           <ShadowField label="Y" value={layer.y} onChange={(y) => onChange({ ...layer, y })} />
           <Tip label="Blur">
             <div>
-              <ShadowField label="B" value={layer.blur} onChange={(blur) => onChange({ ...layer, blur: Math.max(0, blur) })} />
+              <ShadowField
+                label="B"
+                value={layer.blur}
+                onChange={(blur) => onChange({ ...layer, blur: Math.max(0, blur) })}
+              />
             </div>
           </Tip>
           <Tip label="Spread">
             <div>
-              <ShadowField label="S" value={layer.spread} onChange={(spread) => onChange({ ...layer, spread })} />
+              <ShadowField
+                label="S"
+                value={layer.spread}
+                onChange={(spread) => onChange({ ...layer, spread })}
+              />
             </div>
           </Tip>
         </div>
@@ -85,23 +99,40 @@ export function ShadowLayerEditor({
 interface ShadowSectionProps {
   boxShadow?: string
   onSetCSS?: (properties: Record<string, string>) => void
+  onCommitShadowLayers?: (layers: EditableShadowLayer[]) => void
   pendingStyles?: Record<string, string>
 }
 
-export function ShadowSection({ boxShadow, onSetCSS, pendingStyles }: ShadowSectionProps) {
+export function ShadowSection({
+  boxShadow,
+  onSetCSS,
+  onCommitShadowLayers,
+  pendingStyles,
+}: ShadowSectionProps) {
   const effectiveShadow = (pendingStyles?.['box-shadow'] ?? boxShadow ?? 'none').trim()
   const parsedLayers = React.useMemo(() => parseShadowLayers(effectiveShadow), [effectiveShadow])
   const [layers, setLayers] = React.useState<EditableShadowLayer[]>(parsedLayers)
   const hasShadow = layers.length > 0
+  const committedRef = React.useRef<string | null>(null)
 
   React.useEffect(() => {
-    setLayers(parsedLayers)
+    const incoming = serializeShadowLayers(parsedLayers)
+    if (committedRef.current === null) {
+      setLayers(parsedLayers)
+    } else if (committedRef.current === incoming) {
+      committedRef.current = null
+      setLayers(parsedLayers)
+    }
   }, [parsedLayers])
 
   const commitLayers = (nextLayers: EditableShadowLayer[]) => {
+    committedRef.current = serializeShadowLayers(nextLayers)
     setLayers(nextLayers)
-    if (!onSetCSS) return
-    onSetCSS({ 'box-shadow': serializeShadowLayers(nextLayers) })
+    if (onCommitShadowLayers) {
+      onCommitShadowLayers(nextLayers)
+    } else if (onSetCSS) {
+      onSetCSS({ 'box-shadow': serializeShadowLayers(nextLayers) })
+    }
   }
 
   const updateLayer = (index: number, nextLayer: EditableShadowLayer) => {
@@ -109,7 +140,10 @@ export function ShadowSection({ boxShadow, onSetCSS, pendingStyles }: ShadowSect
     commitLayers(nextLayers)
   }
 
+  const atLayerCap = layers.length >= MAX_LAYER_COUNT
+
   const addLayer = () => {
+    if (atLayerCap) return
     const nextLayers = [...layers, createDefaultShadowLayer(layers.length)]
     commitLayers(nextLayers)
   }
@@ -121,12 +155,21 @@ export function ShadowSection({ boxShadow, onSetCSS, pendingStyles }: ShadowSect
 
   const headerActions = (
     <div className="flex items-center gap-2">
-      <Tip label={hasShadow ? 'Add shadow layer' : 'Add shadow'}>
+      <Tip
+        label={
+          atLayerCap
+            ? `Maximum ${MAX_LAYER_COUNT} layers`
+            : hasShadow
+              ? 'Add shadow layer'
+              : 'Add shadow'
+        }
+      >
         <Button
           variant="ghost"
           size="icon"
           className="size-7 text-muted-foreground"
           onClick={addLayer}
+          disabled={atLayerCap}
         >
           <Plus />
         </Button>

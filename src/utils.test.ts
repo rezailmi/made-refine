@@ -210,15 +210,21 @@ describe('stylesToTailwind', () => {
         'border-bottom-style': 'solid',
         'border-left-style': 'solid',
       })
-      expect(result).toBe('[border-top-style:solid] [border-right-style:dashed] [border-bottom-style:solid] [border-left-style:solid]')
+      expect(result).toBe(
+        '[border-top-style:solid] [border-right-style:dashed] [border-bottom-style:solid] [border-left-style:solid]'
+      )
     })
   })
 
   describe('per-side border-style with partial sides', () => {
     it('emits arbitrary-property Tailwind for a single side', () => {
       expect(stylesToTailwind({ 'border-top-style': 'solid' })).toBe('[border-top-style:solid]')
-      expect(stylesToTailwind({ 'border-right-style': 'dashed' })).toBe('[border-right-style:dashed]')
-      expect(stylesToTailwind({ 'border-bottom-style': 'dotted' })).toBe('[border-bottom-style:dotted]')
+      expect(stylesToTailwind({ 'border-right-style': 'dashed' })).toBe(
+        '[border-right-style:dashed]'
+      )
+      expect(stylesToTailwind({ 'border-bottom-style': 'dotted' })).toBe(
+        '[border-bottom-style:dotted]'
+      )
       expect(stylesToTailwind({ 'border-left-style': 'double' })).toBe('[border-left-style:double]')
     })
 
@@ -273,6 +279,11 @@ describe('stylesToTailwind', () => {
     it('maps margin-block to my-*', () => {
       expect(stylesToTailwind({ 'margin-block': '4px' })).toBe('my-1')
     })
+
+    it('maps larger Tailwind spacing defaults semantically', () => {
+      expect(stylesToTailwind({ padding: '64px' })).toBe('p-16')
+      expect(stylesToTailwind({ gap: '96px' })).toBe('gap-24')
+    })
   })
 
   describe('display', () => {
@@ -287,6 +298,8 @@ describe('stylesToTailwind', () => {
     it('maps known width values', () => {
       expect(stylesToTailwind({ width: '100%' })).toBe('w-full')
       expect(stylesToTailwind({ width: 'fit-content' })).toBe('w-fit')
+      expect(stylesToTailwind({ width: '64px' })).toBe('w-16')
+      expect(stylesToTailwind({ height: '64px' })).toBe('h-16')
     })
 
     it('uses arbitrary value for unknown widths', () => {
@@ -300,13 +313,19 @@ describe('stylesToTailwind', () => {
     })
 
     it('maps Tailwind default shadow values to utility classes', () => {
-      expect(stylesToTailwind({ 'box-shadow': '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)' })).toBe('shadow-md')
-      expect(stylesToTailwind({ 'box-shadow': 'inset 0 2px 4px 0 rgb(0 0 0 / 0.05)' })).toBe('shadow-inner')
+      expect(
+        stylesToTailwind({
+          'box-shadow': '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
+        })
+      ).toBe('shadow-md')
+      expect(stylesToTailwind({ 'box-shadow': 'inset 0 2px 4px 0 rgb(0 0 0 / 0.05)' })).toBe(
+        'shadow-inner'
+      )
     })
 
     it('maps custom shadow values to arbitrary Tailwind syntax', () => {
       expect(stylesToTailwind({ 'box-shadow': '0 4px 6px -1px rgba(0,0,0,0.1)' })).toBe(
-        'shadow-[0_4px_6px_-1px_rgba(0,0,0,0.1)]',
+        'shadow-[0_4px_6px_-1px_rgba(0,0,0,0.1)]'
       )
     })
   })
@@ -319,6 +338,12 @@ describe('stylesToTailwind', () => {
 
     it('maps text-align', () => {
       expect(stylesToTailwind({ 'text-align': 'center' })).toBe('text-center')
+    })
+
+    it('maps exact font-size presets semantically', () => {
+      expect(stylesToTailwind({ 'font-size': '14px' })).toBe('text-sm')
+      expect(stylesToTailwind({ 'font-size': '16px' })).toBe('text-base')
+      expect(stylesToTailwind({ 'font-size': '15px' })).toBe('text-[15px]')
     })
   })
 })
@@ -378,7 +403,11 @@ describe('collapseSpacingShorthands', () => {
       'padding-bottom': '12px',
       'padding-left': '16px',
     })
-    expect(result).toEqual({ 'padding-top': '8px', 'padding-inline': '16px', 'padding-bottom': '12px' })
+    expect(result).toEqual({
+      'padding-top': '8px',
+      'padding-inline': '16px',
+      'padding-bottom': '12px',
+    })
   })
 
   it('collapses only vertical pair when horizontal differs', () => {
@@ -388,7 +417,11 @@ describe('collapseSpacingShorthands', () => {
       'padding-bottom': '8px',
       'padding-left': '12px',
     })
-    expect(result).toEqual({ 'padding-block': '8px', 'padding-right': '16px', 'padding-left': '12px' })
+    expect(result).toEqual({
+      'padding-block': '8px',
+      'padding-right': '16px',
+      'padding-left': '12px',
+    })
   })
 
   it('does not collapse when all sides differ', () => {
@@ -560,24 +593,31 @@ describe('ensureDirectTextSpanAtPoint', () => {
     document.body.appendChild(parent)
 
     let selected: Text | null = null
-    const spy = vi.spyOn(document, 'createRange').mockImplementation(() => ({
-      selectNodeContents: (node: Node) => { selected = node as Text },
-      getClientRects: () => {
-        if (selected !== text) return []
-        return [{
-          left: 10,
-          top: 10,
-          right: 150,
-          bottom: 30,
-          width: 140,
-          height: 20,
-          x: 10,
-          y: 10,
-          toJSON: () => ({}),
-        }]
-      },
-      detach: () => {},
-    }) as unknown as Range)
+    const spy = vi.spyOn(document, 'createRange').mockImplementation(
+      () =>
+        ({
+          selectNodeContents: (node: Node) => {
+            selected = node as Text
+          },
+          getClientRects: () => {
+            if (selected !== text) return []
+            return [
+              {
+                left: 10,
+                top: 10,
+                right: 150,
+                bottom: 30,
+                width: 140,
+                height: 20,
+                x: 10,
+                y: 10,
+                toJSON: () => ({}),
+              },
+            ]
+          },
+          detach: () => {},
+        }) as unknown as Range
+    )
 
     const span = ensureDirectTextSpanAtPoint(parent, 20, 20)
     expect(span).not.toBeNull()
@@ -596,24 +636,31 @@ describe('ensureDirectTextSpanAtPoint', () => {
     document.body.appendChild(parent)
 
     let selected: Text | null = null
-    const spy = vi.spyOn(document, 'createRange').mockImplementation(() => ({
-      selectNodeContents: (node: Node) => { selected = node as Text },
-      getClientRects: () => {
-        if (selected !== text) return []
-        return [{
-          left: 10,
-          top: 10,
-          right: 80,
-          bottom: 20,
-          width: 70,
-          height: 10,
-          x: 10,
-          y: 10,
-          toJSON: () => ({}),
-        }]
-      },
-      detach: () => {},
-    }) as unknown as Range)
+    const spy = vi.spyOn(document, 'createRange').mockImplementation(
+      () =>
+        ({
+          selectNodeContents: (node: Node) => {
+            selected = node as Text
+          },
+          getClientRects: () => {
+            if (selected !== text) return []
+            return [
+              {
+                left: 10,
+                top: 10,
+                right: 80,
+                bottom: 20,
+                width: 70,
+                height: 10,
+                x: 10,
+                y: 10,
+                toJSON: () => ({}),
+              },
+            ]
+          },
+          detach: () => {},
+        }) as unknown as Range
+    )
 
     const span = ensureDirectTextSpanAtPoint(parent, 200, 200)
     expect(span).toBeNull()
@@ -628,7 +675,8 @@ function makeLocator(partial?: Partial<ElementLocator>): ElementLocator {
   return {
     reactStack: [{ name: 'Button', file: 'src/components.tsx', line: 52, column: 5 }],
     domSelector: 'main > section:nth-of-type(1) > button:nth-of-type(2)',
-    domContextHtml: '<section><button>Get started</button><button data-direct-edit-target="true">Blue surface</button></section>',
+    domContextHtml:
+      '<section><button>Get started</button><button data-direct-edit-target="true">Blue surface</button></section>',
     targetHtml: '<button>Blue surface</button>',
     textPreview: 'Blue surface',
     tagName: 'button',
@@ -662,14 +710,15 @@ describe('export context quality', () => {
   })
 
   it('uses the same richer context block for edit exports', () => {
-    const locator = makeLocator()
+    const locator = makeLocator({ classList: ['pt-1', 'sm:pt-6'] })
     const output = buildEditExport(locator, { 'padding-top': '12px' })
 
     expect(output).toContain('target:')
     expect(output).toContain('context:')
     expect(output).toContain('path: main > section:nth-of-type(1) > button:nth-of-type(2)')
     expect(output).toContain('edits:')
-    expect(output).toContain('padding-top: 12px')
+    expect(output).toContain('padding-top: 12px (pt-3) — replaces existing class(es): pt-1')
+    expect(output).toContain('also set by variant class(es) sm:pt-6')
   })
 
   it('uses the same richer context block for comment exports', () => {
@@ -828,18 +877,35 @@ describe('export context quality', () => {
   })
 
   it('includes variable/token mapping guidance for CSS edits', () => {
-    const instruction = buildExportInstruction({ hasCssEdits: true, hasTextEdits: false, hasMoves: false, hasComments: false })
-    expect(instruction).toContain('Map values to existing CSS variables, design tokens, or utility classes')
+    const instruction = buildExportInstruction({
+      hasCssEdits: true,
+      hasTextEdits: false,
+      hasMoves: false,
+      hasComments: false,
+    })
+    expect(instruction).toContain(
+      'Map values to existing CSS variables, design tokens, or utility classes'
+    )
   })
 
   it('does not include variable/token mapping for text-only edits', () => {
-    const instruction = buildExportInstruction({ hasCssEdits: false, hasTextEdits: true, hasMoves: false, hasComments: false })
+    const instruction = buildExportInstruction({
+      hasCssEdits: false,
+      hasTextEdits: true,
+      hasMoves: false,
+      hasComments: false,
+    })
     expect(instruction).not.toContain('Map values to existing CSS variables')
     expect(instruction).toContain('Update the text content')
   })
 
   it('does not include variable/token mapping for comment-only annotations', () => {
-    const instruction = buildExportInstruction({ hasCssEdits: false, hasTextEdits: false, hasMoves: false, hasComments: true })
+    const instruction = buildExportInstruction({
+      hasCssEdits: false,
+      hasTextEdits: false,
+      hasMoves: false,
+      hasComments: true,
+    })
     expect(instruction).not.toContain('Map values to existing CSS variables')
     expect(instruction).toContain('Address this feedback')
   })
@@ -852,7 +918,8 @@ describe('export context quality', () => {
         id: 'doomed-card',
         classList: [],
         domSelector: '#doomed-card',
-        domContextHtml: '<section><div id="doomed-card" data-direct-edit-target="true"></div></section>',
+        domContextHtml:
+          '<section><div id="doomed-card" data-direct-edit-target="true"></div></section>',
         targetHtml: '<div id="doomed-card">',
         textPreview: '',
         reactStack: [],
@@ -877,7 +944,8 @@ describe('export context quality', () => {
         id: 'moved-then-deleted',
         classList: [],
         domSelector: '#moved-then-deleted',
-        domContextHtml: '<section><div id="moved-then-deleted" data-direct-edit-target="true"></div></section>',
+        domContextHtml:
+          '<section><div id="moved-then-deleted" data-direct-edit-target="true"></div></section>',
         targetHtml: '<div id="moved-then-deleted">',
         textPreview: '',
         reactStack: [],
@@ -938,20 +1006,35 @@ describe('export context quality', () => {
   })
 
   it('includes both CSS and text instructions for combined edits', () => {
-    const instruction = buildExportInstruction({ hasCssEdits: true, hasTextEdits: true, hasMoves: false, hasComments: false })
+    const instruction = buildExportInstruction({
+      hasCssEdits: true,
+      hasTextEdits: true,
+      hasMoves: false,
+      hasComments: false,
+    })
     expect(instruction).toContain('Apply the CSS changes')
     expect(instruction).toContain('Map values to existing CSS variables')
     expect(instruction).toContain('Update the text content')
   })
 
   it('includes CSS and move instructions for combined edits', () => {
-    const instruction = buildExportInstruction({ hasCssEdits: true, hasTextEdits: false, hasMoves: true, hasComments: false })
+    const instruction = buildExportInstruction({
+      hasCssEdits: true,
+      hasTextEdits: false,
+      hasMoves: true,
+      hasComments: false,
+    })
     expect(instruction).toContain('Map values to existing CSS variables')
     expect(instruction).toContain('Implement the move plan below')
   })
 
   it('returns empty string when no content types are present', () => {
-    const instruction = buildExportInstruction({ hasCssEdits: false, hasTextEdits: false, hasMoves: false, hasComments: false })
+    const instruction = buildExportInstruction({
+      hasCssEdits: false,
+      hasTextEdits: false,
+      hasMoves: false,
+      hasComments: false,
+    })
     expect(instruction).toBe('')
   })
 
@@ -1082,7 +1165,7 @@ describe('export context quality', () => {
       expect(frame?.file).toBe('src/components/Button.tsx')
       expect(frame?.line).toBe(12)
       expect(frame?.column).toBe(3)
-      expect('props' in ((frame as unknown) as Record<string, unknown>)).toBe(false)
+      expect('props' in (frame as unknown as Record<string, unknown>)).toBe(false)
     } finally {
       window.__DIRECT_EDIT_DEVTOOLS__ = previousDevtools
       target.remove()
@@ -1338,8 +1421,16 @@ describe('collectSubElementSources', () => {
     try {
       const locator = getElementLocator(root)
       expect(locator.subElementSources).toBeDefined()
-      expect(locator.subElementSources!['title']).toEqual({ file: 'src/app.tsx', line: 10, column: 5 })
-      expect(locator.subElementSources!['description']).toEqual({ file: 'src/app.tsx', line: 11, column: 5 })
+      expect(locator.subElementSources!['title']).toEqual({
+        file: 'src/app.tsx',
+        line: 10,
+        column: 5,
+      })
+      expect(locator.subElementSources!['description']).toEqual({
+        file: 'src/app.tsx',
+        line: 11,
+        column: 5,
+      })
     } finally {
       root.remove()
     }
@@ -1541,8 +1632,15 @@ describe('computeIntendedIndex', () => {
     el.style.display = 'block'
     el.style.position = 'static'
     el.getBoundingClientRect = () => ({
-      top, left: 0, width: 100, height, bottom: top + height, right: 100,
-      x: 0, y: top, toJSON() {},
+      top,
+      left: 0,
+      width: 100,
+      height,
+      bottom: top + height,
+      right: 100,
+      x: 0,
+      y: top,
+      toJSON() {},
     })
     return el
   }
