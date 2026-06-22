@@ -1,9 +1,9 @@
 import * as React from 'react'
 import { fireEvent, render } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import { SectionNav, type SectionKey } from './shared'
+import { SectionNav } from './shared'
 
-function createSectionRefs(): Record<SectionKey, React.RefObject<HTMLDivElement | null>> {
+function createSectionRefs(): React.ComponentProps<typeof SectionNav>['sectionRefs'] {
   return {
     layout: React.createRef<HTMLDivElement>(),
     radius: React.createRef<HTMLDivElement>(),
@@ -28,7 +28,7 @@ describe('SectionNav', () => {
         showColors={true}
         showText={true}
         sectionRefs={sectionRefs}
-      />,
+      />
     )
 
     const nav = container.querySelector('[data-direct-edit="section-nav"]') as HTMLElement

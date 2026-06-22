@@ -7,6 +7,7 @@ export interface ElementInfo {
   isTextElement: boolean
   parentElement: HTMLElement | null
   hasChildren: boolean
+  isImageElement: boolean
 }
 
 export interface ReactComponentFrame {
@@ -108,6 +109,7 @@ export interface FlexProperties {
   flexDirection: 'row' | 'row-reverse' | 'column' | 'column-reverse'
   justifyContent: string
   alignItems: string
+  flexWrap: 'nowrap' | 'wrap' | 'wrap-reverse'
 }
 
 export interface TypographyProperties {
@@ -118,7 +120,18 @@ export interface TypographyProperties {
   letterSpacing: CSSPropertyValue
   textAlign: 'left' | 'center' | 'right' | 'justify' | 'start' | 'end'
   textVerticalAlign: 'flex-start' | 'center' | 'flex-end'
+  textDecoration: 'none' | 'underline' | 'line-through'
+  textTransform: 'none' | 'uppercase' | 'lowercase' | 'capitalize'
+  fontStyle: 'normal' | 'italic'
 }
+
+export interface EffectsProperties {
+  opacity: number
+  overflow: 'visible' | 'hidden' | 'auto' | 'scroll'
+  objectFit: 'fill' | 'contain' | 'cover' | 'none' | 'scale-down'
+}
+
+export type EffectsPropertyKey = keyof EffectsProperties
 
 export type ActiveTool = 'select' | 'comment'
 
@@ -165,6 +178,7 @@ export interface DirectEditState {
   computedColor: ColorProperties | null
   computedBoxShadow: string | null
   computedTypography: TypographyProperties | null
+  computedEffects: EffectsProperties | null
   isComponentPrimitive: boolean
   originalStyles: Record<string, string>
   pendingStyles: Record<string, string>

@@ -8,6 +8,7 @@ import type {
   FlexPropertyKey,
   SizingPropertyKey,
   TypographyPropertyKey,
+  EffectsPropertyKey,
   CSSPropertyValue,
   SizingValue,
   SizingChangeOptions,
@@ -31,6 +32,7 @@ import {
   flexPropertyToCSSMap,
   sizingPropertyToCSSMap,
   typographyPropertyToCSSMap,
+  effectsPropertyToCSSMap,
   sizingValueToCSS,
   colorPropertyToCSSMap,
   parseColorValue,
@@ -47,10 +49,30 @@ export interface StyleUpdaterOptions {
 }
 
 const BORDER_SIDE_PROPS = [
-  { cssProperty: 'border-top-color', styleKey: 'borderTopStyle', widthKey: 'borderTopWidth', colorKey: 'borderTopColor' },
-  { cssProperty: 'border-right-color', styleKey: 'borderRightStyle', widthKey: 'borderRightWidth', colorKey: 'borderRightColor' },
-  { cssProperty: 'border-bottom-color', styleKey: 'borderBottomStyle', widthKey: 'borderBottomWidth', colorKey: 'borderBottomColor' },
-  { cssProperty: 'border-left-color', styleKey: 'borderLeftStyle', widthKey: 'borderLeftWidth', colorKey: 'borderLeftColor' },
+  {
+    cssProperty: 'border-top-color',
+    styleKey: 'borderTopStyle',
+    widthKey: 'borderTopWidth',
+    colorKey: 'borderTopColor',
+  },
+  {
+    cssProperty: 'border-right-color',
+    styleKey: 'borderRightStyle',
+    widthKey: 'borderRightWidth',
+    colorKey: 'borderRightColor',
+  },
+  {
+    cssProperty: 'border-bottom-color',
+    styleKey: 'borderBottomStyle',
+    widthKey: 'borderBottomWidth',
+    colorKey: 'borderBottomColor',
+  },
+  {
+    cssProperty: 'border-left-color',
+    styleKey: 'borderLeftStyle',
+    widthKey: 'borderLeftWidth',
+    colorKey: 'borderLeftColor',
+  },
 ] as const
 
 function toColorKey(color: ColorValue): string {
@@ -60,20 +82,49 @@ function toColorKey(color: ColorValue): string {
 function parseVisibleColor(raw: string, fallbackCurrentColor?: string): ColorValue | null {
   const trimmed = raw.trim()
   if (!trimmed || trimmed === 'transparent' || trimmed === 'none') return null
-  const resolved = trimmed.toLowerCase() === 'currentcolor'
-    ? (fallbackCurrentColor ?? trimmed)
-    : trimmed
+  const resolved =
+    trimmed.toLowerCase() === 'currentcolor' ? (fallbackCurrentColor ?? trimmed) : trimmed
   const parsed = parseColorValue(resolved)
   return parsed.alpha > 0 ? parsed : null
 }
 
-function hasOwnText(node: Element): boolean {
-  return Array.from(node.childNodes).some((child) => (
-    child.nodeType === Node.TEXT_NODE && (child.textContent ?? '').trim().length > 0
-  ))
+function parseSvgPaintColor(
+  node: SVGElement,
+  property: 'fill' | 'stroke',
+  computed: CSSStyleDeclaration,
+  fallbackCurrentColor: string
+): ColorValue | null {
+  const attributeColor = parseVisibleColor(node.getAttribute(property) ?? '', fallbackCurrentColor)
+  const computedRaw = computed.getPropertyValue(property)
+  const computedColor = parseVisibleColor(computedRaw, fallbackCurrentColor)
+
+  if (!attributeColor) return computedColor
+  if (!computedColor) return attributeColor
+
+  const hasInlineOrClassOverride =
+    Boolean(node.style.getPropertyValue(property)) || node.classList.length > 0
+  const isInitialSvgPaint =
+    property === 'fill'
+      ? computedRaw.trim().toLowerCase() === 'rgb(0, 0, 0)'
+      : computedRaw.trim().toLowerCase() === 'none'
+
+  if (!hasInlineOrClassOverride && isInitialSvgPaint) {
+    return attributeColor
+  }
+
+  return computedColor
 }
 
-function collectMatchingColorProperties(root: HTMLElement, target: ColorValue): Map<HTMLElement, Set<string>> {
+function hasOwnText(node: Element): boolean {
+  return Array.from(node.childNodes).some(
+    (child) => child.nodeType === Node.TEXT_NODE && (child.textContent ?? '').trim().length > 0
+  )
+}
+
+function collectMatchingColorProperties(
+  root: HTMLElement,
+  target: ColorValue
+): Map<HTMLElement, Set<string>> {
   const matches = new Map<HTMLElement, Set<string>>()
   const targetKey = toColorKey(target)
   const nodes = [root, ...Array.from(root.querySelectorAll('*'))]
@@ -109,11 +160,9 @@ function collectMatchingColorProperties(root: HTMLElement, target: ColorValue): 
       addIfMatch('outline-color', computed.outlineColor, currentTextColor)
     }
 
-    if (node instanceof SVGGraphicsElement) {
-      const fillColor = parseVisibleColor(computed.getPropertyValue('fill'), currentTextColor)
-        ?? parseVisibleColor(node.getAttribute('fill') ?? '', currentTextColor)
-      const strokeColor = parseVisibleColor(computed.getPropertyValue('stroke'), currentTextColor)
-        ?? parseVisibleColor(node.getAttribute('stroke') ?? '', currentTextColor)
+    if (node instanceof SVGElement) {
+      const fillColor = parseSvgPaintColor(node, 'fill', computed, currentTextColor)
+      const strokeColor = parseSvgPaintColor(node, 'stroke', computed, currentTextColor)
 
       if (fillColor && toColorKey(fillColor) === targetKey) {
         nodeMatches.add('fill')
@@ -146,22 +195,30 @@ export function useStyleUpdaters({
     snapshot: Array<{ cssProperty: string; previousValue: string | null }>
   } | null>(null)
 
-  React.useEffect(() => () => { sizingTransactionRef.current = null }, [])
+  React.useEffect(
+    () => () => {
+      sizingTransactionRef.current = null
+    },
+    []
+  )
 
-  const beginSizingTransaction = React.useCallback((element: HTMLElement, transactionId: string) => {
-    sizingTransactionRef.current = {
-      id: transactionId,
-      element,
-      undoPushed: false,
-      snapshot: (['width', 'height'] as const).map((key) => {
-        const cssProperty = sizingPropertyToCSSMap[key]
-        return {
-          cssProperty,
-          previousValue: element.style.getPropertyValue(cssProperty) || null,
-        }
-      }),
-    }
-  }, [])
+  const beginSizingTransaction = React.useCallback(
+    (element: HTMLElement, transactionId: string) => {
+      sizingTransactionRef.current = {
+        id: transactionId,
+        element,
+        undoPushed: false,
+        snapshot: (['width', 'height'] as const).map((key) => {
+          const cssProperty = sizingPropertyToCSSMap[key]
+          return {
+            cssProperty,
+            previousValue: element.style.getPropertyValue(cssProperty) || null,
+          }
+        }),
+      }
+    },
+    []
+  )
 
   const endSizingTransaction = React.useCallback((transactionId?: string) => {
     const current = sizingTransactionRef.current
@@ -383,7 +440,13 @@ export function useStyleUpdaters({
     const element = current.selectedElement
     if (!element) return
 
-    const flexProps = ['display', 'flex-direction', 'justify-content', 'align-items'] as const
+    const flexProps = [
+      'display',
+      'flex-direction',
+      'justify-content',
+      'align-items',
+      'flex-wrap',
+    ] as const
     const properties = flexProps.map((cssProperty) => ({
       cssProperty,
       previousValue: element.style.getPropertyValue(cssProperty) || null,
@@ -419,16 +482,14 @@ export function useStyleUpdaters({
       computedSpacing: computed.spacing,
       computedBorderRadius: computed.borderRadius,
       computedSizing: computed.sizing,
+      computedEffects: computed.effects,
       elementInfo,
       pendingStyles: newPending,
     }))
   }, [pushUndo])
 
   const updateSizingProperties = React.useCallback(
-    (
-      changes: Partial<Record<SizingPropertyKey, SizingValue>>,
-      options?: SizingChangeOptions
-    ) => {
+    (changes: Partial<Record<SizingPropertyKey, SizingValue>>, options?: SizingChangeOptions) => {
       const el = stateRef.current.selectedElement
       if (!el) return
 
@@ -443,7 +504,9 @@ export function useStyleUpdaters({
         beginSizingTransaction(el, transactionId)
       }
 
-      const requestedKeys = (Object.keys(changes) as SizingPropertyKey[]).filter((key) => changes[key] !== undefined)
+      const requestedKeys = (Object.keys(changes) as SizingPropertyKey[]).filter(
+        (key) => changes[key] !== undefined
+      )
 
       const effectiveChanges: Array<{
         key: SizingPropertyKey
@@ -660,7 +723,8 @@ export function useStyleUpdaters({
         let displayValue = 'flex'
         if (key === 'textVerticalAlign' && el) {
           const computed = window.getComputedStyle(el)
-          const isInline = computed.display === 'inline-flex' || prev.pendingStyles.display === 'inline-flex'
+          const isInline =
+            computed.display === 'inline-flex' || prev.pendingStyles.display === 'inline-flex'
           displayValue = isInline ? 'inline-flex' : 'flex'
         }
 
@@ -684,6 +748,37 @@ export function useStyleUpdaters({
     [pushUndo]
   )
 
+  const updateEffectProperty = React.useCallback(
+    (key: EffectsPropertyKey, value: number | string) => {
+      const el = stateRef.current.selectedElement
+      if (!el) return
+
+      const cssProperty = effectsPropertyToCSSMap[key]
+      const cssValue =
+        key === 'opacity' && typeof value === 'number' ? (value / 100).toString() : String(value)
+
+      const previousValue = el.style.getPropertyValue(cssProperty) || null
+      pushUndo({ type: 'edit', element: el, properties: [{ cssProperty, previousValue }] })
+
+      el.style.setProperty(cssProperty, cssValue)
+
+      setState((prev) => ({
+        ...prev,
+        computedEffects: prev.computedEffects
+          ? {
+              ...prev.computedEffects,
+              [key]: value,
+            }
+          : null,
+        pendingStyles: {
+          ...prev.pendingStyles,
+          [cssProperty]: cssValue,
+        },
+      }))
+    },
+    [pushUndo, setState, stateRef]
+  )
+
   return {
     updateSpacingProperty,
     updateBorderRadiusProperty,
@@ -697,5 +792,6 @@ export function useStyleUpdaters({
     updateColorProperty,
     replaceSelectionColor,
     updateTypographyProperty,
+    updateEffectProperty,
   }
 }

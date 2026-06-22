@@ -9,6 +9,7 @@ import type {
   FlexPropertyKey,
   SizingPropertyKey,
   TypographyPropertyKey,
+  EffectsPropertyKey,
   CSSPropertyValue,
   SizingValue,
   SizingChangeOptions,
@@ -44,7 +45,9 @@ export interface DirectEditActionsContextValue {
   updateSpacingProperty: (key: SpacingPropertyKey, value: CSSPropertyValue) => void
   updateBorderRadiusProperty: (key: BorderRadiusPropertyKey, value: CSSPropertyValue) => void
   updateBorderProperty: (key: BorderPropertyKey, value: BorderProperties[BorderPropertyKey]) => void
-  updateBorderProperties: (changes: Array<[BorderPropertyKey, BorderProperties[BorderPropertyKey]]>) => void
+  updateBorderProperties: (
+    changes: Array<[BorderPropertyKey, BorderProperties[BorderPropertyKey]]>
+  ) => void
   updateRawCSS: (properties: Record<string, string>) => void
   updateFlexProperty: (key: FlexPropertyKey, value: string) => void
   toggleFlexLayout: () => void
@@ -56,6 +59,7 @@ export interface DirectEditActionsContextValue {
   updateColorProperty: (key: ColorPropertyKey, value: ColorValue) => void
   replaceSelectionColor: (from: ColorValue, to: ColorValue) => void
   updateTypographyProperty: (key: TypographyPropertyKey, value: CSSPropertyValue | string) => void
+  updateEffectProperty: (key: EffectsPropertyKey, value: number | string) => void
   resetToOriginal: () => void
   exportEdits: () => Promise<boolean>
   toggleEditMode: () => void
@@ -105,7 +109,8 @@ export interface DirectEditStateContextValue extends DirectEditState {
   multiSelectContextCount: number
 }
 
-export interface DirectEditContextValue extends DirectEditStateContextValue, DirectEditActionsContextValue {}
+export interface DirectEditContextValue
+  extends DirectEditStateContextValue, DirectEditActionsContextValue {}
 
 const DirectEditStateContext = React.createContext<DirectEditStateContextValue | null>(null)
 const DirectEditActionsContext = React.createContext<DirectEditActionsContextValue | null>(null)
@@ -168,9 +173,12 @@ function getCanvasPreference(): boolean {
 }
 
 function saveCanvasPreference(active: boolean) {
-  try { localStorage.setItem(CANVAS_ACTIVE_KEY, String(active)) } catch {}
+  try {
+    localStorage.setItem(CANVAS_ACTIVE_KEY, String(active))
+  } catch {}
 }
-const useIsomorphicLayoutEffect = typeof window === 'undefined' ? React.useEffect : React.useLayoutEffect
+const useIsomorphicLayoutEffect =
+  typeof window === 'undefined' ? React.useEffect : React.useLayoutEffect
 
 function getInitialTheme(): Theme {
   if (typeof window === 'undefined') return 'system'
@@ -209,6 +217,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     computedColor: null,
     computedBoxShadow: null,
     computedTypography: null,
+    computedEffects: null,
     isComponentPrimitive: false,
     originalStyles: {},
     pendingStyles: {},
@@ -227,7 +236,9 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
   const removedSessionEditsRef = React.useRef<WeakSet<HTMLElement>>(new WeakSet())
   const commentDraftTextRef = React.useRef('')
   const commentDraftBlockedHandlerRef = React.useRef<(() => void) | null>(null)
-  const onElementInsertedRef = React.useRef<((kind: CanvasElementKind, element: HTMLElement) => void) | null>(null)
+  const onElementInsertedRef = React.useRef<
+    ((kind: CanvasElementKind, element: HTMLElement) => void) | null
+  >(null)
   const textInsertRafRef = React.useRef<number | null>(null)
   const [sessionEditCount, setSessionEditCount] = React.useState(0)
   const stateRef = React.useRef(state)
@@ -246,20 +257,51 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
   }, [])
 
   const {
-    syncSessionItemCount, saveCurrentToSession, selectElement, selectElements, toggleElementSelection,
-    clearSelection, selectParent, selectChild,
-    resetToOriginal, undo, handleMoveComplete, getSessionEdits, getSessionItems,
-    exportAllEdits, exportEdits, removeSessionEdit, clearSessionEdits, groupSelection, deleteSelection, insertElement: insertElementBase,
+    syncSessionItemCount,
+    saveCurrentToSession,
+    selectElement,
+    selectElements,
+    toggleElementSelection,
+    clearSelection,
+    selectParent,
+    selectChild,
+    resetToOriginal,
+    undo,
+    handleMoveComplete,
+    getSessionEdits,
+    getSessionItems,
+    exportAllEdits,
+    exportEdits,
+    removeSessionEdit,
+    clearSessionEdits,
+    groupSelection,
+    deleteSelection,
+    insertElement: insertElementBase,
   } = useSessionManager({
-    stateRef, sessionEditsRef, removedSessionEditsRef, undoStackRef,
+    stateRef,
+    sessionEditsRef,
+    removedSessionEditsRef,
+    undoStackRef,
     onElementInsertedRef,
-    pushUndo, setState, setSessionEditCount,
+    pushUndo,
+    setState,
+    setSessionEditCount,
   })
 
   const {
-    updateSpacingProperty, updateBorderRadiusProperty, updateBorderProperty,
-    updateBorderProperties, updateRawCSS, updateFlexProperty, toggleFlexLayout,
-    updateSizingProperties, updateSizingProperty, updateColorProperty, replaceSelectionColor, updateTypographyProperty,
+    updateSpacingProperty,
+    updateBorderRadiusProperty,
+    updateBorderProperty,
+    updateBorderProperties,
+    updateRawCSS,
+    updateFlexProperty,
+    toggleFlexLayout,
+    updateSizingProperties,
+    updateSizingProperty,
+    updateColorProperty,
+    replaceSelectionColor,
+    updateTypographyProperty,
+    updateEffectProperty,
   } = useStyleUpdaters({
     stateRef,
     pushUndo,
@@ -276,11 +318,24 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
   }, [state.selectedElement, state.pendingStyles, saveCurrentToSession])
 
   const {
-    finalizeTextEditing, toggleEditMode: toggleEditModeBase, startTextEditing, commitTextEditing,
-    addComment, updateCommentText, submitCommentDraft, addCommentReply, deleteComment, exportComment, setActiveCommentId,
+    finalizeTextEditing,
+    toggleEditMode: toggleEditModeBase,
+    startTextEditing,
+    commitTextEditing,
+    addComment,
+    updateCommentText,
+    submitCommentDraft,
+    addCommentReply,
+    deleteComment,
+    exportComment,
+    setActiveCommentId,
   } = useTextAndComments({
-    stateRef, sessionEditsRef, removedSessionEditsRef,
-    pushUndo, syncSessionItemCount, setState,
+    stateRef,
+    sessionEditsRef,
+    removedSessionEditsRef,
+    pushUndo,
+    syncSessionItemCount,
+    setState,
   })
 
   React.useEffect(() => {
@@ -323,8 +378,16 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     return active.text.trim().length === 0 && commentDraftTextRef.current.trim().length > 0
   }, [])
 
-  const { toggleCanvas, enterCanvas, exitCanvas, setCanvasZoom, fitCanvasToViewport, zoomCanvasTo100 } = useCanvas({
-    stateRef, setState,
+  const {
+    toggleCanvas,
+    enterCanvas,
+    exitCanvas,
+    setCanvasZoom,
+    fitCanvasToViewport,
+    zoomCanvasTo100,
+  } = useCanvas({
+    stateRef,
+    setState,
   })
 
   const closePanel = React.useCallback(() => {
@@ -454,9 +517,7 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
           const style = window.getComputedStyle(current)
           const overflowX = style.overflowX || style.overflow
           const scrollableX =
-            overflowX === 'auto'
-            || overflowX === 'scroll'
-            || overflowX === 'overlay'
+            overflowX === 'auto' || overflowX === 'scroll' || overflowX === 'overlay'
           const hasHorizontalOverflow = current.scrollWidth > current.clientWidth + 1
           if (scrollableX && hasHorizontalOverflow) return current
         }
@@ -510,8 +571,21 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
   }, [state.editModeActive])
 
   const {
-    agentAvailable, lastSendFailure, clearSendFailure, canSendEditToAgent, sendEditToAgent, sendCommentToAgent, sendAllSessionItemsToAgent,
-  } = useAgentComms({ stateRef, sessionEditsRef, getSessionItems, saveCurrentToSession, removeSessionEdit, deleteComment })
+    agentAvailable,
+    lastSendFailure,
+    clearSendFailure,
+    canSendEditToAgent,
+    sendEditToAgent,
+    sendCommentToAgent,
+    sendAllSessionItemsToAgent,
+  } = useAgentComms({
+    stateRef,
+    sessionEditsRef,
+    getSessionItems,
+    saveCurrentToSession,
+    removeSessionEdit,
+    deleteComment,
+  })
 
   const setActiveTool = React.useCallback((tool: ActiveTool) => {
     const normalizedTool: ActiveTool = tool === 'comment' ? 'select' : tool
@@ -523,32 +597,54 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
 
   const setTheme = React.useCallback((theme: Theme) => {
     setState((prev) => ({ ...prev, theme }))
-    try { localStorage.setItem('direct-edit-theme', theme) } catch {}
+    try {
+      localStorage.setItem('direct-edit-theme', theme)
+    } catch {}
   }, [])
 
-  const setBorderStyleControlPreference = React.useCallback((preference: BorderStyleControlPreference) => {
-    setState((prev) => ({ ...prev, borderStyleControlPreference: preference }))
-    try { localStorage.setItem(BORDER_STYLE_CONTROL_PREFERENCE_KEY, preference) } catch {}
-  }, [])
+  const setBorderStyleControlPreference = React.useCallback(
+    (preference: BorderStyleControlPreference) => {
+      setState((prev) => ({ ...prev, borderStyleControlPreference: preference }))
+      try {
+        localStorage.setItem(BORDER_STYLE_CONTROL_PREFERENCE_KEY, preference)
+      } catch {}
+    },
+    []
+  )
 
-  const insertElement = React.useCallback((kind: CanvasElementKind) => {
-    if (hasPendingCommentDraft()) {
-      commentDraftBlockedHandlerRef.current?.()
-      return
-    }
+  const insertElement = React.useCallback(
+    (kind: CanvasElementKind) => {
+      if (hasPendingCommentDraft()) {
+        commentDraftBlockedHandlerRef.current?.()
+        return
+      }
 
-    if (stateRef.current.textEditingElement) {
-      commitTextEditing()
-    }
+      if (stateRef.current.textEditingElement) {
+        commitTextEditing()
+      }
 
-    insertElementBase(kind)
-  }, [commitTextEditing, hasPendingCommentDraft, insertElementBase, stateRef])
+      insertElementBase(kind)
+    },
+    [commitTextEditing, hasPendingCommentDraft, insertElementBase, stateRef]
+  )
 
   useKeyboardShortcuts({
-    stateRef, toggleEditMode, toggleFlexLayout, undo,
-    commitTextEditing, startTextEditing, closePanel, setState,
-    clearSelection, groupSelection, deleteSelection, insertElement,
-    toggleCanvas: toggleCanvasWithPreference, setCanvasZoom, fitCanvasToViewport, zoomCanvasTo100,
+    stateRef,
+    toggleEditMode,
+    toggleFlexLayout,
+    undo,
+    commitTextEditing,
+    startTextEditing,
+    closePanel,
+    setState,
+    clearSelection,
+    groupSelection,
+    deleteSelection,
+    insertElement,
+    toggleCanvas: toggleCanvasWithPreference,
+    setCanvasZoom,
+    fitCanvasToViewport,
+    zoomCanvasTo100,
   })
 
   const multiSelectContextCount = React.useMemo(() => {
@@ -560,43 +656,135 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
     return count
   }, [state.selectedElements, sessionEditCount])
 
-  const stateContextValue = React.useMemo<DirectEditStateContextValue>(() => ({
-    ...state,
-    agentAvailable,
-    lastSendFailure,
-    sessionEditCount,
-    multiSelectContextCount,
-  }), [agentAvailable, lastSendFailure, state, sessionEditCount, multiSelectContextCount])
+  const stateContextValue = React.useMemo<DirectEditStateContextValue>(
+    () => ({
+      ...state,
+      agentAvailable,
+      lastSendFailure,
+      sessionEditCount,
+      multiSelectContextCount,
+    }),
+    [agentAvailable, lastSendFailure, state, sessionEditCount, multiSelectContextCount]
+  )
 
-  const actionsContextValue = React.useMemo<DirectEditActionsContextValue>(() => ({
-    selectElement, selectElements, toggleElementSelection, clearSelection,
-    selectParent, selectChild, closePanel,
-    updateSpacingProperty, updateBorderRadiusProperty, updateBorderProperty,
-    updateBorderProperties, updateRawCSS, updateFlexProperty, toggleFlexLayout,
-    updateSizingProperties, updateSizingProperty, updateColorProperty, replaceSelectionColor, updateTypographyProperty,
-    resetToOriginal, exportEdits, clearSendFailure, canSendEditToAgent, sendEditToAgent,
-    sendAllSessionItemsToAgent, sendCommentToAgent, toggleEditMode, undo,
-    handleMoveComplete, setActiveTool, setTheme, setBorderStyleControlPreference,
-    addComment, updateCommentText, submitCommentDraft, addCommentReply, deleteComment, exportComment,
-    setActiveCommentId, getSessionEdits, getSessionItems, exportAllEdits,
-    clearSessionEdits, removeSessionEdit, startTextEditing, commitTextEditing, setCommentDraftText, setCommentDraftBlockedHandler,
-    groupSelection, deleteSelection, insertElement,
-    toggleCanvas: toggleCanvasWithPreference, setCanvasZoom, fitCanvasToViewport, zoomCanvasTo100,
-  }), [
-    selectElement, selectElements, toggleElementSelection, clearSelection,
-    selectParent, selectChild, closePanel,
-    updateSpacingProperty, updateBorderRadiusProperty, updateBorderProperty,
-    updateBorderProperties, updateRawCSS, updateFlexProperty, toggleFlexLayout,
-    updateSizingProperties, updateSizingProperty, updateColorProperty, replaceSelectionColor, updateTypographyProperty,
-    resetToOriginal, exportEdits, clearSendFailure, canSendEditToAgent, sendEditToAgent,
-    sendAllSessionItemsToAgent, sendCommentToAgent, toggleEditMode, undo,
-    handleMoveComplete, setActiveTool, setTheme, setBorderStyleControlPreference,
-    addComment, updateCommentText, submitCommentDraft, addCommentReply, deleteComment, exportComment,
-    setActiveCommentId, getSessionEdits, getSessionItems, exportAllEdits,
-    clearSessionEdits, removeSessionEdit, startTextEditing, commitTextEditing, setCommentDraftText, setCommentDraftBlockedHandler,
-    groupSelection, deleteSelection, insertElement,
-    toggleCanvasWithPreference, setCanvasZoom, fitCanvasToViewport, zoomCanvasTo100,
-  ])
+  const actionsContextValue = React.useMemo<DirectEditActionsContextValue>(
+    () => ({
+      selectElement,
+      selectElements,
+      toggleElementSelection,
+      clearSelection,
+      selectParent,
+      selectChild,
+      closePanel,
+      updateSpacingProperty,
+      updateBorderRadiusProperty,
+      updateBorderProperty,
+      updateBorderProperties,
+      updateRawCSS,
+      updateFlexProperty,
+      toggleFlexLayout,
+      updateSizingProperties,
+      updateSizingProperty,
+      updateColorProperty,
+      replaceSelectionColor,
+      updateTypographyProperty,
+      updateEffectProperty,
+      resetToOriginal,
+      exportEdits,
+      clearSendFailure,
+      canSendEditToAgent,
+      sendEditToAgent,
+      sendAllSessionItemsToAgent,
+      sendCommentToAgent,
+      toggleEditMode,
+      undo,
+      handleMoveComplete,
+      setActiveTool,
+      setTheme,
+      setBorderStyleControlPreference,
+      addComment,
+      updateCommentText,
+      submitCommentDraft,
+      addCommentReply,
+      deleteComment,
+      exportComment,
+      setActiveCommentId,
+      getSessionEdits,
+      getSessionItems,
+      exportAllEdits,
+      clearSessionEdits,
+      removeSessionEdit,
+      startTextEditing,
+      commitTextEditing,
+      setCommentDraftText,
+      setCommentDraftBlockedHandler,
+      groupSelection,
+      deleteSelection,
+      insertElement,
+      toggleCanvas: toggleCanvasWithPreference,
+      setCanvasZoom,
+      fitCanvasToViewport,
+      zoomCanvasTo100,
+    }),
+    [
+      selectElement,
+      selectElements,
+      toggleElementSelection,
+      clearSelection,
+      selectParent,
+      selectChild,
+      closePanel,
+      updateSpacingProperty,
+      updateBorderRadiusProperty,
+      updateBorderProperty,
+      updateBorderProperties,
+      updateRawCSS,
+      updateFlexProperty,
+      toggleFlexLayout,
+      updateSizingProperties,
+      updateSizingProperty,
+      updateColorProperty,
+      replaceSelectionColor,
+      updateTypographyProperty,
+      updateEffectProperty,
+      resetToOriginal,
+      exportEdits,
+      clearSendFailure,
+      canSendEditToAgent,
+      sendEditToAgent,
+      sendAllSessionItemsToAgent,
+      sendCommentToAgent,
+      toggleEditMode,
+      undo,
+      handleMoveComplete,
+      setActiveTool,
+      setTheme,
+      setBorderStyleControlPreference,
+      addComment,
+      updateCommentText,
+      submitCommentDraft,
+      addCommentReply,
+      deleteComment,
+      exportComment,
+      setActiveCommentId,
+      getSessionEdits,
+      getSessionItems,
+      exportAllEdits,
+      clearSessionEdits,
+      removeSessionEdit,
+      startTextEditing,
+      commitTextEditing,
+      setCommentDraftText,
+      setCommentDraftBlockedHandler,
+      groupSelection,
+      deleteSelection,
+      insertElement,
+      toggleCanvasWithPreference,
+      setCanvasZoom,
+      fitCanvasToViewport,
+      zoomCanvasTo100,
+    ]
+  )
 
   return (
     <DirectEditErrorBoundary>
@@ -605,7 +793,6 @@ export function DirectEditProvider({ children }: DirectEditProviderProps) {
           <DirectEditActionsContext.Provider value={actionsContextValue}>
             <ThemeApplier />
             {children}
-
           </DirectEditActionsContext.Provider>
         </DirectEditStateContext.Provider>
       </PortalContainerProvider>

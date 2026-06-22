@@ -1,25 +1,42 @@
 import * as React from 'react'
 import { Input } from '../ui/input'
-import {
-  Tooltip,
-  TooltipTrigger,
-  TooltipContent,
-} from '../ui/tooltip'
+import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import { cn } from '../cn'
 
 export const selectOnFocus = (e: React.FocusEvent<HTMLInputElement>) => e.target.select()
 
-interface NumberInputProps extends Omit<React.ComponentProps<typeof Input>, 'value' | 'onChange' | 'type'> {
+export function useEchoGuardedInput(propValue: string) {
+  const [localValue, setLocalValue] = React.useState(propValue)
+  const focusedRef = React.useRef(false)
+
+  React.useEffect(() => {
+    if (focusedRef.current) return
+    setLocalValue(propValue)
+  }, [propValue])
+
+  const handleFocus = () => {
+    focusedRef.current = true
+  }
+  const handleBlur = () => {
+    focusedRef.current = false
+    setLocalValue(propValue)
+  }
+
+  return { localValue, setLocalValue, handleFocus, handleBlur }
+}
+
+interface NumberInputProps extends Omit<
+  React.ComponentProps<typeof Input>,
+  'value' | 'onChange' | 'type'
+> {
   value: number | null
   onValueChange: (value: number) => void
 }
 
 export function NumberInput({ value: propValue, onValueChange, ...props }: NumberInputProps) {
-  const [localValue, setLocalValue] = React.useState(propValue === null ? '' : String(propValue))
-
-  React.useEffect(() => {
-    setLocalValue(propValue === null ? '' : String(propValue))
-  }, [propValue])
+  const { localValue, setLocalValue, handleFocus, handleBlur } = useEchoGuardedInput(
+    propValue === null ? '' : String(propValue)
+  )
 
   return (
     <Input
@@ -31,17 +48,24 @@ export function NumberInput({ value: propValue, onValueChange, ...props }: Numbe
         const parsed = parseFloat(e.target.value)
         if (!isNaN(parsed)) onValueChange(parsed)
       }}
-      onBlur={() => {
-        if (localValue === '' || isNaN(parseFloat(localValue))) {
-          setLocalValue(propValue === null ? '' : String(propValue))
-        }
+      onBlur={handleBlur}
+      onFocus={(e) => {
+        handleFocus()
+        selectOnFocus(e)
       }}
-      onFocus={selectOnFocus}
     />
   )
 }
 
-export function Tip({ children, label, side = 'top' }: { children: React.ReactElement; label: React.ReactNode; side?: 'top' | 'bottom' | 'left' | 'right' }) {
+export function Tip({
+  children,
+  label,
+  side = 'top',
+}: {
+  children: React.ReactElement
+  label: React.ReactNode
+  side?: 'top' | 'bottom' | 'left' | 'right'
+}) {
   return (
     <Tooltip>
       <TooltipTrigger render={children} />
@@ -68,7 +92,15 @@ export function CollapsibleSection({ title, actions, children }: CollapsibleSect
   )
 }
 
-export type SectionKey = 'layout' | 'radius' | 'border' | 'shadow' | 'fill' | 'colors' | 'text'
+export type SectionKey =
+  | 'layout'
+  | 'radius'
+  | 'border'
+  | 'shadow'
+  | 'fill'
+  | 'colors'
+  | 'text'
+  | 'effects'
 
 export const SECTION_LABELS: Record<SectionKey, string> = {
   layout: 'Layout',
@@ -78,9 +110,12 @@ export const SECTION_LABELS: Record<SectionKey, string> = {
   fill: 'Fill',
   colors: 'Colors',
   text: 'Text',
+  effects: 'Effects',
 }
 
-export function useSectionNav(sectionRefs: Record<SectionKey, React.RefObject<HTMLDivElement | null>>) {
+type SectionRefs = Partial<Record<SectionKey, React.RefObject<HTMLDivElement | null>>>
+
+export function useSectionNav(sectionRefs: SectionRefs) {
   const scrollRef = React.useRef<HTMLDivElement>(null)
   const [activeSection, setActiveSection] = React.useState<SectionKey>('layout')
 
@@ -94,7 +129,7 @@ export function useSectionNav(sectionRefs: Record<SectionKey, React.RefObject<HT
       let closestDist = Infinity
 
       for (const key of keys) {
-        const el = sectionRefs[key].current
+        const el = sectionRefs[key]?.current
         if (!el) continue
         const dist = Math.abs(el.getBoundingClientRect().top - scrollEl.getBoundingClientRect().top)
         if (dist < closestDist) {
@@ -118,16 +153,19 @@ export function SectionNav({
   activeSection,
   showColors,
   showText,
+  showEffects = false,
   sectionRefs,
 }: {
   scrollRef: React.RefObject<HTMLDivElement | null>
   activeSection: SectionKey
   showColors: boolean
   showText: boolean
-  sectionRefs: Record<SectionKey, React.RefObject<HTMLDivElement | null>>
+  showEffects?: boolean
+  sectionRefs: SectionRefs
 }) {
   const sections: SectionKey[] = ['layout', 'radius', 'fill', 'border', 'shadow']
   if (showText) sections.push('text')
+  if (showEffects) sections.push('effects')
   if (showColors) sections.push('colors')
 
   const handleClick = (key: SectionKey) => {
@@ -137,7 +175,7 @@ export function SectionNav({
       scrollEl.scrollTo({ top: 0, behavior: 'smooth' })
       return
     }
-    const el = sectionRefs[key].current
+    const el = sectionRefs[key]?.current
     if (!el) return
     const top = el.offsetTop - scrollEl.offsetTop
     scrollEl.scrollTo({ top, behavior: 'smooth' })

@@ -12,7 +12,6 @@ import type {
 import type { MoveInfo, MoveMode } from './use-move'
 import {
   getAllComputedStyles,
-  getComputedStyles,
   getOriginalInlineStyles,
   getElementInfo,
   propertyToCSSMap,
@@ -64,10 +63,10 @@ function getLayoutFromDisplay(display: string): ParentLayout {
   if (display === 'flex' || display === 'inline-flex') return 'flex'
   if (display === 'grid' || display === 'inline-grid') return 'grid'
   if (
-    display === 'block'
-    || display === 'inline-block'
-    || display === 'flow-root'
-    || display === 'list-item'
+    display === 'block' ||
+    display === 'inline-block' ||
+    display === 'flow-root' ||
+    display === 'list-item'
   ) {
     return 'block'
   }
@@ -89,14 +88,18 @@ function getParentLayoutMeta(parent: HTMLElement | null): {
 
   if (layout === 'flex') {
     return {
-      display, layout, childCount,
+      display,
+      layout,
+      childCount,
       flexDirection: computed.flexDirection as 'row' | 'row-reverse' | 'column' | 'column-reverse',
       gap: computed.gap !== 'normal' && computed.gap !== '0px' ? computed.gap : undefined,
     }
   }
   if (layout === 'grid') {
     return {
-      display, layout, childCount,
+      display,
+      layout,
+      childCount,
       gap: computed.gap !== 'normal' && computed.gap !== '0px' ? computed.gap : undefined,
     }
   }
@@ -120,7 +123,7 @@ function findChildIndex(parent: HTMLElement | null, child: HTMLElement | null): 
 function getOriginalMoveIndex(
   parent: HTMLElement,
   previousSibling: HTMLElement | null,
-  nextSibling: HTMLElement | null,
+  nextSibling: HTMLElement | null
 ): number {
   const previousIndex = findChildIndex(parent, previousSibling)
   if (previousIndex !== undefined) return previousIndex + 1
@@ -131,7 +134,7 @@ function getOriginalMoveIndex(
 
 function applyPositionMoveCSS(
   element: HTMLElement,
-  delta: { x: number; y: number },
+  delta: { x: number; y: number }
 ): {
   previousStyles: Array<{ cssProperty: string; previousValue: string | null }>
   appliedLeft: string
@@ -141,15 +144,24 @@ function applyPositionMoveCSS(
   const previousStyles: Array<{ cssProperty: string; previousValue: string | null }> = []
 
   if (computed.position === 'static') {
-    previousStyles.push({ cssProperty: 'position', previousValue: element.style.getPropertyValue('position') || null })
+    previousStyles.push({
+      cssProperty: 'position',
+      previousValue: element.style.getPropertyValue('position') || null,
+    })
     element.style.setProperty('position', 'relative')
   }
 
   const appliedLeft = `${(parseFloat(computed.left) || 0) + delta.x}px`
   const appliedTop = `${(parseFloat(computed.top) || 0) + delta.y}px`
 
-  previousStyles.push({ cssProperty: 'left', previousValue: element.style.getPropertyValue('left') || null })
-  previousStyles.push({ cssProperty: 'top', previousValue: element.style.getPropertyValue('top') || null })
+  previousStyles.push({
+    cssProperty: 'left',
+    previousValue: element.style.getPropertyValue('left') || null,
+  })
+  previousStyles.push({
+    cssProperty: 'top',
+    previousValue: element.style.getPropertyValue('top') || null,
+  })
 
   element.style.setProperty('left', appliedLeft)
   element.style.setProperty('top', appliedTop)
@@ -175,7 +187,7 @@ export function buildPositionMoveFields(
   moveInfo: MoveInfo,
   appliedLeft: string,
   appliedTop: string,
-  existingMove: SessionEdit['move'],
+  existingMove: SessionEdit['move']
 ): NonNullable<SessionEdit['move']> {
   const parent = element.parentElement!
   const intended = computeIntendedIndex(parent, element)
@@ -185,7 +197,7 @@ export function buildPositionMoveFields(
   const fromIndex = getOriginalMoveIndex(
     moveInfo.originalParent,
     moveInfo.originalPreviousSibling,
-    moveInfo.originalNextSibling,
+    moveInfo.originalNextSibling
   )
 
   const fromParentMeta = existingMove ? getParentLayoutMeta(moveInfo.originalParent) : parentMeta
@@ -262,7 +274,9 @@ export interface SessionManagerOptions {
   sessionEditsRef: React.MutableRefObject<Map<HTMLElement, SessionEdit>>
   removedSessionEditsRef: React.MutableRefObject<WeakSet<HTMLElement>>
   undoStackRef: React.MutableRefObject<UndoEntry[]>
-  onElementInsertedRef: React.MutableRefObject<((kind: CanvasElementKind, element: HTMLElement) => void) | null>
+  onElementInsertedRef: React.MutableRefObject<
+    ((kind: CanvasElementKind, element: HTMLElement) => void) | null
+  >
   pushUndo: (entry: UndoEntry) => void
   setState: React.Dispatch<React.SetStateAction<DirectEditState>>
   setSessionEditCount: React.Dispatch<React.SetStateAction<number>>
@@ -279,21 +293,26 @@ export function useSessionManager({
   setSessionEditCount,
 }: SessionManagerOptions) {
   const getSelectableChild = React.useCallback((element: HTMLElement): HTMLElement | null => {
-    return Array.from(element.children).find((child): child is HTMLElement => {
-      if (!(child instanceof HTMLElement)) return false
-      if (child.matches('script, style, link, meta, noscript')) return false
-      if (child.matches('[data-direct-edit], [data-direct-edit-host]')) return false
-      return true
-    }) ?? null
+    return (
+      Array.from(element.children).find((child): child is HTMLElement => {
+        if (!(child instanceof HTMLElement)) return false
+        if (child.matches('script, style, link, meta, noscript')) return false
+        if (child.matches('[data-direct-edit], [data-direct-edit-host]')) return false
+        return true
+      }) ?? null
+    )
   }, [])
 
   const getExportableComments = React.useCallback((comments: Comment[]): Comment[] => {
     return comments.filter((comment) => comment.text.trim().length > 0)
   }, [])
 
-  const syncSessionItemCount = React.useCallback((comments = stateRef.current.comments) => {
-    setSessionEditCount(sessionEditsRef.current.size + getExportableComments(comments).length)
-  }, [getExportableComments])
+  const syncSessionItemCount = React.useCallback(
+    (comments = stateRef.current.comments) => {
+      setSessionEditCount(sessionEditsRef.current.size + getExportableComments(comments).length)
+    },
+    [getExportableComments]
+  )
 
   const saveCurrentToSession = React.useCallback(() => {
     const current = stateRef.current
@@ -334,189 +353,209 @@ export function useSessionManager({
     pendingStyles?: Record<string, string>
   }
 
-  const getSanitizedSelection = React.useCallback((elements: Array<HTMLElement | null | undefined>) => {
-    const seen = new Set<HTMLElement>()
-    const result: HTMLElement[] = []
+  const getSanitizedSelection = React.useCallback(
+    (elements: Array<HTMLElement | null | undefined>) => {
+      const seen = new Set<HTMLElement>()
+      const result: HTMLElement[] = []
 
-    for (const element of elements) {
-      if (!(element instanceof HTMLElement)) continue
-      if (!element.isConnected || element === document.documentElement) continue
-      if (element.matches('script, style, link, meta, noscript')) continue
-      if (element.matches('[data-direct-edit], [data-direct-edit-host]')) continue
-      if (seen.has(element)) continue
-      seen.add(element)
-      result.push(element)
-    }
+      for (const element of elements) {
+        if (!(element instanceof HTMLElement)) continue
+        if (!element.isConnected || element === document.documentElement) continue
+        if (element.matches('script, style, link, meta, noscript')) continue
+        if (element.matches('[data-direct-edit], [data-direct-edit-host]')) continue
+        if (seen.has(element)) continue
+        seen.add(element)
+        result.push(element)
+      }
 
-    return result
-  }, [])
+      return result
+    },
+    []
+  )
 
   const sameSelection = React.useCallback((a: HTMLElement[], b: HTMLElement[]) => {
     if (a.length !== b.length) return false
     return a.every((element, index) => element === b[index])
   }, [])
 
-  const buildSelectionSnapshot = React.useCallback((current = stateRef.current) => ({
-    isOpen: current.isOpen,
-    selectedElement: current.selectedElement,
-    selectedElements: [...current.selectedElements],
-    selectionAnchorElement: current.selectionAnchorElement,
-    originalStyles: { ...current.originalStyles },
-    pendingStyles: { ...current.pendingStyles },
-  }), [stateRef])
+  const buildSelectionSnapshot = React.useCallback(
+    (current = stateRef.current) => ({
+      isOpen: current.isOpen,
+      selectedElement: current.selectedElement,
+      selectedElements: [...current.selectedElements],
+      selectionAnchorElement: current.selectionAnchorElement,
+      originalStyles: { ...current.originalStyles },
+      pendingStyles: { ...current.pendingStyles },
+    }),
+    [stateRef]
+  )
 
-  const applySelection = React.useCallback((
-    elements: Array<HTMLElement | null | undefined>,
-    options?: ApplySelectionOptions,
-  ) => {
-    const nextElements = getSanitizedSelection(elements)
-    const nextPrimary = options?.primaryElement && nextElements.includes(options.primaryElement)
-      ? options.primaryElement
-      : nextElements[nextElements.length - 1] ?? null
-    const nextSingleElement = nextElements.length === 1 ? nextElements[0] : null
-    const nextIsOpen = options?.isOpen ?? (nextSingleElement !== null)
-    const current = stateRef.current
+  const applySelection = React.useCallback(
+    (elements: Array<HTMLElement | null | undefined>, options?: ApplySelectionOptions) => {
+      const nextElements = getSanitizedSelection(elements)
+      const nextPrimary =
+        options?.primaryElement && nextElements.includes(options.primaryElement)
+          ? options.primaryElement
+          : (nextElements[nextElements.length - 1] ?? null)
+      const nextSingleElement = nextElements.length === 1 ? nextElements[0] : null
+      const nextIsOpen = options?.isOpen ?? nextSingleElement !== null
+      const current = stateRef.current
 
-    const selectionChanged = (
-      current.isOpen !== nextIsOpen
-      || current.selectedElement !== nextSingleElement
-      || current.selectionAnchorElement !== nextPrimary
-      || !sameSelection(current.selectedElements, nextElements)
-    )
+      const selectionChanged =
+        current.isOpen !== nextIsOpen ||
+        current.selectedElement !== nextSingleElement ||
+        current.selectionAnchorElement !== nextPrimary ||
+        !sameSelection(current.selectedElements, nextElements)
 
-    if (!selectionChanged) return
+      if (!selectionChanged) return
 
-    if (options?.pushUndo !== false) {
-      saveCurrentToSession()
-      if (current.selectedElements.length > 0 || current.isOpen) {
-        pushUndo({
-          type: 'selection',
-          previousIsOpen: current.isOpen,
-          previousElement: current.selectedElement,
-          previousElements: [...current.selectedElements],
-          previousAnchorElement: current.selectionAnchorElement,
-          previousOriginalStyles: { ...current.originalStyles },
-          previousPendingStyles: { ...current.pendingStyles },
-        })
+      if (options?.pushUndo !== false) {
+        saveCurrentToSession()
+        if (current.selectedElements.length > 0 || current.isOpen) {
+          pushUndo({
+            type: 'selection',
+            previousIsOpen: current.isOpen,
+            previousElement: current.selectedElement,
+            previousElements: [...current.selectedElements],
+            previousAnchorElement: current.selectionAnchorElement,
+            previousOriginalStyles: { ...current.originalStyles },
+            previousPendingStyles: { ...current.pendingStyles },
+          })
+        }
       }
-    }
 
-    if (nextSingleElement) {
-      const existingEdit = sessionEditsRef.current.get(nextSingleElement)
-      const computed = getAllComputedStyles(nextSingleElement)
-      const originalStyles = options?.originalStyles
-        ?? existingEdit?.originalStyles
-        ?? getOriginalInlineStyles(nextSingleElement)
-      const pendingStyles = options?.pendingStyles
-        ?? existingEdit?.pendingStyles
-        ?? {}
-      const elementInfo = getElementInfo(nextSingleElement)
-      const { frames, nearestComponentFiber, elementSourceFile } = getReactComponentInfo(nextSingleElement)
-      const isPrimitive = classifyComponentFiber(nearestComponentFiber, frames, elementSourceFile).isComponentPrimitive
+      if (nextSingleElement) {
+        const existingEdit = sessionEditsRef.current.get(nextSingleElement)
+        const computed = getAllComputedStyles(nextSingleElement)
+        const originalStyles =
+          options?.originalStyles ??
+          existingEdit?.originalStyles ??
+          getOriginalInlineStyles(nextSingleElement)
+        const pendingStyles = options?.pendingStyles ?? existingEdit?.pendingStyles ?? {}
+        const elementInfo = getElementInfo(nextSingleElement)
+        const { frames, nearestComponentFiber, elementSourceFile } =
+          getReactComponentInfo(nextSingleElement)
+        const isPrimitive = classifyComponentFiber(
+          nearestComponentFiber,
+          frames,
+          elementSourceFile
+        ).isComponentPrimitive
 
-      setState((prev) => ({
-        comments: prev.activeCommentId
-          ? prev.comments.filter((comment) => {
-              if (comment.id !== prev.activeCommentId) return true
-              return comment.element === nextSingleElement || comment.text.trim().length > 0
-            })
-          : prev.comments,
-        isOpen: nextIsOpen,
-        selectedElement: nextSingleElement,
-        selectedElements: [nextSingleElement],
-        selectionAnchorElement: nextPrimary ?? nextSingleElement,
-        elementInfo,
-        computedSpacing: computed.spacing,
-        computedBorderRadius: computed.borderRadius,
-        computedBorder: computed.border,
-        computedFlex: computed.flex,
-        computedSizing: computed.sizing,
-        computedColor: computed.color,
-        computedBoxShadow: computed.boxShadow,
-        computedTypography: computed.typography,
-        isComponentPrimitive: isPrimitive,
-        originalStyles,
-        pendingStyles,
-        editModeActive: prev.editModeActive,
-        activeTool: prev.activeTool,
-        theme: prev.theme,
-        borderStyleControlPreference: prev.borderStyleControlPreference,
-        activeCommentId: prev.activeCommentId && prev.comments.some((comment) => (
-          comment.id === prev.activeCommentId && comment.element === nextSingleElement
-        ))
-          ? prev.activeCommentId
-          : null,
-        canvas: prev.canvas,
-        textEditingElement: null,
-      }))
-      return
-    }
-
-    setState((prev) => {
-      const comments = prev.activeCommentId
-        ? prev.comments.filter((comment) => (
-            comment.id !== prev.activeCommentId || comment.text.trim().length > 0
-          ))
-        : prev.comments
-
-      return {
-        ...prev,
-        comments,
-        isOpen: false,
-        selectedElement: null,
-        selectedElements: nextElements,
-        selectionAnchorElement: nextPrimary,
-        elementInfo: null,
-        computedSpacing: null,
-        computedBorderRadius: null,
-        computedBorder: null,
-        computedFlex: null,
-        computedSizing: null,
-        computedColor: null,
-        computedBoxShadow: null,
-        computedTypography: null,
-        isComponentPrimitive: false,
-        originalStyles: {},
-        pendingStyles: {},
-        activeCommentId: null,
-        textEditingElement: null,
+        setState((prev) => ({
+          comments: prev.activeCommentId
+            ? prev.comments.filter((comment) => {
+                if (comment.id !== prev.activeCommentId) return true
+                return comment.element === nextSingleElement || comment.text.trim().length > 0
+              })
+            : prev.comments,
+          isOpen: nextIsOpen,
+          selectedElement: nextSingleElement,
+          selectedElements: [nextSingleElement],
+          selectionAnchorElement: nextPrimary ?? nextSingleElement,
+          elementInfo,
+          computedSpacing: computed.spacing,
+          computedBorderRadius: computed.borderRadius,
+          computedBorder: computed.border,
+          computedFlex: computed.flex,
+          computedSizing: computed.sizing,
+          computedColor: computed.color,
+          computedBoxShadow: computed.boxShadow,
+          computedTypography: computed.typography,
+          computedEffects: computed.effects,
+          isComponentPrimitive: isPrimitive,
+          originalStyles,
+          pendingStyles,
+          editModeActive: prev.editModeActive,
+          activeTool: prev.activeTool,
+          theme: prev.theme,
+          borderStyleControlPreference: prev.borderStyleControlPreference,
+          activeCommentId:
+            prev.activeCommentId &&
+            prev.comments.some(
+              (comment) =>
+                comment.id === prev.activeCommentId && comment.element === nextSingleElement
+            )
+              ? prev.activeCommentId
+              : null,
+          canvas: prev.canvas,
+          textEditingElement: null,
+        }))
+        return
       }
-    })
-  }, [getSanitizedSelection, pushUndo, saveCurrentToSession, sameSelection])
 
-  const selectElements = React.useCallback((elements: HTMLElement[], options?: SelectElementsOptions) => {
-    const current = stateRef.current.selectedElements
-    const nextElements = options?.additive
-      ? [...current, ...elements]
-      : elements
+      setState((prev) => {
+        const comments = prev.activeCommentId
+          ? prev.comments.filter(
+              (comment) => comment.id !== prev.activeCommentId || comment.text.trim().length > 0
+            )
+          : prev.comments
 
-    applySelection(nextElements, {
-      primaryElement: options?.primaryElement ?? elements[elements.length - 1] ?? null,
-    })
-  }, [applySelection, stateRef])
+        return {
+          ...prev,
+          comments,
+          isOpen: false,
+          selectedElement: null,
+          selectedElements: nextElements,
+          selectionAnchorElement: nextPrimary,
+          elementInfo: null,
+          computedSpacing: null,
+          computedBorderRadius: null,
+          computedBorder: null,
+          computedFlex: null,
+          computedSizing: null,
+          computedColor: null,
+          computedBoxShadow: null,
+          computedTypography: null,
+          computedEffects: null,
+          isComponentPrimitive: false,
+          originalStyles: {},
+          pendingStyles: {},
+          activeCommentId: null,
+          textEditingElement: null,
+        }
+      })
+    },
+    [getSanitizedSelection, pushUndo, saveCurrentToSession, sameSelection]
+  )
 
-  const selectElement = React.useCallback((element: HTMLElement, options?: SelectElementOptions) => {
-    selectElements([element], {
-      additive: options?.additive,
-      primaryElement: element,
-    })
-  }, [selectElements])
+  const selectElements = React.useCallback(
+    (elements: HTMLElement[], options?: SelectElementsOptions) => {
+      const current = stateRef.current.selectedElements
+      const nextElements = options?.additive ? [...current, ...elements] : elements
 
-  const toggleElementSelection = React.useCallback((element: HTMLElement) => {
-    const current = stateRef.current.selectedElements
-    if (current.length === 1 && current[0] === element) return
+      applySelection(nextElements, {
+        primaryElement: options?.primaryElement ?? elements[elements.length - 1] ?? null,
+      })
+    },
+    [applySelection, stateRef]
+  )
 
-    const isSelected = current.includes(element)
-    const nextElements = isSelected
-      ? current.filter((candidate) => candidate !== element)
-      : [...current, element]
+  const selectElement = React.useCallback(
+    (element: HTMLElement, options?: SelectElementOptions) => {
+      selectElements([element], {
+        additive: options?.additive,
+        primaryElement: element,
+      })
+    },
+    [selectElements]
+  )
 
-    applySelection(nextElements, {
-      primaryElement: isSelected
-        ? nextElements[nextElements.length - 1] ?? null
-        : element,
-    })
-  }, [applySelection, stateRef])
+  const toggleElementSelection = React.useCallback(
+    (element: HTMLElement) => {
+      const current = stateRef.current.selectedElements
+      if (current.length === 1 && current[0] === element) return
+
+      const isSelected = current.includes(element)
+      const nextElements = isSelected
+        ? current.filter((candidate) => candidate !== element)
+        : [...current, element]
+
+      applySelection(nextElements, {
+        primaryElement: isSelected ? (nextElements[nextElements.length - 1] ?? null) : element,
+      })
+    },
+    [applySelection, stateRef]
+  )
 
   const clearSelection = React.useCallback(() => {
     applySelection([], { primaryElement: null })
@@ -537,110 +576,119 @@ export function useSessionManager({
     }
   }, [getSelectableChild, selectElement])
 
-  const centerElementOnBody = React.useCallback((
-    element: HTMLElement,
-    size?: { width: number; height: number } | null,
-  ) => {
-    const bodyRect = document.body.getBoundingClientRect()
-    const scaleX = document.body.offsetWidth > 0
-      ? bodyRect.width / document.body.offsetWidth : 1
-    const scaleY = document.body.offsetHeight > 0
-      ? bodyRect.height / document.body.offsetHeight : 1
-    const fallbackWidth = size?.width ?? element.offsetWidth ?? 0
-    const fallbackHeight = size?.height ?? element.offsetHeight ?? 0
-    const measuredRect = element.getBoundingClientRect()
-    const width = measuredRect.width || fallbackWidth
-    const height = measuredRect.height || fallbackHeight
-    const left = Math.round((window.innerWidth / 2 - bodyRect.left) / scaleX - width / 2)
-    const top = Math.round((window.innerHeight / 2 - bodyRect.top) / scaleY - height / 2)
+  const centerElementOnBody = React.useCallback(
+    (element: HTMLElement, size?: { width: number; height: number } | null) => {
+      const bodyRect = document.body.getBoundingClientRect()
+      const scaleX = document.body.offsetWidth > 0 ? bodyRect.width / document.body.offsetWidth : 1
+      const scaleY =
+        document.body.offsetHeight > 0 ? bodyRect.height / document.body.offsetHeight : 1
+      const fallbackWidth = size?.width ?? element.offsetWidth ?? 0
+      const fallbackHeight = size?.height ?? element.offsetHeight ?? 0
+      const measuredRect = element.getBoundingClientRect()
+      const width = measuredRect.width || fallbackWidth
+      const height = measuredRect.height || fallbackHeight
+      const left = Math.round((window.innerWidth / 2 - bodyRect.left) / scaleX - width / 2)
+      const top = Math.round((window.innerHeight / 2 - bodyRect.top) / scaleY - height / 2)
 
-    element.style.left = `${left}px`
-    element.style.top = `${top}px`
-  }, [])
+      element.style.left = `${left}px`
+      element.style.top = `${top}px`
+    },
+    []
+  )
 
-  const insertElement = React.useCallback((kind: CanvasElementKind) => {
-    if (!stateRef.current.editModeActive) return
+  const insertElement = React.useCallback(
+    (kind: CanvasElementKind) => {
+      if (!stateRef.current.editModeActive) return
 
-    saveCurrentToSession()
-    const restoreSelection = buildSelectionSnapshot()
+      saveCurrentToSession()
+      const restoreSelection = buildSelectionSnapshot()
 
-    const selectedEl = stateRef.current.selectedElement
-    const insertsAsSibling = kind === 'frame' || kind === 'text'
-    const hasSelection = insertsAsSibling
-      && selectedEl !== null
-      && selectedEl !== document.body
-      && selectedEl.parentElement !== null
+      const selectedEl = stateRef.current.selectedElement
+      const insertsAsSibling = kind === 'frame' || kind === 'text'
+      const hasSelection =
+        insertsAsSibling &&
+        selectedEl !== null &&
+        selectedEl !== document.body &&
+        selectedEl.parentElement !== null
 
-    const element = document.createElement(kind === 'text' ? 'p' : 'div')
-    element.id = nextGeneratedCanvasId(kind)
-    element.setAttribute(GENERATED_CANVAS_NODE_ATTR, kind)
-    element.style.boxSizing = 'border-box'
+      const element = document.createElement(kind === 'text' ? 'p' : 'div')
+      element.id = nextGeneratedCanvasId(kind)
+      element.setAttribute(GENERATED_CANVAS_NODE_ATTR, kind)
+      element.style.boxSizing = 'border-box'
 
-    if (kind === 'frame') {
-      element.style.width = '100px'
-      element.style.height = '100px'
-      element.style.background = '#F5F5F5'
-      element.style.border = '1px solid #E0E0E0'
-    } else if (kind === 'div') {
-      element.style.width = '160px'
-      element.style.height = '96px'
-      element.style.borderRadius = '12px'
-      element.style.border = '1px solid rgba(13, 153, 255, 0.35)'
-      element.style.background = 'rgba(13, 153, 255, 0.08)'
-    } else {
-      element.textContent = 'Text'
-      element.style.display = 'inline-block'
-      element.style.margin = '0'
-      element.style.minHeight = '24px'
-      element.style.textAlign = 'center'
-    }
-
-    if (hasSelection) {
-      const insertionParent = selectedEl!.parentElement!
-      const refNode = selectedEl!.nextSibling
-      if (refNode) {
-        insertionParent.insertBefore(element, refNode)
+      if (kind === 'frame') {
+        element.style.width = '100px'
+        element.style.height = '100px'
+        element.style.background = '#F5F5F5'
+        element.style.border = '1px solid #E0E0E0'
+      } else if (kind === 'div') {
+        element.style.width = '160px'
+        element.style.height = '96px'
+        element.style.borderRadius = '12px'
+        element.style.border = '1px solid rgba(13, 153, 255, 0.35)'
+        element.style.background = 'rgba(13, 153, 255, 0.08)'
       } else {
-        insertionParent.appendChild(element)
+        element.textContent = 'Text'
+        element.style.display = 'inline-block'
+        element.style.margin = '0'
+        element.style.minHeight = '24px'
+        element.style.textAlign = 'center'
       }
-    } else {
-      element.style.position = 'absolute'
-      element.style.zIndex = '1'
-      if (kind === 'text') {
-        element.style.left = '0px'
-        element.style.top = '0px'
-        element.style.visibility = 'hidden'
-        document.body.appendChild(element)
-        centerElementOnBody(element)
-        element.style.visibility = ''
-      } else {
-        centerElementOnBody(
-          element,
-          kind === 'frame'
-            ? { width: 100, height: 100 }
-            : { width: 160, height: 96 },
-        )
-        document.body.appendChild(element)
-      }
-    }
 
-    pushUndo({
-      type: 'structure',
-      restoreSelection,
-      undo: () => {
-        if (element.isConnected) {
-          element.remove()
+      if (hasSelection) {
+        const insertionParent = selectedEl!.parentElement!
+        const refNode = selectedEl!.nextSibling
+        if (refNode) {
+          insertionParent.insertBefore(element, refNode)
+        } else {
+          insertionParent.appendChild(element)
         }
-      },
-    })
+      } else {
+        element.style.position = 'absolute'
+        element.style.zIndex = '1'
+        if (kind === 'text') {
+          element.style.left = '0px'
+          element.style.top = '0px'
+          element.style.visibility = 'hidden'
+          document.body.appendChild(element)
+          centerElementOnBody(element)
+          element.style.visibility = ''
+        } else {
+          centerElementOnBody(
+            element,
+            kind === 'frame' ? { width: 100, height: 100 } : { width: 160, height: 96 }
+          )
+          document.body.appendChild(element)
+        }
+      }
 
-    applySelection([element], {
-      primaryElement: element,
-      pushUndo: false,
-    })
+      pushUndo({
+        type: 'structure',
+        restoreSelection,
+        undo: () => {
+          if (element.isConnected) {
+            element.remove()
+          }
+        },
+      })
 
-    onElementInsertedRef.current?.(kind, element)
-  }, [applySelection, buildSelectionSnapshot, centerElementOnBody, onElementInsertedRef, pushUndo, saveCurrentToSession, stateRef])
+      applySelection([element], {
+        primaryElement: element,
+        pushUndo: false,
+      })
+
+      onElementInsertedRef.current?.(kind, element)
+    },
+    [
+      applySelection,
+      buildSelectionSnapshot,
+      centerElementOnBody,
+      onElementInsertedRef,
+      pushUndo,
+      saveCurrentToSession,
+      stateRef,
+    ]
+  )
 
   const groupSelection = React.useCallback(() => {
     const selected = getSanitizedSelection(stateRef.current.selectedElements)
@@ -649,10 +697,12 @@ export function useSessionManager({
     const parent = selected[0]?.parentElement
     if (!parent) return
     if (!(parent === document.body || parent.hasAttribute(GENERATED_CANVAS_NODE_ATTR))) return
-    if (!selected.every((element) => (
-      element.parentElement === parent
-      && element.hasAttribute(GENERATED_CANVAS_NODE_ATTR)
-    ))) {
+    if (
+      !selected.every(
+        (element) =>
+          element.parentElement === parent && element.hasAttribute(GENERATED_CANVAS_NODE_ATTR)
+      )
+    ) {
       return
     }
 
@@ -672,17 +722,20 @@ export function useSessionManager({
     const scaleX = parent.offsetWidth > 0 ? parentRect.width / parent.offsetWidth : 1
     const scaleY = parent.offsetHeight > 0 ? parentRect.height / parent.offsetHeight : 1
 
-    const union = rects.reduce((bounds, rect) => ({
-      left: Math.min(bounds.left, rect.left),
-      top: Math.min(bounds.top, rect.top),
-      right: Math.max(bounds.right, rect.right),
-      bottom: Math.max(bounds.bottom, rect.bottom),
-    }), {
-      left: rects[0].left,
-      top: rects[0].top,
-      right: rects[0].right,
-      bottom: rects[0].bottom,
-    })
+    const union = rects.reduce(
+      (bounds, rect) => ({
+        left: Math.min(bounds.left, rect.left),
+        top: Math.min(bounds.top, rect.top),
+        right: Math.max(bounds.right, rect.right),
+        bottom: Math.max(bounds.bottom, rect.bottom),
+      }),
+      {
+        left: rects[0].left,
+        top: rects[0].top,
+        right: rects[0].right,
+        bottom: rects[0].bottom,
+      }
+    )
 
     const wrapper = document.createElement('div')
     wrapper.id = nextGeneratedCanvasId('group')
@@ -736,7 +789,14 @@ export function useSessionManager({
       primaryElement: wrapper,
       pushUndo: false,
     })
-  }, [applySelection, buildSelectionSnapshot, getSanitizedSelection, pushUndo, saveCurrentToSession, stateRef])
+  }, [
+    applySelection,
+    buildSelectionSnapshot,
+    getSanitizedSelection,
+    pushUndo,
+    saveCurrentToSession,
+    stateRef,
+  ])
 
   const deleteSelection = React.useCallback(() => {
     const selected = getSanitizedSelection(stateRef.current.selectedElements)
@@ -758,17 +818,20 @@ export function useSessionManager({
       sessionSnapshots.set(el, existing ?? null)
       // Track the deletion as a session edit so it is exported/sent to the agent.
       // Capture the locator now, while the element is still connected (removed below).
-      sessionEditsRef.current.set(el, existing
-        ? { ...existing, deleted: true }
-        : {
-            element: el,
-            locator: getElementLocator(el),
-            originalStyles: {},
-            pendingStyles: {},
-            move: null,
-            textEdit: null,
-            deleted: true,
-          })
+      sessionEditsRef.current.set(
+        el,
+        existing
+          ? { ...existing, deleted: true }
+          : {
+              element: el,
+              locator: getElementLocator(el),
+              originalStyles: {},
+              pendingStyles: {},
+              move: null,
+              textEdit: null,
+              deleted: true,
+            }
+      )
     }
     syncSessionItemCount()
 
@@ -799,7 +862,15 @@ export function useSessionManager({
     })
 
     applySelection([], { primaryElement: null, pushUndo: false })
-  }, [applySelection, buildSelectionSnapshot, getSanitizedSelection, pushUndo, saveCurrentToSession, stateRef, syncSessionItemCount])
+  }, [
+    applySelection,
+    buildSelectionSnapshot,
+    getSanitizedSelection,
+    pushUndo,
+    saveCurrentToSession,
+    stateRef,
+    syncSessionItemCount,
+  ])
 
   const resetToOriginal = React.useCallback(() => {
     const current = stateRef.current
@@ -853,6 +924,7 @@ export function useSessionManager({
       computedColor: computed.color,
       computedBoxShadow: computed.boxShadow,
       computedTypography: computed.typography,
+      computedEffects: computed.effects,
       pendingStyles: {},
     }))
   }, [syncSessionItemCount])
@@ -893,6 +965,7 @@ export function useSessionManager({
             computedColor: computed.color,
             computedBoxShadow: computed.boxShadow,
             computedTypography: computed.typography,
+            computedEffects: computed.effects,
             elementInfo,
             pendingStyles: newPending,
           }))
@@ -900,9 +973,12 @@ export function useSessionManager({
         break
       }
       case 'selection': {
-        const previousElements = entry.previousElements.length > 0
-          ? entry.previousElements
-          : (entry.previousElement ? [entry.previousElement] : [])
+        const previousElements =
+          entry.previousElements.length > 0
+            ? entry.previousElements
+            : entry.previousElement
+              ? [entry.previousElement]
+              : []
         const nextElements = getSanitizedSelection(previousElements)
         const prevEl = entry.previousElement
 
@@ -928,9 +1004,12 @@ export function useSessionManager({
       }
       case 'structure': {
         entry.undo()
-        const restoredElements = entry.restoreSelection.selectedElements.length > 0
-          ? entry.restoreSelection.selectedElements
-          : (entry.restoreSelection.selectedElement ? [entry.restoreSelection.selectedElement] : [])
+        const restoredElements =
+          entry.restoreSelection.selectedElements.length > 0
+            ? entry.restoreSelection.selectedElements
+            : entry.restoreSelection.selectedElement
+              ? [entry.restoreSelection.selectedElement]
+              : []
 
         applySelection(restoredElements, {
           pushUndo: false,
@@ -964,7 +1043,11 @@ export function useSessionManager({
         const sessionEntry = sessionEditsRef.current.get(entry.element)
         if (sessionEntry) {
           const restoredMove = entry.previousSessionMove
-          if (Object.keys(sessionEntry.pendingStyles).length > 0 || restoredMove || sessionEntry.textEdit) {
+          if (
+            Object.keys(sessionEntry.pendingStyles).length > 0 ||
+            restoredMove ||
+            sessionEntry.textEdit
+          ) {
             sessionEditsRef.current.set(entry.element, { ...sessionEntry, move: restoredMove })
           } else {
             sessionEditsRef.current.delete(entry.element)
@@ -982,9 +1065,10 @@ export function useSessionManager({
         if (!entry.element.isConnected) return
         entry.element.textContent = entry.previousText
 
-        const desiredTextEdit = entry.previousText === entry.originalText
-          ? null
-          : { originalText: entry.originalText, newText: entry.previousText }
+        const desiredTextEdit =
+          entry.previousText === entry.originalText
+            ? null
+            : { originalText: entry.originalText, newText: entry.previousText }
         const sessionEntry = sessionEditsRef.current.get(entry.element)
 
         if (sessionEntry) {
@@ -1003,8 +1087,10 @@ export function useSessionManager({
           sessionEditsRef.current.set(entry.element, {
             element: entry.element,
             locator: getElementLocator(entry.element),
-            originalStyles: current.selectedElement === entry.element ? { ...current.originalStyles } : {},
-            pendingStyles: current.selectedElement === entry.element ? { ...current.pendingStyles } : {},
+            originalStyles:
+              current.selectedElement === entry.element ? { ...current.originalStyles } : {},
+            pendingStyles:
+              current.selectedElement === entry.element ? { ...current.pendingStyles } : {},
             move: null,
             textEdit: desiredTextEdit,
           })
@@ -1042,7 +1128,10 @@ export function useSessionManager({
         if (moveInfo.mode === 'position' && moveInfo.positionDelta) {
           const existing = sessionEditsRef.current.get(element)
           const styleState = getStyleStateForElement(existing)
-          const { previousStyles, appliedLeft, appliedTop } = applyPositionMoveCSS(element, moveInfo.positionDelta)
+          const { previousStyles, appliedLeft, appliedTop } = applyPositionMoveCSS(
+            element,
+            moveInfo.positionDelta
+          )
 
           pushUndo({
             type: 'move',
@@ -1061,7 +1150,13 @@ export function useSessionManager({
           delete pendingStyles['left']
           delete pendingStyles['top']
 
-          const move = buildPositionMoveFields(element, moveInfo, appliedLeft, appliedTop, existing?.move ?? null)
+          const move = buildPositionMoveFields(
+            element,
+            moveInfo,
+            appliedLeft,
+            appliedTop,
+            existing?.move ?? null
+          )
 
           sessionEditsRef.current.set(element, {
             element,
@@ -1073,125 +1168,123 @@ export function useSessionManager({
           })
           syncSessionItemCount()
         } else {
-        const existing = sessionEditsRef.current.get(element)
-        const styleState = getStyleStateForElement(existing)
-        const moveMode: MoveMode = moveInfo.mode ?? 'free'
+          const existing = sessionEditsRef.current.get(element)
+          const styleState = getStyleStateForElement(existing)
+          const moveMode: MoveMode = moveInfo.mode ?? 'free'
 
-        let clearedPositionStyles: Array<{ cssProperty: string; previousValue: string | null }> | undefined
-        if (moveInfo.resetPositionOffsets) {
-          clearedPositionStyles = []
-          for (const prop of ['position', 'left', 'top'] as const) {
-            const prev = element.style.getPropertyValue(prop) || null
-            clearedPositionStyles.push({ cssProperty: prop, previousValue: prev })
-            element.style.removeProperty(prop)
+          let clearedPositionStyles:
+            | Array<{ cssProperty: string; previousValue: string | null }>
+            | undefined
+          if (moveInfo.resetPositionOffsets) {
+            clearedPositionStyles = []
+            for (const prop of ['position', 'left', 'top'] as const) {
+              const prev = element.style.getPropertyValue(prop) || null
+              clearedPositionStyles.push({ cssProperty: prop, previousValue: prev })
+              element.style.removeProperty(prop)
+            }
           }
-        }
 
-        pushUndo({
-          type: 'move',
-          element,
-          originalParent: moveInfo.originalParent,
-          originalNextSibling: moveInfo.originalNextSibling,
-          previousSessionMove: existing?.move ?? null,
-          previousPositionStyles: clearedPositionStyles,
-        })
-        const locator = existing?.locator ?? getElementLocator(element)
-        const newParent = element.parentElement
-        const nextPrevSibling = element.previousElementSibling as HTMLElement | null
-        const nextSibling = element.nextElementSibling as HTMLElement | null
-        const fromParentAnchor = getAnchor(moveInfo.originalParent)
-        const fromBeforeAnchor = getAnchor(moveInfo.originalPreviousSibling)
-        const fromAfterAnchor = getAnchor(moveInfo.originalNextSibling)
-        const toParentAnchor = getAnchor(newParent)
-        const toBeforeAnchor = getAnchor(nextPrevSibling)
-        const toAfterAnchor = getAnchor(nextSibling)
-        const fromParentMeta = getParentLayoutMeta(moveInfo.originalParent)
-        const toParentMeta = getParentLayoutMeta(newParent)
-        const fromIndex = getOriginalMoveIndex(
-          moveInfo.originalParent,
-          moveInfo.originalPreviousSibling,
-          moveInfo.originalNextSibling,
-        )
-        const toIndex = findChildIndex(newParent, element)
+          pushUndo({
+            type: 'move',
+            element,
+            originalParent: moveInfo.originalParent,
+            originalNextSibling: moveInfo.originalNextSibling,
+            previousSessionMove: existing?.move ?? null,
+            previousPositionStyles: clearedPositionStyles,
+          })
+          const locator = existing?.locator ?? getElementLocator(element)
+          const newParent = element.parentElement
+          const nextPrevSibling = element.previousElementSibling as HTMLElement | null
+          const nextSibling = element.nextElementSibling as HTMLElement | null
+          const fromParentAnchor = getAnchor(moveInfo.originalParent)
+          const fromBeforeAnchor = getAnchor(moveInfo.originalPreviousSibling)
+          const fromAfterAnchor = getAnchor(moveInfo.originalNextSibling)
+          const toParentAnchor = getAnchor(newParent)
+          const toBeforeAnchor = getAnchor(nextPrevSibling)
+          const toAfterAnchor = getAnchor(nextSibling)
+          const fromParentMeta = getParentLayoutMeta(moveInfo.originalParent)
+          const toParentMeta = getParentLayoutMeta(newParent)
+          const fromIndex = getOriginalMoveIndex(
+            moveInfo.originalParent,
+            moveInfo.originalPreviousSibling,
+            moveInfo.originalNextSibling
+          )
+          const toIndex = findChildIndex(newParent, element)
 
-        // Preserve initial from* from the first move; only update to* on later moves
-        const fromFields = existing?.move
-          ? {
-              fromParentName: existing.move.fromParentName,
-              fromSiblingBefore: existing.move.fromSiblingBefore,
-              fromSiblingAfter: existing.move.fromSiblingAfter,
-              fromParentSelector: existing.move.fromParentSelector ?? null,
-              fromSiblingBeforeSelector: existing.move.fromSiblingBeforeSelector ?? null,
-              fromSiblingAfterSelector: existing.move.fromSiblingAfterSelector ?? null,
-              fromParentSource: existing.move.fromParentSource ?? null,
-              fromSiblingBeforeSource: existing.move.fromSiblingBeforeSource ?? null,
-              fromSiblingAfterSource: existing.move.fromSiblingAfterSource ?? null,
-              fromParentDisplay: existing.move.fromParentDisplay ?? fromParentMeta.display,
-              fromParentLayout: existing.move.fromParentLayout ?? fromParentMeta.layout,
-              fromIndex: existing.move.fromIndex ?? fromIndex,
-              fromFlexDirection: existing.move.fromFlexDirection ?? fromParentMeta.flexDirection,
-              fromGap: existing.move.fromGap ?? fromParentMeta.gap,
-              fromChildCount: existing.move.fromChildCount ?? fromParentMeta.childCount,
-            }
-          : {
-              fromParentName: getElementDisplayName(moveInfo.originalParent),
-              fromSiblingBefore: moveInfo.originalPreviousSibling
-                ? getElementDisplayName(moveInfo.originalPreviousSibling)
-                : null,
-              fromSiblingAfter: moveInfo.originalNextSibling
-                ? getElementDisplayName(moveInfo.originalNextSibling)
-                : null,
-              fromParentSelector: fromParentAnchor.selector,
-              fromSiblingBeforeSelector: fromBeforeAnchor.selector,
-              fromSiblingAfterSelector: fromAfterAnchor.selector,
-              fromParentSource: fromParentAnchor.source,
-              fromSiblingBeforeSource: fromBeforeAnchor.source,
-              fromSiblingAfterSource: fromAfterAnchor.source,
-              fromParentDisplay: fromParentMeta.display,
-              fromParentLayout: fromParentMeta.layout,
-              fromIndex,
-              fromFlexDirection: fromParentMeta.flexDirection,
-              fromGap: fromParentMeta.gap,
-              fromChildCount: fromParentMeta.childCount,
-            }
-
-        sessionEditsRef.current.set(element, {
-          element,
-          locator,
-          originalStyles: styleState.originalStyles,
-          pendingStyles: styleState.pendingStyles,
-          textEdit: existing?.textEdit ?? null,
-          move: newParent
+          // Preserve initial from* from the first move; only update to* on later moves
+          const fromFields = existing?.move
             ? {
-                ...fromFields,
-                toParentName: getElementDisplayName(newParent),
-                toSiblingBefore: nextPrevSibling
-                  ? getElementDisplayName(nextPrevSibling)
-                  : null,
-                toSiblingAfter: nextSibling
-                  ? getElementDisplayName(nextSibling)
-                  : null,
-                toParentSelector: toParentAnchor.selector,
-                toSiblingBeforeSelector: toBeforeAnchor.selector,
-                toSiblingAfterSelector: toAfterAnchor.selector,
-                toParentSource: toParentAnchor.source,
-                toSiblingBeforeSource: toBeforeAnchor.source,
-                toSiblingAfterSource: toAfterAnchor.source,
-                mode: moveMode,
-                fromParentDisplay: fromFields.fromParentDisplay,
-                fromParentLayout: fromFields.fromParentLayout,
-                fromIndex: fromFields.fromIndex,
-                toParentDisplay: toParentMeta.display,
-                toParentLayout: toParentMeta.layout,
-                toIndex,
-                visualDelta: moveInfo.visualDelta,
-                toFlexDirection: toParentMeta.flexDirection,
-                toGap: toParentMeta.gap,
-                toChildCount: toParentMeta.childCount,
+                fromParentName: existing.move.fromParentName,
+                fromSiblingBefore: existing.move.fromSiblingBefore,
+                fromSiblingAfter: existing.move.fromSiblingAfter,
+                fromParentSelector: existing.move.fromParentSelector ?? null,
+                fromSiblingBeforeSelector: existing.move.fromSiblingBeforeSelector ?? null,
+                fromSiblingAfterSelector: existing.move.fromSiblingAfterSelector ?? null,
+                fromParentSource: existing.move.fromParentSource ?? null,
+                fromSiblingBeforeSource: existing.move.fromSiblingBeforeSource ?? null,
+                fromSiblingAfterSource: existing.move.fromSiblingAfterSource ?? null,
+                fromParentDisplay: existing.move.fromParentDisplay ?? fromParentMeta.display,
+                fromParentLayout: existing.move.fromParentLayout ?? fromParentMeta.layout,
+                fromIndex: existing.move.fromIndex ?? fromIndex,
+                fromFlexDirection: existing.move.fromFlexDirection ?? fromParentMeta.flexDirection,
+                fromGap: existing.move.fromGap ?? fromParentMeta.gap,
+                fromChildCount: existing.move.fromChildCount ?? fromParentMeta.childCount,
               }
-            : null,
-        })
-        syncSessionItemCount()
+            : {
+                fromParentName: getElementDisplayName(moveInfo.originalParent),
+                fromSiblingBefore: moveInfo.originalPreviousSibling
+                  ? getElementDisplayName(moveInfo.originalPreviousSibling)
+                  : null,
+                fromSiblingAfter: moveInfo.originalNextSibling
+                  ? getElementDisplayName(moveInfo.originalNextSibling)
+                  : null,
+                fromParentSelector: fromParentAnchor.selector,
+                fromSiblingBeforeSelector: fromBeforeAnchor.selector,
+                fromSiblingAfterSelector: fromAfterAnchor.selector,
+                fromParentSource: fromParentAnchor.source,
+                fromSiblingBeforeSource: fromBeforeAnchor.source,
+                fromSiblingAfterSource: fromAfterAnchor.source,
+                fromParentDisplay: fromParentMeta.display,
+                fromParentLayout: fromParentMeta.layout,
+                fromIndex,
+                fromFlexDirection: fromParentMeta.flexDirection,
+                fromGap: fromParentMeta.gap,
+                fromChildCount: fromParentMeta.childCount,
+              }
+
+          sessionEditsRef.current.set(element, {
+            element,
+            locator,
+            originalStyles: styleState.originalStyles,
+            pendingStyles: styleState.pendingStyles,
+            textEdit: existing?.textEdit ?? null,
+            move: newParent
+              ? {
+                  ...fromFields,
+                  toParentName: getElementDisplayName(newParent),
+                  toSiblingBefore: nextPrevSibling ? getElementDisplayName(nextPrevSibling) : null,
+                  toSiblingAfter: nextSibling ? getElementDisplayName(nextSibling) : null,
+                  toParentSelector: toParentAnchor.selector,
+                  toSiblingBeforeSelector: toBeforeAnchor.selector,
+                  toSiblingAfterSelector: toAfterAnchor.selector,
+                  toParentSource: toParentAnchor.source,
+                  toSiblingBeforeSource: toBeforeAnchor.source,
+                  toSiblingAfterSource: toAfterAnchor.source,
+                  mode: moveMode,
+                  fromParentDisplay: fromFields.fromParentDisplay,
+                  fromParentLayout: fromFields.fromParentLayout,
+                  fromIndex: fromFields.fromIndex,
+                  toParentDisplay: toParentMeta.display,
+                  toParentLayout: toParentMeta.layout,
+                  toIndex,
+                  visualDelta: moveInfo.visualDelta,
+                  toFlexDirection: toParentMeta.flexDirection,
+                  toGap: toParentMeta.gap,
+                  toChildCount: toParentMeta.childCount,
+                }
+              : null,
+          })
+          syncSessionItemCount()
         }
       }
       // Refresh element state without going through selectElement,
@@ -1214,6 +1307,7 @@ export function useSessionManager({
         computedColor: computed.color,
         computedBoxShadow: computed.boxShadow,
         computedTypography: computed.typography,
+        computedEffects: computed.effects,
         isComponentPrimitive: prev.isComponentPrimitive,
         originalStyles: styleState.originalStyles,
         pendingStyles: styleState.pendingStyles,
@@ -1247,8 +1341,10 @@ export function useSessionManager({
   }, [saveCurrentToSession, syncSessionItemCount])
 
   const getSessionItems = React.useCallback((): SessionItem[] => {
-    const edits = getSessionEdits().map((edit) => ({ type: 'edit', edit } as const))
-    const comments = getExportableComments(stateRef.current.comments).map((comment) => ({ type: 'comment', comment } as const))
+    const edits = getSessionEdits().map((edit) => ({ type: 'edit', edit }) as const)
+    const comments = getExportableComments(stateRef.current.comments).map(
+      (comment) => ({ type: 'comment', comment }) as const
+    )
     return [...edits, ...comments]
   }, [getSessionEdits, getExportableComments])
 
@@ -1262,25 +1358,30 @@ export function useSessionManager({
     const comments = items.filter((item) => item.type === 'comment').map((item) => item.comment)
     const movePlanContext = buildMovePlanContext(edits)
     // buildSessionExport returns '' when both arrays are empty; filter(Boolean) strips it
-    const sessionText = edits.length > 0 || comments.length > 0
-      ? buildSessionExport(edits, comments, { movePlanContext })
-      : ''
+    const sessionText =
+      edits.length > 0 || comments.length > 0
+        ? buildSessionExport(edits, comments, { movePlanContext })
+        : ''
     const blocks = [sessionText, ...multiSelectContextBlocks].filter(Boolean)
     const text = blocks.join('\n\n')
-    const instruction = items.length > 0
-      ? buildExportInstruction(getExportContentProfile(edits, comments, movePlanContext))
-      : 'Here is the element context for reference'
+    const instruction =
+      items.length > 0
+        ? buildExportInstruction(getExportContentProfile(edits, comments, movePlanContext))
+        : 'Here is the element context for reference'
     return copyText(`${instruction}\n\n${text}`)
   }, [getSessionItems])
 
-  const revertElementStyles = React.useCallback((element: HTMLElement, sessionEdit: SessionEdit) => {
-    for (const prop of Object.keys(sessionEdit.pendingStyles)) {
-      element.style.removeProperty(prop)
-    }
-    for (const [prop, value] of Object.entries(sessionEdit.originalStyles)) {
-      element.style.setProperty(prop, value)
-    }
-  }, [])
+  const revertElementStyles = React.useCallback(
+    (element: HTMLElement, sessionEdit: SessionEdit) => {
+      for (const prop of Object.keys(sessionEdit.pendingStyles)) {
+        element.style.removeProperty(prop)
+      }
+      for (const [prop, value] of Object.entries(sessionEdit.originalStyles)) {
+        element.style.setProperty(prop, value)
+      }
+    },
+    []
+  )
 
   const refreshSelectedElement = React.useCallback(() => {
     const current = stateRef.current
@@ -1296,27 +1397,31 @@ export function useSessionManager({
       computedColor: computed.color,
       computedBoxShadow: computed.boxShadow,
       computedTypography: computed.typography,
+      computedEffects: computed.effects,
       computedBorder: computed.border,
       originalStyles: getOriginalInlineStyles(el),
       pendingStyles: {},
     }))
   }, [])
 
-  const removeSessionEdit = React.useCallback((element: HTMLElement) => {
-    const sessionEdit = sessionEditsRef.current.get(element)
-    if (sessionEdit) {
-      revertElementStyles(element, sessionEdit)
-      if (sessionEdit.textEdit) {
-        element.textContent = sessionEdit.textEdit.originalText
+  const removeSessionEdit = React.useCallback(
+    (element: HTMLElement) => {
+      const sessionEdit = sessionEditsRef.current.get(element)
+      if (sessionEdit) {
+        revertElementStyles(element, sessionEdit)
+        if (sessionEdit.textEdit) {
+          element.textContent = sessionEdit.textEdit.originalText
+        }
       }
-    }
-    sessionEditsRef.current.delete(element)
-    removedSessionEditsRef.current.add(element)
-    syncSessionItemCount()
-    if (stateRef.current.selectedElement === element) {
-      refreshSelectedElement()
-    }
-  }, [revertElementStyles, refreshSelectedElement, syncSessionItemCount])
+      sessionEditsRef.current.delete(element)
+      removedSessionEditsRef.current.add(element)
+      syncSessionItemCount()
+      if (stateRef.current.selectedElement === element) {
+        refreshSelectedElement()
+      }
+    },
+    [revertElementStyles, refreshSelectedElement, syncSessionItemCount]
+  )
 
   const clearSessionEdits = React.useCallback(() => {
     for (const [el, sessionEdit] of sessionEditsRef.current.entries()) {
@@ -1341,11 +1446,11 @@ export function useSessionManager({
     }
     sessionEditsRef.current.clear()
     syncSessionItemCount([])
-    setState((prev) => (
+    setState((prev) =>
       prev.comments.length > 0 || prev.activeCommentId
         ? { ...prev, comments: [], activeCommentId: null }
         : prev
-    ))
+    )
     refreshSelectedElement()
   }, [revertElementStyles, refreshSelectedElement, syncSessionItemCount])
 
@@ -1356,7 +1461,8 @@ export function useSessionManager({
     if (current.selectedElements.length > 1) {
       saveCurrentToSession()
       const { editsWithChanges, contextBlocks } = partitionMultiSelectedEdits(
-        current.selectedElements, sessionEditsRef,
+        current.selectedElements,
+        sessionEditsRef
       )
       if (editsWithChanges.length === 0 && contextBlocks.length === 0) return false
 
@@ -1366,9 +1472,10 @@ export function useSessionManager({
         allBlocks.unshift(buildSessionExport(editsWithChanges, [], { movePlanContext }))
       }
 
-      const instruction = editsWithChanges.length > 0
-        ? buildExportInstruction(getExportContentProfile(editsWithChanges, []))
-        : 'Here is the element context for reference'
+      const instruction =
+        editsWithChanges.length > 0
+          ? buildExportInstruction(getExportContentProfile(editsWithChanges, []))
+          : 'Here is the element context for reference'
       return copyText(`${instruction}\n\n${allBlocks.join('\n\n')}`)
     }
 
@@ -1388,7 +1495,9 @@ export function useSessionManager({
         }
       : null
     const movePlanContext = editForExport?.move ? buildMovePlanContext([editForExport]) : null
-    const moveIntent = editForExport?.move ? getMoveIntentForEdit(editForExport, movePlanContext) : null
+    const moveIntent = editForExport?.move
+      ? getMoveIntentForEdit(editForExport, movePlanContext)
+      : null
     const hasMove = Boolean(moveIntent)
     const hasExportableEdit = hasPendingStyles || hasTextEdit || hasMove
     const exportMarkdown = hasExportableEdit

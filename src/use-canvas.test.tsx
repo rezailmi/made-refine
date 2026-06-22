@@ -27,7 +27,7 @@ function stubMatchMedia() {
       addListener: () => {},
       removeListener: () => {},
       dispatchEvent: () => false,
-    })),
+    }))
   )
 }
 
@@ -46,6 +46,7 @@ function createMockCanvasOptions() {
     computedColor: null,
     computedBoxShadow: null,
     computedTypography: null,
+    computedEffects: null,
     originalStyles: {},
     pendingStyles: {},
     editModeActive: false,
@@ -85,7 +86,7 @@ function dispatchWheel(opts: {
       clientY: opts.clientY ?? 0,
       bubbles: true,
       cancelable: true,
-    }),
+    })
   )
 }
 
@@ -93,7 +94,7 @@ function dispatchPointer(
   type: 'pointerdown' | 'pointermove' | 'pointerup',
   x = 0,
   y = 0,
-  button = 0,
+  button = 0
 ) {
   const event = new Event(type, { bubbles: true }) as PointerEvent
   Object.defineProperty(event, 'clientX', { value: x })
@@ -118,17 +119,18 @@ function mountDominantCanvas({
   if (opacity !== undefined) {
     canvas.style.opacity = String(opacity)
   }
-  canvas.getBoundingClientRect = () => ({
-    left: 0,
-    top: 0,
-    width,
-    height,
-    right: width,
-    bottom: height,
-    x: 0,
-    y: 0,
-    toJSON: () => ({}),
-  }) as DOMRect
+  canvas.getBoundingClientRect = () =>
+    ({
+      left: 0,
+      top: 0,
+      width,
+      height,
+      right: width,
+      bottom: height,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    }) as DOMRect
   document.body.appendChild(canvas)
   return canvas
 }
@@ -144,7 +146,10 @@ beforeEach(() => {
   vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
   // Make requestAnimationFrame synchronous so rAF-batched setState calls
   // resolve immediately within act(), keeping test assertions predictable.
-  vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => { cb(performance.now()); return 0 })
+  vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
+    cb(performance.now())
+    return 0
+  })
   vi.stubGlobal('cancelAnimationFrame', () => {})
 })
 
@@ -726,14 +731,18 @@ describe('provider integration and keyboard shortcuts', () => {
 
     // Activate edit mode — canvas should auto-activate
     act(() => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: '.', code: 'Period', ctrlKey: true }))
+      window.dispatchEvent(
+        new KeyboardEvent('keydown', { key: '.', code: 'Period', ctrlKey: true })
+      )
     })
     expect(result.current.editModeActive).toBe(true)
     expect(result.current.canvas.active).toBe(true)
 
     // Turn off edit mode — should also exit canvas
     act(() => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: '.', code: 'Period', ctrlKey: true }))
+      window.dispatchEvent(
+        new KeyboardEvent('keydown', { key: '.', code: 'Period', ctrlKey: true })
+      )
     })
     expect(result.current.editModeActive).toBe(false)
     expect(result.current.canvas.active).toBe(false)
@@ -745,7 +754,9 @@ describe('provider integration and keyboard shortcuts', () => {
 
     // Activate edit mode — canvas auto-activates
     act(() => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: '.', code: 'Period', ctrlKey: true }))
+      window.dispatchEvent(
+        new KeyboardEvent('keydown', { key: '.', code: 'Period', ctrlKey: true })
+      )
     })
     expect(result.current.editModeActive).toBe(true)
     expect(result.current.canvas.active).toBe(true)
@@ -768,7 +779,9 @@ describe('provider integration and keyboard shortcuts', () => {
 
     // Activate edit mode — canvas auto-activates
     act(() => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: '.', code: 'Period', ctrlKey: true }))
+      window.dispatchEvent(
+        new KeyboardEvent('keydown', { key: '.', code: 'Period', ctrlKey: true })
+      )
     })
     act(() => {
       result.current.setCanvasZoom(2)
@@ -776,7 +789,9 @@ describe('provider integration and keyboard shortcuts', () => {
     expect(result.current.canvas.zoom).toBe(2)
 
     act(() => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: '1', code: 'Digit1', ctrlKey: true }))
+      window.dispatchEvent(
+        new KeyboardEvent('keydown', { key: '1', code: 'Digit1', ctrlKey: true })
+      )
     })
     expect(result.current.canvas.zoom).toBe(1)
     expect(result.current.canvas.panX).toBe(0)
@@ -788,7 +803,9 @@ describe('provider integration and keyboard shortcuts', () => {
 
     // Activate edit mode — canvas auto-activates
     act(() => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: '.', code: 'Period', ctrlKey: true }))
+      window.dispatchEvent(
+        new KeyboardEvent('keydown', { key: '.', code: 'Period', ctrlKey: true })
+      )
     })
     expect(result.current.canvas.zoom).toBe(1)
 

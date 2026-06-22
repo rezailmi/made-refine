@@ -1,10 +1,5 @@
 import * as React from 'react'
-import type {
-  DirectEditState,
-  UndoEntry,
-  SessionEdit,
-  Comment,
-} from './types'
+import type { DirectEditState, UndoEntry, SessionEdit, Comment } from './types'
 import {
   getElementLocator,
   buildCommentExport,
@@ -20,7 +15,11 @@ function clampUnit(value: number): number {
   return Math.max(0, Math.min(1, value))
 }
 
-function findLatestSubmittedCommentOnElement(comments: Comment[], element: HTMLElement, excludeId: string): Comment | null {
+function findLatestSubmittedCommentOnElement(
+  comments: Comment[],
+  element: HTMLElement,
+  excludeId: string
+): Comment | null {
   for (let index = comments.length - 1; index >= 0; index -= 1) {
     const comment = comments[index]
     if (comment.id === excludeId) continue
@@ -49,164 +48,178 @@ export function useTextAndComments({
   syncSessionItemCount,
   setState,
 }: TextAndCommentsOptions) {
+  const finalizeTextEditing = React.useCallback(
+    (editingElement: HTMLElement) => {
+      const newText = editingElement.textContent ?? ''
+      const existing = sessionEditsRef.current.get(editingElement)
+      const originalText =
+        existing?.textEdit?.originalText ??
+        editingElement.getAttribute('data-direct-edit-original-text') ??
+        newText
+      const previousText = existing?.textEdit?.newText ?? originalText
 
-  const finalizeTextEditing = React.useCallback((editingElement: HTMLElement) => {
-    const newText = editingElement.textContent ?? ''
-    const existing = sessionEditsRef.current.get(editingElement)
-    const originalText = existing?.textEdit?.originalText
-      ?? editingElement.getAttribute('data-direct-edit-original-text')
-      ?? newText
-    const previousText = existing?.textEdit?.newText ?? originalText
+      editingElement.removeAttribute('contenteditable')
+      editingElement.removeAttribute('data-direct-edit-original-text')
+      const originalCursor = editingElement.getAttribute('data-direct-edit-original-cursor') ?? ''
+      editingElement.removeAttribute('data-direct-edit-original-cursor')
+      editingElement.style.outline = ''
+      editingElement.style.outlineOffset = ''
+      editingElement.style.cursor = originalCursor
+      editingElement.blur()
 
-    editingElement.removeAttribute('contenteditable')
-    editingElement.removeAttribute('data-direct-edit-original-text')
-    const originalCursor = editingElement.getAttribute('data-direct-edit-original-cursor') ?? ''
-    editingElement.removeAttribute('data-direct-edit-original-cursor')
-    editingElement.style.outline = ''
-    editingElement.style.outlineOffset = ''
-    editingElement.style.cursor = originalCursor
-    editingElement.blur()
+      const isGeneratedTextElement =
+        editingElement.getAttribute(GENERATED_CANVAS_NODE_ATTR) === 'text'
+      const shouldDeleteGeneratedText = isGeneratedTextElement && newText.trim().length === 0
 
-    const isGeneratedTextElement = editingElement.getAttribute(GENERATED_CANVAS_NODE_ATTR) === 'text'
-    const shouldDeleteGeneratedText = isGeneratedTextElement && newText.trim().length === 0
+      if (shouldDeleteGeneratedText) {
+        const parent = editingElement.parentElement
+        const nextSibling = editingElement.nextSibling as Node | null
+        const current = stateRef.current
+        const removedComments = current.comments.filter(
+          (comment) => comment.element === editingElement
+        )
+        const removedCommentIds = new Set(removedComments.map((comment) => comment.id))
+        const remainingComments = current.comments.filter(
+          (comment) => comment.element !== editingElement
+        )
+        const restoredActiveCommentId =
+          current.activeCommentId && removedCommentIds.has(current.activeCommentId)
+            ? current.activeCommentId
+            : null
+        const existingSessionEdit = existing
+          ? {
+              ...existing,
+              originalStyles: { ...existing.originalStyles },
+              pendingStyles: { ...existing.pendingStyles },
+              move: existing.move ? { ...existing.move } : null,
+              textEdit: existing.textEdit ? { ...existing.textEdit } : null,
+            }
+          : null
 
-    if (shouldDeleteGeneratedText) {
-      const parent = editingElement.parentElement
-      const nextSibling = editingElement.nextSibling as Node | null
-      const current = stateRef.current
-      const removedComments = current.comments.filter((comment) => comment.element === editingElement)
-      const removedCommentIds = new Set(removedComments.map((comment) => comment.id))
-      const remainingComments = current.comments.filter((comment) => comment.element !== editingElement)
-      const restoredActiveCommentId = current.activeCommentId && removedCommentIds.has(current.activeCommentId)
-        ? current.activeCommentId
-        : null
-      const existingSessionEdit = existing
-        ? {
-            ...existing,
-            originalStyles: { ...existing.originalStyles },
-            pendingStyles: { ...existing.pendingStyles },
-            move: existing.move ? { ...existing.move } : null,
-            textEdit: existing.textEdit ? { ...existing.textEdit } : null,
+        const restoreSelection = {
+          isOpen: current.isOpen,
+          selectedElement: current.selectedElement,
+          selectedElements: [...current.selectedElements],
+          selectionAnchorElement: current.selectionAnchorElement,
+          originalStyles: { ...current.originalStyles },
+          pendingStyles: { ...current.pendingStyles },
+        }
+
+        sessionEditsRef.current.delete(editingElement)
+        if (editingElement.isConnected) {
+          editingElement.remove()
+        }
+
+        pushUndo({
+          type: 'structure',
+          restoreSelection,
+          undo: () => {
+            editingElement.textContent = previousText
+            if (!editingElement.isConnected && parent?.isConnected) {
+              if (nextSibling && nextSibling.parentNode === parent) {
+                parent.insertBefore(editingElement, nextSibling)
+              } else {
+                parent.appendChild(editingElement)
+              }
+            }
+            if (existingSessionEdit) {
+              sessionEditsRef.current.set(editingElement, existingSessionEdit)
+            }
+            setState((prev) => ({
+              ...prev,
+              comments: current.comments,
+              activeCommentId: restoredActiveCommentId ?? prev.activeCommentId,
+            }))
+            syncSessionItemCount(current.comments)
+          },
+        })
+
+        syncSessionItemCount(remainingComments)
+        setState((prev) => {
+          const selectionContainsElement =
+            prev.selectedElement === editingElement ||
+            prev.selectionAnchorElement === editingElement ||
+            prev.selectedElements.includes(editingElement)
+
+          if (!selectionContainsElement) {
+            return prev.textEditingElement === editingElement
+              ? {
+                  ...prev,
+                  comments: prev.comments.filter((comment) => comment.element !== editingElement),
+                  activeCommentId:
+                    prev.activeCommentId && removedCommentIds.has(prev.activeCommentId)
+                      ? null
+                      : prev.activeCommentId,
+                  textEditingElement: null,
+                }
+              : prev
           }
-        : null
 
-      const restoreSelection = {
-        isOpen: current.isOpen,
-        selectedElement: current.selectedElement,
-        selectedElements: [...current.selectedElements],
-        selectionAnchorElement: current.selectionAnchorElement,
-        originalStyles: { ...current.originalStyles },
-        pendingStyles: { ...current.pendingStyles },
+          return {
+            ...prev,
+            isOpen: false,
+            selectedElement: null,
+            selectedElements: [],
+            selectionAnchorElement: null,
+            elementInfo: null,
+            computedSpacing: null,
+            computedBorderRadius: null,
+            computedBorder: null,
+            computedFlex: null,
+            computedSizing: null,
+            computedColor: null,
+            computedBoxShadow: null,
+            computedTypography: null,
+            computedEffects: null,
+            isComponentPrimitive: false,
+            comments: remainingComments,
+            activeCommentId: restoredActiveCommentId ? null : prev.activeCommentId,
+            originalStyles: {},
+            pendingStyles: {},
+            textEditingElement: null,
+          }
+        })
+        return
       }
 
-      sessionEditsRef.current.delete(editingElement)
-      if (editingElement.isConnected) {
-        editingElement.remove()
-      }
+      if (newText !== previousText) {
+        pushUndo({ type: 'textEdit', element: editingElement, originalText, previousText })
+        removedSessionEditsRef.current.delete(editingElement)
 
-      pushUndo({
-        type: 'structure',
-        restoreSelection,
-        undo: () => {
-          editingElement.textContent = previousText
-          if (!editingElement.isConnected && parent?.isConnected) {
-            if (nextSibling && nextSibling.parentNode === parent) {
-              parent.insertBefore(editingElement, nextSibling)
+        if (newText === originalText) {
+          // Reverted to original - remove textEdit from session
+          if (existing) {
+            if (Object.keys(existing.pendingStyles).length > 0 || existing.move) {
+              sessionEditsRef.current.set(editingElement, { ...existing, textEdit: null })
             } else {
-              parent.appendChild(editingElement)
+              sessionEditsRef.current.delete(editingElement)
             }
           }
-          if (existingSessionEdit) {
-            sessionEditsRef.current.set(editingElement, existingSessionEdit)
-          }
-          setState((prev) => ({
-            ...prev,
-            comments: current.comments,
-            activeCommentId: restoredActiveCommentId ?? prev.activeCommentId,
-          }))
-          syncSessionItemCount(current.comments)
-        },
-      })
-
-      syncSessionItemCount(remainingComments)
-      setState((prev) => {
-        const selectionContainsElement = prev.selectedElement === editingElement
-          || prev.selectionAnchorElement === editingElement
-          || prev.selectedElements.includes(editingElement)
-
-        if (!selectionContainsElement) {
-          return prev.textEditingElement === editingElement
-            ? {
-                ...prev,
-                comments: prev.comments.filter((comment) => comment.element !== editingElement),
-                activeCommentId: prev.activeCommentId && removedCommentIds.has(prev.activeCommentId)
-                  ? null
-                  : prev.activeCommentId,
-                textEditingElement: null,
-              }
-            : prev
+        } else {
+          const current = stateRef.current
+          const locator = existing?.locator ?? getElementLocator(editingElement)
+          const originalStyles =
+            existing?.originalStyles ??
+            (current.selectedElement === editingElement ? { ...current.originalStyles } : {})
+          const pendingStyles =
+            existing?.pendingStyles ??
+            (current.selectedElement === editingElement ? { ...current.pendingStyles } : {})
+          sessionEditsRef.current.set(editingElement, {
+            element: editingElement,
+            locator,
+            originalStyles,
+            pendingStyles,
+            move: existing?.move ?? null,
+            textEdit: { originalText, newText },
+          })
         }
-
-        return {
-          ...prev,
-          isOpen: false,
-          selectedElement: null,
-          selectedElements: [],
-          selectionAnchorElement: null,
-          elementInfo: null,
-          computedSpacing: null,
-          computedBorderRadius: null,
-          computedBorder: null,
-          computedFlex: null,
-          computedSizing: null,
-          computedColor: null,
-          computedBoxShadow: null,
-          computedTypography: null,
-          isComponentPrimitive: false,
-          comments: remainingComments,
-          activeCommentId: restoredActiveCommentId ? null : prev.activeCommentId,
-          originalStyles: {},
-          pendingStyles: {},
-          textEditingElement: null,
-        }
-      })
-      return
-    }
-
-    if (newText !== previousText) {
-      pushUndo({ type: 'textEdit', element: editingElement, originalText, previousText })
-      removedSessionEditsRef.current.delete(editingElement)
-
-      if (newText === originalText) {
-        // Reverted to original - remove textEdit from session
-        if (existing) {
-          if (Object.keys(existing.pendingStyles).length > 0 || existing.move) {
-            sessionEditsRef.current.set(editingElement, { ...existing, textEdit: null })
-          } else {
-            sessionEditsRef.current.delete(editingElement)
-          }
-        }
-      } else {
-        const current = stateRef.current
-        const locator = existing?.locator ?? getElementLocator(editingElement)
-        const originalStyles = existing?.originalStyles
-          ?? (current.selectedElement === editingElement ? { ...current.originalStyles } : {})
-        const pendingStyles = existing?.pendingStyles
-          ?? (current.selectedElement === editingElement ? { ...current.pendingStyles } : {})
-        sessionEditsRef.current.set(editingElement, {
-          element: editingElement,
-          locator,
-          originalStyles,
-          pendingStyles,
-          move: existing?.move ?? null,
-          textEdit: { originalText, newText },
-        })
+        syncSessionItemCount()
       }
-      syncSessionItemCount()
-    }
 
-    setState((prev) => (prev.textEditingElement ? { ...prev, textEditingElement: null } : prev))
-  }, [pushUndo, syncSessionItemCount])
+      setState((prev) => (prev.textEditingElement ? { ...prev, textEditingElement: null } : prev))
+    },
+    [pushUndo, syncSessionItemCount]
+  )
 
   const toggleEditMode = React.useCallback(() => {
     const current = stateRef.current
@@ -225,36 +238,39 @@ export function useTextAndComments({
     }))
   }, [finalizeTextEditing])
 
-  const addComment = React.useCallback((element: HTMLElement, clickPosition: { x: number; y: number }) => {
-    const locator = getElementLocator(element)
-    const rect = element.getBoundingClientRect()
-    const relativePosition = {
-      x: rect.width > 0 ? clampUnit((clickPosition.x - rect.left) / rect.width) : 0,
-      y: rect.height > 0 ? clampUnit((clickPosition.y - rect.top) / rect.height) : 0,
-    }
-    const id = `comment-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
-    const comment: Comment = {
-      id,
-      element,
-      locator,
-      clickPosition,
-      relativePosition,
-      text: '',
-      createdAt: Date.now(),
-      replies: [],
-    }
-    setState((prev) => {
-      // Remove previously active empty comment
-      const filtered = prev.activeCommentId
-        ? prev.comments.filter((c) => c.id !== prev.activeCommentId || c.text.trim().length > 0)
-        : prev.comments
-      return {
-        ...prev,
-        comments: [...filtered, comment],
-        activeCommentId: id,
+  const addComment = React.useCallback(
+    (element: HTMLElement, clickPosition: { x: number; y: number }) => {
+      const locator = getElementLocator(element)
+      const rect = element.getBoundingClientRect()
+      const relativePosition = {
+        x: rect.width > 0 ? clampUnit((clickPosition.x - rect.left) / rect.width) : 0,
+        y: rect.height > 0 ? clampUnit((clickPosition.y - rect.top) / rect.height) : 0,
       }
-    })
-  }, [])
+      const id = `comment-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+      const comment: Comment = {
+        id,
+        element,
+        locator,
+        clickPosition,
+        relativePosition,
+        text: '',
+        createdAt: Date.now(),
+        replies: [],
+      }
+      setState((prev) => {
+        // Remove previously active empty comment
+        const filtered = prev.activeCommentId
+          ? prev.comments.filter((c) => c.id !== prev.activeCommentId || c.text.trim().length > 0)
+          : prev.comments
+        return {
+          ...prev,
+          comments: [...filtered, comment],
+          activeCommentId: id,
+        }
+      })
+    },
+    []
+  )
 
   const updateCommentText = React.useCallback((id: string, text: string) => {
     setState((prev) => ({
@@ -263,61 +279,64 @@ export function useTextAndComments({
     }))
   }, [])
 
-  const submitCommentDraft = React.useCallback((id: string, text: string) => {
-    const nextText = text.trim()
-    if (!nextText) return null
+  const submitCommentDraft = React.useCallback(
+    (id: string, text: string) => {
+      const nextText = text.trim()
+      if (!nextText) return null
 
-    const draft = stateRef.current.comments.find((comment) => comment.id === id)
-    if (!draft || draft.text.trim().length > 0) return null
+      const draft = stateRef.current.comments.find((comment) => comment.id === id)
+      if (!draft || draft.text.trim().length > 0) return null
 
-    const replyTarget = findLatestSubmittedCommentOnElement(stateRef.current.comments, draft.element, draft.id)
-    const submittedAt = Date.now()
+      const replyTarget = findLatestSubmittedCommentOnElement(
+        stateRef.current.comments,
+        draft.element,
+        draft.id
+      )
+      const submittedAt = Date.now()
 
-    const exportMarkdown = replyTarget
-      ? buildCommentExport(replyTarget.locator, replyTarget.text, [
-          ...replyTarget.replies,
-          { text: nextText, createdAt: submittedAt },
-        ])
-      : buildCommentExport(draft.locator, nextText, [])
+      const exportMarkdown = replyTarget
+        ? buildCommentExport(replyTarget.locator, replyTarget.text, [
+            ...replyTarget.replies,
+            { text: nextText, createdAt: submittedAt },
+          ])
+        : buildCommentExport(draft.locator, nextText, [])
 
-    const instruction = buildExportInstruction({
-      hasCssEdits: false,
-      hasTextEdits: false,
-      hasMoves: false,
-      hasComments: true,
-    })
+      const instruction = buildExportInstruction({
+        hasCssEdits: false,
+        hasTextEdits: false,
+        hasMoves: false,
+        hasComments: true,
+      })
 
-    setState((prev) => ({
-      ...prev,
-      comments: replyTarget
-        ? prev.comments
-            .filter((comment) => comment.id !== draft.id)
-            .map((comment) => (
-              comment.id === replyTarget.id
-                ? {
-                    ...comment,
-                    replies: [...comment.replies, { text: nextText, createdAt: submittedAt }],
-                  }
-                : comment
-            ))
-        : prev.comments.map((comment) => (
-            comment.id === draft.id
-              ? { ...comment, text: nextText }
-              : comment
-          )),
-      activeCommentId: replyTarget?.id ?? draft.id,
-    }))
+      setState((prev) => ({
+        ...prev,
+        comments: replyTarget
+          ? prev.comments
+              .filter((comment) => comment.id !== draft.id)
+              .map((comment) =>
+                comment.id === replyTarget.id
+                  ? {
+                      ...comment,
+                      replies: [...comment.replies, { text: nextText, createdAt: submittedAt }],
+                    }
+                  : comment
+              )
+          : prev.comments.map((comment) =>
+              comment.id === draft.id ? { ...comment, text: nextText } : comment
+            ),
+        activeCommentId: replyTarget?.id ?? draft.id,
+      }))
 
-    return `${instruction}\n\n${exportMarkdown}`
-  }, [setState, stateRef])
+      return `${instruction}\n\n${exportMarkdown}`
+    },
+    [setState, stateRef]
+  )
 
   const addCommentReply = React.useCallback((id: string, text: string) => {
     setState((prev) => ({
       ...prev,
       comments: prev.comments.map((c) =>
-        c.id === id
-          ? { ...c, replies: [...c.replies, { text, createdAt: Date.now() }] }
-          : c
+        c.id === id ? { ...c, replies: [...c.replies, { text, createdAt: Date.now() }] } : c
       ),
     }))
   }, [])
@@ -363,7 +382,7 @@ export function useTextAndComments({
 
     // Determine original text: prefer existing session edit's original
     const existing = sessionEditsRef.current.get(element)
-    const originalText = existing?.textEdit?.originalText ?? (element.textContent ?? '')
+    const originalText = existing?.textEdit?.originalText ?? element.textContent ?? ''
     element.setAttribute('data-direct-edit-original-text', originalText)
     element.setAttribute('data-direct-edit-original-cursor', element.style.cursor)
 

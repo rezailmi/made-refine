@@ -16,6 +16,8 @@ import type {
   ColorPropertyKey,
   TypographyPropertyKey,
   TypographyProperties,
+  EffectsProperties,
+  EffectsPropertyKey,
   BorderStyleControlPreference,
 } from './types'
 import { useMeasurement } from './use-measurement'
@@ -42,13 +44,13 @@ import { SelectionOverlay } from './selection-overlay'
 import { MultiSelectionOverlay } from './multi-selection-overlay'
 import { CommentOverlay } from './comment-overlay'
 // Panel module imports
-import { NumberInput, Tip, CollapsibleSection, SectionNav, useSectionNav } from './panel/shared'
-import type { SectionKey } from './panel/shared'
+import { CollapsibleSection, SectionNav, useSectionNav } from './panel/shared'
 import { BorderRadiusInputs } from './panel/border-radius-inputs'
 import { BorderSection } from './panel/border-section'
 import { ShadowSection } from './panel/shadow-section'
 import { TypographyInputs } from './panel/typography-inputs'
 import { FillSection, BackgroundFillSection } from './panel/fill-section'
+import { EffectsSection } from './panel/effects-section'
 import { PanelHeader } from './panel/panel-header'
 import { PanelFooter } from './panel/panel-footer'
 import { LayoutSection } from './panel/layout-section'
@@ -86,6 +88,7 @@ export type { BorderPosition, BorderSideOption } from './panel/border-section'
 export { ShadowSection, ShadowLayerEditor, ShadowField } from './panel/shadow-section'
 export { TypographyInputs, FONT_FAMILIES, FONT_WEIGHTS } from './panel/typography-inputs'
 export { FillSection, BackgroundFillSection, ColorInput } from './panel/fill-section'
+export { EffectsSection } from './panel/effects-section'
 export {
   SizingInputs,
   SizingDropdown,
@@ -119,6 +122,7 @@ export interface DirectEditPanelInnerProps {
     isTextElement: boolean
     parentElement: HTMLElement | null | boolean
     hasChildren: boolean
+    isImageElement?: boolean
   }
   computedSpacing: {
     paddingTop: CSSPropertyValue
@@ -142,6 +146,7 @@ export interface DirectEditPanelInnerProps {
     flexDirection: 'row' | 'row-reverse' | 'column' | 'column-reverse'
     justifyContent: string
     alignItems: string
+    flexWrap: 'nowrap' | 'wrap' | 'wrap-reverse'
   }
   computedSizing: {
     width: SizingValue
@@ -168,13 +173,18 @@ export interface DirectEditPanelInnerProps {
     changes: Array<[BorderPropertyKey, BorderProperties[BorderPropertyKey]]>
   ) => void
   onSetCSS: (properties: Record<string, string>) => void
-  onUpdateFlex: (key: 'flexDirection' | 'justifyContent' | 'alignItems', value: string) => void
+  onUpdateFlex: (
+    key: 'flexDirection' | 'justifyContent' | 'alignItems' | 'flexWrap',
+    value: string
+  ) => void
   onToggleFlex: () => void
   onUpdateSizing: (key: SizingPropertyKey, value: SizingValue) => void
   onUpdateColor: (key: ColorPropertyKey, value: ColorValue) => void
   onReplaceSelectionColor: (from: ColorValue, to: ColorValue) => void
   onSelectSelectionColorTarget?: (color: ColorValue) => void
   onUpdateTypography: (key: TypographyPropertyKey, value: CSSPropertyValue | string) => void
+  computedEffects?: EffectsProperties | null
+  onUpdateEffects?: (key: EffectsPropertyKey, value: number | string) => void
   onReset: () => void
   onExportEdits?: () => Promise<boolean>
   onSendToAgent?: () => Promise<boolean>
@@ -203,6 +213,7 @@ export function DirectEditPanelInner({
   computedBoxShadow = 'none',
   borderStyleControlPreference = 'icon',
   computedTypography,
+  computedEffects,
   pendingStyles,
   onClose,
   onSelectParent,
@@ -219,7 +230,7 @@ export function DirectEditPanelInner({
   onReplaceSelectionColor,
   onSelectSelectionColorTarget,
   onUpdateTypography,
-  onReset,
+  onUpdateEffects,
   onExportEdits,
   onSendToAgent,
   canSendToAgent = false,
@@ -238,15 +249,27 @@ export function DirectEditPanelInner({
   const canTriggerSend = canSendToAgent || hasPendingChanges
   const isDraggable = onHeaderPointerDown !== undefined
 
-  const sectionRefs = {
-    layout: React.useRef<HTMLDivElement>(null),
-    radius: React.useRef<HTMLDivElement>(null),
-    border: React.useRef<HTMLDivElement>(null),
-    shadow: React.useRef<HTMLDivElement>(null),
-    fill: React.useRef<HTMLDivElement>(null),
-    colors: React.useRef<HTMLDivElement>(null),
-    text: React.useRef<HTMLDivElement>(null),
-  }
+  const layoutSectionRef = React.useRef<HTMLDivElement>(null)
+  const radiusSectionRef = React.useRef<HTMLDivElement>(null)
+  const borderSectionRef = React.useRef<HTMLDivElement>(null)
+  const shadowSectionRef = React.useRef<HTMLDivElement>(null)
+  const fillSectionRef = React.useRef<HTMLDivElement>(null)
+  const colorsSectionRef = React.useRef<HTMLDivElement>(null)
+  const textSectionRef = React.useRef<HTMLDivElement>(null)
+  const effectsSectionRef = React.useRef<HTMLDivElement>(null)
+  const sectionRefs = React.useMemo(
+    () => ({
+      layout: layoutSectionRef,
+      radius: radiusSectionRef,
+      border: borderSectionRef,
+      shadow: shadowSectionRef,
+      fill: fillSectionRef,
+      colors: colorsSectionRef,
+      text: textSectionRef,
+      effects: effectsSectionRef,
+    }),
+    []
+  )
   const { scrollRef, activeSection } = useSectionNav(sectionRefs)
 
   return (
@@ -282,6 +305,7 @@ export function DirectEditPanelInner({
           activeSection={activeSection}
           showColors={!!computedColor}
           showText={elementInfo.isTextElement && !!computedTypography}
+          showEffects={!!computedEffects && !!onUpdateEffects}
           sectionRefs={sectionRefs}
         />
 
@@ -299,10 +323,16 @@ export function DirectEditPanelInner({
             onUpdateFlex={onUpdateFlex}
             onUpdateSpacing={onUpdateSpacing}
             onUpdateSizing={onUpdateSizing}
-            sectionRef={sectionRefs.layout}
+            overflow={computedEffects?.overflow}
+            onUpdateOverflow={
+              computedEffects && onUpdateEffects
+                ? (value) => onUpdateEffects('overflow', value)
+                : undefined
+            }
+            sectionRef={layoutSectionRef}
           />
 
-          <div ref={sectionRefs.radius}>
+          <div ref={radiusSectionRef}>
             <CollapsibleSection title="Radius">
               <BorderRadiusInputs
                 values={{
@@ -317,7 +347,7 @@ export function DirectEditPanelInner({
           </div>
 
           {computedColor && (
-            <div ref={sectionRefs.fill}>
+            <div ref={fillSectionRef}>
               <BackgroundFillSection
                 backgroundColor={computedColor.backgroundColor}
                 onSetCSS={onSetCSS}
@@ -326,7 +356,7 @@ export function DirectEditPanelInner({
             </div>
           )}
 
-          <div ref={sectionRefs.border}>
+          <div ref={borderSectionRef}>
             <BorderSection
               border={computedBorder}
               borderColor={computedColor?.borderColor}
@@ -341,7 +371,7 @@ export function DirectEditPanelInner({
             />
           </div>
 
-          <div ref={sectionRefs.shadow}>
+          <div ref={shadowSectionRef}>
             <ShadowSection
               boxShadow={computedBoxShadow}
               onSetCSS={onSetCSS}
@@ -350,15 +380,27 @@ export function DirectEditPanelInner({
           </div>
 
           {elementInfo.isTextElement && computedTypography && (
-            <div ref={sectionRefs.text}>
+            <div ref={textSectionRef}>
               <CollapsibleSection title="Text">
                 <TypographyInputs typography={computedTypography} onUpdate={onUpdateTypography} />
               </CollapsibleSection>
             </div>
           )}
 
+          {computedEffects && onUpdateEffects && (
+            <div ref={effectsSectionRef}>
+              <CollapsibleSection title="Effects">
+                <EffectsSection
+                  effects={computedEffects}
+                  elementInfo={{ isImageElement: elementInfo.isImageElement ?? false }}
+                  onUpdate={onUpdateEffects}
+                />
+              </CollapsibleSection>
+            </div>
+          )}
+
           {computedColor && (
-            <div ref={sectionRefs.colors}>
+            <div ref={colorsSectionRef}>
               <CollapsibleSection title="Selection colors">
                 <FillSection
                   textColor={computedColor.color}
@@ -411,6 +453,7 @@ function DirectEditPanelContent() {
     computedColor,
     computedBoxShadow,
     computedTypography,
+    computedEffects,
     isComponentPrimitive,
     borderStyleControlPreference,
     pendingStyles,
@@ -444,6 +487,7 @@ function DirectEditPanelContent() {
     updateColorProperty,
     replaceSelectionColor,
     updateTypographyProperty,
+    updateEffectProperty,
     resetToOriginal,
     handleMoveComplete,
     addComment,
@@ -457,7 +501,6 @@ function DirectEditPanelContent() {
     setActiveCommentId,
     startTextEditing,
     toggleEditMode,
-    deleteSelection,
     setCommentDraftText,
     setCommentDraftBlockedHandler,
   } = useDirectEditActions()
@@ -942,6 +985,7 @@ function DirectEditPanelContent() {
     !computedColor ||
     computedBoxShadow === null ||
     !computedTypography ||
+    computedEffects === null ||
     !container
   ) {
     return (
@@ -977,6 +1021,7 @@ function DirectEditPanelContent() {
         computedBoxShadow={computedBoxShadow}
         borderStyleControlPreference={borderStyleControlPreference}
         computedTypography={computedTypography}
+        computedEffects={computedEffects}
         pendingStyles={pendingStyles}
         onClose={toggleEditMode}
         onSelectParent={selectParent}
@@ -993,6 +1038,7 @@ function DirectEditPanelContent() {
         onReplaceSelectionColor={replaceSelectionColor}
         onSelectSelectionColorTarget={handleSelectSelectionColorTarget}
         onUpdateTypography={updateTypographyProperty}
+        onUpdateEffects={updateEffectProperty}
         onReset={resetToOriginal}
         onExportEdits={exportEdits}
         onSendToAgent={agentAvailable ? sendEditToAgent : undefined}

@@ -3,10 +3,31 @@
 import * as React from 'react'
 import { DirectEditPanelInner } from './panel'
 import { DirectEditToolbarInner } from './toolbar'
-import { buildEditExport, buildExportInstruction, stylesToTailwind, colorPropertyToCSSMap, borderPropertyToCSSMap } from './utils'
+import {
+  buildEditExport,
+  buildExportInstruction,
+  stylesToTailwind,
+  colorPropertyToCSSMap,
+  borderPropertyToCSSMap,
+} from './utils'
 import { copyText } from './clipboard'
 import { formatColorValue } from './ui/color-utils'
-import type { SpacingPropertyKey, BorderRadiusPropertyKey, BorderPropertyKey, BorderProperties, SizingPropertyKey, ColorPropertyKey, ColorValue, TypographyPropertyKey, CSSPropertyValue, SizingValue, TypographyProperties, ElementLocator } from './types'
+import type {
+  SpacingPropertyKey,
+  BorderRadiusPropertyKey,
+  BorderPropertyKey,
+  BorderProperties,
+  SizingPropertyKey,
+  ColorPropertyKey,
+  ColorValue,
+  TypographyPropertyKey,
+  CSSPropertyValue,
+  SizingValue,
+  TypographyProperties,
+  EffectsPropertyKey,
+  EffectsProperties,
+  ElementLocator,
+} from './types'
 
 function createValue(num: number, unit: 'px' | 'rem' | '%' | 'em' | '' = 'px'): CSSPropertyValue {
   return { numericValue: num, unit, raw: `${num}${unit}` }
@@ -19,12 +40,22 @@ function camelToKebab(str: string): string {
 const ELEMENT_INFO = {
   tagName: 'div',
   id: 'demo-element',
-  classList: ['flex', 'shrink-0', 'items-center', 'gap-4', 'p-4', 'rounded-lg', 'border', 'bg-background'],
+  classList: [
+    'flex',
+    'shrink-0',
+    'items-center',
+    'gap-4',
+    'p-4',
+    'rounded-lg',
+    'border',
+    'bg-background',
+  ],
   isFlexContainer: true,
   isFlexItem: true,
   isTextElement: true,
   parentElement: null as HTMLElement | null,
   hasChildren: true,
+  isImageElement: false,
 }
 
 const DEMO_LOCATOR: ElementLocator = {
@@ -74,6 +105,7 @@ export function DirectEditDemo() {
     flexDirection: 'row' as const,
     justifyContent: 'flex-start',
     alignItems: 'center',
+    flexWrap: 'nowrap' as const,
   })
 
   const [sizing, setSizing] = React.useState({
@@ -96,6 +128,14 @@ export function DirectEditDemo() {
     letterSpacing: createValue(0, 'em'),
     textAlign: 'left',
     textVerticalAlign: 'flex-start',
+    textDecoration: 'none',
+    textTransform: 'none',
+    fontStyle: 'normal',
+  })
+  const [effects, setEffects] = React.useState<EffectsProperties>({
+    opacity: 100,
+    overflow: 'visible',
+    objectFit: 'fill',
   })
   const [boxShadow, setBoxShadow] = React.useState('none')
 
@@ -112,27 +152,36 @@ export function DirectEditDemo() {
     setPendingStyles((prev) => ({ ...prev, [camelToKebab(key)]: value.raw }))
   }
 
-  const handleUpdateBorder = (key: BorderPropertyKey, value: BorderProperties[BorderPropertyKey]) => {
+  const handleUpdateBorder = (
+    key: BorderPropertyKey,
+    value: BorderProperties[BorderPropertyKey]
+  ) => {
     setBorder((prev) => ({ ...prev, [key]: value }))
     const cssProperty = borderPropertyToCSSMap[key]
     const cssValue = typeof value === 'string' ? value : value.raw
     setPendingStyles((prev) => ({ ...prev, [cssProperty]: cssValue }))
   }
 
-  const handleBatchUpdateBorder = (changes: Array<[BorderPropertyKey, BorderProperties[BorderPropertyKey]]>) => {
+  const handleBatchUpdateBorder = (
+    changes: Array<[BorderPropertyKey, BorderProperties[BorderPropertyKey]]>
+  ) => {
     for (const [key, value] of changes) {
       handleUpdateBorder(key, value)
     }
   }
 
-  const handleUpdateFlex = (key: 'flexDirection' | 'justifyContent' | 'alignItems', value: string) => {
+  const handleUpdateFlex = (
+    key: 'flexDirection' | 'justifyContent' | 'alignItems' | 'flexWrap',
+    value: string
+  ) => {
     setFlex((prev) => ({ ...prev, [key]: value }))
     setPendingStyles((prev) => ({ ...prev, [camelToKebab(key)]: value }))
   }
 
   const handleUpdateSizing = (key: SizingPropertyKey, value: SizingValue) => {
     setSizing((prev) => ({ ...prev, [key]: value }))
-    const cssValue = value.mode === 'fill' ? '100%' : value.mode === 'fit' ? 'fit-content' : value.value.raw
+    const cssValue =
+      value.mode === 'fill' ? '100%' : value.mode === 'fit' ? 'fit-content' : value.value.raw
     setPendingStyles((prev) => ({ ...prev, [key]: cssValue }))
   }
 
@@ -145,6 +194,13 @@ export function DirectEditDemo() {
   const handleUpdateTypography = (key: TypographyPropertyKey, value: CSSPropertyValue | string) => {
     setTypography((prev) => ({ ...prev, [key]: value }))
     const cssValue = typeof value === 'string' ? value : value.raw
+    setPendingStyles((prev) => ({ ...prev, [camelToKebab(key)]: cssValue }))
+  }
+
+  const handleUpdateEffects = (key: EffectsPropertyKey, value: number | string) => {
+    setEffects((prev) => ({ ...prev, [key]: value }))
+    const cssValue =
+      key === 'opacity' && typeof value === 'number' ? String(value / 100) : String(value)
     setPendingStyles((prev) => ({ ...prev, [camelToKebab(key)]: cssValue }))
   }
 
@@ -188,6 +244,7 @@ export function DirectEditDemo() {
       flexDirection: 'row',
       justifyContent: 'flex-start',
       alignItems: 'center',
+      flexWrap: 'nowrap',
     })
     setSizing({
       width: { mode: 'fit', value: createValue(300) },
@@ -207,6 +264,14 @@ export function DirectEditDemo() {
       letterSpacing: createValue(0, 'em'),
       textAlign: 'left',
       textVerticalAlign: 'flex-start',
+      textDecoration: 'none',
+      textTransform: 'none',
+      fontStyle: 'normal',
+    })
+    setEffects({
+      opacity: 100,
+      overflow: 'visible',
+      objectFit: 'fill',
     })
     setBoxShadow('none')
     setPendingStyles({})
@@ -215,7 +280,12 @@ export function DirectEditDemo() {
   const handleExportEdits = async () => {
     if (Object.keys(pendingStyles).length === 0) return false
     const exportMarkdown = buildEditExport(DEMO_LOCATOR, pendingStyles)
-    const instruction = buildExportInstruction({ hasCssEdits: true, hasTextEdits: false, hasMoves: false, hasComments: false })
+    const instruction = buildExportInstruction({
+      hasCssEdits: true,
+      hasTextEdits: false,
+      hasMoves: false,
+      hasComments: false,
+    })
     return copyText(`${instruction}\n\n${exportMarkdown}`)
   }
 
@@ -248,6 +318,7 @@ export function DirectEditDemo() {
             computedBoxShadow={boxShadow}
             borderStyleControlPreference="icon"
             computedTypography={typography}
+            computedEffects={effects}
             pendingStyles={pendingStyles}
             onSelectParent={() => {}}
             onUpdateSpacing={handleUpdateSpacing}
@@ -261,7 +332,9 @@ export function DirectEditDemo() {
             onUpdateColor={handleUpdateColor}
             onReplaceSelectionColor={() => {}}
             onUpdateTypography={handleUpdateTypography}
+            onUpdateEffects={handleUpdateEffects}
             onReset={handleReset}
+            onExportEdits={handleExportEdits}
           />
 
           <div className="space-y-6">
@@ -286,6 +359,9 @@ export function DirectEditDemo() {
                   flexDirection: flex.flexDirection,
                   justifyContent: flex.justifyContent,
                   alignItems: flex.alignItems,
+                  flexWrap: flex.flexWrap,
+                  opacity: effects.opacity / 100,
+                  overflow: effects.overflow,
                 }}
               >
                 <div className="size-12 rounded bg-blue-500/20 border border-blue-500/30" />

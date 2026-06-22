@@ -15,6 +15,12 @@ import {
   WrapText,
   AArrowUp,
   LetterText,
+  Italic,
+  Underline,
+  Strikethrough,
+  CaseUpper,
+  CaseLower,
+  CaseSensitive,
 } from 'lucide-react'
 
 export const FONT_FAMILIES = [
@@ -134,7 +140,11 @@ export function TypographyInputs({ typography, onUpdate }: TypographyInputsProps
             <Button
               variant="ghost"
               size="icon"
-              className={typography.textAlign === 'left' || typography.textAlign === 'start' ? 'size-7 bg-muted text-foreground' : 'size-7 text-muted-foreground'}
+              className={
+                typography.textAlign === 'left' || typography.textAlign === 'start'
+                  ? 'size-7 bg-muted text-foreground'
+                  : 'size-7 text-muted-foreground'
+              }
               onClick={() => onUpdate('textAlign', 'left')}
             >
               <AlignLeft />
@@ -144,7 +154,11 @@ export function TypographyInputs({ typography, onUpdate }: TypographyInputsProps
             <Button
               variant="ghost"
               size="icon"
-              className={typography.textAlign === 'center' ? 'size-7 bg-muted text-foreground' : 'size-7 text-muted-foreground'}
+              className={
+                typography.textAlign === 'center'
+                  ? 'size-7 bg-muted text-foreground'
+                  : 'size-7 text-muted-foreground'
+              }
               onClick={() => onUpdate('textAlign', 'center')}
             >
               <AlignCenter />
@@ -154,7 +168,11 @@ export function TypographyInputs({ typography, onUpdate }: TypographyInputsProps
             <Button
               variant="ghost"
               size="icon"
-              className={typography.textAlign === 'right' || typography.textAlign === 'end' ? 'size-7 bg-muted text-foreground' : 'size-7 text-muted-foreground'}
+              className={
+                typography.textAlign === 'right' || typography.textAlign === 'end'
+                  ? 'size-7 bg-muted text-foreground'
+                  : 'size-7 text-muted-foreground'
+              }
               onClick={() => onUpdate('textAlign', 'right')}
             >
               <AlignRight />
@@ -167,7 +185,11 @@ export function TypographyInputs({ typography, onUpdate }: TypographyInputsProps
             <Button
               variant="ghost"
               size="icon"
-              className={typography.textVerticalAlign === 'flex-start' ? 'size-7 bg-muted text-foreground' : 'size-7 text-muted-foreground'}
+              className={
+                typography.textVerticalAlign === 'flex-start'
+                  ? 'size-7 bg-muted text-foreground'
+                  : 'size-7 text-muted-foreground'
+              }
               onClick={() => onUpdate('textVerticalAlign', 'flex-start')}
             >
               <AlignVerticalJustifyStart />
@@ -177,7 +199,11 @@ export function TypographyInputs({ typography, onUpdate }: TypographyInputsProps
             <Button
               variant="ghost"
               size="icon"
-              className={typography.textVerticalAlign === 'center' ? 'size-7 bg-muted text-foreground' : 'size-7 text-muted-foreground'}
+              className={
+                typography.textVerticalAlign === 'center'
+                  ? 'size-7 bg-muted text-foreground'
+                  : 'size-7 text-muted-foreground'
+              }
               onClick={() => onUpdate('textVerticalAlign', 'center')}
             >
               <AlignVerticalJustifyCenter />
@@ -187,10 +213,133 @@ export function TypographyInputs({ typography, onUpdate }: TypographyInputsProps
             <Button
               variant="ghost"
               size="icon"
-              className={typography.textVerticalAlign === 'flex-end' ? 'size-7 bg-muted text-foreground' : 'size-7 text-muted-foreground'}
+              className={
+                typography.textVerticalAlign === 'flex-end'
+                  ? 'size-7 bg-muted text-foreground'
+                  : 'size-7 text-muted-foreground'
+              }
               onClick={() => onUpdate('textVerticalAlign', 'flex-end')}
             >
               <AlignVerticalJustifyEnd />
+            </Button>
+          </Tip>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <div className="flex gap-1">
+          <Tip label="Italic">
+            <Button
+              variant="ghost"
+              size="icon"
+              className={
+                typography.fontStyle === 'italic'
+                  ? 'size-7 bg-muted text-foreground'
+                  : 'size-7 text-muted-foreground'
+              }
+              onClick={() =>
+                onUpdate('fontStyle', typography.fontStyle === 'italic' ? 'normal' : 'italic')
+              }
+            >
+              <Italic />
+            </Button>
+          </Tip>
+          <Tip label="Underline">
+            <Button
+              variant="ghost"
+              size="icon"
+              className={
+                typography.textDecoration === 'underline'
+                  ? 'size-7 bg-muted text-foreground'
+                  : 'size-7 text-muted-foreground'
+              }
+              onClick={() =>
+                onUpdate(
+                  'textDecoration',
+                  typography.textDecoration === 'underline' ? 'none' : 'underline'
+                )
+              }
+            >
+              <Underline />
+            </Button>
+          </Tip>
+          <Tip label="Strikethrough">
+            <Button
+              variant="ghost"
+              size="icon"
+              className={
+                typography.textDecoration === 'line-through'
+                  ? 'size-7 bg-muted text-foreground'
+                  : 'size-7 text-muted-foreground'
+              }
+              onClick={() =>
+                onUpdate(
+                  'textDecoration',
+                  typography.textDecoration === 'line-through' ? 'none' : 'line-through'
+                )
+              }
+            >
+              <Strikethrough />
+            </Button>
+          </Tip>
+        </div>
+
+        <div className="flex gap-1">
+          <Tip label="Uppercase">
+            <Button
+              variant="ghost"
+              size="icon"
+              className={
+                typography.textTransform === 'uppercase'
+                  ? 'size-7 bg-muted text-foreground'
+                  : 'size-7 text-muted-foreground'
+              }
+              onClick={() =>
+                onUpdate(
+                  'textTransform',
+                  typography.textTransform === 'uppercase' ? 'none' : 'uppercase'
+                )
+              }
+            >
+              <CaseUpper />
+            </Button>
+          </Tip>
+          <Tip label="Lowercase">
+            <Button
+              variant="ghost"
+              size="icon"
+              className={
+                typography.textTransform === 'lowercase'
+                  ? 'size-7 bg-muted text-foreground'
+                  : 'size-7 text-muted-foreground'
+              }
+              onClick={() =>
+                onUpdate(
+                  'textTransform',
+                  typography.textTransform === 'lowercase' ? 'none' : 'lowercase'
+                )
+              }
+            >
+              <CaseLower />
+            </Button>
+          </Tip>
+          <Tip label="Capitalize">
+            <Button
+              variant="ghost"
+              size="icon"
+              className={
+                typography.textTransform === 'capitalize'
+                  ? 'size-7 bg-muted text-foreground'
+                  : 'size-7 text-muted-foreground'
+              }
+              onClick={() =>
+                onUpdate(
+                  'textTransform',
+                  typography.textTransform === 'capitalize' ? 'none' : 'capitalize'
+                )
+              }
+            >
+              <CaseSensitive />
             </Button>
           </Tip>
         </div>

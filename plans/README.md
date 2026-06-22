@@ -6,30 +6,45 @@ The maintainer's own planning docs live in `plan/` (singular) — unrelated to t
 
 ## Execution order & status
 
-| Plan | Title | Priority | Effort | Depends on | Status |
-|------|-------|----------|--------|------------|--------|
-| 001  | Stop hijacking host-app Cmd+Z when edit mode is off | P1 | S | — | DONE |
-| 002  | Compose existing CSS transforms during drag (inline + computed/class-based) | P1 | S | — | DONE |
-| 003  | Inject `data-direct-edit-source` in development only (not prod, not test) | P1 | S | — | DONE |
-| 006  | Session-edit lifecycle design spike (survive remounts: reattach+reapply / stale) | P1 | M (spike) | — | DONE (design doc: `006-output-session-lifecycle-design.md`) |
-| 004  | Rebuild preload fiber index lazily, not on every React commit | P2 | M | — | DONE |
-| 005  | Include memo()/forwardRef() components in extracted component stack | P2 | M | — | DONE |
-| 007  | Persistent send-failure feedback with reason + per-item indicators | P2 | M | — | DONE (plus follow-up fixes 008/009 below) |
+| Plan | Title                                                                            | Priority | Effort    | Depends on | Status                                                      |
+| ---- | -------------------------------------------------------------------------------- | -------- | --------- | ---------- | ----------------------------------------------------------- |
+| 001  | Stop hijacking host-app Cmd+Z when edit mode is off                              | P1       | S         | —          | DONE                                                        |
+| 002  | Compose existing CSS transforms during drag (inline + computed/class-based)      | P1       | S         | —          | DONE                                                        |
+| 003  | Inject `data-direct-edit-source` in development only (not prod, not test)        | P1       | S         | —          | DONE                                                        |
+| 006  | Session-edit lifecycle design spike (survive remounts: reattach+reapply / stale) | P1       | M (spike) | —          | DONE (design doc: `006-output-session-lifecycle-design.md`) |
+| 004  | Rebuild preload fiber index lazily, not on every React commit                    | P2       | M         | —          | DONE                                                        |
+| 005  | Include memo()/forwardRef() components in extracted component stack              | P2       | M         | —          | DONE                                                        |
+| 007  | Persistent send-failure feedback with reason + per-item indicators               | P2       | M         | —          | DONE (plus follow-up fixes 008/009 below)                   |
 
 ### Batch 2 — backlog converted to plans (2026-06-13, commit `c1687d9`)
 
 These eight plans expand the former "Backlog" section into self-contained handoff plans. Numbering starts at **010** to avoid colliding with the `008`/`009` commit references already used in the execution record above (no plan files exist for those numbers). Recommended execution order is in the "Batch 2 dependency & ordering notes" section, not the row order.
 
-| Plan | Title | Priority | Effort | Depends on | Status |
-|------|-------|----------|--------|------------|--------|
-| 010  | Extract one cohesive cluster (computed-style getters) out of the `utils.ts` god module | P2 | M | — (recommend 014 first) | DONE |
-| 011  | Unit tests for interaction-overlay / multi-selection-overlay / canvas-store | P2 | M | — | DONE |
-| 012  | Reduce repeated full-subtree `getComputedStyle` in `replaceSelectionColor` (profile-gated) | P3 | S–M | — | REJECTED (no hot-path evidence; avoid speculative behavior change) |
-| 013  | Add ESLint + Prettier with a non-blocking CI baseline | P3 | M | — | DONE |
-| 014  | Add `test:fast` script that skips the prebuild on the inner loop | P3 | S | — | DONE |
-| 015  | Add a protocol `version` field to the preload DevTools hook | P3 | S | — | DONE |
-| 016  | Correct drag/resize scale-divisor math for rotated elements (artifact-gated) | P3 | S–M | — | DONE |
-| 017  | Wire the panel footer send/export in the provider path (makes 007's footer states reachable) | P2 | S | relates to 007 | DONE |
+| Plan | Title                                                                                        | Priority | Effort | Depends on              | Status                                                             |
+| ---- | -------------------------------------------------------------------------------------------- | -------- | ------ | ----------------------- | ------------------------------------------------------------------ |
+| 010  | Extract one cohesive cluster (computed-style getters) out of the `utils.ts` god module       | P2       | M      | — (recommend 014 first) | DONE                                                               |
+| 011  | Unit tests for interaction-overlay / multi-selection-overlay / canvas-store                  | P2       | M      | —                       | DONE                                                               |
+| 012  | Reduce repeated full-subtree `getComputedStyle` in `replaceSelectionColor` (profile-gated)   | P3       | S–M    | —                       | REJECTED (no hot-path evidence; avoid speculative behavior change) |
+| 013  | Add ESLint + Prettier with a non-blocking CI baseline                                        | P3       | M      | —                       | DONE                                                               |
+| 014  | Add `test:fast` script that skips the prebuild on the inner loop                             | P3       | S      | —                       | DONE                                                               |
+| 015  | Add a protocol `version` field to the preload DevTools hook                                  | P3       | S      | —                       | DONE                                                               |
+| 016  | Correct drag/resize scale-divisor math for rotated elements (artifact-gated)                 | P3       | S–M    | —                       | DONE                                                               |
+| 017  | Wire the panel footer send/export in the provider path (makes 007's footer states reachable) | P2       | S      | relates to 007          | DONE                                                               |
+
+### Batch 3 — DirectCopy made-refine ports adapted for standalone (2026-06-22, commit `14d4087`)
+
+These plans adapt the DirectCopy `packages/made-refine` improvements to this
+standalone package. DirectCopy host-only pieces (`made-refine-protocol`,
+Electron renderer bridge, Rust broker, runner/watchdog surfaces) are explicitly
+out of scope here.
+
+| Plan | Title                                                    | Priority | Effort | Depends on      | Status                                                                                                                 |
+| ---- | -------------------------------------------------------- | -------- | ------ | --------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| 018  | Clear the standalone dependency audit baseline           | P1       | M      | —               | DONE (`bun audit --audit-level high` exits 0; direct bumps + narrow overrides for rollup/picomatch/undici)             |
+| 019  | Port semantic Tailwind hints and class attribution       | P1       | M      | 018 recommended | DONE (semantic Tailwind mappings, class attribution helpers, export/payload hints; targeted utils/provider tests pass) |
+| 020  | Port Effects controls and flex authoring to standalone   | P1       | L      | 019             | DONE (effects state/actions/section, typography toggles, flex reverse/wrap/add-flex, clip content; panel tests pass)   |
+| 021  | Port DirectCopy visual-editor review fixes               | P2       | M      | 019, 020        | DONE (layer echo guards/caps, SVG paint fallback, attribution/background/overflow coverage; targeted tests pass)       |
+| 022  | Extract the Tailwind conversion seam from `src/utils.ts` | P3       | M      | 019, 020, 021   | DONE (`src/utils/tailwind.ts` owns conversion; barrel export preserved; TypeScript and targeted utils tests pass)      |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (with one-line reason) | REJECTED (with one-line rationale)
 
@@ -48,7 +63,7 @@ Findings from validation recorded for later: the provider-wired panel (`panel.ts
 
 These are binding on executors; the plan files already reflect them:
 
-- **006 direction**: reattach + reapply pending styles on a *unique, high-confidence* locator match after a remount; otherwise mark the edit stale (visible, still sendable with cached locator). Never guess. Aggressive reattachment rejected.
+- **006 direction**: reattach + reapply pending styles on a _unique, high-confidence_ locator match after a remount; otherwise mark the edit stale (visible, still sendable with cached locator). Never guess. Aggressive reattachment rejected.
 - **001**: both guards confirmed — `editModeActive` AND `isInputFocused()` (Cmd+Z does native field undo while a panel input is focused, Figma-style). Tests that encode the old behavior get updated, not the guards removed.
 - **002**: extended beyond TODOS.md's inline-only fix — when no inline transform exists, snapshot `getComputedStyle(el).transform` at drag start and compose against the matrix (covers Tailwind class transforms, the dominant real-world case). Restore stays inline-only.
 - **003**: gate polarity is **development-only injection** (`!api.env('development')` → no-op), not merely a production skip — keeps attributes out of consumers' test snapshots too.
@@ -88,7 +103,19 @@ by leverage, risk, and convenience:
    only; relies on the existing `utils.test.ts` as the regression net. Benefits
    from 014 landing first.
 
+## Batch 3 dependency & ordering notes (plans 018–022)
+
+1. **018** first so the release baseline is not carrying known critical/high
+   advisories while source work proceeds.
+2. **019** before **020/021** because attribution tests and helpers are reused by
+   flex/effects follow-ups.
+3. **020** before **021** because the review-fix plan assumes the Effects and
+   flex-wrap surface exists.
+4. **022** last because extracting `stylesToTailwind` should be behavior-neutral
+   and is easiest to review after Tailwind behavior changes settle.
+
 Cross-plan interactions:
+
 - **010 vs 011** — both add files but in different areas (utils vs overlays);
   no file conflict. Land 011 first so the test count baseline is higher before
   the 010 move.
