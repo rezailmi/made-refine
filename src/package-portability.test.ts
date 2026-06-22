@@ -35,29 +35,58 @@ function getPackedFiles(): string[] {
     .filter((file): file is string => Boolean(file))
 }
 
+function getNpmPackedFiles(): string[] {
+  const output = execSync('npm pack --dry-run --json', {
+    cwd: root,
+    encoding: 'utf8',
+  })
+  const [pack] = JSON.parse(output) as Array<{ files: Array<{ path: string }> }>
+  return pack.files.map((file) => file.path)
+}
+
 describe('package portability', () => {
   beforeAll(() => {
     ensureDistArtifacts()
   })
 
+  const requiredPackageFiles = [
+    'dist/index.js',
+    'dist/index.mjs',
+    'dist/index.d.ts',
+    'dist/utils.js',
+    'dist/utils.mjs',
+    'dist/styles.css',
+    'dist/preload/preload.js',
+    'dist/vite.mjs',
+    'dist/vite.d.ts',
+    'dist/babel.cjs',
+    'README.md',
+    'LICENSE.md',
+  ] as const
+
   it('ships required runtime artifacts in bun pack output', () => {
-    const files = getPackedFiles()
+    expect(getPackedFiles()).toEqual(expect.arrayContaining([...requiredPackageFiles]))
+  })
+
+  it('ships required runtime artifacts in npm pack output', () => {
+    const files = getNpmPackedFiles()
     expect(files).toEqual(
       expect.arrayContaining([
-        'dist/index.js',
-        'dist/index.mjs',
-        'dist/index.d.ts',
-        'dist/utils.js',
-        'dist/utils.mjs',
-        'dist/styles.css',
-        'dist/preload/preload.js',
-        'dist/vite.mjs',
-        'dist/vite.d.ts',
-        'dist/babel.cjs',
-        'README.md',
-        'LICENSE.md',
+        ...requiredPackageFiles,
+        'dist/cli.cjs',
+        'package.json',
       ]),
     )
+  })
+
+  it('can run npm publish dry-run without package metadata corrections', () => {
+    const output = execSync('npm publish --dry-run --tag latest 2>&1', {
+      cwd: root,
+      encoding: 'utf8',
+    })
+
+    expect(output).toContain('made-refine@')
+    expect(output).not.toContain('auto-corrected')
   })
 
   it('loads built cjs/esm/vite entrypoints', async () => {
