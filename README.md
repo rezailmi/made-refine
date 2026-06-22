@@ -5,7 +5,7 @@
 Visual CSS editor for React. Edit styles in the browser, then copy agent-ready edits with component and file context.
 
 <p align="center">
-  <img src=".github/screenshot.png" alt="handmade visual editor" width="720" />
+  <img src="https://raw.githubusercontent.com/rezailmi/made-refine/main/.github/screenshot.png" alt="handmade visual editor" width="720" />
 </p>
 
 ## Quick start

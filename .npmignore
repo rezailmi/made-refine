@@ -1,0 +1,11 @@
+# Keep this file so npm does not fall back to .gitignore.
+# The package intentionally publishes generated files from dist/.
+node_modules/
+.claude/worktrees/
+.env
+.env.*
+*.log
+.DS_Store
+coverage/
+*.tgz
+.vite/

@@ -34,13 +34,13 @@
     "./preload.iife": "./dist/preload/preload.js"
   },
   "bin": {
-    "made-refine": "./dist/cli.cjs"
+    "made-refine": "dist/cli.cjs"
   },
   "sideEffects": true,
   "files": [
     "dist",
     "README.md",
-    "LICENSE"
+    "LICENSE.md"
   ],
   "keywords": [
     "react",
