@@ -1,0 +1,5 @@
+dist
+.claude
+node_modules
+bun.lock
+*.d.ts

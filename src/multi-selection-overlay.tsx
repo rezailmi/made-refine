@@ -12,7 +12,7 @@ export interface MultiSelectionOverlayProps {
   selectedElements: HTMLElement[]
 }
 
-function dedupeConnectedElements(elements: HTMLElement[]): HTMLElement[] {
+export function dedupeConnectedElements(elements: HTMLElement[]): HTMLElement[] {
   const seen = new Set<HTMLElement>()
   const result: HTMLElement[] = []
 
@@ -25,35 +25,40 @@ function dedupeConnectedElements(elements: HTMLElement[]): HTMLElement[] {
   return result
 }
 
-function getGroupBounds(rects: DOMRect[]) {
+export function getGroupBounds(rects: DOMRect[]) {
   if (rects.length === 0) {
     return { left: 0, top: 0, right: 0, bottom: 0 }
   }
-  return rects.reduce((bounds, rect) => ({
-    left: Math.min(bounds.left, rect.left),
-    top: Math.min(bounds.top, rect.top),
-    right: Math.max(bounds.right, rect.right),
-    bottom: Math.max(bounds.bottom, rect.bottom),
-  }), {
-    left: rects[0].left,
-    top: rects[0].top,
-    right: rects[0].right,
-    bottom: rects[0].bottom,
-  })
+  return rects.reduce(
+    (bounds, rect) => ({
+      left: Math.min(bounds.left, rect.left),
+      top: Math.min(bounds.top, rect.top),
+      right: Math.max(bounds.right, rect.right),
+      bottom: Math.max(bounds.bottom, rect.bottom),
+    }),
+    {
+      left: rects[0].left,
+      top: rects[0].top,
+      right: rects[0].right,
+      bottom: rects[0].bottom,
+    }
+  )
 }
 
 export function MultiSelectionOverlay({ selectedElements }: MultiSelectionOverlayProps) {
   const elements = React.useMemo(
     () => dedupeConnectedElements(selectedElements),
-    [selectedElements],
+    [selectedElements]
   )
   const [selectionRects, setSelectionRects] = React.useState<SelectionRect[]>([])
 
   const updateRects = React.useCallback(() => {
-    setSelectionRects(elements.map((element) => ({
-      element,
-      rect: element.getBoundingClientRect(),
-    })))
+    setSelectionRects(
+      elements.map((element) => ({
+        element,
+        rect: element.getBoundingClientRect(),
+      }))
+    )
   }, [elements])
 
   React.useLayoutEffect(() => {

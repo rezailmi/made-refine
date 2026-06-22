@@ -1,15 +1,12 @@
 import * as React from 'react'
-import type {
-  SizingPropertyKey,
-  SizingValue,
-  SizingChangeOptions,
-} from './types'
+import type { SizingPropertyKey, SizingValue, SizingChangeOptions } from './types'
 import { detectSizingMode } from './utils'
 import {
   clampSize,
   computeCornerProportionalSize,
   computeEdgeSize,
   computeFillRenderedWidth,
+  getElementScale,
   type ResizeHandle,
 } from './utils/resize-geometry'
 
@@ -19,8 +16,22 @@ const SNAP_OUT_PX = 6
 const EPSILON = 0.0001
 
 const EDGE_HANDLES = new Set<ResizeHandle>(['top', 'right', 'bottom', 'left'])
-const WIDTH_HANDLES = new Set<ResizeHandle>(['left', 'right', 'top-left', 'top-right', 'bottom-left', 'bottom-right'])
-const HEIGHT_HANDLES = new Set<ResizeHandle>(['top', 'bottom', 'top-left', 'top-right', 'bottom-left', 'bottom-right'])
+const WIDTH_HANDLES = new Set<ResizeHandle>([
+  'left',
+  'right',
+  'top-left',
+  'top-right',
+  'bottom-left',
+  'bottom-right',
+])
+const HEIGHT_HANDLES = new Set<ResizeHandle>([
+  'top',
+  'bottom',
+  'top-left',
+  'top-right',
+  'bottom-left',
+  'bottom-right',
+])
 
 interface UseSelectionResizeOptions {
   selectedElement: HTMLElement
@@ -73,12 +84,12 @@ export function useSelectionResize({
   const cleanupRef = React.useRef<(() => void) | null>(null)
   const txCounterRef = React.useRef(0)
 
-  const emitSizingChange = React.useCallback((
-    changes: Partial<Record<SizingPropertyKey, SizingValue>>,
-    options?: SizingChangeOptions
-  ) => {
-    onResizeSizingChange?.(changes, options)
-  }, [onResizeSizingChange])
+  const emitSizingChange = React.useCallback(
+    (changes: Partial<Record<SizingPropertyKey, SizingValue>>, options?: SizingChangeOptions) => {
+      onResizeSizingChange?.(changes, options)
+    },
+    [onResizeSizingChange]
+  )
 
   React.useEffect(() => {
     return () => {
@@ -87,137 +98,144 @@ export function useSelectionResize({
     }
   }, [])
 
-  const getResizeHandlePointerDown = React.useCallback((handle: ResizeHandle) => {
-    return (e: React.PointerEvent<HTMLElement>) => {
-      if (!enabled || !onResizeSizingChange) return
-      if (e.button !== 0) return
+  const getResizeHandlePointerDown = React.useCallback(
+    (handle: ResizeHandle) => {
+      return (e: React.PointerEvent<HTMLElement>) => {
+        if (!enabled || !onResizeSizingChange) return
+        if (e.button !== 0) return
 
-      e.preventDefault()
-      e.stopPropagation()
-      cleanupRef.current?.()
+        e.preventDefault()
+        e.stopPropagation()
+        cleanupRef.current?.()
 
-      const rect = selectedElement.getBoundingClientRect()
-      const offsetWidth = selectedElement.offsetWidth
-      const offsetHeight = selectedElement.offsetHeight
-      const startWidth = clampSize(offsetWidth > 0 ? offsetWidth : rect.width, MIN_SIZE_PX)
-      const startHeight = clampSize(offsetHeight > 0 ? offsetHeight : rect.height, MIN_SIZE_PX)
+        const rect = selectedElement.getBoundingClientRect()
+        const offsetWidth = selectedElement.offsetWidth
+        const offsetHeight = selectedElement.offsetHeight
+        const startWidth = clampSize(offsetWidth > 0 ? offsetWidth : rect.width, MIN_SIZE_PX)
+        const startHeight = clampSize(offsetHeight > 0 ? offsetHeight : rect.height, MIN_SIZE_PX)
 
-      const scaleX = Math.max(EPSILON, offsetWidth > 0 ? rect.width / offsetWidth : 1)
-      const scaleY = Math.max(EPSILON, offsetHeight > 0 ? rect.height / offsetHeight : 1)
-      const transactionId = `resize-${Date.now()}-${txCounterRef.current++}`
+        const { scaleX: rawScaleX, scaleY: rawScaleY } = getElementScale(selectedElement)
+        const scaleX = Math.max(EPSILON, rawScaleX)
+        const scaleY = Math.max(EPSILON, rawScaleY)
+        const transactionId = `resize-${Date.now()}-${txCounterRef.current++}`
 
-      const state: DragState = {
-        transactionId,
-        handle,
-        startClientX: e.clientX,
-        startClientY: e.clientY,
-        startWidth,
-        startHeight,
-        scaleX,
-        scaleY,
-        fillTargetWidth: computeFillRenderedWidth(selectedElement),
-        fillLocked: detectSizingMode(selectedElement, 'width') === 'fill',
-      }
+        const state: DragState = {
+          transactionId,
+          handle,
+          startClientX: e.clientX,
+          startClientY: e.clientY,
+          startWidth,
+          startHeight,
+          scaleX,
+          scaleY,
+          fillTargetWidth: computeFillRenderedWidth(selectedElement),
+          fillLocked: detectSizingMode(selectedElement, 'width') === 'fill',
+        }
 
-      emitSizingChange({}, { transactionId: state.transactionId, phase: 'start' })
+        emitSizingChange({}, { transactionId: state.transactionId, phase: 'start' })
 
-      const onPointerMove = (moveEvent: PointerEvent) => {
-        const dx = (moveEvent.clientX - state.startClientX) / state.scaleX
-        const dy = (moveEvent.clientY - state.startClientY) / state.scaleY
+        const onPointerMove = (moveEvent: PointerEvent) => {
+          const dx = (moveEvent.clientX - state.startClientX) / state.scaleX
+          const dy = (moveEvent.clientY - state.startClientY) / state.scaleY
 
-        const nextSize = isEdgeHandle(state.handle)
-          ? computeEdgeSize({
-              handle: state.handle,
-              startWidth: state.startWidth,
-              startHeight: state.startHeight,
-              dx,
-              dy,
-              minSize: MIN_SIZE_PX,
-            })
-          : computeCornerProportionalSize({
-              handle: state.handle,
-              startWidth: state.startWidth,
-              startHeight: state.startHeight,
-              dx,
-              dy,
-              minSize: MIN_SIZE_PX,
-            })
+          const nextSize = isEdgeHandle(state.handle)
+            ? computeEdgeSize({
+                handle: state.handle,
+                startWidth: state.startWidth,
+                startHeight: state.startHeight,
+                dx,
+                dy,
+                minSize: MIN_SIZE_PX,
+              })
+            : computeCornerProportionalSize({
+                handle: state.handle,
+                startWidth: state.startWidth,
+                startHeight: state.startHeight,
+                dx,
+                dy,
+                minSize: MIN_SIZE_PX,
+              })
 
-        const nextWidth = Math.max(MIN_SIZE_PX, Math.round(nextSize.width))
-        const nextHeight = Math.max(MIN_SIZE_PX, Math.round(nextSize.height))
-        const changes: Partial<Record<SizingPropertyKey, SizingValue>> = {}
+          const nextWidth = Math.max(MIN_SIZE_PX, Math.round(nextSize.width))
+          const nextHeight = Math.max(MIN_SIZE_PX, Math.round(nextSize.height))
+          const changes: Partial<Record<SizingPropertyKey, SizingValue>> = {}
 
-        if (WIDTH_HANDLES.has(state.handle)) {
-          if (state.fillTargetWidth !== null) {
-            const distance = Math.abs(nextWidth - state.fillTargetWidth)
-            if (state.fillLocked) {
-              if (distance > SNAP_OUT_PX) {
-                state.fillLocked = false
+          if (WIDTH_HANDLES.has(state.handle)) {
+            if (state.fillTargetWidth !== null) {
+              const distance = Math.abs(nextWidth - state.fillTargetWidth)
+              if (state.fillLocked) {
+                if (distance > SNAP_OUT_PX) {
+                  state.fillLocked = false
+                }
+              } else if (distance <= SNAP_IN_PX) {
+                state.fillLocked = true
               }
-            } else if (distance <= SNAP_IN_PX) {
-              state.fillLocked = true
+            } else {
+              state.fillLocked = false
             }
-          } else {
-            state.fillLocked = false
+
+            if (state.fillLocked) {
+              const fillWidth = state.fillTargetWidth ?? nextWidth
+              changes.width = createSizingValue('fill', fillWidth)
+            } else {
+              changes.width = createSizingValue('fixed', nextWidth)
+            }
           }
 
-          if (state.fillLocked) {
-            const fillWidth = state.fillTargetWidth ?? nextWidth
-            changes.width = createSizingValue('fill', fillWidth)
-          } else {
-            changes.width = createSizingValue('fixed', nextWidth)
+          if (HEIGHT_HANDLES.has(state.handle)) {
+            changes.height = createSizingValue('fixed', nextHeight)
           }
+
+          if (Object.keys(changes).length === 0) return
+
+          emitSizingChange(changes, { transactionId: state.transactionId, phase: 'update' })
         }
 
-        if (HEIGHT_HANDLES.has(state.handle)) {
-          changes.height = createSizingValue('fixed', nextHeight)
+        const stop = () => {
+          window.removeEventListener('pointermove', onPointerMove)
+          window.removeEventListener('pointerup', stop)
+          window.removeEventListener('pointercancel', stop)
+          window.removeEventListener('blur', stop)
+          cleanupRef.current = null
+          emitSizingChange({}, { transactionId: state.transactionId, phase: 'end' })
         }
 
-        if (Object.keys(changes).length === 0) return
-
-        emitSizingChange(changes, { transactionId: state.transactionId, phase: 'update' })
+        cleanupRef.current = stop
+        window.addEventListener('pointermove', onPointerMove)
+        window.addEventListener('pointerup', stop)
+        window.addEventListener('pointercancel', stop)
+        window.addEventListener('blur', stop)
       }
+    },
+    [emitSizingChange, enabled, onResizeSizingChange, selectedElement]
+  )
 
-      const stop = () => {
-        window.removeEventListener('pointermove', onPointerMove)
-        window.removeEventListener('pointerup', stop)
-        window.removeEventListener('pointercancel', stop)
-        window.removeEventListener('blur', stop)
-        cleanupRef.current = null
-        emitSizingChange({}, { transactionId: state.transactionId, phase: 'end' })
+  const getResizeHandleDoubleClick = React.useCallback(
+    (handle: ResizeHandle) => {
+      return (e: React.MouseEvent<HTMLElement>) => {
+        if (!enabled || !onResizeSizingChange) return
+        if (!isEdgeHandle(handle)) return
+        const hasElementChildren = selectedElement.children.length > 0
+        const hasTextContent = Boolean(selectedElement.textContent?.trim())
+        const isEligibleElement = hasElementChildren || hasTextContent
+        if (!isEligibleElement) return
+
+        e.preventDefault()
+        e.stopPropagation()
+
+        const rect = selectedElement.getBoundingClientRect()
+        const width = Math.max(MIN_SIZE_PX, Math.round(rect.width))
+        const height = Math.max(MIN_SIZE_PX, Math.round(rect.height))
+
+        if (handle === 'left' || handle === 'right') {
+          emitSizingChange({ width: createSizingValue('fit', width) })
+        } else {
+          emitSizingChange({ height: createSizingValue('fit', height) })
+        }
       }
-
-      cleanupRef.current = stop
-      window.addEventListener('pointermove', onPointerMove)
-      window.addEventListener('pointerup', stop)
-      window.addEventListener('pointercancel', stop)
-      window.addEventListener('blur', stop)
-    }
-  }, [emitSizingChange, enabled, onResizeSizingChange, selectedElement])
-
-  const getResizeHandleDoubleClick = React.useCallback((handle: ResizeHandle) => {
-    return (e: React.MouseEvent<HTMLElement>) => {
-      if (!enabled || !onResizeSizingChange) return
-      if (!isEdgeHandle(handle)) return
-      const hasElementChildren = selectedElement.children.length > 0
-      const hasTextContent = Boolean(selectedElement.textContent?.trim())
-      const isEligibleElement = hasElementChildren || hasTextContent
-      if (!isEligibleElement) return
-
-      e.preventDefault()
-      e.stopPropagation()
-
-      const rect = selectedElement.getBoundingClientRect()
-      const width = Math.max(MIN_SIZE_PX, Math.round(rect.width))
-      const height = Math.max(MIN_SIZE_PX, Math.round(rect.height))
-
-      if (handle === 'left' || handle === 'right') {
-        emitSizingChange({ width: createSizingValue('fit', width) })
-      } else {
-        emitSizingChange({ height: createSizingValue('fit', height) })
-      }
-    }
-  }, [emitSizingChange, enabled, onResizeSizingChange, selectedElement])
+    },
+    [emitSizingChange, enabled, onResizeSizingChange, selectedElement]
+  )
 
   return {
     getResizeHandlePointerDown,

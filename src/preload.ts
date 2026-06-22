@@ -30,6 +30,8 @@ type DevToolsHook = {
 const fiberRoots = new Map<number, Set<FiberRoot>>()
 let elementToFiber = new WeakMap<HTMLElement, Fiber>()
 let indexDirty = true
+// Bump when the __DIRECT_EDIT_DEVTOOLS__ bridge shape changes incompatibly.
+const DEVTOOLS_HOOK_VERSION = 1
 
 function ensureRootSet(rendererId: number): Set<FiberRoot> {
   let set = fiberRoots.get(rendererId)
@@ -140,7 +142,11 @@ function installHook() {
   if (typeof window === 'undefined') return
   const globalWindow = window as Window & {
     __REACT_DEVTOOLS_GLOBAL_HOOK__?: DevToolsHook
-    __DIRECT_EDIT_DEVTOOLS__?: { getFiberForElement: (element: HTMLElement) => Fiber | null; hasHook: boolean }
+    __DIRECT_EDIT_DEVTOOLS__?: {
+      getFiberForElement: (element: HTMLElement) => Fiber | null
+      hasHook: boolean
+      version?: number
+    }
   }
 
   if (globalWindow.__DIRECT_EDIT_DEVTOOLS__?.hasHook) return
@@ -155,6 +161,7 @@ function installHook() {
   globalWindow.__DIRECT_EDIT_DEVTOOLS__ = {
     getFiberForElement,
     hasHook: true,
+    version: DEVTOOLS_HOOK_VERSION,
   }
 }
 

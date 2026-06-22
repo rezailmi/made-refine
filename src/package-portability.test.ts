@@ -19,7 +19,9 @@ const requiredDistArtifacts = [
 ] as const
 
 function ensureDistArtifacts() {
-  const missing = requiredDistArtifacts.some((relativePath) => !existsSync(path.join(root, relativePath)))
+  const missing = requiredDistArtifacts.some(
+    (relativePath) => !existsSync(path.join(root, relativePath))
+  )
   if (!missing) return
   execSync('bun run build', { cwd: root, stdio: 'pipe' })
 }
@@ -42,6 +44,14 @@ function getNpmPackedFiles(): string[] {
   })
   const [pack] = JSON.parse(output) as Array<{ files: Array<{ path: string }> }>
   return pack.files.map((file) => file.path)
+}
+
+function outputFromPublishDryRunError(error: unknown): string | null {
+  const maybeError = error as { stdout?: Buffer | string; stderr?: Buffer | string }
+  const stdout = maybeError.stdout?.toString() ?? ''
+  const stderr = maybeError.stderr?.toString() ?? ''
+  const output = `${stdout}${stderr}`
+  return output.includes('previously published versions') ? output : null
 }
 
 describe('package portability', () => {
@@ -71,19 +81,22 @@ describe('package portability', () => {
   it('ships required runtime artifacts in npm pack output', () => {
     const files = getNpmPackedFiles()
     expect(files).toEqual(
-      expect.arrayContaining([
-        ...requiredPackageFiles,
-        'dist/cli.cjs',
-        'package.json',
-      ]),
+      expect.arrayContaining([...requiredPackageFiles, 'dist/cli.cjs', 'package.json'])
     )
   })
 
   it('can run npm publish dry-run without package metadata corrections', () => {
-    const output = execSync('npm publish --dry-run --tag latest 2>&1', {
-      cwd: root,
-      encoding: 'utf8',
-    })
+    let output: string
+    try {
+      output = execSync('npm publish --dry-run --tag latest 2>&1', {
+        cwd: root,
+        encoding: 'utf8',
+      })
+    } catch (error) {
+      const registryCollisionOutput = outputFromPublishDryRunError(error)
+      if (!registryCollisionOutput) throw error
+      output = registryCollisionOutput
+    }
 
     expect(output).toContain('made-refine@')
     expect(output).not.toContain('auto-corrected')
@@ -102,10 +115,10 @@ describe('package portability', () => {
     const cjs = require(cjsPath) as { DirectEdit?: unknown }
     expect(typeof cjs.DirectEdit).toBe('function')
 
-    const esm = await import(pathToFileURL(esmPath).href) as { DirectEdit?: unknown }
+    const esm = (await import(pathToFileURL(esmPath).href)) as { DirectEdit?: unknown }
     expect(typeof esm.DirectEdit).toBe('function')
 
-    const vite = await import(pathToFileURL(vitePath).href) as { madeRefine?: () => unknown }
+    const vite = (await import(pathToFileURL(vitePath).href)) as { madeRefine?: () => unknown }
     expect(typeof vite.madeRefine).toBe('function')
   })
 
@@ -117,7 +130,7 @@ describe('package portability', () => {
   })
 
   it('injects preload script and source markers through the Vite plugin in dev mode', async () => {
-    const { madeRefine } = await import(pathToFileURL(path.join(root, 'dist/vite.mjs')).href) as {
+    const { madeRefine } = (await import(pathToFileURL(path.join(root, 'dist/vite.mjs')).href)) as {
       madeRefine: () => {
         configResolved?: (config: unknown) => void
         transformIndexHtml?: { handler: (html: string) => string | Promise<string> }
@@ -131,11 +144,16 @@ describe('package portability', () => {
       root: path.join(root, 'dev'),
     })
 
-    const htmlResult = await plugin.transformIndexHtml?.handler('<html><head></head><body></body></html>')
+    const htmlResult = await plugin.transformIndexHtml?.handler(
+      '<html><head></head><body></body></html>'
+    )
     expect(htmlResult).toContain('/@fs/')
     expect(htmlResult).toContain('/preload/preload.js')
 
-    const transformed = plugin.transform?.('<div>\n  <button>Hi</button>\n</div>', path.join(root, 'dev/App.tsx'))
+    const transformed = plugin.transform?.(
+      '<div>\n  <button>Hi</button>\n</div>',
+      path.join(root, 'dev/App.tsx')
+    )
     expect(transformed).not.toBeNull()
     expect(transformed?.code).toContain('data-direct-edit-source="App.tsx:1:1"')
     expect(transformed?.code).toContain('data-direct-edit-source="App.tsx:2:3"')

@@ -29,6 +29,7 @@ describe('preload fiber index', () => {
     await import('./preload')
     const hook = window.__REACT_DEVTOOLS_GLOBAL_HOOK__
     expect(hook).toBeDefined()
+    expect(window.__DIRECT_EDIT_DEVTOOLS__?.version).toBe(1)
 
     const el = document.createElement('div')
     const fiber = makeFiberEl(el)

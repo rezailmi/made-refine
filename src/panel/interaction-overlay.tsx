@@ -18,10 +18,19 @@ interface MarqueeRect {
 // Safe wrapper: elementFromPoint is unavailable in jsdom (tests).
 // Returns null instead of throwing so capture handlers degrade gracefully.
 function safeElementFromPoint(x: number, y: number): HTMLElement | null {
-  try { return _elementFromPointWithoutOverlays(x, y) } catch { return null }
+  try {
+    return _elementFromPointWithoutOverlays(x, y)
+  } catch {
+    return null
+  }
 }
 
-function normalizeMarqueeRect(originX: number, originY: number, clientX: number, clientY: number): MarqueeRect {
+export function normalizeMarqueeRect(
+  originX: number,
+  originY: number,
+  clientX: number,
+  clientY: number
+): MarqueeRect {
   const left = Math.min(originX, clientX)
   const top = Math.min(originY, clientY)
   return {
@@ -32,20 +41,25 @@ function normalizeMarqueeRect(originX: number, originY: number, clientX: number,
   }
 }
 
-function rectsIntersect(a: MarqueeRect, b: DOMRect): boolean {
+export function rectsIntersect(a: MarqueeRect, b: DOMRect): boolean {
   return !(
-    a.left + a.width < b.left
-    || b.right < a.left
-    || a.top + a.height < b.top
-    || b.bottom < a.top
+    a.left + a.width < b.left ||
+    b.right < a.left ||
+    a.top + a.height < b.top ||
+    b.bottom < a.top
   )
 }
 
-function isSelectableElement(element: Element): element is HTMLElement {
+export function isSelectableElement(element: Element): element is HTMLElement {
   if (!(element instanceof HTMLElement)) return false
   if (!element.isConnected) return false
   if (element === document.body || element === document.documentElement) return false
-  if (element.matches('[data-direct-edit], [data-direct-edit-host], script, style, link, meta, noscript')) return false
+  if (
+    element.matches(
+      '[data-direct-edit], [data-direct-edit-host], script, style, link, meta, noscript'
+    )
+  )
+    return false
 
   const rect = element.getBoundingClientRect()
   if (rect.width <= 0 || rect.height <= 0) return false
@@ -58,7 +72,7 @@ function isSelectableElement(element: Element): element is HTMLElement {
   return true
 }
 
-function compareDomOrder(a: HTMLElement, b: HTMLElement): number {
+export function compareDomOrder(a: HTMLElement, b: HTMLElement): number {
   if (a === b) return 0
   const position = a.compareDocumentPosition(b)
   if (position & Node.DOCUMENT_POSITION_FOLLOWING) return -1
@@ -71,9 +85,9 @@ function collectMarqueeTargets(rect: MarqueeRect): HTMLElement[] {
     .filter(isSelectableElement)
     .filter((element) => rectsIntersect(rect, element.getBoundingClientRect()))
 
-  const deepestHits = hits.filter((element) => (
-    !hits.some((other) => other !== element && element.contains(other))
-  ))
+  const deepestHits = hits.filter(
+    (element) => !hits.some((other) => other !== element && element.contains(other))
+  )
 
   deepestHits.sort(compareDomOrder)
   return deepestHits
@@ -98,7 +112,9 @@ export interface InteractionOverlayProps {
   onStartTextEditing: (element: HTMLElement) => void
   onAddComment: (element: HTMLElement, position: { x: number; y: number }) => void
   onSetActiveCommentId: (id: string | null) => void
-  onSetHoverHighlight: (highlight: { flexContainer: HTMLElement; children: HTMLElement[] } | null) => void
+  onSetHoverHighlight: (
+    highlight: { flexContainer: HTMLElement; children: HTMLElement[] } | null
+  ) => void
   hasPendingCommentDraft: () => boolean
 }
 
@@ -133,14 +149,12 @@ function useInteractionCapture(props: InteractionOverlayProps): MarqueeRect | nu
     const suppressClickRef = { current: false }
     let lastMouseX = 0
     let lastMouseY = 0
-    let dragSession:
-      | {
-          originX: number
-          originY: number
-          additive: boolean
-          marqueeStarted: boolean
-        }
-      | null = null
+    let dragSession: {
+      originX: number
+      originY: number
+      additive: boolean
+      marqueeStarted: boolean
+    } | null = null
 
     function isStale(): boolean {
       return !host || !host.isConnected
@@ -150,11 +164,12 @@ function useInteractionCapture(props: InteractionOverlayProps): MarqueeRect | nu
       if (!host) return false
       const origin = e.composedPath()[0]
       if (!(origin instanceof Node)) return false
-      if (origin instanceof Element && (
-        origin.matches('[data-direct-edit="overlay"]')
-        || origin.matches('[data-direct-edit="hover-highlight"]')
-        || origin.matches('[data-direct-edit="marquee-select"]')
-      )) {
+      if (
+        origin instanceof Element &&
+        (origin.matches('[data-direct-edit="overlay"]') ||
+          origin.matches('[data-direct-edit="hover-highlight"]') ||
+          origin.matches('[data-direct-edit="marquee-select"]'))
+      ) {
         return false
       }
       if (origin === host || host.contains(origin)) return true
@@ -184,9 +199,10 @@ function useInteractionCapture(props: InteractionOverlayProps): MarqueeRect | nu
       if (p.hasPendingCommentDraft()) return
 
       const elementUnder = safeElementFromPoint(e.clientX, e.clientY)
-      const target = (elementUnder && elementUnder !== document.body && elementUnder !== document.documentElement)
-        ? resolveElementTarget(elementUnder, p.selectedElement)
-        : null
+      const target =
+        elementUnder && elementUnder !== document.body && elementUnder !== document.documentElement
+          ? resolveElementTarget(elementUnder, p.selectedElement)
+          : null
 
       if (p.activeCommentId) {
         p.onSetActiveCommentId(null)
@@ -225,7 +241,11 @@ function useInteractionCapture(props: InteractionOverlayProps): MarqueeRect | nu
 
       const p = propsRef.current
       const elementUnder = safeElementFromPoint(e.clientX, e.clientY)
-      if (elementUnder && elementUnder !== document.body && elementUnder !== document.documentElement) {
+      if (
+        elementUnder &&
+        elementUnder !== document.body &&
+        elementUnder !== document.documentElement
+      ) {
         const resolved = resolveElementTarget(elementUnder, p.selectedElement)
         if (isTextElement(resolved)) {
           if (p.selectedElement !== resolved) p.onSelectElement(resolved)
@@ -269,7 +289,7 @@ function useInteractionCapture(props: InteractionOverlayProps): MarqueeRect | nu
         dragSession.originX,
         dragSession.originY,
         e.clientX,
-        e.clientY,
+        e.clientY
       )
 
       propsRef.current.onSetHoverHighlight(null)
@@ -422,46 +442,47 @@ export function InteractionOverlay(props: InteractionOverlayProps) {
         />
       )}
 
-      {hoverHighlight && (() => {
-        const cr = hoverHighlight.flexContainer.getBoundingClientRect()
-        return (
-          <div
-            data-direct-edit="hover-highlight"
-            className="pointer-events-none fixed inset-0 z-[99991]"
-          >
+      {hoverHighlight &&
+        (() => {
+          const cr = hoverHighlight.flexContainer.getBoundingClientRect()
+          return (
             <div
-              style={{
-                position: 'absolute',
-                left: cr.left,
-                top: cr.top,
-                width: cr.width,
-                height: cr.height,
-                border: '1px solid #3b82f6',
-                borderRadius: '0px',
-                boxSizing: 'border-box',
-              }}
-            />
-            {hoverHighlight.children.map((child) => {
-              const r = child.getBoundingClientRect()
-              return (
-                <div
-                  key={`${r.left}-${r.top}-${r.width}-${r.height}`}
-                  style={{
-                    position: 'absolute',
-                    left: r.left,
-                    top: r.top,
-                    width: r.width,
-                    height: r.height,
-                    border: '1px dashed #3b82f6',
-                    borderRadius: '0px',
-                    boxSizing: 'border-box',
-                  }}
-                />
-              )
-            })}
-          </div>
-        )
-      })()}
+              data-direct-edit="hover-highlight"
+              className="pointer-events-none fixed inset-0 z-[99991]"
+            >
+              <div
+                style={{
+                  position: 'absolute',
+                  left: cr.left,
+                  top: cr.top,
+                  width: cr.width,
+                  height: cr.height,
+                  border: '1px solid #3b82f6',
+                  borderRadius: '0px',
+                  boxSizing: 'border-box',
+                }}
+              />
+              {hoverHighlight.children.map((child) => {
+                const r = child.getBoundingClientRect()
+                return (
+                  <div
+                    key={`${r.left}-${r.top}-${r.width}-${r.height}`}
+                    style={{
+                      position: 'absolute',
+                      left: r.left,
+                      top: r.top,
+                      width: r.width,
+                      height: r.height,
+                      border: '1px dashed #3b82f6',
+                      borderRadius: '0px',
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                )
+              })}
+            </div>
+          )
+        })()}
     </>
   )
 }
