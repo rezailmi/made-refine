@@ -36,6 +36,7 @@ import {
   getSelectionColors,
   parseColorValue,
   getElementDisplayName,
+  invalidateColorTokenIndex,
 } from './utils'
 import { InteractionOverlay } from './panel/interaction-overlay'
 import { SelectedCommentComposer } from './panel/selected-comment-composer'
@@ -272,6 +273,12 @@ export function DirectEditPanelInner({
   )
   const { scrollRef, activeSection } = useSectionNav(sectionRefs)
 
+  // Re-read the host app's design tokens when the selected element changes, so a
+  // stale module-level color-token index never sticks (e.g. after a theme toggle).
+  React.useEffect(() => {
+    invalidateColorTokenIndex()
+  }, [elementInfo])
+
   return (
     <TooltipProvider delayDuration={200}>
       <div
@@ -352,6 +359,7 @@ export function DirectEditPanelInner({
                 backgroundColor={computedColor.backgroundColor}
                 onSetCSS={onSetCSS}
                 pendingStyles={pendingStyles}
+                classList={elementInfo.classList}
               />
             </div>
           )}
@@ -368,6 +376,7 @@ export function DirectEditPanelInner({
               onOutlineColorChange={(value) => onUpdateColor('outlineColor', value)}
               onSetCSS={onSetCSS}
               pendingStyles={pendingStyles}
+              classList={elementInfo.classList}
             />
           </div>
 
@@ -415,6 +424,7 @@ export function DirectEditPanelInner({
                   hasTextContent={elementInfo.isTextElement}
                   showBorderColor={computedColor.borderColor.alpha > 0}
                   showOutlineColor={computedColor.outlineColor.alpha > 0}
+                  classList={elementInfo.classList}
                 />
               </CollapsibleSection>
             </div>

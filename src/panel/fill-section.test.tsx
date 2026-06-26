@@ -1,7 +1,8 @@
 import * as React from 'react'
 import { act, cleanup, render, fireEvent } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { BackgroundFillSection } from './fill-section'
+import { BackgroundFillSection, ColorInput, FillSection } from './fill-section'
+import { invalidateColorTokenIndex } from '../utils/design-tokens'
 import type { ColorValue } from '../types'
 
 vi.mock('../ui/tooltip', () => ({
@@ -132,5 +133,69 @@ describe('BackgroundFillSection', () => {
     })
 
     expect(container.querySelectorAll('input[type="text"]').length).toBe(2)
+  })
+})
+
+describe('ColorInput token awareness', () => {
+  const visibleColor: ColorValue = { hex: 'FF0000', alpha: 100, raw: '#FF0000' }
+
+  it('with no token renders the hex input (today behavior)', () => {
+    const { container } = render(<ColorInput value={visibleColor} onChange={vi.fn()} />)
+    expect(container.querySelector('input[type="text"]')).not.toBeNull()
+  })
+
+  it('with a token renders the chip label and not the inline hex input', () => {
+    const { container } = render(
+      <ColorInput value={visibleColor} onChange={vi.fn()} token="--color-primary" />,
+    )
+    expect(container.textContent).toContain('--color-primary')
+    // The hex/alpha inputs move into the (closed) popover, so they are not in the row.
+    expect(container.querySelector('input')).toBeNull()
+  })
+})
+
+describe('FillSection token resolution', () => {
+  let injectedStyle: HTMLStyleElement | null = null
+
+  afterEach(() => {
+    injectedStyle?.remove()
+    injectedStyle = null
+    invalidateColorTokenIndex()
+  })
+
+  function injectThemeStyle(css: string) {
+    const el = document.createElement('style')
+    el.textContent = css
+    document.head.appendChild(el)
+    injectedStyle = el
+    invalidateColorTokenIndex()
+  }
+
+  it('renders a token chip when the text color is bound to a theme variable', () => {
+    injectThemeStyle(':root{--color-foreground:#FAFAFA}')
+    const foreground: ColorValue = { hex: 'FAFAFA', alpha: 100, raw: '#FAFAFA' }
+    const { container } = render(
+      <FillSection
+        textColor={foreground}
+        onTextChange={vi.fn()}
+        hasTextContent
+        classList={['text-foreground']}
+      />,
+    )
+    expect(container.textContent).toContain('--color-foreground')
+  })
+
+  it('falls back to the plain hex input when no token matches', () => {
+    const orphan: ColorValue = { hex: '123456', alpha: 100, raw: '#123456' }
+    const { container } = render(
+      <FillSection
+        textColor={orphan}
+        onTextChange={vi.fn()}
+        hasTextContent
+        classList={[]}
+      />,
+    )
+    expect(container.querySelector('input[type="text"]')).not.toBeNull()
+    expect(container.textContent).not.toContain('--color-')
   })
 })
