@@ -86,13 +86,20 @@ function parseNamedColor(name: string): ColorValue {
     return { hex: '000000', alpha: 100, raw: name }
   }
 
+  // Paint one pixel and read it back. Round-tripping ctx.fillStyle as a string
+  // fails for oklch/lab/lch/color() (Chrome returns them unchanged); rasterizing
+  // forces real sRGB bytes. The clearRect before each paint makes the cached
+  // context safe to reuse across calls.
+  ctx.clearRect(0, 0, 1, 1)
+  ctx.fillStyle = '#000000' // reset so an unparseable value yields the old black fallback
   ctx.fillStyle = name
-  const computed = ctx.fillStyle
-
-  if (computed.startsWith('#')) {
-    return parseHexColor(computed)
-  }
-  return parseRgbaColor(computed)
+  ctx.fillRect(0, 0, 1, 1)
+  const [r, g, b, a] = ctx.getImageData(0, 0, 1, 1).data
+  const hex = [r, g, b]
+    .map((v) => v.toString(16).padStart(2, '0'))
+    .join('')
+    .toUpperCase()
+  return { hex, alpha: Math.round((a / 255) * 100), raw: name }
 }
 
 export function parseColorValue(cssValue: string): ColorValue {

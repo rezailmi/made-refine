@@ -1,7 +1,9 @@
 import * as React from 'react'
 import { act, cleanup, render, fireEvent } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { BackgroundFillSection } from './fill-section'
+import { BackgroundFillSection, ColorInput, FillSection } from './fill-section'
+import { invalidateColorTokenIndex } from '../utils/design-tokens'
+import { formatColorValue } from '../ui/color-utils'
 import type { ColorValue } from '../types'
 
 vi.mock('../ui/tooltip', () => ({
@@ -132,5 +134,110 @@ describe('BackgroundFillSection', () => {
     })
 
     expect(container.querySelectorAll('input[type="text"]').length).toBe(2)
+  })
+})
+
+describe('ColorInput token awareness', () => {
+  const visibleColor: ColorValue = { hex: 'FF0000', alpha: 100, raw: '#FF0000' }
+
+  it('with no token renders the hex input (today behavior)', () => {
+    const { container } = render(<ColorInput value={visibleColor} onChange={vi.fn()} />)
+    expect(container.querySelector('input[type="text"]')).not.toBeNull()
+  })
+
+  it('with a token renders the chip label and not the inline hex input', () => {
+    const { container } = render(
+      <ColorInput value={visibleColor} onChange={vi.fn()} token="--color-primary" />,
+    )
+    expect(container.textContent).toContain('--color-primary')
+    // The hex/alpha inputs move into the (closed) popover, so they are not in the row.
+    expect(container.querySelector('input')).toBeNull()
+  })
+})
+
+describe('FillSection token resolution', () => {
+  let injectedStyle: HTMLStyleElement | null = null
+
+  afterEach(() => {
+    injectedStyle?.remove()
+    injectedStyle = null
+    invalidateColorTokenIndex()
+  })
+
+  function injectThemeStyle(css: string) {
+    const el = document.createElement('style')
+    el.textContent = css
+    document.head.appendChild(el)
+    injectedStyle = el
+    invalidateColorTokenIndex()
+  }
+
+  it('renders a token chip when the text color is bound to a theme variable', () => {
+    injectThemeStyle(':root{--color-foreground:#FAFAFA}')
+    const foreground: ColorValue = { hex: 'FAFAFA', alpha: 100, raw: '#FAFAFA' }
+    const { container } = render(
+      <FillSection
+        textColor={foreground}
+        onTextChange={vi.fn()}
+        hasTextContent
+        classList={['text-foreground']}
+      />,
+    )
+    expect(container.textContent).toContain('--color-foreground')
+  })
+
+  it('falls back to the plain hex input when no token matches', () => {
+    const orphan: ColorValue = { hex: '123456', alpha: 100, raw: '#123456' }
+    const { container } = render(
+      <FillSection
+        textColor={orphan}
+        onTextChange={vi.fn()}
+        hasTextContent
+        classList={[]}
+      />,
+    )
+    expect(container.querySelector('input[type="text"]')).not.toBeNull()
+    expect(container.textContent).not.toContain('--color-')
+  })
+
+  it('renders the chip for a value whose .token is set (picker binding)', () => {
+    const bound: ColorValue = {
+      hex: '3B82F6',
+      alpha: 100,
+      raw: 'var(--color-primary)',
+      token: '--color-primary',
+    }
+    const { container } = render(
+      <FillSection textColor={bound} onTextChange={vi.fn()} hasTextContent classList={[]} />,
+    )
+    expect(container.textContent).toContain('--color-primary')
+  })
+
+  it('recovers the chip from a var() in pendingStyles', () => {
+    const literal: ColorValue = { hex: '3B82F6', alpha: 100, raw: '#3B82F6' }
+    const { container } = render(
+      <FillSection
+        textColor={literal}
+        onTextChange={vi.fn()}
+        hasTextContent
+        classList={[]}
+        pendingStyles={{ color: 'var(--color-primary)' }}
+      />,
+    )
+    expect(container.textContent).toContain('--color-primary')
+  })
+})
+
+describe('formatColorValue token binding', () => {
+  it('returns var(--token) when token is set', () => {
+    expect(
+      formatColorValue({ hex: '3B82F6', alpha: 100, raw: '', token: '--color-primary' }),
+    ).toBe('var(--color-primary)')
+  })
+
+  it('wraps a translucent bound token in color-mix', () => {
+    expect(
+      formatColorValue({ hex: '3B82F6', alpha: 50, raw: '', token: '--color-primary' }),
+    ).toBe('color-mix(in srgb, var(--color-primary) 50%, transparent)')
   })
 })

@@ -1,3 +1,5 @@
+import './theme.css'
+
 // Install React DevTools hook before React initializes
 import '../src/preload'
 

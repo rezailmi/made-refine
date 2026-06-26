@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, afterEach, vi } from 'vitest'
 import { parseColorValue } from './color'
 
 describe('parseColorValue', () => {
@@ -100,6 +100,31 @@ describe('parseColorValue', () => {
       // so unrecognized values fall through to named color path.
       // We just verify it doesn't throw.
       expect(() => parseColorValue('not-a-color')).not.toThrow()
+    })
+  })
+
+  describe('rasterized color path (oklch/lab/lch)', () => {
+    afterEach(() => vi.restoreAllMocks())
+
+    it('reads the painted pixel for oklch input', () => {
+      // jsdom has no real canvas, so stub the 2D context to return a known
+      // pixel. This exercises the fillRect + getImageData rasterization path
+      // that handles oklch/lab/lch/color() in a real browser.
+      const fake = {
+        clearRect: vi.fn(),
+        fillRect: vi.fn(),
+        set fillStyle(_v: string) {},
+        get fillStyle() {
+          return '#000000'
+        },
+        getImageData: () => ({ data: new Uint8ClampedArray([26, 26, 26, 255]) }),
+      } as unknown as CanvasRenderingContext2D
+      vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(
+        fake as never
+      )
+      const result = parseColorValue('oklch(0.205 0 0)')
+      expect(result.hex).toBe('1A1A1A')
+      expect(result.alpha).toBe(100)
     })
   })
 })

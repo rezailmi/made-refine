@@ -1,6 +1,10 @@
 import type { ColorValue } from '../types'
 
 export function formatColorValue(color: ColorValue): string {
+  if (color.token) {
+    if (color.alpha >= 100) return `var(${color.token})`
+    return `color-mix(in srgb, var(${color.token}) ${color.alpha}%, transparent)`
+  }
   const r = parseInt(color.hex.slice(0, 2), 16)
   const g = parseInt(color.hex.slice(2, 4), 16)
   const b = parseInt(color.hex.slice(4, 6), 16)

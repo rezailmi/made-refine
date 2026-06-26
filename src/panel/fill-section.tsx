@@ -6,6 +6,13 @@ import { parseFillLayers, serializeFillLayers } from '../fill-utils'
 import { CollapsibleSection, Tip, useEchoGuardedInput } from './shared'
 import { Button } from '../ui/button'
 import { LocateFixed, Plus, Minus } from 'lucide-react'
+import { TokenChip } from './token-chip'
+import {
+  getColorTokenIndex,
+  resolveColorToken,
+  getTokenAliasChain,
+  tokenFromCssValue,
+} from '../utils/design-tokens'
 
 const MAX_LAYER_COUNT = 16
 
@@ -14,9 +21,13 @@ interface ColorInputProps {
   value: ColorValue
   onChange: (value: ColorValue) => void
   className?: string
+  /** Bound CSS variable name (e.g. '--color-primary'); when set, shows a token chip. */
+  token?: string | null
+  /** Ordered alias chain for the popover, from getTokenAliasChain(). */
+  aliasChain?: string[]
 }
 
-export function ColorInput({ id, value, onChange, className }: ColorInputProps) {
+export function ColorInput({ id, value, onChange, className, token, aliasChain }: ColorInputProps) {
   const hex = useEchoGuardedInput(value.hex)
   const alpha = useEchoGuardedInput(value.alpha.toString())
 
@@ -48,46 +59,81 @@ export function ColorInput({ id, value, onChange, className }: ColorInputProps) 
     }
   }
 
+  const hexAlphaInputs = (
+    <>
+      {/* Hex input */}
+      <input
+        type="text"
+        value={hex.localValue}
+        onChange={(e) => handleHexChange(e.target.value)}
+        onFocus={hex.handleFocus}
+        onBlur={hex.handleBlur}
+        className="h-full w-[68px] bg-transparent px-2 font-mono text-xs uppercase outline-none"
+        maxLength={6}
+        placeholder="FFFFFF"
+      />
+
+      {/* Separator */}
+      <span className="text-xs text-muted-foreground">/</span>
+
+      {/* Opacity input */}
+      <input
+        type="number"
+        value={alpha.localValue}
+        onChange={(e) => handleAlphaChange(e.target.value)}
+        onFocus={alpha.handleFocus}
+        onBlur={alpha.handleBlur}
+        className="h-full w-10 bg-transparent px-1 text-center text-xs tabular-nums outline-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none [appearance:textfield]"
+        min={0}
+        max={100}
+      />
+      <span className="pr-2 text-xs text-muted-foreground">%</span>
+    </>
+  )
+
+  // No bound token: render exactly today's row.
+  if (!token) {
+    return (
+      <div className={className}>
+        <div className="flex h-7 items-center rounded-md border-0 bg-muted">
+          {/* Color swatch with popover picker */}
+          <div className="ml-1">
+            <ColorPickerPopover id={id} value={value} onChange={onChange}>
+              <div
+                className="size-5 cursor-pointer rounded-sm shadow-[inset_0_0_0_1px_rgba(0,0,0,0.1)]"
+                style={{ backgroundColor: `#${value.hex}` }}
+              />
+            </ColorPickerPopover>
+          </div>
+          {hexAlphaInputs}
+        </div>
+      </div>
+    )
+  }
+
+  // Token mode: swatch still opens the HSV picker; chip shows the bound variable
+  // and opens a popover with the alias chain + the same hex/alpha editors.
   return (
     <div className={className}>
-      <div className="flex h-7 items-center rounded-md border-0 bg-muted">
-        {/* Color swatch with popover picker */}
-        <div className="ml-1">
-          <ColorPickerPopover id={id} value={value} onChange={onChange}>
-            <div
-              className="size-5 cursor-pointer rounded-sm shadow-[inset_0_0_0_1px_rgba(0,0,0,0.1)]"
-              style={{ backgroundColor: `#${value.hex}` }}
-            />
-          </ColorPickerPopover>
-        </div>
-
-        {/* Hex input */}
-        <input
-          type="text"
-          value={hex.localValue}
-          onChange={(e) => handleHexChange(e.target.value)}
-          onFocus={hex.handleFocus}
-          onBlur={hex.handleBlur}
-          className="h-full w-[68px] bg-transparent px-2 font-mono text-xs uppercase outline-none"
-          maxLength={6}
-          placeholder="FFFFFF"
-        />
-
-        {/* Separator */}
-        <span className="text-xs text-muted-foreground">/</span>
-
-        {/* Opacity input */}
-        <input
-          type="number"
-          value={alpha.localValue}
-          onChange={(e) => handleAlphaChange(e.target.value)}
-          onFocus={alpha.handleFocus}
-          onBlur={alpha.handleBlur}
-          className="h-full w-10 bg-transparent px-1 text-center text-xs tabular-nums outline-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none [appearance:textfield]"
-          min={0}
-          max={100}
-        />
-        <span className="pr-2 text-xs text-muted-foreground">%</span>
+      <div className="flex items-center gap-1">
+        <ColorPickerPopover id={id} value={value} onChange={onChange}>
+          <div
+            className="size-5 shrink-0 cursor-pointer rounded-sm shadow-[inset_0_0_0_1px_rgba(0,0,0,0.1)]"
+            style={{ backgroundColor: `#${value.hex}` }}
+          />
+        </ColorPickerPopover>
+        <TokenChip label={token} swatchHex={value.hex}>
+          <div className="space-y-2">
+            {aliasChain && aliasChain.length > 1 && (
+              <div className="font-mono text-muted-foreground">
+                {aliasChain.join(' → ')}
+              </div>
+            )}
+            <div className="flex h-7 items-center rounded-md border-0 bg-muted">
+              {hexAlphaInputs}
+            </div>
+          </div>
+        </TokenChip>
       </div>
     </div>
   )
@@ -106,6 +152,8 @@ interface FillSectionProps {
   hasTextContent: boolean
   showBorderColor?: boolean
   showOutlineColor?: boolean
+  classList?: string[]
+  pendingStyles?: Record<string, string>
 }
 
 export function FillSection({
@@ -121,8 +169,21 @@ export function FillSection({
   hasTextContent,
   showBorderColor,
   showOutlineColor,
+  classList,
+  pendingStyles,
 }: FillSectionProps) {
   const showDetectedColorInputs = selectionColors.length > 0 && onSelectionColorChange
+
+  const index = getColorTokenIndex()
+  const tokenFor = (cssProperty: string, value: ColorValue, appliedCss?: string) => {
+    const name =
+      value.token ??
+      tokenFromCssValue(appliedCss) ??
+      (classList ? resolveColorToken(cssProperty, classList, value, index) : null)
+    return name
+      ? { token: name, aliasChain: getTokenAliasChain(name) }
+      : { token: null, aliasChain: undefined }
+  }
 
   return (
     <ColorPickerGroup>
@@ -140,6 +201,7 @@ export function FillSection({
                       id={`selection-color-${index}`}
                       value={color}
                       onChange={(next) => onSelectionColorChange?.(color, next)}
+                      {...tokenFor('', color)}
                     />
                   </div>
                   {onSelectionColorTarget && (
@@ -161,15 +223,30 @@ export function FillSection({
         )}
 
         {!showDetectedColorInputs && hasTextContent && (
-          <ColorInput id="fill-text" value={textColor} onChange={onTextChange} />
+          <ColorInput
+            id="fill-text"
+            value={textColor}
+            onChange={onTextChange}
+            {...tokenFor('color', textColor, pendingStyles?.['color'])}
+          />
         )}
 
         {!showDetectedColorInputs && showBorderColor && borderColor && onBorderColorChange && (
-          <ColorInput id="fill-border" value={borderColor} onChange={onBorderColorChange} />
+          <ColorInput
+            id="fill-border"
+            value={borderColor}
+            onChange={onBorderColorChange}
+            {...tokenFor('border-color', borderColor, pendingStyles?.['border-color'])}
+          />
         )}
 
         {!showDetectedColorInputs && showOutlineColor && outlineColor && onOutlineColorChange && (
-          <ColorInput id="fill-outline" value={outlineColor} onChange={onOutlineColorChange} />
+          <ColorInput
+            id="fill-outline"
+            value={outlineColor}
+            onChange={onOutlineColorChange}
+            {...tokenFor('outline-color', outlineColor, pendingStyles?.['outline-color'])}
+          />
         )}
       </div>
     </ColorPickerGroup>
@@ -183,6 +260,7 @@ interface BackgroundFillSectionProps {
   onSetCSS?: (properties: Record<string, string>) => void
   onCommitFillLayers?: (layers: ColorValue[]) => void
   pendingStyles: Record<string, string>
+  classList?: string[]
 }
 
 export function BackgroundFillSection({
@@ -190,6 +268,7 @@ export function BackgroundFillSection({
   onSetCSS,
   onCommitFillLayers,
   pendingStyles,
+  classList,
 }: BackgroundFillSectionProps) {
   const effectiveBgColor = pendingStyles['background-color'] ?? backgroundColor.raw
   const effectiveBgShorthand = pendingStyles['background'] ?? ''
@@ -223,6 +302,17 @@ export function BackgroundFillSection({
   }
 
   const atLayerCap = layers.length >= MAX_LAYER_COUNT
+
+  // Only a single solid fill layer maps cleanly to one background-color token.
+  const singleLayerToken =
+    layers.length === 1
+      ? layers[0].token ??
+        tokenFromCssValue(pendingStyles['background-color']) ??
+        (classList
+          ? resolveColorToken('background-color', classList, layers[0], getColorTokenIndex())
+          : null)
+      : null
+  const singleLayerAliasChain = singleLayerToken ? getTokenAliasChain(singleLayerToken) : undefined
 
   const addLayer = () => {
     if (atLayerCap) return
@@ -269,6 +359,8 @@ export function BackgroundFillSection({
                     id={`fill-bg-${index}`}
                     value={layer}
                     onChange={(next) => updateLayer(index, next)}
+                    token={layers.length === 1 ? singleLayerToken : null}
+                    aliasChain={layers.length === 1 ? singleLayerAliasChain : undefined}
                   />
                 </div>
                 <Tip label="Remove fill layer">

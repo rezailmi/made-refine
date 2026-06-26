@@ -3,6 +3,8 @@ import { Button } from '../ui/button'
 import { SimpleSelect } from '../ui/simple-select'
 import type { TypographyPropertyKey, TypographyProperties, CSSPropertyValue } from '../types'
 import { NumberInput, Tip } from './shared'
+import { typographyTokenForProperty } from '../utils/design-tokens'
+import { TokenChip } from './token-chip'
 import {
   Type,
   AlignLeft,
@@ -47,9 +49,35 @@ export const FONT_WEIGHTS = [
 interface TypographyInputsProps {
   typography: TypographyProperties
   onUpdate: (key: TypographyPropertyKey, value: CSSPropertyValue | string) => void
+  classList?: string[]
 }
 
-export function TypographyInputs({ typography, onUpdate }: TypographyInputsProps) {
+/**
+ * Renders the raw control inline when no Tailwind utility is attributed, or a
+ * token chip whose popover contains that same raw control when one is.
+ */
+function TypographyField({
+  token,
+  children,
+}: {
+  token: string | null
+  children: React.ReactNode
+}) {
+  if (!token) return <>{children}</>
+  return (
+    <TokenChip label={token}>
+      <div className="space-y-2">{children}</div>
+    </TokenChip>
+  )
+}
+
+export function TypographyInputs({ typography, onUpdate, classList }: TypographyInputsProps) {
+  const cl = classList ?? []
+  const fontSizeToken = typographyTokenForProperty('font-size', cl)
+  const lineHeightToken = typographyTokenForProperty('line-height', cl)
+  const letterSpacingToken = typographyTokenForProperty('letter-spacing', cl)
+  const fontWeightToken = typographyTokenForProperty('font-weight', cl)
+
   const handleFontSizeChange = (value: number) => {
     onUpdate('fontSize', { numericValue: value, unit: 'px', raw: `${value}px` })
   }
@@ -89,49 +117,57 @@ export function TypographyInputs({ typography, onUpdate }: TypographyInputsProps
         itemClassName="relative flex cursor-default select-none items-center rounded-md py-2 pl-7 pr-2 text-xs outline-none hover:bg-muted hover:text-foreground data-[highlighted]:bg-muted data-[highlighted]:text-foreground"
       />
 
-      <SimpleSelect
-        value={typography.fontWeight}
-        onValueChange={(val) => onUpdate('fontWeight', val)}
-        options={FONT_WEIGHTS}
-        label={getFontWeightLabel(typography.fontWeight)}
-        icon={<ALargeSmall className="size-3.5 text-muted-foreground" />}
-        triggerClassName="w-full"
-        popupMinWidth="140px"
-        itemClassName="relative flex cursor-default select-none items-center rounded-md py-2 pl-7 pr-2 text-xs outline-none hover:bg-muted hover:text-foreground data-[highlighted]:bg-muted data-[highlighted]:text-foreground"
-      />
+      <TypographyField token={fontWeightToken}>
+        <SimpleSelect
+          value={typography.fontWeight}
+          onValueChange={(val) => onUpdate('fontWeight', val)}
+          options={FONT_WEIGHTS}
+          label={getFontWeightLabel(typography.fontWeight)}
+          icon={<ALargeSmall className="size-3.5 text-muted-foreground" />}
+          triggerClassName="w-full"
+          popupMinWidth="140px"
+          itemClassName="relative flex cursor-default select-none items-center rounded-md py-2 pl-7 pr-2 text-xs outline-none hover:bg-muted hover:text-foreground data-[highlighted]:bg-muted data-[highlighted]:text-foreground"
+        />
+      </TypographyField>
 
       <div className="flex gap-2">
-        <Tip label="Font Size">
-          <div className="relative flex-1">
-            <AArrowUp className="absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-            <NumberInput
-              value={Math.round(typography.fontSize.numericValue)}
-              onValueChange={handleFontSizeChange}
-              className="h-7 pl-7 pr-2 text-center text-xs tabular-nums"
-            />
-          </div>
-        </Tip>
-        <Tip label="Line Height">
-          <div className="relative flex-1">
-            <WrapText className="absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-            <NumberInput
-              value={Math.round(typography.lineHeight.numericValue)}
-              onValueChange={handleLineHeightChange}
-              className="h-7 pl-7 pr-2 text-center text-xs tabular-nums"
-            />
-          </div>
-        </Tip>
-        <Tip label="Letter Spacing (em)">
-          <div className="relative flex-1">
-            <LetterText className="absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-            <NumberInput
-              step="0.01"
-              value={Math.round(typography.letterSpacing.numericValue * 100) / 100}
-              onValueChange={handleLetterSpacingChange}
-              className="h-7 pl-7 pr-2 text-center text-xs tabular-nums"
-            />
-          </div>
-        </Tip>
+        <TypographyField token={fontSizeToken}>
+          <Tip label="Font Size">
+            <div className="relative flex-1">
+              <AArrowUp className="absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+              <NumberInput
+                value={Math.round(typography.fontSize.numericValue)}
+                onValueChange={handleFontSizeChange}
+                className="h-7 pl-7 pr-2 text-center text-xs tabular-nums"
+              />
+            </div>
+          </Tip>
+        </TypographyField>
+        <TypographyField token={lineHeightToken}>
+          <Tip label="Line Height">
+            <div className="relative flex-1">
+              <WrapText className="absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+              <NumberInput
+                value={Math.round(typography.lineHeight.numericValue)}
+                onValueChange={handleLineHeightChange}
+                className="h-7 pl-7 pr-2 text-center text-xs tabular-nums"
+              />
+            </div>
+          </Tip>
+        </TypographyField>
+        <TypographyField token={letterSpacingToken}>
+          <Tip label="Letter Spacing (em)">
+            <div className="relative flex-1">
+              <LetterText className="absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+              <NumberInput
+                step="0.01"
+                value={Math.round(typography.letterSpacing.numericValue * 100) / 100}
+                onValueChange={handleLetterSpacingChange}
+                className="h-7 pl-7 pr-2 text-center text-xs tabular-nums"
+              />
+            </div>
+          </Tip>
+        </TypographyField>
       </div>
 
       <div className="flex items-center gap-2">

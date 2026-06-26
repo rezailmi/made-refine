@@ -10,6 +10,7 @@ import { ColorPickerGroup } from '../ui/color-picker'
 import { NumberInput, Tip, CollapsibleSection } from './shared'
 import { ColorInput } from './fill-section'
 import { Button } from '../ui/button'
+import { getColorTokenIndex, resolveColorToken, getTokenAliasChain, tokenFromCssValue } from '../utils/design-tokens'
 import {
   ChevronDown,
   Square,
@@ -85,9 +86,11 @@ interface BorderInputsProps {
   onPositionChange: (position: BorderPosition) => void
   outlineStyle?: BorderStyle
   outlineWidth?: number
+  classList?: string[]
+  pendingStyles?: Record<string, string>
 }
 
-export function BorderInputs({ border, borderColor, outlineColor, onChange, onBatchChange, onBorderColorChange, onOutlineColorChange, onSetCSS, borderPosition, borderStyleControlPreference, onPositionChange, outlineStyle, outlineWidth }: BorderInputsProps) {
+export function BorderInputs({ border, borderColor, outlineColor, onChange, onBatchChange, onBorderColorChange, onOutlineColorChange, onSetCSS, borderPosition, borderStyleControlPreference, onPositionChange, outlineStyle, outlineWidth, classList, pendingStyles }: BorderInputsProps) {
   const [selectedSide, setSelectedSide] = React.useState<BorderSideOption>('All')
 
   const isOutline = borderPosition === 'outline'
@@ -189,6 +192,14 @@ export function BorderInputs({ border, borderColor, outlineColor, onChange, onBa
 
   const activeColor = isOutline ? outlineColor : borderColor
   const activeColorChange = isOutline ? onOutlineColorChange : onBorderColorChange
+  const activeProperty = isOutline ? 'outline-color' : 'border-color'
+  const activeToken =
+    activeColor?.token ??
+    tokenFromCssValue(pendingStyles?.[activeProperty]) ??
+    (classList && activeColor
+      ? resolveColorToken(activeProperty, classList, activeColor, getColorTokenIndex())
+      : null)
+  const activeAliasChain = activeToken ? getTokenAliasChain(activeToken) : undefined
   const currentStyleLabel = BORDER_STYLE_OPTIONS.find((o) => o.value === currentStyle)?.label ?? currentStyle
 
   return (
@@ -299,6 +310,8 @@ export function BorderInputs({ border, borderColor, outlineColor, onChange, onBa
               id={isOutline ? 'outline-color' : 'border-color'}
               value={activeColor}
               onChange={activeColorChange}
+              token={activeToken}
+              aliasChain={activeAliasChain}
             />
           </div>
           {borderStyleControlPreference === 'icon' && <div className="size-7 shrink-0" />}
@@ -320,9 +333,10 @@ interface BorderSectionProps {
   onOutlineColorChange?: (value: ColorValue) => void
   onSetCSS?: (properties: Record<string, string>) => void
   pendingStyles?: Record<string, string>
+  classList?: string[]
 }
 
-export function BorderSection({ border, borderColor, outlineColor, borderStyleControlPreference, onChange, onBatchChange, onBorderColorChange, onOutlineColorChange, onSetCSS, pendingStyles }: BorderSectionProps) {
+export function BorderSection({ border, borderColor, outlineColor, borderStyleControlPreference, onChange, onBatchChange, onBorderColorChange, onOutlineColorChange, onSetCSS, pendingStyles, classList }: BorderSectionProps) {
   // Auto-detect initial position from pending styles
   const hasOutlinePending = Boolean(
     pendingStyles?.['outline-style'] || pendingStyles?.['outline-width']
@@ -460,6 +474,8 @@ export function BorderSection({ border, borderColor, outlineColor, borderStyleCo
             onPositionChange={handlePositionChange}
             outlineStyle={outlineStyleValue}
             outlineWidth={outlineWidthValue}
+            classList={classList}
+            pendingStyles={pendingStyles}
           />
         </ColorPickerGroup>
       ) : null}

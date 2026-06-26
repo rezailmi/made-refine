@@ -12,6 +12,7 @@ import {
   formatColorValue,
 } from './color-utils'
 import { useOutsideClickDismiss } from '../hooks/use-outside-click-dismiss'
+import { getColorTokenIndex, tokenPreferenceRank } from '../utils/design-tokens'
 
 function ColorPickerPortal(props: React.ComponentPropsWithoutRef<typeof Popover.Portal>) {
   const container = usePortalContainer()
@@ -170,6 +171,62 @@ function NumericInput({
         onBlur={() => setLocal(Math.round(value).toString())}
         className="h-6 w-9 rounded border-0 bg-muted px-1 text-center text-xs tabular-nums outline-none"
       />
+    </div>
+  )
+}
+
+export function TokenPalette({
+  onPick,
+}: {
+  onPick: (token: string, hex: string) => void
+}) {
+  const index = React.useMemo(() => getColorTokenIndex(), [])
+  const entries = React.useMemo(() => {
+    const all = Array.from(index.byName.values())
+    const semantic = all
+      .filter((e) => tokenPreferenceRank(e.name) !== 1)
+      .sort(
+        (a, b) =>
+          tokenPreferenceRank(a.name) - tokenPreferenceRank(b.name) ||
+          a.name.localeCompare(b.name)
+      )
+    const palette = all
+      .filter((e) => tokenPreferenceRank(e.name) === 1)
+      .sort((a, b) => a.name.localeCompare(b.name))
+    return { semantic, palette }
+  }, [index])
+
+  if (entries.semantic.length === 0 && entries.palette.length === 0) return null
+
+  const Row = (e: { name: string; value: { hex: string } }) => (
+    <button
+      key={e.name}
+      type="button"
+      onClick={() => onPick(e.name, e.value.hex)}
+      className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-xs hover:bg-muted"
+    >
+      <span
+        className="size-4 shrink-0 rounded-sm shadow-[inset_0_0_0_1px_rgba(0,0,0,0.1)]"
+        style={{ backgroundColor: `#${e.value.hex}` }}
+      />
+      <span className="min-w-0 flex-1 truncate font-mono">{e.name}</span>
+    </button>
+  )
+
+  return (
+    <div className="mt-2.5 border-t border-foreground/10 pt-2">
+      <div className="mb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+        Variables
+      </div>
+      <div className="max-h-[160px] overflow-y-auto">
+        {entries.semantic.map(Row)}
+        {entries.palette.length > 0 && (
+          <div className="mt-1 mb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+            Palette
+          </div>
+        )}
+        {entries.palette.map(Row)}
+      </div>
     </div>
   )
 }
@@ -364,6 +421,14 @@ export function ColorPickerPopover({ id, value, onChange, children }: ColorPicke
               <AlphaInput value={alpha} onChange={handleAlphaInput} />
               <span className="text-xs text-muted-foreground">%</span>
             </div>
+
+            {/* Token palette — pick a CSS variable to bind to */}
+            <TokenPalette
+              onPick={(token, hex) => {
+                lastSyncedHex.current = hex
+                onChange({ hex, alpha: 100, raw: `var(${token})`, token })
+              }}
+            />
           </Popover.Popup>
         </Popover.Positioner>
       </ColorPickerPortal>
