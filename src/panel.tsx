@@ -391,7 +391,11 @@ export function DirectEditPanelInner({
           {elementInfo.isTextElement && computedTypography && (
             <div ref={textSectionRef}>
               <CollapsibleSection title="Text">
-                <TypographyInputs typography={computedTypography} onUpdate={onUpdateTypography} />
+                <TypographyInputs
+                  typography={computedTypography}
+                  onUpdate={onUpdateTypography}
+                  classList={elementInfo.classList}
+                />
               </CollapsibleSection>
             </div>
           )}
