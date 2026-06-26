@@ -3,6 +3,7 @@ import { DirectEdit } from '../src/direct-edit'
 import { Avatar, Button, Badge } from './components/ui'
 import { Button as BaseUIButton } from '@base-ui/react/button'
 import { CanvasPlayground } from './canvas-playground'
+import { TokenShowcase } from './token-showcase'
 
 const gray = {
   50: 'var(--color-gray-50, #f9fafb)',
@@ -185,6 +186,9 @@ export default function App() {
           </button>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+
+          {/* Design Tokens — uses Tailwind @theme + shadcn token utility classes */}
+          <TokenShowcase />
 
           {/* Layout & Flex */}
           <div style={card}>
