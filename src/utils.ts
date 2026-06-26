@@ -71,6 +71,23 @@ export {
 import { attributeClassesForProperty } from './utils/tailwind-attribution'
 export { stylesToTailwind } from './utils/tailwind'
 import { stylesToTailwind } from './utils/tailwind'
+export {
+  collectThemeVariables,
+  buildColorTokenIndexFromVariables,
+  getColorTokenIndex,
+  invalidateColorTokenIndex,
+  resolveColorToken,
+  tokenForColorClass,
+  tokenForColorValue,
+  colorClassToVarName,
+  getTokenAliasChain,
+  typographyTokenForProperty,
+  looksLikeColor,
+  resolveVarChain,
+  resolveTokenColor,
+  tokenPreferenceRank,
+} from './utils/design-tokens'
+export type { ThemeVariable, ColorTokenEntry, ColorTokenIndex } from './utils/design-tokens'
 
 export const propertyToCSSMap: Record<SpacingPropertyKey, string> = {
   paddingTop: 'padding-top',
