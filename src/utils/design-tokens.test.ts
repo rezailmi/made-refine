@@ -3,6 +3,7 @@ import {
   buildColorTokenIndexFromVariables,
   collectThemeVariables,
   colorClassToVarName,
+  invalidateColorTokenIndex,
   looksLikeColor,
   resolveTokenColor,
   resolveVarChain,
@@ -10,6 +11,7 @@ import {
   tokenForColorValue,
   tokenFromCssValue,
   typographyTokenForProperty,
+  varForClassRule,
   type ThemeVariable,
 } from './design-tokens'
 import { parseColorValue } from './color'
@@ -272,5 +274,42 @@ describe('typographyTokenForProperty', () => {
 
   it('returns null when nothing matches', () => {
     expect(typographyTokenForProperty('font-size', [])).toBeNull()
+  })
+})
+
+// ---- varForClassRule + tokenForColorClass fallback (DOM-backed) ----
+
+describe('varForClassRule', () => {
+  const injected: HTMLStyleElement[] = []
+
+  function injectStyle(css: string): HTMLStyleElement {
+    const el = document.createElement('style')
+    el.textContent = css
+    document.head.appendChild(el)
+    injected.push(el)
+    return el
+  }
+
+  afterEach(() => {
+    for (const el of injected.splice(0)) el.remove()
+    invalidateColorTokenIndex()
+  })
+
+  it('recovers the real variable from a generated utility rule', () => {
+    injectStyle('.bg-primary{background-color:var(--primary)}')
+    expect(varForClassRule('bg-primary', ['background-color'])).toBe('--primary')
+  })
+
+  it('returns null when no rule matches', () => {
+    expect(varForClassRule('bg-primary', ['background-color'])).toBeNull()
+  })
+
+  it('falls back to the recovered var for shadcn @theme inline tokens', () => {
+    // Only `--primary` lives in :root (the @theme inline `--color-primary` is not
+    // emitted), but the generated utility rule assigns `var(--primary)`.
+    injectStyle(':root{--primary:#171717}.bg-primary{background-color:var(--primary)}')
+    const index = buildColorTokenIndexFromVariables(collectThemeVariables(document))
+    expect(index.byName.has('--color-primary')).toBe(false)
+    expect(tokenForColorClass('background-color', ['bg-primary'], index)).toBe('--primary')
   })
 })

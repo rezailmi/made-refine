@@ -234,4 +234,10 @@ describe('formatColorValue token binding', () => {
       formatColorValue({ hex: '3B82F6', alpha: 100, raw: '', token: '--color-primary' }),
     ).toBe('var(--color-primary)')
   })
+
+  it('wraps a translucent bound token in color-mix', () => {
+    expect(
+      formatColorValue({ hex: '3B82F6', alpha: 50, raw: '', token: '--color-primary' }),
+    ).toBe('color-mix(in srgb, var(--color-primary) 50%, transparent)')
+  })
 })

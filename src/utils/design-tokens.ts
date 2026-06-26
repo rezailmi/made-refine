@@ -240,18 +240,69 @@ export function colorClassToVarName(cls: string): string | null {
 }
 
 /**
+ * Read the generated utility rule for `.<className>` from the document and return
+ * the `--var` it assigns to one of `cssProps`. Recovers shadcn `@theme inline`
+ * bindings (e.g. `.bg-primary { background-color: var(--primary) }`) that are not
+ * present as `:root` variables. Returns null if no rule/var is found.
+ */
+export function varForClassRule(
+  className: string,
+  cssProps: string[],
+  doc: Document = document,
+): string | null {
+  const escaped = className.replace(/[^a-zA-Z0-9_-]/g, '\\$&')
+  for (const sheet of Array.from(doc.styleSheets)) {
+    let rules: CSSRuleList
+    try {
+      rules = sheet.cssRules
+    } catch {
+      continue
+    }
+    for (const rule of Array.from(rules)) {
+      if (!(rule instanceof CSSStyleRule)) continue
+      // match a simple `.class` selector (ignore compound/variant selectors)
+      if (rule.selectorText !== `.${escaped}` && rule.selectorText !== `.${className}`) continue
+      for (const prop of cssProps) {
+        const v = rule.style.getPropertyValue(prop)
+        const m = v && v.match(/var\(\s*(--[\w-]+)\s*(?:,.*)?\)/)
+        if (m) return m[1]
+      }
+    }
+  }
+  return null
+}
+
+// CSS properties to inspect on a generated utility rule, keyed by the color role's
+// primary CSS property. Used to recover shadcn `@theme inline` bindings.
+const EXPANDED_COLOR_PROPS: Record<string, string[]> = {
+  'background-color': ['background-color', 'background'],
+  color: ['color'],
+  'border-color': ['border-color'],
+  'outline-color': ['outline-color'],
+}
+
+/**
  * Given a CSS property + the element's class list, return the bound color token
- * name, verified to exist in `index`. Uses class attribution to pick the right class.
+ * name. Prefers a class that maps to a `:root` variable present in `index`; when
+ * that fails (e.g. shadcn `@theme inline`, where `--color-X` is inlined and not a
+ * `:root` variable), it falls back to reading the generated utility rule for the
+ * class and recovering the real `--var` it assigns. Uses class attribution to pick
+ * the right class.
  */
 export function tokenForColorClass(
   cssProperty: string,
   classList: string[],
   index: ColorTokenIndex,
+  doc: Document = document,
 ): string | null {
   const { matchedClasses } = attributeClassesForProperty(cssProperty, classList)
+  const expandedProps = EXPANDED_COLOR_PROPS[cssProperty] ?? [cssProperty]
   for (const cls of matchedClasses) {
     const varName = colorClassToVarName(cls)
     if (varName && index.byName.has(varName)) return varName
+    // Fallback: recover the real variable from the generated utility rule.
+    const recovered = varForClassRule(cls, expandedProps, doc)
+    if (recovered) return recovered
   }
   return null
 }
