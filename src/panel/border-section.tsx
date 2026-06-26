@@ -10,7 +10,7 @@ import { ColorPickerGroup } from '../ui/color-picker'
 import { NumberInput, Tip, CollapsibleSection } from './shared'
 import { ColorInput } from './fill-section'
 import { Button } from '../ui/button'
-import { getColorTokenIndex, resolveColorToken, getTokenAliasChain } from '../utils/design-tokens'
+import { getColorTokenIndex, resolveColorToken, getTokenAliasChain, tokenFromCssValue } from '../utils/design-tokens'
 import {
   ChevronDown,
   Square,
@@ -87,9 +87,10 @@ interface BorderInputsProps {
   outlineStyle?: BorderStyle
   outlineWidth?: number
   classList?: string[]
+  pendingStyles?: Record<string, string>
 }
 
-export function BorderInputs({ border, borderColor, outlineColor, onChange, onBatchChange, onBorderColorChange, onOutlineColorChange, onSetCSS, borderPosition, borderStyleControlPreference, onPositionChange, outlineStyle, outlineWidth, classList }: BorderInputsProps) {
+export function BorderInputs({ border, borderColor, outlineColor, onChange, onBatchChange, onBorderColorChange, onOutlineColorChange, onSetCSS, borderPosition, borderStyleControlPreference, onPositionChange, outlineStyle, outlineWidth, classList, pendingStyles }: BorderInputsProps) {
   const [selectedSide, setSelectedSide] = React.useState<BorderSideOption>('All')
 
   const isOutline = borderPosition === 'outline'
@@ -193,9 +194,11 @@ export function BorderInputs({ border, borderColor, outlineColor, onChange, onBa
   const activeColorChange = isOutline ? onOutlineColorChange : onBorderColorChange
   const activeProperty = isOutline ? 'outline-color' : 'border-color'
   const activeToken =
-    classList && activeColor
+    activeColor?.token ??
+    tokenFromCssValue(pendingStyles?.[activeProperty]) ??
+    (classList && activeColor
       ? resolveColorToken(activeProperty, classList, activeColor, getColorTokenIndex())
-      : null
+      : null)
   const activeAliasChain = activeToken ? getTokenAliasChain(activeToken) : undefined
   const currentStyleLabel = BORDER_STYLE_OPTIONS.find((o) => o.value === currentStyle)?.label ?? currentStyle
 
@@ -472,6 +475,7 @@ export function BorderSection({ border, borderColor, outlineColor, borderStyleCo
             outlineStyle={outlineStyleValue}
             outlineWidth={outlineWidthValue}
             classList={classList}
+            pendingStyles={pendingStyles}
           />
         </ColorPickerGroup>
       ) : null}

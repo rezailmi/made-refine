@@ -1,6 +1,7 @@
 import type { ColorValue } from '../types'
 
 export function formatColorValue(color: ColorValue): string {
+  if (color.token) return `var(${color.token})`
   const r = parseInt(color.hex.slice(0, 2), 16)
   const g = parseInt(color.hex.slice(2, 4), 16)
   const b = parseInt(color.hex.slice(4, 6), 16)

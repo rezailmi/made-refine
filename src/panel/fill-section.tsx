@@ -11,6 +11,7 @@ import {
   getColorTokenIndex,
   resolveColorToken,
   getTokenAliasChain,
+  tokenFromCssValue,
 } from '../utils/design-tokens'
 
 const MAX_LAYER_COUNT = 16
@@ -152,6 +153,7 @@ interface FillSectionProps {
   showBorderColor?: boolean
   showOutlineColor?: boolean
   classList?: string[]
+  pendingStyles?: Record<string, string>
 }
 
 export function FillSection({
@@ -168,12 +170,16 @@ export function FillSection({
   showBorderColor,
   showOutlineColor,
   classList,
+  pendingStyles,
 }: FillSectionProps) {
   const showDetectedColorInputs = selectionColors.length > 0 && onSelectionColorChange
 
   const index = getColorTokenIndex()
-  const tokenFor = (cssProperty: string, value: ColorValue) => {
-    const name = classList ? resolveColorToken(cssProperty, classList, value, index) : null
+  const tokenFor = (cssProperty: string, value: ColorValue, appliedCss?: string) => {
+    const name =
+      value.token ??
+      tokenFromCssValue(appliedCss) ??
+      (classList ? resolveColorToken(cssProperty, classList, value, index) : null)
     return name
       ? { token: name, aliasChain: getTokenAliasChain(name) }
       : { token: null, aliasChain: undefined }
@@ -221,7 +227,7 @@ export function FillSection({
             id="fill-text"
             value={textColor}
             onChange={onTextChange}
-            {...tokenFor('color', textColor)}
+            {...tokenFor('color', textColor, pendingStyles?.['color'])}
           />
         )}
 
@@ -230,7 +236,7 @@ export function FillSection({
             id="fill-border"
             value={borderColor}
             onChange={onBorderColorChange}
-            {...tokenFor('border-color', borderColor)}
+            {...tokenFor('border-color', borderColor, pendingStyles?.['border-color'])}
           />
         )}
 
@@ -239,7 +245,7 @@ export function FillSection({
             id="fill-outline"
             value={outlineColor}
             onChange={onOutlineColorChange}
-            {...tokenFor('outline-color', outlineColor)}
+            {...tokenFor('outline-color', outlineColor, pendingStyles?.['outline-color'])}
           />
         )}
       </div>
@@ -299,8 +305,12 @@ export function BackgroundFillSection({
 
   // Only a single solid fill layer maps cleanly to one background-color token.
   const singleLayerToken =
-    classList && layers.length === 1
-      ? resolveColorToken('background-color', classList, layers[0], getColorTokenIndex())
+    layers.length === 1
+      ? layers[0].token ??
+        tokenFromCssValue(pendingStyles['background-color']) ??
+        (classList
+          ? resolveColorToken('background-color', classList, layers[0], getColorTokenIndex())
+          : null)
       : null
   const singleLayerAliasChain = singleLayerToken ? getTokenAliasChain(singleLayerToken) : undefined
 

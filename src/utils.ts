@@ -86,6 +86,7 @@ export {
   resolveVarChain,
   resolveTokenColor,
   tokenPreferenceRank,
+  tokenFromCssValue,
 } from './utils/design-tokens'
 export type { ThemeVariable, ColorTokenEntry, ColorTokenIndex } from './utils/design-tokens'
 

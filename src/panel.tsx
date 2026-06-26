@@ -429,6 +429,7 @@ export function DirectEditPanelInner({
                   showBorderColor={computedColor.borderColor.alpha > 0}
                   showOutlineColor={computedColor.outlineColor.alpha > 0}
                   classList={elementInfo.classList}
+                  pendingStyles={pendingStyles}
                 />
               </CollapsibleSection>
             </div>

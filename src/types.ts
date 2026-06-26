@@ -93,6 +93,8 @@ export interface ColorValue {
   hex: string // 6-character hex without # (e.g., "DDDDDD")
   alpha: number // 0-100 percentage
   raw: string // Original CSS value
+  /** When set, this color is bound to a CSS variable; edits write var(--token). */
+  token?: string
 }
 
 export interface ColorProperties {

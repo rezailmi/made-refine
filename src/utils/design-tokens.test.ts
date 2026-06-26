@@ -8,6 +8,7 @@ import {
   resolveVarChain,
   tokenForColorClass,
   tokenForColorValue,
+  tokenFromCssValue,
   typographyTokenForProperty,
   type ThemeVariable,
 } from './design-tokens'
@@ -231,6 +232,28 @@ describe('tokenForColorValue', () => {
 
   it('returns null for an unmatched value', () => {
     expect(tokenForColorValue(parseColorValue('#000000'), index)).toBeNull()
+  })
+})
+
+// ---- tokenFromCssValue (pure) ----
+
+describe('tokenFromCssValue', () => {
+  it('extracts the variable name from a var() value', () => {
+    expect(tokenFromCssValue('var(--color-primary)')).toBe('--color-primary')
+  })
+
+  it('extracts the variable name when a fallback is present', () => {
+    expect(tokenFromCssValue('var(--x, #fff)')).toBe('--x')
+  })
+
+  it('returns null for a literal color', () => {
+    expect(tokenFromCssValue('#3B82F6')).toBeNull()
+  })
+
+  it('returns null for empty or undefined input', () => {
+    expect(tokenFromCssValue('')).toBeNull()
+    expect(tokenFromCssValue(undefined)).toBeNull()
+    expect(tokenFromCssValue(null)).toBeNull()
   })
 })
 

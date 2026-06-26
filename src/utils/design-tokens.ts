@@ -275,6 +275,13 @@ export function resolveColorToken(
   return tokenForColorClass(cssProperty, classList, index) ?? tokenForColorValue(value, index)
 }
 
+/** Extract the variable name from a CSS value like `var(--color-primary)` (or with a fallback). */
+export function tokenFromCssValue(cssValue: string | undefined | null): string | null {
+  if (!cssValue) return null
+  const m = cssValue.trim().match(/^var\(\s*(--[\w-]+)\s*(?:,.*)?\)$/)
+  return m ? m[1] : null
+}
+
 /** Ordered alias chain for the popover, e.g. ['--color-primary','--color-blue-500','#3B82F6']. */
 export function getTokenAliasChain(name: string, doc: Document = document): string[] {
   const vars = collectThemeVariables(doc)

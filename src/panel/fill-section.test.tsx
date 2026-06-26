@@ -3,6 +3,7 @@ import { act, cleanup, render, fireEvent } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { BackgroundFillSection, ColorInput, FillSection } from './fill-section'
 import { invalidateColorTokenIndex } from '../utils/design-tokens'
+import { formatColorValue } from '../ui/color-utils'
 import type { ColorValue } from '../types'
 
 vi.mock('../ui/tooltip', () => ({
@@ -197,5 +198,40 @@ describe('FillSection token resolution', () => {
     )
     expect(container.querySelector('input[type="text"]')).not.toBeNull()
     expect(container.textContent).not.toContain('--color-')
+  })
+
+  it('renders the chip for a value whose .token is set (picker binding)', () => {
+    const bound: ColorValue = {
+      hex: '3B82F6',
+      alpha: 100,
+      raw: 'var(--color-primary)',
+      token: '--color-primary',
+    }
+    const { container } = render(
+      <FillSection textColor={bound} onTextChange={vi.fn()} hasTextContent classList={[]} />,
+    )
+    expect(container.textContent).toContain('--color-primary')
+  })
+
+  it('recovers the chip from a var() in pendingStyles', () => {
+    const literal: ColorValue = { hex: '3B82F6', alpha: 100, raw: '#3B82F6' }
+    const { container } = render(
+      <FillSection
+        textColor={literal}
+        onTextChange={vi.fn()}
+        hasTextContent
+        classList={[]}
+        pendingStyles={{ color: 'var(--color-primary)' }}
+      />,
+    )
+    expect(container.textContent).toContain('--color-primary')
+  })
+})
+
+describe('formatColorValue token binding', () => {
+  it('returns var(--token) when token is set', () => {
+    expect(
+      formatColorValue({ hex: '3B82F6', alpha: 100, raw: '', token: '--color-primary' }),
+    ).toBe('var(--color-primary)')
   })
 })
