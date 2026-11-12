@@ -14,7 +14,6 @@ on:
         type: choice
         options:
           - release
-          - unpublish
       npm_tag:
         description: npm dist-tag (auto = latest for stable, beta for prerelease)
         required: true
@@ -25,16 +24,6 @@ on:
           - latest
           - beta
           - next
-      unpublish_versions:
-        description: Space-separated versions to unpublish (unpublish only)
-        required: false
-        default: '0.1.0-beta.3 0.1.0-beta.4 0.1.0-beta.5 0.1.0-beta.6 0.1.0-beta.7 0.1.0-beta.8'
-        type: string
-      confirm_unpublish:
-        description: Type UNPUBLISH to confirm unpublish task
-        required: false
-        default: ''
-        type: string
 
 permissions:
   contents: read
@@ -136,59 +125,3 @@ jobs:
 
       - name: Publish to npm
         run: npm publish --provenance --tag "${{ steps.publish_tag.outputs.tag }}"
-
-  unpublish:
-    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.task == 'unpublish' && github.ref == 'refs/heads/main' }}
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          registry-url: 'https://registry.npmjs.org'
-
-      - name: Validate unpublish confirmation and versions
-        run: |
-          if [ "${{ github.event.inputs.confirm_unpublish }}" != "UNPUBLISH" ]; then
-            echo "Set confirm_unpublish to UNPUBLISH to run unpublish task."
-            exit 1
-          fi
-
-          VERSIONS="${{ github.event.inputs.unpublish_versions }}"
-          if [ -z "$VERSIONS" ]; then
-            echo "No versions provided."
-            exit 1
-          fi
-
-          for VERSION in $(echo "$VERSIONS" | tr ',' ' '); do
-            if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$ ]]; then
-              echo "Invalid version: $VERSION"
-              exit 1
-            fi
-          done
-
-      - name: Unpublish selected versions
-        run: |
-          for VERSION in $(echo "${{ github.event.inputs.unpublish_versions }}" | tr ',' ' '); do
-            set +e
-            OUTPUT=$(bunx npm unpublish "made-refine@$VERSION" 2>&1)
-            STATUS=$?
-            set -e
-
-            echo "$OUTPUT"
-
-            if [ "$STATUS" -ne 0 ]; then
-              if echo "$OUTPUT" | grep -qiE "404|not found|is not in this registry|already unpublished"; then
-                echo "$VERSION already unpublished or not found"
-              else
-                echo "Failed to unpublish $VERSION"
-                exit "$STATUS"
-              fi
-            fi
-          done
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
